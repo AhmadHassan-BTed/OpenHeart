@@ -2,12 +2,12 @@ use std::fs;
 use tempfile::tempdir;
 
 use openheart::core::types::token::{build_sort_key, unpack_sort_key, LangId, TokenType};
-use openheart::phase1::adapter::java::JavaLanguageAdapter;
-use openheart::phase1::adapter::LanguageAdapter;
-use openheart::phase1::interner::StringInterner;
-use openheart::phase1::manifest::SourceManifestBuilder;
-use openheart::phase1::serializer::TokenCorpusSerializer;
-use openheart::phase1::Phase1Stage;
+use openheart::ingestion::adapter::java::JavaLanguageAdapter;
+use openheart::ingestion::adapter::LanguageAdapter;
+use openheart::ingestion::interner::StringInterner;
+use openheart::ingestion::manifest::SourceManifestBuilder;
+use openheart::ingestion::serializer::TokenCorpusSerializer;
+use openheart::ingestion::IngestionStage;
 
 #[test]
 fn test_sort_key_packing_and_unpacking() {
@@ -89,7 +89,8 @@ public class PatientHeartMonitor {
 
     let out_tca_path = dir.path().join("output.tca");
 
-    let artifact = Phase1Stage::run(manifest, &out_tca_path).expect("Phase1Stage execution failed");
+    let artifact =
+        IngestionStage::run(manifest, &out_tca_path).expect("IngestionStage execution failed");
 
     assert_eq!(artifact.file_records.len(), 1);
     assert!(artifact.token_records.len() > 10);

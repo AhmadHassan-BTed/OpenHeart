@@ -16,19 +16,19 @@ use sha2::{Digest, Sha256};
 
 use crate::core::types::source::SourceFileRecord;
 use crate::core::types::token::{build_sort_key, TokenRecord};
-use crate::phase1::adapter::registry::AdapterRegistry;
-use crate::phase1::allocator::TokenIdAllocator;
-use crate::phase1::builder::TokenCorpusBuilder;
-use crate::phase1::interner::StringInterner;
-use crate::phase1::manifest::SourceManifest;
-use crate::phase1::parser::tree_sitter::TreeSitterParser;
-use crate::phase1::parser::CSTParser;
-use crate::phase1::serializer::{TokenCorpusArtifact, TokenCorpusSerializer};
-use crate::phase1::walker::walk_cst;
+use crate::ingestion::adapter::registry::AdapterRegistry;
+use crate::ingestion::allocator::TokenIdAllocator;
+use crate::ingestion::builder::TokenCorpusBuilder;
+use crate::ingestion::interner::StringInterner;
+use crate::ingestion::manifest::SourceManifest;
+use crate::ingestion::parser::tree_sitter::TreeSitterParser;
+use crate::ingestion::parser::CSTParser;
+use crate::ingestion::serializer::{TokenCorpusArtifact, TokenCorpusSerializer};
+use crate::ingestion::walker::walk_cst;
 
-pub struct Phase1Stage;
+pub struct IngestionStage;
 
-impl Phase1Stage {
+impl IngestionStage {
     pub fn run(manifest: SourceManifest, out_path: &Path) -> Result<TokenCorpusArtifact, String> {
         let mut files: Vec<PathBuf> = manifest.file_paths.clone();
         files.sort_unstable();

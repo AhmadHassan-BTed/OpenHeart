@@ -1,6 +1,6 @@
 use tree_sitter::{Language, Parser, Tree};
 
-use crate::phase1::parser::CSTParser;
+use crate::ingestion::parser::CSTParser;
 
 pub struct TreeSitterParser {
     parser: Parser,

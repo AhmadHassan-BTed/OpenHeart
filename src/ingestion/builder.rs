@@ -1,7 +1,7 @@
 use crate::core::types::source::SourceFileRecord;
 use crate::core::types::token::{TokenEntry, TokenRecord};
-use crate::phase1::interner::StringInterner;
-use crate::phase1::serializer::TokenCorpusArtifact;
+use crate::ingestion::interner::StringInterner;
+use crate::ingestion::serializer::TokenCorpusArtifact;
 
 pub struct TokenCorpusBuilder {
     token_records: Vec<TokenRecord>,

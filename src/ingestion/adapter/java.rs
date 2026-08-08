@@ -1,7 +1,7 @@
 use tree_sitter::Language;
 
 use crate::core::types::token::{LangId, TokenType};
-use crate::phase1::adapter::LanguageAdapter;
+use crate::ingestion::adapter::LanguageAdapter;
 
 pub struct JavaLanguageAdapter;
 

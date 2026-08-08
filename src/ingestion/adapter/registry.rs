@@ -4,8 +4,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::core::types::token::LangId;
-use crate::phase1::adapter::java::JavaLanguageAdapter;
-use crate::phase1::adapter::LanguageAdapter;
+use crate::ingestion::adapter::java::JavaLanguageAdapter;
+use crate::ingestion::adapter::LanguageAdapter;
 
 #[derive(Clone)]
 pub struct AdapterRegistry {

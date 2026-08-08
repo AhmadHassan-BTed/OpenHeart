@@ -1,16 +1,16 @@
 use tempfile::tempdir;
 
-use openheart::phase1::parser::tree_sitter::TreeSitterParser;
-use openheart::phase1::parser::CSTParser;
-use openheart::phase2::adapter::java::JavaASTReductionAdapter;
-use openheart::phase2::adapter::ASTReductionAdapter;
-use openheart::phase2::bp_encoder::BPEncoder;
-use openheart::phase2::builder::BPASTBuilder;
-use openheart::phase2::jump_table::JumpTableBuilder;
-use openheart::phase2::rank_select::RankSelectIndex;
-use openheart::phase2::reducer::reduce_and_encode;
-use openheart::phase2::rmq::SparseTableRMQ;
-use openheart::phase2::serializer::BPASTSerializer;
+use openheart::ast::adapter::java::JavaASTReductionAdapter;
+use openheart::ast::adapter::ASTReductionAdapter;
+use openheart::ast::bp_encoder::BPEncoder;
+use openheart::ast::builder::BPASTBuilder;
+use openheart::ast::jump_table::JumpTableBuilder;
+use openheart::ast::rank_select::RankSelectIndex;
+use openheart::ast::reducer::reduce_and_encode;
+use openheart::ast::rmq::SparseTableRMQ;
+use openheart::ast::serializer::BPASTSerializer;
+use openheart::ingestion::parser::tree_sitter::TreeSitterParser;
+use openheart::ingestion::parser::CSTParser;
 
 #[test]
 fn test_bp_encoder_basic() {

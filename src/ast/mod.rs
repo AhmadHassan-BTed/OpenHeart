@@ -10,15 +10,15 @@ pub mod reducer;
 pub mod rmq;
 pub mod serializer;
 
-use crate::phase1::serializer::crc64_ecma;
+use crate::ingestion::serializer::crc64_ecma;
 use std::fs;
 use std::path::Path;
 
 use crate::core::io::mmap::MemoryMappedFile;
 use crate::core::types::token::TokenRecord;
-use crate::phase1::adapter::registry::AdapterRegistry as Phase1Registry;
-use crate::phase1::parser::tree_sitter::TreeSitterParser;
-use crate::phase1::parser::CSTParser;
+use crate::ingestion::adapter::registry::AdapterRegistry as Phase1Registry;
+use crate::ingestion::parser::tree_sitter::TreeSitterParser;
+use crate::ingestion::parser::CSTParser;
 use adapter::registry::ASTAdapterRegistry;
 use builder::{BPASTArtifact, BPASTBuilder};
 use reducer::reduce_and_encode;
@@ -26,14 +26,14 @@ use serializer::BPASTSerializer;
 
 pub const TCA_HEADER_SIZE: usize = 64;
 
-pub struct Phase2Input {
+pub struct ASTStageInput {
     pub tca: MemoryMappedFile,
 }
 
-pub struct Phase2Stage;
+pub struct ASTStage;
 
-impl Phase2Stage {
-    pub fn run(input: &Phase2Input, out_path: &Path) -> std::io::Result<BPASTArtifact> {
+impl ASTStage {
+    pub fn run(input: &ASTStageInput, out_path: &Path) -> std::io::Result<BPASTArtifact> {
         let tca_bytes = input.tca.as_slice();
         if tca_bytes.len() < TCA_HEADER_SIZE {
             return Err(std::io::Error::new(
