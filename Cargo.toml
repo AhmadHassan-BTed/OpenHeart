@@ -1,0 +1,16 @@
+[package]
+name = "openheart"
+version = "0.1.0"
+edition = "2021"
+authors = ["OpenHeart Developers"]
+description = "High-performance lexical ingestion and token corpus pipeline for cardiac/code processing"
+
+[dependencies]
+tree-sitter = "0.20"
+tree-sitter-java = "0.20"
+sha2 = "0.10"
+memmap2 = "0.9"
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.8"
