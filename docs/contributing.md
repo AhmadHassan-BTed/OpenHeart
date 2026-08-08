@@ -1,23 +1,26 @@
 # Contributing to OpenHeart
 
-Thank you for considering contributing to **OpenHeart**!
+Thank you for contributing to **OpenHeart**!
 
-## How to Contribute
+---
 
-1. **Fork or Branch**: Create a feature branch off the `main` branch:
+## 🛠️ Development Guidelines
+
+1. **Branching Strategy**: Create feature branches off `main`:
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feat/your-feature-name
    ```
 
-2. **Make Your Changes**: Ensure code quality and update relevant documentation under `docs/`.
+2. **Code Standards**:
+   - Maintain zero `cargo clippy` warnings and zero compilation warnings.
+   - Enforce 100% passing tests for all submodules in `src/core/` and `src/phase1/`.
+   - Preserve memory layout invariants (`TokenRecord` 16B, `SourceFileRecord` 64B, `sort_key` packing).
 
-3. **Commit Guidelines**: Use clear and descriptive commit messages:
+3. **Commit Messages**: Use Conventional Commits format:
    ```bash
-   git commit -m "feat: add ECG waveform processing module"
+   git commit -m "feat: add tree-sitter parser adapter for Kotlin"
    ```
 
-4. **Pull Requests**: Submit a pull request detailing your changes and the rationale behind them.
-
-## Code of Conduct
-
-Please maintain a welcoming, respectful, and collaborative environment when participating in this project.
+4. **Pull Requests**:
+   - Run `cargo test` prior to submitting your PR.
+   - Update relevant documentation in `docs/` or `README.md`.
