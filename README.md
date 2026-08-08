@@ -25,6 +25,17 @@
 
 ---
 
+## Interactive Architecture & Pipeline Visualizers
+
+Explore the interactive HTML visualizers hosted live on GitHub Pages:
+
+- 📊 **[Interactive 10-Phase SCPG Pipeline Visualizer](https://ahmadhassan-bted.github.io/OpenHeart/docs/openheart_10_phase_pipeline.html)** ([Source HTML](docs/openheart_10_phase_pipeline.html))
+- 🏗️ **[Interactive 5-Layer SCPG Architecture & Traceability Matrix](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html)** ([Source HTML](docs/scpg_architecture_diagram.html))
+- ⚡ **[Interactive Phase 1 Ingestion & Bit Layout Architecture](https://ahmadhassan-bted.github.io/OpenHeart/docs/phase1_architecture_and_bit_layout.html)** ([Source HTML](docs/phase1_architecture_and_bit_layout.html))
+- 🌲 **[Interactive Phase 2 BP AST & Navigation Ops Visualizer](https://ahmadhassan-bted.github.io/OpenHeart/docs/phase2_bp_architecture.html)** ([Source HTML](docs/phase2_bp_architecture.html))
+
+---
+
 ## Overview & System Philosophy
 
 Software codebases are human creations designed to express complex domain logic. However, existing static program analysis tools (such as legacy Code Property Graphs or lowered compiler IRs) strip away high-level intent and introduce massive memory overheads through pointer-heavy node objects.
@@ -45,18 +56,18 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 
 The OpenHeart analysis engine is structured into a 10-phase pipeline, where each phase produces an immutable, binary artifact with CRC-64 verification:
 
-| Phase | Pipeline Stage | Primary Inputs | Serialized Artifact | Key Responsibility |
-|---|---|---|---|---|
-| **1** | **Lexical Ingestion** | Source text | `TokenCorpusArtifact (.tca)` | FNV-1a string interning, sorted forward index, `token_id` allocation. |
-| **2** | **CST Reduction & BP Encoding** | `.tca` artifact | `BPASTArtifact (.bpa)` | Reduced ordinal AST forest, 2-bit/node BP bitstring, jump table, RMQ LCA. |
-| **3** | **Symbol Table & Type Hierarchy** | `.tca`, `.bpa` | `SymbolTableArtifact (.sta)` | Scope resolution, symbol declaration DAG ($V_{\text{sym}}$), $E^{\text{TH}}$ type relations. |
-| **4** | **CFG & Dominator Analysis** | `.bpa`, `.sta` | `CFGArtifact (.cfa)` | Basic block partitioning ($V_{\text{bb}}$), CSR adjacency lists, Lengauer-Tarjan dominators. |
-| **5** | **SSA Conversion & Data Flow** | `.cfa`, `.sta` | `SSAArtifact (.ssa)` | Iterated dominance frontiers (Cytron 1991), $\phi$-functions, IFDS taint propagation. |
-| **6** | **Inter-procedural Call Graph** | `.ssa`, `.sta` | `CallGraphArtifact (.cga)` | Call graph ($E^{\text{CG}}$) derivation, class hierarchy analysis, $k$-CFA points-to analysis. |
-| **7** | **Traceability Index** | `.tca` through `.cga` | `TraceabilityArtifact (.tra)` | Bidirectional Forward Index (source $\rightarrow$ IR) & dense Backward Index (IR $\rightarrow$ source). |
-| **8** | **ROBDD Path Summaries** | `.cfa`, `.ssa` | `PathSummaryArtifact (.psa)` | Reduced Ordered BDD path boolean functions ($f_{\text{paths}}$), FORCE/sifting reordering. |
-| **9** | **UML Semantic Metadata** | Artifacts 1–8 | `UMLMetadataArtifact (.uma)` | Synthesis of $\rho$ mapping functions for all 14 standard UML diagram views. |
-| **10**| **SCPG Query Bootstrap** | Artifacts 1–9 | `SCPG Binary (.scpg)` | 11-section memory-mapped `.scpg` binary file & CFL-reachability query engine. |
+| Phase | Pipeline Stage | Primary Inputs | Serialized Artifact | Key Responsibility | Interactive Spec |
+|---|---|---|---|---|---|
+| **1** | **Lexical Ingestion** | Source text | `TokenCorpusArtifact (.tca)` | FNV-1a string interning, sorted forward index, `token_id` allocation. | [Phase 1 Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/phase1_architecture_and_bit_layout.html) |
+| **2** | **CST Reduction & BP Encoding** | `.tca` artifact | `BPASTArtifact (.bpa)` | Reduced ordinal AST forest, 2-bit/node BP bitstring, jump table, RMQ LCA. | [Phase 2 Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/phase2_bp_architecture.html) |
+| **3** | **Symbol Table & Type Hierarchy** | `.tca`, `.bpa` | `SymbolTableArtifact (.sta)` | Scope resolution, symbol declaration DAG ($V_{\text{sym}}$), $E^{\text{TH}}$ type relations. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **4** | **CFG & Dominator Analysis** | `.bpa`, `.sta` | `CFGArtifact (.cfa)` | Basic block partitioning ($V_{\text{bb}}$), CSR adjacency lists, Lengauer-Tarjan dominators. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **5** | **SSA Conversion & Data Flow** | `.cfa`, `.sta` | `SSAArtifact (.ssa)` | Iterated dominance frontiers (Cytron 1991), $\phi$-functions, IFDS taint propagation. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **6** | **Inter-procedural Call Graph** | `.ssa`, `.sta` | `CallGraphArtifact (.cga)` | Call graph ($E^{\text{CG}}$) derivation, class hierarchy analysis, $k$-CFA points-to analysis. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **7** | **Traceability Index** | `.tca` through `.cga` | `TraceabilityArtifact (.tra)` | Bidirectional Forward Index (source $\rightarrow$ IR) & dense Backward Index (IR $\rightarrow$ source). | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **8** | **ROBDD Path Summaries** | `.cfa`, `.ssa` | `PathSummaryArtifact (.psa)` | Reduced Ordered BDD path boolean functions ($f_{\text{paths}}$), FORCE/sifting reordering. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **9** | **UML Semantic Metadata** | Artifacts 1–8 | `UMLMetadataArtifact (.uma)` | Synthesis of $\rho$ mapping functions for all 14 standard UML diagram views. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/scpg_architecture_diagram.html) |
+| **10**| **SCPG Query Bootstrap** | Artifacts 1–9 | `SCPG Binary (.scpg)` | 11-section memory-mapped `.scpg` binary file & CFL-reachability query engine. | [Full Spec](https://ahmadhassan-bted.github.io/OpenHeart/docs/openheart_10_phase_pipeline.html) |
 
 ---
 
@@ -203,6 +214,11 @@ OpenHeart/
 │   │   └── serializer.rs      # Binary .bpa format serializer & CRC-64 verification
 │   └── lib.rs                 # Root library entry point
 ├── web/                       # Standalone Web Portal Studio
+│   ├── docs/                  # Hosted interactive HTML visualizer components
+│   │   ├── openheart_10_phase_pipeline.html
+│   │   ├── scpg_architecture_diagram.html
+│   │   ├── phase1_architecture_and_bit_layout.html
+│   │   └── phase2_bp_architecture.html
 │   ├── index.html             # Web Repository UML Studio UI
 │   ├── style.css              # Dark glassmorphism CSS design system
 │   ├── app.js                 # Interactive 14 UML diagram renderer (Mermaid.js)
@@ -212,6 +228,10 @@ OpenHeart/
 │   └── ast_tests.rs           # BP AST Encoding & Invariants 1-5 integration tests
 ├── docs/
 │   ├── assets/                # Architecture diagrams and technical PNG/SVG assets
+│   ├── openheart_10_phase_pipeline.html # Interactive 10-phase pipeline HTML
+│   ├── scpg_architecture_diagram.html  # Interactive 5-layer architecture HTML
+│   ├── phase1_architecture_and_bit_layout.html # Interactive Phase 1 HTML
+│   ├── phase2_bp_architecture.html     # Interactive Phase 2 HTML
 │   ├── overview.md            # Detailed SCPG mathematical specification & formal analysis
 │   ├── architecture.md        # 10-Phase pipeline system architecture guide
 │   └── technical-decisions.md # Architecture Decision Records (ADR-001 to ADR-004)
