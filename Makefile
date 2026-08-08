@@ -1,4 +1,4 @@
-.PHONY: all build check test clean fmt docs ci help
+.PHONY: all build check test clean fmt docs ci serve help
 
 # Default target
 all: check test
@@ -31,6 +31,11 @@ docs:
 ci:
 	./scripts/ci_check.sh
 
+## Launch Web Portal Adapter Studio
+serve:
+	@echo "Starting OpenHeart Web Portal Studio at http://localhost:8080..."
+	python3 -m http.server 8080 --directory web
+
 ## Clean build target directory
 clean:
 	cargo clean
@@ -45,4 +50,5 @@ help:
 	@echo "  make fmt      - Run cargo fmt"
 	@echo "  make docs     - Build cargo documentation"
 	@echo "  make ci       - Run local CI validation script"
+	@echo "  make serve    - Launch Web Portal Adapter Studio on port 8080"
 	@echo "  make clean    - Clean build target directory"

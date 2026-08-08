@@ -1,0 +1,461 @@
+/* OpenHeart Studio — CSS Design System */
+:root {
+  --bg-dark: #0d1117;
+  --panel-bg: #161b22;
+  --panel-border: #30363d;
+  --card-bg: #21262d;
+  
+  --text-main: #c9d1d9;
+  --text-muted: #8b949e;
+  --text-heading: #f0f6fc;
+  
+  --accent-blue: #58a6ff;
+  --accent-blue-hover: #1f6feb;
+  --accent-green: #3fb950;
+  --accent-purple: #bc8cff;
+  --accent-orange: #d29922;
+  --accent-red: #f85149;
+  
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* App Layout */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo-icon {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, var(--accent-blue-hover), var(--accent-purple));
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 18px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);
+}
+
+.brand-text h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.brand-text h1 span {
+  color: var(--accent-blue);
+  font-weight: 400;
+}
+
+.brand-text .subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Badges */
+.badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-rust {
+  background-color: rgba(210, 153, 34, 0.15);
+  color: var(--accent-orange);
+  border: 1px solid rgba(210, 153, 34, 0.4);
+}
+.badge-author {
+  background-color: rgba(188, 140, 255, 0.15);
+  color: var(--accent-purple);
+  border: 1px solid rgba(188, 140, 255, 0.4);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  text-decoration: none;
+}
+.btn-primary {
+  background-color: var(--accent-blue-hover);
+  color: #ffffff;
+}
+.btn-primary:hover {
+  background-color: #388bfd;
+  box-shadow: 0 0 12px rgba(56, 139, 253, 0.4);
+}
+.btn-secondary {
+  background-color: var(--card-bg);
+  color: var(--text-heading);
+  border: 1px solid var(--panel-border);
+}
+.btn-secondary:hover {
+  background-color: #30363d;
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Main Grid */
+.main-content {
+  display: grid;
+  grid-template-columns: 460px 1fr;
+  gap: 24px;
+  padding: 24px 32px;
+  flex: 1;
+}
+
+/* Panel Cards */
+.panel-card {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin-bottom: 6px;
+}
+
+.panel-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input-wrapper {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="text"], select {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: var(--bg-dark);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-heading);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input[type="text"]:focus, select:focus {
+  border-color: var(--accent-blue);
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+.flex-1 { flex: 1; }
+
+/* Diagram Category & Checkbox Grid */
+.diagram-category {
+  margin-top: 16px;
+}
+
+.diagram-category h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 4px;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.checkbox-card {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.checkbox-card:hover {
+  border-color: var(--accent-blue);
+}
+
+.checkbox-card input[type="checkbox"] {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  accent-color: var(--accent-blue);
+}
+
+.cb-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading);
+  padding-right: 20px;
+}
+
+.cb-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+/* Status Card */
+.status-card {
+  background-color: rgba(33, 38, 45, 0.8);
+  border-color: var(--accent-blue);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin-bottom: 10px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--panel-border);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.progress-bar-bg {
+  height: 6px;
+  background-color: var(--bg-dark);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+  transition: width 0.3s ease;
+}
+
+.status-logs {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background-color: var(--bg-dark);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.hidden { display: none; }
+
+/* Studio Card */
+.studio-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.studio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.diagram-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab-btn.active {
+  background-color: var(--accent-blue-hover);
+  color: #ffffff;
+  border-color: var(--accent-blue);
+}
+
+.studio-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mermaid-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  overflow: auto;
+  background-color: #0b0e14;
+}
+
+.empty-state {
+  text-align: center;
+  max-width: 400px;
+}
+
+.empty-icon {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--panel-border);
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  color: var(--text-heading);
+  margin-bottom: 6px;
+}
+
+.empty-state p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Traceability Drawer */
+.traceability-footer {
+  padding: 12px 20px;
+  background-color: var(--card-bg);
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+}
+
+.trace-title {
+  font-weight: 600;
+  color: var(--accent-blue);
+  margin-bottom: 4px;
+}
+
+.trace-info {
+  display: flex;
+  gap: 20px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.trace-info strong {
+  color: var(--text-heading);
+}
+
+@media (max-width: 1024px) {
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+}

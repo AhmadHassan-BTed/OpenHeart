@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenHeart Studio — Web Repository UML Generator</title>
+  <meta name="description" content="Deployable web portal for OpenHeart SCPG engine. Fetch GitHub repositories and generate all 14 native UML diagrams." />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Mermaid JS for live diagram rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header Navbar -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">OH</div>
+        <div class="brand-text">
+          <h1>OpenHeart <span>Studio</span></h1>
+          <p class="subtitle">Succinct Compositional Program Graph (SCPG) Web Portal</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="badge badge-rust">Rust Engine v0.1.0</span>
+        <span class="badge badge-author">Maintained by Ahmad Hassan (B-Ted)</span>
+        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn btn-secondary btn-sm">GitHub Repo</a>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="main-content">
+      <!-- Left Controls Panel -->
+      <section class="control-panel">
+        <!-- Section 1: Repo URL Input -->
+        <div class="panel-card">
+          <h2 class="panel-title">Repository Adapter</h2>
+          <p class="panel-desc">Provide any public Git repository link to analyze semantics and extract succinct program graphs.</p>
+          
+          <div class="form-group">
+            <label for="repo-url-input">GitHub Repository Link</label>
+            <div class="input-wrapper">
+              <input type="text" id="repo-url-input" placeholder="https://github.com/AhmadHassan-BTed/OpenHeart" value="https://github.com/AhmadHassan-BTed/OpenHeart" />
+              <button id="btn-fetch" class="btn btn-primary">Fetch & Analyze</button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="repo-branch">Branch / Tag</label>
+              <input type="text" id="repo-branch" value="main" />
+            </div>
+            <div class="form-group flex-1">
+              <label for="parser-adapter">Language Adapter</label>
+              <select id="parser-adapter">
+                <option value="auto">Auto-Detect (Multi-Language)</option>
+                <option value="java">Java (Tree-sitter)</option>
+                <option value="rust">Rust (Tree-sitter)</option>
+                <option value="cpp">C / C++ (Tree-sitter)</option>
+                <option value="python">Python (Tree-sitter)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: 14 UML Diagram Selection Matrix -->
+        <div class="panel-card">
+          <div class="panel-header-row">
+            <h2 class="panel-title">14 UML Diagram Selection Matrix</h2>
+            <div class="preset-buttons">
+              <button id="btn-select-all" class="btn-link">Select All (14)</button>
+              <button id="btn-clear-all" class="btn-link">Clear</button>
+            </div>
+          </div>
+          <p class="panel-desc">Tick whichever UML diagram views you wish to derive from the SCPG graph layers.</p>
+
+          <!-- Structural Category -->
+          <div class="diagram-category">
+            <h3>Structural Diagrams (7)</h3>
+            <div class="checkbox-grid">
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="class" checked />
+                <span class="cb-label">Class Diagram</span>
+                <span class="cb-sub">E^TH + V_sym</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="object" checked />
+                <span class="cb-label">Object Diagram</span>
+                <span class="cb-sub">E^TH + SSA Instances</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="component" checked />
+                <span class="cb-label">Component Diagram</span>
+                <span class="cb-sub">V_sym Modules</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="deployment" />
+                <span class="cb-label">Deployment Diagram</span>
+                <span class="cb-sub">V_sym + Artifacts</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="package" checked />
+                <span class="cb-label">Package Diagram</span>
+                <span class="cb-sub">V_sym Namespaces</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="composite" />
+                <span class="cb-label">Composite Structure</span>
+                <span class="cb-sub">Class Fields & Ports</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="profile" />
+                <span class="cb-label">Profile Diagram</span>
+                <span class="cb-sub">Stereotype Records</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Behavioral Category -->
+          <div class="diagram-category">
+            <h3>Behavioral & Interaction Diagrams (7)</h3>
+            <div class="checkbox-grid">
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="usecase" />
+                <span class="cb-label">Use Case Diagram</span>
+                <span class="cb-sub">API Surface + Actor</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="activity" checked />
+                <span class="cb-label">Activity Diagram</span>
+                <span class="cb-sub">E^CFG + CDG Trees</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="statemachine" />
+                <span class="cb-label">State Machine</span>
+                <span class="cb-sub">E^CFG + AbsInt</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="sequence" checked />
+                <span class="cb-label">Sequence Diagram</span>
+                <span class="cb-sub">E^CG + ROBDD Paths</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="communication" />
+                <span class="cb-label">Communication</span>
+                <span class="cb-sub">E^CG + Order</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="interaction" />
+                <span class="cb-label">Interaction Overview</span>
+                <span class="cb-sub">CFG + Calls</span>
+              </label>
+              <label class="checkbox-card">
+                <input type="checkbox" name="uml-type" value="timing" />
+                <span class="cb-label">Timing Diagram</span>
+                <span class="cb-sub">State + Bounds</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Display Studio -->
+      <section class="viewer-panel">
+        <!-- Pipeline Progress Status -->
+        <div id="pipeline-status" class="panel-card status-card hidden">
+          <div class="status-header">
+            <span class="status-indicator spinner"></span>
+            <span id="status-step-title">Initializing Repository Ingestion...</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="progress-bar-fill" class="progress-bar-fill" style="width: 15%;"></div>
+          </div>
+          <div id="status-logs" class="status-logs">
+            <div class="log-line">> Parsing repository URL target...</div>
+          </div>
+        </div>
+
+        <!-- Rendered Studio Box -->
+        <div class="panel-card studio-card">
+          <div class="studio-header">
+            <div id="diagram-tabs" class="diagram-tabs">
+              <!-- Rendered Tabs generated via app.js -->
+            </div>
+            <div class="studio-actions">
+              <button id="btn-copy-mermaid" class="btn btn-secondary btn-sm">Copy Mermaid</button>
+              <button id="btn-export-svg" class="btn btn-secondary btn-sm">Export SVG</button>
+            </div>
+          </div>
+
+          <!-- Mermaid Render Canvas -->
+          <div id="mermaid-render-container" class="mermaid-container">
+            <div class="empty-state">
+              <div class="empty-icon">SCPG</div>
+              <h3>No Diagram Rendered Yet</h3>
+              <p>Enter a GitHub repository link on the left and click <b>Fetch & Analyze</b> to generate native UML diagrams.</p>
+            </div>
+          </div>
+
+          <!-- Source Traceability Anchor Drawer -->
+          <div class="traceability-footer">
+            <div class="trace-title">Universal Traceability Anchor (token_id)</div>
+            <div id="trace-info" class="trace-info">
+              <span>Token ID: <strong id="trace-tid">#0000</strong></span>
+              <span>Source File: <strong id="trace-file">--</strong></span>
+              <span>Span: <strong id="trace-span">L0:C0 - L0:C0</strong></span>
+              <span>SCPG Digest: <strong id="trace-hash">0x00000000</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
