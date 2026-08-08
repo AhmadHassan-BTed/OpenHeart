@@ -94,13 +94,16 @@ OpenHeart/
 ├── tests/
 │   └── phase1_tests.rs     # Integration and end-to-end pipeline tests
 ├── docs/
-│   ├── overview.md         # Detailed SCPG mathematical specification & formal analysis
-│   ├── architecture.md     # 5-Phase pipeline system architecture guide
-│   ├── getting_started.md # Quickstart & developer onboarding
-│   └── contributing.md     # Contribution standards & commit guidelines
-├── Cargo.toml              # Rust crate manifest
-├── ImplementationPlan.md   # Complete Phase 1 technical specification
-└── README.md               # Repository documentation
+│   ├── overview.md                     # Detailed SCPG mathematical specification & formal analysis
+│   ├── architecture.md                 # 5-Phase pipeline system architecture guide
+│   ├── succinct_structures.md          # BP ASTs, CSR CFGs, Wavelet Trees & ROBDD proof specs
+│   ├── uml_derivation.md               # 14 UML diagram derivation rules & query formulas
+│   ├── traceability_and_incremental.md # Universal token_id traceability & incremental diff engine
+│   ├── getting_started.md             # Quickstart & developer onboarding
+│   └── contributing.md                 # Contribution standards & commit guidelines
+├── Cargo.toml                          # Rust crate manifest
+├── ImplementationPlan.md               # Complete Phase 1 technical specification
+└── README.md                           # Repository documentation
 ```
 
 ---
