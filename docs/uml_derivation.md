@@ -6,21 +6,30 @@ This document defines the formal mappings, query formulas, and derivation algori
 
 ## 1. Classification & Sub-Graph Mapping Matrix
 
-```text
-                               ┌────────────────────────────────────────────────────────┐
-                               │     Succinct Compositional Program Graph (SCPG)        │
-                               └──────────────────────────┬─────────────────────────────┘
-                                                          │
-                   ┌──────────────────────────────────────┴──────────────────────────────────────┐
-                   ▼                                                                             ▼
-   [ Structural Diagrams (7) ]                                                  [ Behavioral & Interaction (7) ]
-   ├── 1. Class Diagram (E^TH + V_sym)                                          ├── 8. Use Case Diagram (API Surface + Actor)
-   ├── 2. Object Diagram (E^TH + SSA Instances)                                 ├── 9. Activity Diagram (E^CFG + CDG)
-   ├── 3. Component Diagram (V_sym Modules)                                     ├── 10. State Machine (E^CFG + AbsInt Lattices)
-   ├── 4. Deployment Diagram (V_sym + Artifacts)                                ├── 11. Sequence Diagram (E^CG + ROBDD Paths)
-   ├── 5. Package Diagram (V_sym Namespaces)                                    ├── 12. Communication Diagram (E^CG + Order)
-   ├── 6. Composite Structure (Class Fields & Ports)                            ├── 13. Interaction Overview (CFG + Calls)
-   └── 7. Profile Diagram (Stereotype Records)                                  └── 14. Timing Diagram (State + Time Bounds)
+```mermaid
+graph TD
+    SCPG["Succinct Compositional Program Graph (SCPG)"] --> Structural["Structural Diagrams (7)"]
+    SCPG --> Behavioral["Behavioral & Interaction Diagrams (7)"]
+
+    subgraph Structural_Views["Structural Diagrams"]
+        Structural --> D1["1. Class Diagram (E^TH + V_sym)"]
+        Structural --> D2["2. Object Diagram (E^TH + SSA Instances)"]
+        Structural --> D3["3. Component Diagram (V_sym Modules)"]
+        Structural --> D4["4. Deployment Diagram (V_sym + Artifacts)"]
+        Structural --> D5["5. Package Diagram (V_sym Namespaces)"]
+        Structural --> D6["6. Composite Structure (Fields & Ports)"]
+        Structural --> D7["7. Profile Diagram (Stereotype Records)"]
+    end
+
+    subgraph Behavioral_Views["Behavioral & Interaction Diagrams"]
+        Behavioral --> D8["8. Use Case Diagram (API Surface + Actor)"]
+        Behavioral --> D9["9. Activity Diagram (E^CFG + CDG)"]
+        Behavioral --> D10["10. State Machine (E^CFG + AbsInt Lattices)"]
+        Behavioral --> D11["11. Sequence Diagram (E^CG + ROBDD Paths)"]
+        Behavioral --> D12["12. Communication Diagram (E^CG + Order)"]
+        Behavioral --> D13["13. Interaction Overview (CFG + Calls)"]
+        Behavioral --> D14["14. Timing Diagram (State + Time Bounds)"]
+    end
 ```
 
 ---

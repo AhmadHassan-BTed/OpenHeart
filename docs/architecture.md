@@ -127,17 +127,15 @@ classDiagram
 
 The traceability system relies on a monotonic 32-bit `token_id` assigned during Phase 1 lexical scanning that acts as a universal anchor across all 5 layers.
 
-```text
-Source Position (file_id, line, col)
-       │
-       ▼ (O(log n) Binary Search)
-Forward Index (FI) ─────────────► token_id ─────────────► Backward Index (BI)
-                                     │                        │
-                                     ▼                        ▼ (O(1) Direct Lookup)
-                              SCPG Graph Nodes          Source Range Span
-                                     │
-                                     ▼
-                              UMLLink Record ──────────► Diagram Element
+```mermaid
+graph TD
+    SP["Source Position (file_id, line, col)"] -->|O(log n) Binary Search| FI["Forward Index (FI)"]
+    FI --> TID["token_id (Monotonic u32 Anchor)"]
+    TID -->|O(1) Direct Lookup| BI["Backward Index (BI)"]
+    BI --> SRS["Source Range Span"]
+    TID --> Nodes["SCPG Graph Nodes"]
+    Nodes --> Link["UMLLink Record"]
+    Link --> Diagram["UML Diagram Element"]
 ```
 
 - **Forward Index ($O(\log n)$)**: Sorted array mapping packed $u48$ key `(file_id, line, col)` to `token_id`.

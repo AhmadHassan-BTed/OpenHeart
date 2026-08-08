@@ -12,17 +12,11 @@ An ordered tree of $n$ nodes can be represented as a sequence of $2n$ balanced p
 - Emit `(` on first visit (pre-order entry).
 - Emit `)` on backtrack (post-order exit).
 
-```text
-Tree Structure:
-       Root (0)
-      /        \
-  ChildA (1)  ChildB (2)
-      |
-  LeafC (3)
-
-BP Sequence B:
-(  (  (  )  )  (  )  )
-0  1  3  3  1  2  2  0   <- node pre-order index
+```mermaid
+graph TD
+    Root["Root (pre-order index 0)"] --> ChildA["ChildA (pre-order index 1)"]
+    Root --> ChildB["ChildB (pre-order index 2)"]
+    ChildA --> LeafC["LeafC (pre-order index 3)"]
 ```
 
 ### 1.2 Auxiliary Rank/Select Operations
