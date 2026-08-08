@@ -49,12 +49,20 @@ $$\mathcal{G} = (V, E, \nu, \varepsilon, \tau, \rho, \Sigma_\Phi)$$
 
 The SCPG provides native, deterministic derivation for all 14 UML diagram types:
 
-```text
-SCPG Sub-Graph Layer                       Derived UML Diagram Types
-├── E^TH (Type Hierarchy) + V_sym ────────► [1] Class, [2] Object, [3] Component, [5] Package, Composite
-├── E^CG (Call Graph) + ROBDD Summaries ──► [11] Sequence, [12] Communication, [13] Interaction Overview
-├── E^CFG (Control Flow) + AbsInt ────────► [9] Activity, [10] State Machine
-└── E^DFG (Data Flow) + IFDS Taint ──────► Interprocedural Taint & Data Flow Overlay
+```mermaid
+graph LR
+    subgraph Layers["SCPG Sub-Graph Layers"]
+        ETH["E^TH (Type Hierarchy) + V_sym"]
+        ECG["E^CG (Call Graph) + ROBDD Summaries"]
+        ECFG["E^CFG (Control Flow) + AbsInt"]
+        EDFG["E^DFG (Data Flow) + IFDS Taint"]
+    end
+    subgraph Diagrams["Derived UML Diagram Views"]
+        ETH --> Structural["Structural: Class, Object, Component, Package, Composite"]
+        ECG --> Interaction["Interaction: Sequence, Communication, Interaction Overview"]
+        ECFG --> Behavioral["Behavioral: Activity, State Machine"]
+        EDFG --> DataFlow["Data Flow: Taint & Data Flow Overlay"]
+    end
 ```
 
 ---

@@ -12,21 +12,13 @@ $$\text{token\_id} \in \mathbb{N}, \quad 0 \le \text{token\_id} < n_{\text{tok}}
 
 This `token_id` is the **universal traceability anchor**. It propagates upward through all subsequent layers without re-assignment or re-interpretation.
 
-```text
-Lexical Scanner (Phase 1)
-  │ assigns monotonic token_id: u32
-  ▼
-AST Leaves (Phase 2)
-  │ ranges [min_token_id, max_token_id] assigned to AST internal nodes
-  ▼
-Basic Blocks & Statements (Phase 3)
-  │ statement AST spans inherit token_ids
-  ▼
-SSA Def-Use Sites (Phase 3/4)
-  │ definition and operand uses reference token_ids
-  ▼
-UML Diagram Elements (Phase 5)
-  │ embeds UMLLink record holding exact source token spans
+```mermaid
+graph TD
+    Scanner["Lexical Scanner (Phase 1)"] -->|Assigns Monotonic token_id: u32| AST["AST Leaves & Nodes (Phase 2)"]
+    AST -->|Ranges [min_token_id, max_token_id]| BB["Basic Blocks & Statements (Phase 3)"]
+    BB -->|Statement AST Spans| SSA["SSA Def-Use Sites (Phase 3/4)"]
+    SSA -->|Definition & Operand Reference| UML["UML Diagram Elements (Phase 5)"]
+    UML -->|Embeds UMLLink Record| Anchor["Bijective Source Range Span"]
 ```
 
 ---
