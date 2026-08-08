@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" width="100%" height="100%">
+  <rect width="1000" height="680" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <text x="500" y="40" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" font-weight="700" fill="#58a6ff" text-anchor="middle">OpenHeart 10-Phase Pipeline Architecture</text>
+  <text x="500" y="62" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#8b949e" text-anchor="middle">Deterministic Binary Artifact Chain with CRC-64 Verification</text>
+  <g transform="translate(30, 85)">
+    <rect width="40" height="50" rx="6" fill="#1f6feb" fill-opacity="0.2" stroke="#1f6feb" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">Lexical Ingestion & Token Corpus</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">SourceManifest (paths + lang hints)</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">TokenCorpusArtifact (.tca)</text>
+  </g>
+  <g transform="translate(30, 141)">
+    <rect width="40" height="50" rx="6" fill="#238636" fill-opacity="0.2" stroke="#238636" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">CST Reduction & BP AST Encoding</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">TokenCorpusArtifact (.tca)</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">BPASTArtifact (.bpa)</text>
+  </g>
+  <g transform="translate(30, 197)">
+    <rect width="40" height="50" rx="6" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">Symbol Table & Type Hierarchy</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">TokenCorpusArtifact + BPASTArtifact</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">SymbolTableArtifact (.sta)</text>
+  </g>
+  <g transform="translate(30, 253)">
+    <rect width="40" height="50" rx="6" fill="#a371f7" fill-opacity="0.2" stroke="#a371f7" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">CFG Construction & Dominator Analysis</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">BPASTArtifact + SymbolTableArtifact</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">CFGArtifact (.cfa)</text>
+  </g>
+  <g transform="translate(30, 309)">
+    <rect width="40" height="50" rx="6" fill="#f85149" fill-opacity="0.2" stroke="#f85149" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">5</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">SSA Conversion & Data Flow Graph</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">CFGArtifact + SymbolTableArtifact</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">SSAArtifact (.ssa)</text>
+  </g>
+  <g transform="translate(30, 365)">
+    <rect width="40" height="50" rx="6" fill="#1f6feb" fill-opacity="0.2" stroke="#1f6feb" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">6</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">Inter-procedural Call Graph & Points-To</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">SSAArtifact + SymbolTableArtifact</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">CallGraphArtifact (.cga)</text>
+  </g>
+  <g transform="translate(30, 421)">
+    <rect width="40" height="50" rx="6" fill="#238636" fill-opacity="0.2" stroke="#238636" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">7</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">Traceability Index Construction</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">TCA + BPA + STA + CFA + SSA + CGA</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">TraceabilityArtifact (.tra)</text>
+  </g>
+  <g transform="translate(30, 477)">
+    <rect width="40" height="50" rx="6" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">8</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">ROBDD Path Summary Computation</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">CFGArtifact + SSAArtifact</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">PathSummaryArtifact (.psa)</text>
+  </g>
+  <g transform="translate(30, 533)">
+    <rect width="40" height="50" rx="6" fill="#a371f7" fill-opacity="0.2" stroke="#a371f7" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">9</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">UML Semantic Metadata Extraction</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">All prior artifacts (1–8)</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">UMLMetadataArtifact (.uma)</text>
+  </g>
+  <g transform="translate(30, 589)">
+    <rect width="40" height="50" rx="6" fill="#f85149" fill-opacity="0.2" stroke="#f85149" stroke-width="1.5"/>
+    <text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">10</text>
+    <rect x="50" y="0" width="890" height="50" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <text x="65" y="20" font-family="sans-serif" font-size="13" font-weight="600" fill="#f0f6fc">SCPG Serialization & Query Bootstrap</text>
+    <rect x="65" y="28" width="24" height="16" rx="3" fill="#1f6feb" fill-opacity="0.25"/>
+    <text x="77" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#58a6ff" text-anchor="middle">IN</text>
+    <text x="95" y="40" font-family="sans-serif" font-size="11" fill="#8b949e">All prior artifacts (1–9)</text>
+    <rect x="520" y="28" width="32" height="16" rx="3" fill="#238636" fill-opacity="0.25"/>
+    <text x="536" y="40" font-family="sans-serif" font-size="9" font-weight="700" fill="#7ee787" text-anchor="middle">OUT</text>
+    <text x="558" y="40" font-family="sans-serif" font-size="11" font-weight="600" fill="#7ee787">SCPG Binary (.scpg) + QueryEngine</text>
+  </g>
+</svg>
