@@ -13,7 +13,9 @@
 
 <br/>
 
-![OpenHeart SCPG Architecture](docs/assets/scpg_overview.svg)
+<p align="center">
+  <img src="docs/assets/scpg_overview.svg" alt="OpenHeart SCPG Architecture" width="100%" />
+</p>
 
 <p align="center">
   A high-performance static program analysis engine and bidirectional UML generation platform built on succinct data structures, memory-mapped binary layouts, and formal graph representations.
@@ -37,15 +39,11 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 
 ## Complete 10-Phase Pipeline Architecture
 
-![OpenHeart 10-Phase Pipeline Map](docs/assets/scpg_10phase_pipeline.png)
+<p align="center">
+  <img src="docs/assets/scpg_10phase_pipeline.png" alt="OpenHeart 10-Phase Pipeline Map" width="100%" />
+</p>
 
 The OpenHeart analysis engine is structured into a 10-phase pipeline, where each phase produces an immutable, binary artifact with CRC-64 verification:
-
----
-
-## System Architecture & Traceability Matrix
-
-![OpenHeart System Architecture Matrix](docs/assets/scpg_architecture_matrix.png)
 
 | Phase | Pipeline Stage | Primary Inputs | Serialized Artifact | Key Responsibility |
 |---|---|---|---|---|
@@ -62,9 +60,19 @@ The OpenHeart analysis engine is structured into a 10-phase pipeline, where each
 
 ---
 
+## System Architecture & Traceability Matrix
+
+<p align="center">
+  <img src="docs/assets/scpg_architecture_matrix.png" alt="OpenHeart System Architecture Matrix" width="100%" />
+</p>
+
+---
+
 ## Performance & Complexity Analysis
 
-![Phase 2 Complexity Breakdown](docs/assets/scpg_phase_complexity.png)
+<p align="center">
+  <img src="docs/assets/scpg_phase_complexity.png" alt="Phase 2 Complexity Breakdown" width="100%" />
+</p>
 
 ### Algorithmic & Space Bounds
 
