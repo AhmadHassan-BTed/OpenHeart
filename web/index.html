@@ -13,8 +13,9 @@
   
   <link rel="stylesheet" href="style.css" />
   
-  <!-- Three.js for 3D Morphing WebGL Orb -->
+  <!-- Three.js & Simplex Noise for 3D Morphing WebGL Orb -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
   <!-- Mermaid JS for Diagram Rendering -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
@@ -23,13 +24,13 @@
   <!-- WebGL 3D Background Canvas -->
   <canvas id="orb-canvas"></canvas>
 
-  <!-- Corner Status Overlay -->
+  <!-- Corner HUD Overlay -->
   <div class="corner-brand top-left">
     <span class="brand-tag">OPENHEART + SCPG . ENGINE</span>
   </div>
   <div class="corner-brand top-right">
     <button id="sound-toggle" class="brutalist-pill">sound ~/~</button>
-    <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="brutalist-pill btn-gh">github / repo</a>
+    <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="brutalist-pill btn-gh">GITHUB / REPO</a>
   </div>
   <div class="corner-brand bottom-left">
     <div class="status-counter-box">
@@ -41,7 +42,7 @@
     <span class="author-tag">MAINTAINED BY :: AHMAD HASSAN (B-TED)</span>
   </div>
 
-  <!-- Opening Landing Overlay with Central Interactive Orb Controls -->
+  <!-- Opening Landing Overlay (Frame-by-Frame matching file.mp4) -->
   <section id="hero-landing" class="hero-overlay">
     <div class="hero-center-content">
       <div class="hero-eyebrow">SUCCINCT COMPOSITIONAL PROGRAM GRAPH</div>
@@ -53,12 +54,12 @@
           <span class="btn-text">[ ENGAGE SCPG STUDIO ]</span>
           <span class="btn-arrow">→</span>
         </button>
-        <span class="hint-sub">Click orb or button to penetrate system layers</span>
+        <span class="hint-sub">Click central orb or button to penetrate system layers</span>
       </div>
     </div>
   </section>
 
-  <!-- Main App Container (Hidden initially or revealed on engage) -->
+  <!-- Main App Container (Studio Control Room) -->
   <div id="studio-app" class="app-container studio-hidden">
     
     <!-- Top Studio Navbar -->

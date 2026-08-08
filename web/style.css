@@ -146,6 +146,7 @@ body.brutalist-theme {
   height: 100vh;
   z-index: 5;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   pointer-events: none;
@@ -153,10 +154,16 @@ body.brutalist-theme {
 }
 
 .hero-center-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   pointer-events: auto;
   user-select: none;
-  max-width: 800px;
+  max-width: 900px;
+  width: 90%;
+  margin: 0 auto;
   padding: 20px;
 }
 
@@ -167,18 +174,24 @@ body.brutalist-theme {
   color: var(--text-gray);
   margin-bottom: 12px;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .hero-title {
   font-family: var(--font-hero);
-  font-size: clamp(64px, 10vw, 120px);
+  font-size: clamp(48px, 8vw, 110px);
   font-weight: 800;
   letter-spacing: -2px;
   line-height: 0.95;
   color: var(--text-white);
   text-transform: uppercase;
-  margin-bottom: 16px;
+  margin: 0 auto 16px auto;
+  text-align: center;
   text-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
 }
 
 .hero-title span {
