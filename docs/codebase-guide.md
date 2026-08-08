@@ -1,10 +1,10 @@
 # Codebase Onboarding & Contributor Map
 
-This guide provides a structural breakdown of the **OpenHeart** codebase for new contributors and maintainers.
+This guide provides a structural breakdown of the **OpenHeart** codebase for contributors and maintainers. Maintained by **Ahmad Hassan (B-Ted)**.
 
 ---
 
-## 📁 Source Module Breakdown
+## ◆ Source Module Breakdown
 
 ```text
 src/
@@ -40,7 +40,7 @@ src/
 
 ---
 
-## 🧪 Testing Layout
+## ■ Testing Layout
 
 ```text
 tests/
@@ -55,7 +55,7 @@ tests/
 
 ---
 
-## 🛠️ Key Data Types Quick Reference
+## ● Key Data Types Quick Reference
 
 | Data Type | Module Path | Purpose / Size |
 |---|---|---|

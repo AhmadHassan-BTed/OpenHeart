@@ -1,10 +1,10 @@
 # Contributing to OpenHeart
 
-Thank you for contributing to **OpenHeart**!
+Thank you for contributing to **OpenHeart**! Created and maintained by **Ahmad Hassan (B-Ted)**.
 
 ---
 
-## 🛠️ Development Guidelines
+## ◆ Development Guidelines
 
 1. **Branching Strategy**: Create feature branches off `main`:
    ```bash
@@ -12,7 +12,7 @@ Thank you for contributing to **OpenHeart**!
    ```
 
 2. **Code Standards**:
-   - Maintain zero `cargo clippy` warnings and zero compilation warnings.
+   - Maintain zero compilation warnings across all targets.
    - Enforce 100% passing tests for all submodules in `src/core/` and `src/phase1/`.
    - Preserve memory layout invariants (`TokenRecord` 16B, `SourceFileRecord` 64B, `sort_key` packing).
 
@@ -22,5 +22,5 @@ Thank you for contributing to **OpenHeart**!
    ```
 
 4. **Pull Requests**:
-   - Run `cargo test` prior to submitting your PR.
-   - Update relevant documentation in `docs/` or `README.md`.
+   - Run `./scripts/ci_check.sh` prior to submitting your PR.
+   - Update relevant documentation under `docs/` or `README.md`.
