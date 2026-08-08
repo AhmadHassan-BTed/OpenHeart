@@ -13,7 +13,7 @@
 
 <br/>
 
-![OpenHeart SCPG Architecture Matrix](docs/assets/scpg_architecture_matrix.png)
+![OpenHeart SCPG Architecture](docs/assets/scpg_overview.svg)
 
 <p align="center">
   A high-performance static program analysis engine and bidirectional UML generation platform built on succinct data structures, memory-mapped binary layouts, and formal graph representations.
@@ -40,6 +40,12 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 ![OpenHeart 10-Phase Pipeline Map](docs/assets/scpg_10phase_pipeline.png)
 
 The OpenHeart analysis engine is structured into a 10-phase pipeline, where each phase produces an immutable, binary artifact with CRC-64 verification:
+
+---
+
+## System Architecture & Traceability Matrix
+
+![OpenHeart System Architecture Matrix](docs/assets/scpg_architecture_matrix.png)
 
 | Phase | Pipeline Stage | Primary Inputs | Serialized Artifact | Key Responsibility |
 |---|---|---|---|---|
