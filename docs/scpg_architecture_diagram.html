@@ -1,0 +1,235 @@
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-sans,"anthropic-sans",sans-serif)}
+.wrap{padding:1.5rem 0;display:flex;flex-direction:column;gap:1.5rem}
+.section-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:0 0 6px}
+.pipeline-row{display:flex;align-items:center;gap:6px}
+.pill{display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:12px;font-weight:500;padding:7px 14px;border:0.5px solid;white-space:nowrap;cursor:pointer;transition:opacity .15s}
+.pill:hover{opacity:.8}
+.arrow-h{color:var(--text-muted);font-size:16px;flex-shrink:0}
+.layers-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.layer-card{border-radius:10px;border:0.5px solid var(--border);background:var(--surface-1);padding:10px 12px;cursor:pointer;transition:border-color .15s}
+.layer-card:hover{border-color:var(--border-stronger)}
+.layer-card .lc-icon{font-size:18px;margin-bottom:4px}
+.layer-card .lc-title{font-size:12px;font-weight:500;color:var(--text-primary);margin:0 0 2px}
+.layer-card .lc-sub{font-size:11px;color:var(--text-secondary);line-height:1.4;margin:0}
+.layer-card .lc-badge{display:inline-block;font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;margin-top:5px}
+.storage-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.storage-card{background:var(--surface-1);border:0.5px solid var(--border);border-radius:10px;padding:12px}
+.storage-card h4{font-size:12px;font-weight:500;margin:0 0 6px;color:var(--text-primary)}
+.storage-card p{font-size:11px;color:var(--text-secondary);margin:0;line-height:1.5}
+.trace-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}
+.trace-box{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px}
+.trace-box h4{font-size:11px;font-weight:500;color:var(--text-primary);margin:0 0 4px}
+.trace-box code{font-family:var(--font-mono,"monospace");font-size:10px;color:var(--text-accent);display:block;line-height:1.6}
+.trace-arrow{text-align:center;color:var(--text-muted);font-size:13px;font-weight:500}
+.complexity-table{width:100%;border-collapse:collapse;font-size:11px}
+.complexity-table th{text-align:left;padding:5px 8px;font-weight:500;font-size:10px;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.complexity-table td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.complexity-table td:first-child{color:var(--text-primary);font-weight:500}
+.complexity-table td.good{color:var(--text-success)}
+.complexity-table td.bad{color:var(--text-danger)}
+.bdd-svg{width:100%;max-width:560px;margin:0 auto;display:block}
+.output-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.uml-chip{background:var(--surface-1);border:0.5px solid var(--border);border-radius:6px;padding:6px 8px;text-align:center;font-size:10px;color:var(--text-secondary);cursor:pointer;transition:border-color .15s}
+.uml-chip:hover{border-color:var(--border-stronger);color:var(--text-primary)}
+.uml-chip.struct{border-top:2px solid #5DCAA5}
+.uml-chip.behav{border-top:2px solid #7F77DD}
+.divider{height:0.5px;background:var(--border);margin:4px 0}
+.info-banner{background:var(--bg-accent);border:0.5px solid var(--border-accent);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text-accent);display:none;margin-top:8px;line-height:1.6}
+.info-banner.visible{display:block}
+.stat-row{display:flex;gap:10px}
+.stat-card{flex:1;background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px}
+.stat-card .sv{font-size:20px;font-weight:500;color:var(--text-primary);margin:0}
+.stat-card .sl{font-size:11px;color:var(--text-secondary);margin:2px 0 0}
+</style>
+
+<div class="wrap">
+
+<div>
+  <div class="section-label">Ingestion pipeline</div>
+  <div class="pipeline-row" style="flex-wrap:wrap;gap:4px">
+    <div class="pill" style="background:#E1F5EE;border-color:#5DCAA5;color:#085041" onclick="showInfo('src','Source code (any language) enters the pipeline. Tree-sitter performs language-specific CST parsing with incremental reparse support — O(|changed region|) on edits.')">Source files</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#E6F1FB;border-color:#378ADD;color:#0C447C" onclick="showInfo('tok','The scanner assigns a monotonically increasing token_id to every lexeme. This token_id is the universal traceability anchor — it propagates upward through every SCPG layer and into every generated UML element.')">Tokenizer + token_id assignment</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#EEEDFE;border-color:#7F77DD;color:#3C3489" onclick="showInfo('ast','Tree-sitter CST is reduced to an AST (dropping whitespace/punctuation nodes). The AST is encoded as a Balanced Parentheses sequence: 2 bits per node, supporting parent/child/sibling/LCA in O(1) via rank/select.')">AST (BP-encoded)</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#FAEEDA;border-color:#BA7517;color:#633806" onclick="showInfo('sem','Symbol table construction, type inference, name resolution, and scope analysis produce V_sym nodes. Visibility, type hierarchy, and UML metadata are stored here.')">Semantic analysis</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#FAECE7;border-color:#D85A30;color:#712B13" onclick="showInfo('cfg','Per-function CFG construction: basic block partitioning, edge labeling (CFG_TRUE, CFG_FALSE, CFG_UNCOND). Stored as CSR. Dominator tree computed via Lengauer-Tarjan O(m α(m,n)).')">CFG construction</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#FAEEDA;border-color:#BA7517;color:#633806" onclick="showInfo('ssa','SSA conversion via iterated dominance frontiers (Cytron 1991). φ-functions inserted at DF merge points — O(|E_cfg|) total insertions. Def-use chains become O(1) sparse lookups.')">SSA / DFG</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#EAF3DE;border-color:#639922;color:#3B6D11" onclick="showInfo('bdd','Per-function ROBDD encodes the feasible path set as a Boolean function over CFG edges. FORCE/sifting variable ordering. For series-parallel CFGs: O(k × 2^w) nodes where w = CFG treewidth ≤ loop-nesting-depth + 1.')">ROBDD path summaries</div>
+    <span class="arrow-h">→</span>
+    <div class="pill" style="background:#E1F5EE;border-color:#5DCAA5;color:#085041" onclick="showInfo('scpg','The Succinct Compositional Program Graph: memory-mapped binary file with 11 typed sections. All SCPG layers unified under a single node_id space.')">SCPG (.scpg file)</div>
+  </div>
+  <div id="info-banner" class="info-banner"></div>
+</div>
+
+<div>
+  <div class="section-label">SCPG vertex partition layers</div>
+  <div class="layers-grid">
+    <div class="layer-card" onclick="sendPrompt('Explain the BP-encoded AST layer of the SCPG in detail — how does the Balanced Parentheses encoding work and what operations does it support?')">
+      <div class="lc-icon">🌲</div>
+      <div class="lc-title">V_tok ∪ V_syn</div>
+      <div class="lc-sub">Ordinal forest. BP-encoded: 2 bits/node. O(1) parent, child, LCA.</div>
+      <div class="lc-badge" style="background:#E1F5EE;color:#085041">AST layer</div>
+    </div>
+    <div class="layer-card" onclick="sendPrompt('Explain the CFG layer of the SCPG — how is CSR encoding used and how does the wavelet tree enable type-filtered edge traversal?')">
+      <div class="lc-icon">🔀</div>
+      <div class="lc-title">V_bb</div>
+      <div class="lc-sub">Basic blocks. CSR adjacency + wavelet tree edge labels. O(log σ) type-filtered traversal.</div>
+      <div class="lc-badge" style="background:#E6F1FB;color:#0C447C">CFG layer</div>
+    </div>
+    <div class="layer-card" onclick="sendPrompt('Explain the SSA/DFG layer of the SCPG — how does SSA form reduce the data flow graph and what is the IFDS framework?')">
+      <div class="lc-icon">🔗</div>
+      <div class="lc-title">V_ssa</div>
+      <div class="lc-sub">SSA def-use chains. One definition per variable. φ-functions at dominance frontiers.</div>
+      <div class="lc-badge" style="background:#FAEEDA;color:#633806">DFG layer</div>
+    </div>
+    <div class="layer-card" onclick="sendPrompt('Explain the symbol table and type hierarchy layers of the SCPG — what UML metadata is stored here?')">
+      <div class="lc-icon">📐</div>
+      <div class="lc-title">V_sym</div>
+      <div class="lc-sub">Functions, classes, fields. Type hierarchy DAG. UML semantic metadata record.</div>
+      <div class="lc-badge" style="background:#EEEDFE;color:#3C3489">Symbol layer</div>
+    </div>
+    <div class="layer-card" onclick="sendPrompt('Explain the ROBDD path summary layer — how does the BDD encode execution paths and what operations does it support without state space explosion?')">
+      <div class="lc-icon">⊕</div>
+      <div class="lc-title">Σ_Φ (ROBDD)</div>
+      <div class="lc-sub">Per-function feasible path BDD. O(32k) nodes for structured code. Lazy-loaded.</div>
+      <div class="lc-badge" style="background:#EAF3DE;color:#3B6D11">Path layer</div>
+    </div>
+  </div>
+</div>
+
+<div class="storage-row">
+  <div>
+    <div class="section-label">Space complexity comparison (n = 1M nodes, m = 5M edges)</div>
+    <table class="complexity-table">
+      <thead><tr><th>Structure</th><th>Encoding</th><th>Space</th><th>vs. naive</th></tr></thead>
+      <tbody>
+        <tr><td>AST (tree)</td><td class="good">BP + rank/select</td><td class="good">~4.65 MB</td><td class="good">6.9× smaller</td></tr>
+        <tr><td>AST (tree)</td><td class="bad">Pointer-based</td><td class="bad">32 MB</td><td>—</td></tr>
+        <tr><td>Edge labels</td><td class="good">Wavelet tree (σ=16)</td><td class="good">4 MB</td><td class="good">2× smaller + range queries</td></tr>
+        <tr><td>Edge labels</td><td class="bad">Enum byte array</td><td class="bad">5 MB (no queries)</td><td>—</td></tr>
+        <tr><td>Graph (CFG/CG)</td><td class="good">CSR (sequential access)</td><td class="good">24 MB</td><td class="good">9× smaller</td></tr>
+        <tr><td>Graph (CFG/CG)</td><td class="bad">Neo4j relationship store</td><td class="bad">170 MB</td><td>—</td></tr>
+        <tr><td>Paths (k=50)</td><td class="good">ROBDD (w≤5)</td><td class="good">~1,600 nodes = 20 KB</td><td class="good">∞ × smaller</td></tr>
+        <tr><td>Paths (k=50)</td><td class="bad">Explicit enumeration</td><td class="bad">2^50 paths ≈ 10^15 B</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="section-label">Path strategy by scope</div>
+    <table class="complexity-table">
+      <thead><tr><th>Scope</th><th>Method</th><th>Complexity</th><th>Avoids explosion via</th></tr></thead>
+      <tbody>
+        <tr><td>Intraprocedural</td><td>ROBDD</td><td class="good">O(k × 2^w)</td><td>BDD sharing + sifting</td></tr>
+        <tr><td>Interprocedural (distributive)</td><td>IFDS tabulation</td><td class="good">O(|N|×|D|²)</td><td>Distributive merge</td></tr>
+        <tr><td>Loops</td><td>Abstract interpretation</td><td class="good">O(h × cost)</td><td>Widening to fixpoint</td></tr>
+        <tr><td>Cross-function queries</td><td>CFL-reachability</td><td class="good">O(|V|³)</td><td>Balanced-paren language</td></tr>
+        <tr><td>Feasibility check</td><td>SMT (Z3, demand)</td><td>O(2^k) worst</td><td>Lazy invocation only</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">Traceability index — bidirectional mapping</div>
+  <div class="trace-row">
+    <div class="trace-box">
+      <h4>Forward index (source → IR)</h4>
+      <code>key = file_id × 2³² + line × 2¹² + col</code>
+      <code>FI[i] = (key:u64, node_id:u32)</code>
+      <code>sorted → O(log n) binary search</code>
+    </div>
+    <div class="trace-arrow">⟷<br><span style="font-size:10px;color:var(--text-muted)">O(1) / O(log n)</span></div>
+    <div class="trace-box">
+      <h4>Backward index (IR → source)</h4>
+      <code>BI[node_id] = (file:u16, line:u24,</code>
+      <code>               col:u16, len:u16)</code>
+      <code>dense array → O(1) direct lookup</code>
+    </div>
+  </div>
+  <div style="margin-top:8px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:10px 14px">
+    <div style="font-size:11px;font-weight:500;color:var(--text-primary);margin-bottom:6px">UML element link protocol (immutable, embedded into every generated diagram element)</div>
+    <code style="font-family:var(--font-mono,'monospace');font-size:10px;color:var(--text-secondary);display:block;line-height:1.8">
+      UMLLink = { node_id:u32, node_type:u8, file_id:u16, line_start:u24, col_start:u16,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;line_end:u24, col_end:u16, scpg_hash:u32 }
+    </code>
+    <div style="font-size:11px;color:var(--text-secondary);margin-top:6px">scpg_hash change → stale link detected in O(1). Only elements in SCPG delta set re-derived.</div>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">UML output completeness — all 14 diagram types</div>
+  <div class="output-grid">
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Class Diagram? Which layers and edges are used?')">Class</div>
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Object Diagram?')">Object</div>
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Component Diagram?')">Component</div>
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Deployment Diagram?')">Deployment</div>
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Package Diagram?')">Package</div>
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Composite Structure Diagram?')">Composite</div>
+    <div class="uml-chip struct" onclick="sendPrompt('How does the SCPG generate a UML Profile Diagram?')">Profile</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG generate a UML Use Case Diagram — what role does NLP play?')">Use Case</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG generate a UML Activity Diagram from CFG + abstract interpretation?')">Activity</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG detect state patterns and generate UML State Machine Diagrams?')">State Mach.</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG generate a UML Sequence Diagram from the call graph and ROBDD paths?')">Sequence</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG generate a UML Communication Diagram?')">Comm.</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG generate a UML Interaction Overview Diagram?')">Interaction</div>
+    <div class="uml-chip behav" onclick="sendPrompt('How does the SCPG generate a UML Timing Diagram from thread analysis?')">Timing</div>
+  </div>
+  <div style="display:flex;gap:16px;margin-top:6px;font-size:10px;color:var(--text-secondary)">
+    <span><span style="display:inline-block;width:10px;height:3px;background:#5DCAA5;border-radius:1px;margin-right:4px;vertical-align:middle"></span>Structural (from V_sym + E^TH)</span>
+    <span><span style="display:inline-block;width:10px;height:3px;background:#7F77DD;border-radius:1px;margin-right:4px;vertical-align:middle"></span>Behavioral (from E^CFG + E^DFG + ROBDD)</span>
+  </div>
+</div>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <p class="sv">O(n log σ)</p>
+    <p class="sl">Total SCPG space (n = nodes+edges, σ = type alphabet)</p>
+  </div>
+  <div class="stat-card">
+    <p class="sv">O(log n)</p>
+    <p class="sl">Source ↔ IR lookup via traceability index</p>
+  </div>
+  <div class="stat-card">
+    <p class="sv">O(|V|³)</p>
+    <p class="sl">Interprocedural path query via CFL-reachability</p>
+  </div>
+  <div class="stat-card">
+    <p class="sv">6.9–128×</p>
+    <p class="sl">Space reduction vs pointer-based / graph DB baselines</p>
+  </div>
+</div>
+
+</div>
+
+<script>
+const infos = {
+  src: "Source code (any language) enters the pipeline. Tree-sitter performs language-specific CST parsing with incremental reparse support — O(|changed region|) time on edits, not O(|file|).",
+  tok: "The scanner assigns a monotonically increasing token_id to every lexeme. This token_id is the universal traceability anchor — it propagates upward through every SCPG layer and is embedded into every generated UML element as an immutable source reference.",
+  ast: "Tree-sitter CST is reduced to an AST (whitespace/punctuation nodes dropped). Encoded as a Balanced Parentheses (BP) sequence: 2 bits per node. Supports parent(), first_child(), next_sibling(), subtree_size(), LCA() all in O(1) via Jacobson rank/select. 250 KB for 1M nodes vs 32 MB pointer-based.",
+  sem: "Symbol table construction, type inference, name resolution, and scope analysis produce V_sym nodes with type IDs, visibility modifiers (public/private/protected/package), and UML semantic metadata records (ρ function). Type hierarchy graph E^TH is built here.",
+  cfg: "Per-function CFG construction partitions each function into basic blocks (maximal straight-line instruction sequences), then adds labeled edges: CFG_TRUE and CFG_FALSE for conditional branches, CFG_UNCOND for unconditional jumps and fall-throughs. Stored as Compressed Sparse Row (CSR). Dominator tree computed via Lengauer-Tarjan in O(m α(m,n)).",
+  ssa: "Static Single Assignment conversion uses iterated dominance frontiers (Cytron 1991) to insert φ-functions at merge points — O(|E_cfg|) total insertions. Every variable gets at most one definition, making the def-use graph sparse: total DFG edges ≈ 3× instruction count. IFDS tabulation runs on this layer for distributive data flow analyses.",
+  bdd: "Per-function ROBDD encodes the Boolean function f_paths: {0,1}^m → {0,1} where variables x_i correspond to CFG edges. For series-parallel CFGs (no goto), ROBDD size is O(k × 2^w) where w = CFG treewidth ≤ loop-nesting-depth+1. FORCE/sifting algorithm finds near-optimal variable ordering. Supports path counting, coverage, cyclomatic complexity, and feasibility queries.",
+  scpg: "The Succinct Compositional Program Graph is a memory-mapped binary file with 11 typed sections. All layers share a single u32 node_id space. The file is not a database — it is a memory-mappable flat binary enabling page-granularity lazy loading and zero-copy access via the OS page cache."
+};
+
+function showInfo(key, msg) {
+  const banner = document.getElementById('info-banner');
+  if(banner.dataset.key === key && banner.classList.contains('visible')) {
+    banner.classList.remove('visible');
+    banner.dataset.key = '';
+  } else {
+    banner.textContent = infos[key] || msg;
+    banner.classList.add('visible');
+    banner.dataset.key = key;
+  }
+}
+</script>

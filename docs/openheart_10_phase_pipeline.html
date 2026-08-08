@@ -1,0 +1,108 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.ph-row{display:flex;align-items:stretch;gap:0;margin-bottom:2px}
+.ph-num{width:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;border-radius:6px 0 0 6px;color:white}
+.ph-body{flex:1;border:0.5px solid var(--border);border-left:none;border-radius:0 6px 6px 0;padding:7px 10px;cursor:pointer;transition:border-color .15s;background:var(--surface-1)}
+.ph-body:hover{border-color:var(--border-strong)}
+.ph-title{font-size:12px;font-weight:500;color:var(--text-primary)}
+.ph-desc{font-size:11px;color:var(--text-secondary);margin-top:2px;line-height:1.4}
+.io-row{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+.io-tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500}
+.io-in{background:var(--bg-accent);color:var(--text-accent);border:0.5px solid var(--border-accent)}
+.io-out{background:var(--bg-success);color:var(--text-success);border:0.5px solid var(--border-success)}
+.detail{background:var(--surface-0);border:0.5px solid var(--border-accent);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin:2px 0 4px;line-height:1.6;display:none}
+.detail.visible{display:block}
+.legend{display:flex;gap:16px;font-size:11px;color:var(--text-muted);margin-bottom:8px}
+.legend span{display:flex;align-items:center;gap:4px}
+</style>
+<h2 class="sr-only">OpenHeart 10-phase SCPG pipeline overview</h2>
+<div class="legend">
+  <span><span class="io-tag io-in">IN</span>Input artifact</span>
+  <span><span class="io-tag io-out">OUT</span>Output artifact</span>
+  <span style="color:var(--text-muted)">Click a phase to expand</span>
+</div>
+
+<div id="phases"></div>
+
+<script>
+const C=['#3C3489','#0C447C','#3B6D11','#633806','#085041','#712B13','#083D22','#3C3489','#0C447C','#3B6D11'];
+const BG=['#EEEDFE','#E6F1FB','#EAF3DE','#FAEEDA','#E1F5EE','#FAECE7','#E1F5EE','#EEEDFE','#E6F1FB','#EAF3DE'];
+
+const phases=[
+  {n:1,title:'Lexical Ingestion & Token Corpus Construction',
+   desc:'Parses raw source files via language adapters (Tree-sitter), assigns monotonically increasing token_ids, interns all text strings, and produces a sorted binary Token Table — the sole source-of-truth for all traceability.',
+   inp:['SourceManifest (file paths + lang hints)'],
+   out:['TokenCorpusArtifact (.tca binary)'],
+   detail:'Modules: SourceManifestBuilder, AdapterRegistry, CSTWalker, TokenIdAllocator, StringInterner, TokenCorpusBuilder, TokenCorpusSerializer. Key invariant: token_id is a monotonic u32, globally unique across all files. Sort key = (file_id:16 | line:24 | col:16 | flags:8) packed into u64 for O(log n) forward lookup.'},
+  {n:2,title:'CST Reduction & Balanced Parentheses AST Encoding',
+   desc:'Reduces the Tree-sitter CST to an abstract syntax forest (dropping whitespace/punctuation nodes), encodes the ordinal forest as a 2-bit-per-node Balanced Parentheses sequence with rank/select auxiliary structure.',
+   inp:['TokenCorpusArtifact'],
+   out:['BPASTArtifact (.bpa binary)'],
+   detail:'Output: BP bitstring (2n bits) + pre-order node type array (n × u8) + pre-order token_id range array (n × u32×2). Supports parent(), child(), LCA() in O(1) via Jacobson rank/select. Node-to-token range propagated bottom-up in O(n) post-order pass.'},
+  {n:3,title:'Symbol Table & Type Hierarchy Construction',
+   desc:'Performs scope analysis, name binding, and type resolution over the AST to produce the V_sym vertex layer and E^TH type hierarchy DAG, including all visibility, generic, and annotation metadata required for UML structural diagrams.',
+   inp:['TokenCorpusArtifact','BPASTArtifact'],
+   out:['SymbolTableArtifact (.sta binary)'],
+   detail:'Scope resolution via scope graphs (Van Antwerpen 2016). Output: SymbolRecord[] (name_id, kind, visibility, type_id, decl_node, def_node, parent_sym) + TypeHierarchyCSR (extends/implements/uses edges). UML metadata record ρ populated here for all 7 structural diagram types.'},
+  {n:4,title:'Control Flow Graph Construction & Dominator Analysis',
+   desc:'Partitions each function body into basic blocks, inserts labeled CFG edges (CFG_TRUE/FALSE/UNCOND), computes the dominator tree via Lengauer–Tarjan, and serializes per-function CFGs as CSR adjacency lists with wavelet-tree edge labels.',
+   inp:['BPASTArtifact','SymbolTableArtifact'],
+   out:['CFGArtifact (.cfa binary)'],
+   detail:'Per-function CFG stored as CSR: offsets[(n_bb+1)×u32] + adj[m_cfg×u32] + etype[wavelet-tree]. Dominator tree computed in O(m α(m,n)). Dominance frontier DF(v) computed for all v — required by Phase 5 SSA construction. Loop nesting forest identified for abstract interpretation (Phase 9).'},
+  {n:5,title:'SSA Conversion & Data Flow Graph Construction',
+   desc:'Converts each function to SSA form using iterated dominance frontiers (Cytron 1991), inserts φ-functions at merge points, constructs sparse def-use chains, and runs IFDS-framework distributive data flow analyses.',
+   inp:['CFGArtifact','SymbolTableArtifact'],
+   out:['SSAArtifact (.ssa binary)'],
+   detail:'SSA version table: (var_id:u32, version:u16) → ssa_node_id:u32. Def sites: O(1) array lookup. Use lists: CSR-encoded. φ-functions: (result_ver, k, pred_blocks[k], arg_vers[k]). Total φ-insertions: O(|E_cfg|) amortized. IFDS taint/null results stored as per-(ssa_node, fact_id) bitmaps.'},
+  {n:6,title:'Inter-procedural Call Graph & Points-To Analysis',
+   desc:'Constructs the call graph (E^CG) over V_sym by resolving direct calls, virtual dispatch (via class hierarchy analysis), and dynamic calls (via k-CFA points-to), then serializes as a CSR graph with call-site node annotations.',
+   inp:['SSAArtifact','SymbolTableArtifact'],
+   out:['CallGraphArtifact (.cga binary)'],
+   detail:'k-CFA at k=1 (one-call-site sensitivity) for virtual/interface dispatch resolution. CHA (Class Hierarchy Analysis) used as fast over-approximation for virtual targets — O(depth(TH)) per call site. Call edges annotated with: call_site_node_id, call_type (direct/virtual/dynamic), call_site_token_id for traceability.'},
+  {n:7,title:'Traceability Index Construction',
+   desc:'Aggregates token_id anchor information from all prior phases into a finalized, bidirectional traceability index: a sorted Forward Index (source position → node_id) and a dense Backward Index (node_id → source range).',
+   inp:['TokenCorpusArtifact','BPASTArtifact','SymbolTableArtifact','CFGArtifact','SSAArtifact','CallGraphArtifact'],
+   out:['TraceabilityArtifact (.tra binary)'],
+   detail:'Forward Index FI: sorted array of (sort_key:u64, node_id:u32) — O(log n) binary search. Backward Index BI: dense array BI[node_id] = (sort_key:u64, len:u16, layer:u8) — O(1) lookup. Range propagation: for every non-token node, min/max token_id in subtree computed in one O(n) pass. UMLLink records generated here.'},
+  {n:8,title:'ROBDD Path Summary Computation',
+   desc:'Builds a Reduced Ordered BDD per function encoding the Boolean function f_paths over CFG edge variables, with FORCE/sifting variable ordering to minimize BDD size, and intersects with branch condition BDDs for feasibility filtering.',
+   inp:['CFGArtifact','SSAArtifact'],
+   out:['PathSummaryArtifact (.psa binary)'],
+   detail:'Variables: x_i ↔ CFG edge e_i, ordered by reverse post-order. ROBDD node: (var_id:u16, lo_child:u32, hi_child:u32, sat_count:u64). Sifting: O(|BDD| × m) to convergence. For series-parallel CFGs (treewidth w): |BDD| = O(k × 2^w). Per-function: sat_count = #SAT = total feasible paths. Cyclomatic complexity = E-V+2 stored as u16.'},
+  {n:9,title:'UML Semantic Metadata Extraction',
+   desc:'Synthesizes all prior artifacts into a comprehensive UML metadata layer (ρ function), detecting state patterns, behavioral sequences, actor surfaces, and concurrency annotations sufficient to drive generation of all 14 UML diagram types.',
+   inp:['All prior artifacts (phases 1-8)'],
+   out:['UMLMetadataArtifact (.uma binary)'],
+   detail:'Structural diagrams (1-7): from SymbolTableArtifact + TypeHierarchyCSR. Behavioral diagrams (8-14): from CFGArtifact + PathSummaryArtifact + SSAArtifact IFDS results. State pattern detection: graph pattern matching on CFG + field access patterns. Sequence extraction: call graph + ROBDD path enumeration. Actor identification: public API surface heuristics.'},
+  {n:10,title:'SCPG Serialization & Query Engine Bootstrap',
+   desc:'Merges all 9 artifacts into the final memory-mapped SCPG binary (.scpg), writes the 11-section file with checksum validation, and initializes the demand-driven query engine with CFL-reachability, IFDS tabulation, and an LRU query cache.',
+   inp:['All prior artifacts (phases 1-9)'],
+   out:['SCPG binary (.scpg) + QueryEngine instance'],
+   detail:'11 sections written in access-frequency order (hot → cold) for optimal mmap page cache behavior. Query engine: CFL-reachability O(|V|³), IFDS tabulation O(|N||D|²), ROBDD path queries O(|BDD|). LRU query cache keyed by (query_type, params, scpg_hash). Delta-update protocol: SCPG hash change invalidates stale UMLLink records in O(1) per link.'},
+];
+
+const cont = document.getElementById('phases');
+phases.forEach((p,i)=>{
+  const row = document.createElement('div');
+  row.className='ph-row';
+  row.innerHTML=`
+    <div class="ph-num" style="background:${C[i]}">${p.n}</div>
+    <div class="ph-body" onclick="toggle(${i})">
+      <div class="ph-title">${p.title}</div>
+      <div class="ph-desc">${p.desc}</div>
+      <div class="io-row">
+        ${p.inp.map(x=>`<span class="io-tag io-in">IN: ${x}</span>`).join('')}
+        ${p.out.map(x=>`<span class="io-tag io-out">OUT: ${x}</span>`).join('')}
+      </div>
+      <div class="detail" id="det${i}">${p.detail}</div>
+    </div>`;
+  cont.appendChild(row);
+});
+
+function toggle(i){
+  const d=document.getElementById('det'+i);
+  d.classList.toggle('visible');
+}
+</script>

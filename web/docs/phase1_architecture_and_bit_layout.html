@@ -1,0 +1,363 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:12px}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}
+.panel.active{display:block}
+</style>
+
+<h2 class="sr-only">Phase 1 architecture: module flow, sort_key bit layout, and output artifact sections</h2>
+
+<div class="tabs">
+  <div class="tab active" onclick="show('flow')">Module flow</div>
+  <div class="tab" onclick="show('bits')">sort_key bit layout</div>
+  <div class="tab" onclick="show('artifact')">Artifact sections</div>
+  <div class="tab" onclick="show('complexity')">Complexity</div>
+</div>
+
+<div id="flow" class="panel active">
+<svg width="100%" viewBox="0 0 680 470" role="img">
+  <title>Phase 1 module flow diagram</title>
+  <desc>Data flows from SourceManifest through seven modules to produce TokenCorpusArtifact</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- INPUT -->
+  <g class="c-gray" onclick="sendPrompt('What fields does SourceManifest contain in Phase 1?')" style="cursor:pointer">
+    <rect x="20" y="30" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="95" y="50" text-anchor="middle" dominant-baseline="central">SourceManifest</text>
+    <text class="ts" x="95" y="68" text-anchor="middle" dominant-baseline="central">file_paths, lang overrides, filter</text>
+  </g>
+
+  <!-- Arrow down -->
+  <line x1="95" y1="82" x2="95" y2="110" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- ManifestBuilder -->
+  <g class="c-purple" onclick="sendPrompt('What does SourceManifestBuilder do in Phase 1?')" style="cursor:pointer">
+    <rect x="20" y="110" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="95" y="130" text-anchor="middle" dominant-baseline="central">ManifestBuilder</text>
+    <text class="ts" x="95" y="148" text-anchor="middle" dominant-baseline="central">Sort paths, assign file_ids</text>
+  </g>
+
+  <line x1="95" y1="162" x2="95" y2="190" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- AdapterRegistry -->
+  <g class="c-purple" onclick="sendPrompt('How does AdapterRegistry detect language and dispatch to the right LanguageAdapter?')" style="cursor:pointer">
+    <rect x="20" y="190" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="95" y="210" text-anchor="middle" dominant-baseline="central">AdapterRegistry</text>
+    <text class="ts" x="95" y="228" text-anchor="middle" dominant-baseline="central">ext → LanguageAdapter</text>
+  </g>
+
+  <!-- JavaLanguageAdapter side -->
+  <g class="c-purple" onclick="sendPrompt('How does JavaLanguageAdapter map tree-sitter node types to Sigma_T in Phase 1?')" style="cursor:pointer">
+    <rect x="220" y="190" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="295" y="210" text-anchor="middle" dominant-baseline="central">JavaLanguageAdapter</text>
+    <text class="ts" x="295" y="228" text-anchor="middle" dominant-baseline="central">ts_kind → Σ_T TokenType</text>
+  </g>
+  <line x1="170" y1="216" x2="218" y2="216" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <line x1="95" y1="242" x2="95" y2="270" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- TreeSitterParser -->
+  <g class="c-teal" onclick="sendPrompt('How does TreeSitterParser parse source files in Phase 1?')" style="cursor:pointer">
+    <rect x="20" y="270" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="95" y="290" text-anchor="middle" dominant-baseline="central">TreeSitterParser</text>
+    <text class="ts" x="95" y="308" text-anchor="middle" dominant-baseline="central">source bytes → TSTree</text>
+  </g>
+
+  <line x1="170" y1="296" x2="218" y2="296" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- CSTWalker -->
+  <g class="c-teal" onclick="sendPrompt('How does CSTWalker traverse the Tree-sitter CST to extract tokens in Phase 1?')" style="cursor:pointer">
+    <rect x="220" y="270" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="295" y="290" text-anchor="middle" dominant-baseline="central">CSTWalker</text>
+    <text class="ts" x="295" y="308" text-anchor="middle" dominant-baseline="central">DFS → RawToken stream</text>
+  </g>
+
+  <line x1="370" y1="296" x2="418" y2="296" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- TokenIdAllocator -->
+  <g class="c-amber" onclick="sendPrompt('How does TokenIdAllocator guarantee globally unique monotonic token_ids?')" style="cursor:pointer">
+    <rect x="420" y="270" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="495" y="290" text-anchor="middle" dominant-baseline="central">TokenIdAllocator</text>
+    <text class="ts" x="495" y="308" text-anchor="middle" dominant-baseline="central">AtomicU32, global monotone</text>
+  </g>
+
+  <!-- StringInterner -->
+  <g class="c-amber" onclick="sendPrompt('How does StringInterner work with FNV-1a hashing in Phase 1?')" style="cursor:pointer">
+    <rect x="420" y="350" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="495" y="370" text-anchor="middle" dominant-baseline="central">StringInterner</text>
+    <text class="ts" x="495" y="388" text-anchor="middle" dominant-baseline="central">FNV-1a → text_id dedup</text>
+  </g>
+  <line x1="495" y1="322" x2="495" y2="348" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- Down from Walker to Builder area -->
+  <line x1="295" y1="322" x2="295" y2="350" stroke="var(--text-muted)" stroke-width="1"/>
+  <line x1="495" y1="402" x2="495" y2="418" stroke="var(--text-muted)" stroke-width="1"/>
+  <line x1="295" y1="350" x2="218" y2="350" stroke="var(--text-muted)" stroke-width="1"/>
+  <line x1="218" y1="350" x2="218" y2="418" stroke="var(--text-muted)" stroke-width="1"/>
+  <line x1="218" y1="418" x2="270" y2="418" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+  <line x1="418" y1="418" x2="370" y2="418" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- TokenCorpusBuilder -->
+  <g class="c-coral" onclick="sendPrompt('What does TokenCorpusBuilder assemble and how does it sort in Phase 1?')" style="cursor:pointer">
+    <rect x="270" y="400" width="150" height="52" rx="8" stroke-width="0.5"/>
+    <text class="th" x="345" y="420" text-anchor="middle" dominant-baseline="central">TokenCorpusBuilder</text>
+    <text class="ts" x="345" y="438" text-anchor="middle" dominant-baseline="central">Assemble + sort records</text>
+  </g>
+
+  <!-- Output artifact -->
+  <line x1="345" y1="452" x2="345" y2="470" stroke="var(--text-muted)" stroke-width="1"/>
+
+  <!-- Legend -->
+  <rect x="20" y="418" width="12" height="12" rx="2" fill="#7F77DD" opacity="0.7"/>
+  <text class="ts" x="36" y="428" dominant-baseline="central">Orchestration</text>
+  <rect x="20" y="436" width="12" height="12" rx="2" fill="#1D9E75" opacity="0.7"/>
+  <text class="ts" x="36" y="446" dominant-baseline="central">Parsing</text>
+  <rect x="100" y="418" width="12" height="12" rx="2" fill="#BA7517" opacity="0.7"/>
+  <text class="ts" x="116" y="428" dominant-baseline="central">ID / Interning</text>
+  <rect x="100" y="436" width="12" height="12" rx="2" fill="#D85A30" opacity="0.7"/>
+  <text class="ts" x="116" y="446" dominant-baseline="central">Assembly</text>
+
+  <text class="ts" x="345" y="464" text-anchor="middle" dominant-baseline="central">TokenCorpusArtifact (.tca)</text>
+</svg>
+</div>
+
+<div id="bits" class="panel">
+<svg width="100%" viewBox="0 0 680 300" role="img">
+  <title>sort_key bit layout showing 64-bit packing of file_id, line, col, flags</title>
+  <desc>64-bit sort key: bits 63-48 file_id (16 bits), bits 47-24 line (24 bits), bits 23-8 col (16 bits), bits 7-0 flags (8 bits)</desc>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <text class="th" x="340" y="30" text-anchor="middle">sort_key : u64 — bit field layout</text>
+  <text class="ts" x="340" y="48" text-anchor="middle" style="fill:var(--text-secondary)">bits 63 → 0 (most significant left)</text>
+
+  <!-- Main bit field bar -->
+  <!-- file_id: 16 bits, x=40 width=160 -->
+  <g class="c-purple">
+    <rect x="40" y="70" width="160" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="120" y="88" text-anchor="middle" dominant-baseline="central">file_id</text>
+    <text class="ts" x="120" y="106" text-anchor="middle" dominant-baseline="central">bits 63–48 (16 bits)</text>
+  </g>
+
+  <!-- line: 24 bits, x=200 width=240 -->
+  <g class="c-teal">
+    <rect x="200" y="70" width="240" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="320" y="88" text-anchor="middle" dominant-baseline="central">line</text>
+    <text class="ts" x="320" y="106" text-anchor="middle" dominant-baseline="central">bits 47–24 (24 bits)</text>
+  </g>
+
+  <!-- col: 16 bits, x=440 width=160 -->
+  <g class="c-amber">
+    <rect x="440" y="70" width="160" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="520" y="88" text-anchor="middle" dominant-baseline="central">col</text>
+    <text class="ts" x="520" y="106" text-anchor="middle" dominant-baseline="central">bits 23–8 (16 bits)</text>
+  </g>
+
+  <!-- flags: 8 bits, x=600 width=60 -->
+  <g class="c-gray">
+    <rect x="600" y="70" width="60" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="630" y="88" text-anchor="middle" dominant-baseline="central">flags</text>
+    <text class="ts" x="630" y="106" text-anchor="middle" dominant-baseline="central">bits 7–0</text>
+  </g>
+
+  <!-- annotations -->
+  <line x1="120" y1="122" x2="120" y2="160" stroke="var(--text-muted)" stroke-width="0.5" stroke-dasharray="3 3"/>
+  <text class="ts" x="120" y="174" text-anchor="middle">max 65,535 files</text>
+
+  <line x1="320" y1="122" x2="320" y2="160" stroke="var(--text-muted)" stroke-width="0.5" stroke-dasharray="3 3"/>
+  <text class="ts" x="320" y="174" text-anchor="middle">max 16,777,215 lines</text>
+
+  <line x1="520" y1="122" x2="520" y2="160" stroke="var(--text-muted)" stroke-width="0.5" stroke-dasharray="3 3"/>
+  <text class="ts" x="520" y="174" text-anchor="middle">max 65,535 cols</text>
+
+  <line x1="630" y1="122" x2="630" y2="160" stroke="var(--text-muted)" stroke-width="0.5" stroke-dasharray="3 3"/>
+  <text class="ts" x="630" y="174" text-anchor="middle">zeroed</text>
+
+  <!-- construction formula -->
+  <rect x="40" y="200" width="600" height="72" rx="8" fill="var(--surface-1)" stroke="0.5px solid var(--border)" stroke-width="0.5"/>
+  <text class="th" x="340" y="222" text-anchor="middle" dominant-baseline="central">Construction formula</text>
+  <text class="ts" x="340" y="246" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">sort_key = (file_id as u64) &lt;&lt; 48</text>
+  <text class="ts" x="340" y="262" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">         | (line    as u64) &lt;&lt; 24</text>
+  <text class="ts" x="340" y="278" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">         | (col     as u64) &lt;&lt;  8</text>
+</svg>
+</div>
+
+<div id="artifact" class="panel">
+<svg width="100%" viewBox="0 0 680 430" role="img">
+  <title>TokenCorpusArtifact binary file section layout</title>
+  <desc>Seven sections: header 64B, file registry F×64B, file paths variable, token table n×16B, entry map n×16B, string headers s×12B, string storage variable, checksum 8B</desc>
+  <defs>
+    <marker id="arr3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <text class="th" x="340" y="28" text-anchor="middle">TokenCorpusArtifact (.tca) — binary section map</text>
+
+  <!-- Sections stacked vertically like a memory map -->
+  <!-- x: 80–520 for the bar, annotations on right -->
+  
+  <!-- HEADER -->
+  <g class="c-gray" onclick="sendPrompt('What is in the TCA file header? Explain each field.')" style="cursor:pointer">
+    <rect x="80" y="45" width="440" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="57" text-anchor="middle" dominant-baseline="central">HEADER</text>
+    <text class="ts" x="300" y="71" text-anchor="middle" dominant-baseline="central">magic, version, token_count, file_count, string_count, SHA-256, timestamp</text>
+  </g>
+  <text class="ts" x="534" y="64" dominant-baseline="central">64 B fixed</text>
+
+  <!-- FILE REGISTRY -->
+  <g class="c-purple" onclick="sendPrompt('What does each SourceFileRecord contain in the TCA file?')" style="cursor:pointer">
+    <rect x="80" y="83" width="440" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="95" text-anchor="middle" dominant-baseline="central">FILE REGISTRY</text>
+    <text class="ts" x="300" y="109" text-anchor="middle" dominant-baseline="central">SourceFileRecord[F] — file_id, lang_id, SHA-256, path_offset, first_token_id</text>
+  </g>
+  <text class="ts" x="534" y="102" dominant-baseline="central">F × 64 B</text>
+
+  <!-- FILE PATHS -->
+  <g class="c-purple" onclick="sendPrompt('How are file paths stored in the TCA binary format?')" style="cursor:pointer">
+    <rect x="80" y="121" width="440" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="135" text-anchor="middle" dominant-baseline="central">FILE PATH STORAGE  [u16_len][utf8_bytes...]  8-byte padded</text>
+  </g>
+  <text class="ts" x="534" y="135" dominant-baseline="central">variable</text>
+
+  <!-- TOKEN TABLE -->
+  <g class="c-teal" onclick="sendPrompt('How is the Sorted Token Table used for forward lookup in Phase 1?')" style="cursor:pointer">
+    <rect x="80" y="153" width="440" height="56" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="171" text-anchor="middle" dominant-baseline="central">SORTED TOKEN TABLE  (Forward Index)</text>
+    <text class="ts" x="300" y="187" text-anchor="middle" dominant-baseline="central">TokenRecord[n] sorted by sort_key ascending</text>
+    <text class="ts" x="300" y="203" text-anchor="middle" dominant-baseline="central">Binary search: O(log n) for source → token_id lookup</text>
+  </g>
+  <text class="ts" x="534" y="172" dominant-baseline="central">n × 16 B</text>
+  <text class="ts" x="534" y="188" dominant-baseline="central">≈ 15 MB</text>
+  <text class="ts" x="534" y="204" dominant-baseline="central">(n=1M)</text>
+
+  <!-- ENTRY MAP -->
+  <g class="c-teal" onclick="sendPrompt('How is the Token Entry Map used for backward lookup in Phase 1?')" style="cursor:pointer">
+    <rect x="80" y="211" width="440" height="56" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="229" text-anchor="middle" dominant-baseline="central">TOKEN ENTRY MAP  (Backward Index)</text>
+    <text class="ts" x="300" y="245" text-anchor="middle" dominant-baseline="central">TokenEntry[n] indexed by token_id directly</text>
+    <text class="ts" x="300" y="261" text-anchor="middle" dominant-baseline="central">Direct access: O(1) for token_id → source location</text>
+  </g>
+  <text class="ts" x="534" y="230" dominant-baseline="central">n × 16 B</text>
+  <text class="ts" x="534" y="246" dominant-baseline="central">≈ 15 MB</text>
+  <text class="ts" x="534" y="262" dominant-baseline="central">(n=1M)</text>
+
+  <!-- STRING HEADERS -->
+  <g class="c-amber" onclick="sendPrompt('How are string intern table headers stored and searched in the TCA format?')" style="cursor:pointer">
+    <rect x="80" y="269" width="440" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="281" text-anchor="middle" dominant-baseline="central">STRING INTERN HEADERS</text>
+    <text class="ts" x="300" y="297" text-anchor="middle" dominant-baseline="central">(hash:u64, str_offset:u32)[s] — sorted by hash for binary search</text>
+  </g>
+  <text class="ts" x="534" y="287" dominant-baseline="central">s × 12 B</text>
+
+  <!-- STRING STORAGE -->
+  <g class="c-amber" onclick="sendPrompt('How is string storage encoded in the TCA format?')" style="cursor:pointer">
+    <rect x="80" y="307" width="440" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="321" text-anchor="middle" dominant-baseline="central">STRING STORAGE  [u16_len][utf8_bytes...]  length-prefixed, no null terminator</text>
+  </g>
+  <text class="ts" x="534" y="321" dominant-baseline="central">variable</text>
+
+  <!-- CHECKSUM -->
+  <g class="c-gray" onclick="sendPrompt('What checksum algorithm is used for the TCA file?')" style="cursor:pointer">
+    <rect x="80" y="337" width="440" height="28" rx="4" stroke-width="0.5"/>
+    <text class="th" x="300" y="351" text-anchor="middle" dominant-baseline="central">CHECKSUM  CRC-64/ECMA of all preceding bytes</text>
+  </g>
+  <text class="ts" x="534" y="351" dominant-baseline="central">8 B</text>
+
+  <!-- Size summary -->
+  <rect x="80" y="378" width="440" height="40" rx="6" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="300" y="392" text-anchor="middle" dominant-baseline="central" style="color:var(--text-secondary)">Total (1M tokens, 100 files, 50K unique strings): ≈ 31.7 MB uncompressed, ≈ 7–10 MB LZ4-compressed</text>
+  <text class="ts" x="300" y="408" text-anchor="middle" dominant-baseline="central" style="color:var(--text-secondary)">Hot sections (Token Table + Entry Map) are mmap'd; cold sections loaded on demand</text>
+</svg>
+</div>
+
+<div id="complexity" class="panel">
+<svg width="100%" viewBox="0 0 680 340" role="img">
+  <title>Phase 1 time and space complexity summary</title>
+  <desc>Table showing per-operation time complexity and overall space complexity for Phase 1</desc>
+
+  <text class="th" x="340" y="28" text-anchor="middle">Phase 1 complexity analysis</text>
+
+  <!-- Time complexity table -->
+  <text class="th" x="40" y="55" dominant-baseline="central">Time</text>
+
+  <!-- Header row -->
+  <rect x="40" y="64" width="600" height="24" rx="4" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="200" y="76" text-anchor="middle" dominant-baseline="central" style="font-weight:500">Operation</text>
+  <text class="ts" x="470" y="76" text-anchor="middle" dominant-baseline="central" style="font-weight:500">Complexity</text>
+
+  <!-- Rows -->
+  <g onclick="sendPrompt('Why is tree-sitter parsing linear time?')" style="cursor:pointer">
+    <rect x="40" y="88" width="600" height="24" rx="0" fill="transparent" stroke-width="0.5"/>
+    <text class="ts" x="200" y="100" text-anchor="middle" dominant-baseline="central">CST parsing (Tree-sitter)</text>
+    <text class="ts" x="470" y="100" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">O(N)  — N = total source bytes</text>
+  </g>
+  <line x1="40" y1="112" x2="640" y2="112" stroke="var(--border)" stroke-width="0.5"/>
+
+  <g onclick="sendPrompt('Why is CST walking O(n_cst)?')" style="cursor:pointer">
+    <text class="ts" x="200" y="124" text-anchor="middle" dominant-baseline="central">CST depth-first walk</text>
+    <text class="ts" x="470" y="124" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">O(n_cst)  — n_cst ≈ 3×n_tok</text>
+  </g>
+  <line x1="40" y1="136" x2="640" y2="136" stroke="var(--border)" stroke-width="0.5"/>
+
+  <g onclick="sendPrompt('Why is FNV-1a string interning O(|text|) amortized?')" style="cursor:pointer">
+    <text class="ts" x="200" y="148" text-anchor="middle" dominant-baseline="central">FNV-1a + hash table intern</text>
+    <text class="ts" x="470" y="148" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">O(|text|) amortized per token</text>
+  </g>
+  <line x1="40" y1="160" x2="640" y2="160" stroke="var(--border)" stroke-width="0.5"/>
+
+  <g onclick="sendPrompt('What sort algorithm is used and why is it O(n log n)?')" style="cursor:pointer">
+    <text class="ts" x="200" y="172" text-anchor="middle" dominant-baseline="central">Sort TokenRecord[] by sort_key</text>
+    <text class="ts" x="470" y="172" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace);fill:#085041">O(n_tok log n_tok)  — dominant</text>
+  </g>
+  <line x1="40" y1="184" x2="640" y2="184" stroke="var(--border)" stroke-width="0.5"/>
+
+  <g onclick="sendPrompt('Why is binary serialization linear time?')" style="cursor:pointer">
+    <text class="ts" x="200" y="196" text-anchor="middle" dominant-baseline="central">Binary serialization to .tca</text>
+    <text class="ts" x="470" y="196" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">O(n_tok)</text>
+  </g>
+
+  <rect x="40" y="204" width="600" height="24" rx="4" fill="var(--bg-success)" stroke-width="0.5"/>
+  <text class="ts" x="200" y="216" text-anchor="middle" dominant-baseline="central" style="fill:var(--text-success);font-weight:500">TOTAL</text>
+  <text class="ts" x="470" y="216" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace);fill:var(--text-success);font-weight:500">O(N + n_tok × log n_tok)</text>
+
+  <!-- Space complexity -->
+  <text class="th" x="40" y="248" dominant-baseline="central">Space</text>
+
+  <rect x="40" y="258" width="285" height="24" rx="4" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="182" y="270" text-anchor="middle" dominant-baseline="central" style="font-weight:500">Structure</text>
+  <rect x="325" y="258" width="315" height="24" rx="4" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="482" y="270" text-anchor="middle" dominant-baseline="central" style="font-weight:500">Size (n_tok = 1M)</text>
+
+  <text class="ts" x="182" y="296" text-anchor="middle" dominant-baseline="central">Token Table + Entry Map</text>
+  <text class="ts" x="482" y="296" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">32 MB (16+16)</text>
+  <line x1="40" y1="306" x2="640" y2="306" stroke="var(--border)" stroke-width="0.5"/>
+  <text class="ts" x="182" y="320" text-anchor="middle" dominant-baseline="central">StringInterner (table + storage)</text>
+  <text class="ts" x="482" y="320" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">≈ 1.1 MB (50K strings)</text>
+  <line x1="40" y1="330" x2="640" y2="330" stroke="var(--border)" stroke-width="0.5"/>
+
+  <rect x="40" y="330" width="600" height="8" rx="0" fill="var(--bg-success)" opacity="0.5"/>
+  <text class="ts" x="182" y="340" text-anchor="middle" dominant-baseline="central" style="fill:var(--text-success);font-weight:500">Total peak RAM</text>
+  <text class="ts" x="482" y="340" text-anchor="middle" dominant-baseline="central" style="font-family:var(--font-mono,monospace);fill:var(--text-success);font-weight:500">≈ 34 MB  →  O(n_tok)</text>
+</svg>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
