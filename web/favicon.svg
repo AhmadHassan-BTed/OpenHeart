@@ -1,42 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <defs>
-    <radialGradient id="orbGlow" cx="40%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="35%" stop-color="#e2e8f0" />
-      <stop offset="70%" stop-color="#64748b" />
-      <stop offset="100%" stop-color="#0f172a" />
-    </radialGradient>
-    <filter id="shadow">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.8"/>
-    </filter>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#050505"/>
+  
+  <!-- Minimalist Line-Art Wireframe 3D Spiky Orb -->
+  <g fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer Spiky Starburst Line Contour -->
+    <polygon points="32,4 38,14 48,8 45,19 56,19 49,28 60,32 50,38 58,47 46,48 49,60 37,53 32,62 27,53 15,60 18,48 6,47 14,38 4,32 15,28 8,19 19,19 16,8 26,14"/>
 
-  <rect width="100" height="100" fill="#050505"/>
+    <!-- Inner Geometric Wireframe Facet Lines -->
+    <line x1="32" y1="4" x2="32" y2="32"/>
+    <line x1="60" y1="32" x2="32" y2="32"/>
+    <line x1="32" y1="62" x2="32" y2="32"/>
+    <line x1="4" y1="32" x2="32" y2="32"/>
 
-  <!-- 3D Crystalline Facet Morphing Orb -->
-  <g filter="url(#shadow)">
-    <!-- Base 3D Spiky Starburst Sphere Geometry -->
-    <polygon points="50,6 59,20 74,12 70,28 86,28 76,42 94,48 78,58 90,72 72,74 76,92 58,82 50,96 42,82 24,92 28,74 10,72 22,58 6,48 24,42 14,28 30,28 26,12 41,20" fill="url(#orbGlow)"/>
+    <!-- Diagonal Wireframe Spikes -->
+    <line x1="48" y1="8" x2="32" y2="32"/>
+    <line x1="58" y1="47" x2="32" y2="32"/>
+    <line x1="15" y1="60" x2="32" y2="32"/>
+    <line x1="8" y1="19" x2="32" y2="32"/>
 
-    <!-- Sharp Crystalline Facets for Volumetric Metallic 3D Shading -->
-    <polygon points="50,6 59,20 50,32" fill="#ffffff" opacity="0.9"/>
-    <polygon points="59,20 70,28 50,32" fill="#cbd5e1" opacity="0.8"/>
-    <polygon points="70,28 76,42 50,32" fill="#94a3b8" opacity="0.85"/>
-    <polygon points="76,42 78,58 50,52" fill="#475569" opacity="0.9"/>
-    <polygon points="78,58 72,74 50,52" fill="#334155" opacity="0.95"/>
-    <polygon points="72,74 50,96 50,52" fill="#1e293b" opacity="0.9"/>
-    <polygon points="50,96 28,74 50,52" fill="#0f172a" opacity="0.9"/>
-    <polygon points="28,74 22,58 50,52" fill="#1e293b" opacity="0.85"/>
-    <polygon points="22,58 24,42 50,32" fill="#475569" opacity="0.9"/>
-    <polygon points="24,42 30,28 50,32" fill="#94a3b8" opacity="0.8"/>
-    <polygon points="30,28 41,20 50,32" fill="#e2e8f0" opacity="0.95"/>
-
-    <!-- Sharp Facet Lines -->
-    <polygon points="50,6 74,12 59,20" fill="#f8fafc" opacity="0.6"/>
-    <polygon points="86,28 94,48 76,42" fill="#64748b" opacity="0.7"/>
-    <polygon points="90,72 76,92 72,74" fill="#1e293b" opacity="0.8"/>
-    <polygon points="24,92 10,72 28,74" fill="#0f172a" opacity="0.8"/>
-    <polygon points="6,48 14,28 24,42" fill="#475569" opacity="0.7"/>
-    <polygon points="26,12 50,6 41,20" fill="#f1f5f9" opacity="0.8"/>
+    <!-- Inner Crystalline Octahedron Core -->
+    <polygon points="32,18 46,32 32,46 18,32" stroke="#a3a3a3" stroke-width="1"/>
   </g>
 </svg>
