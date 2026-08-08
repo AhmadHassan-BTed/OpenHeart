@@ -214,16 +214,17 @@ body.brutalist-theme {
 
 .hero-title {
   font-family: var(--font-hero);
-  font-size: clamp(44px, 8.3vw, 110px);
+  font-size: clamp(34px, 7vw, 98px);
   font-weight: 800;
   letter-spacing: -1px;
   line-height: 0.95;
   color: #ffffff;
   text-transform: uppercase;
-  margin: 0 0 16px 0;
+  margin: 0 auto 16px auto;
   padding: 0;
   text-align: center;
   width: 100%;
+  white-space: nowrap;
   mix-blend-mode: difference;
 }
 
