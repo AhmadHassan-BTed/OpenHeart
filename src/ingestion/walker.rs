@@ -2,7 +2,7 @@ use tree_sitter::Node;
 
 use crate::core::types::source::TokenFilter;
 use crate::core::types::token::TokenType;
-use crate::phase1::adapter::LanguageAdapter;
+use crate::ingestion::adapter::LanguageAdapter;
 
 /// Transient raw token emitted during CST walking.
 #[derive(Debug, Clone)]

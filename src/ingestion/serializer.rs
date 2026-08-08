@@ -7,7 +7,7 @@ use crate::core::io::binary::{BinaryReader, BinaryWriter};
 use crate::core::types::artifact::Artifact;
 use crate::core::types::source::SourceFileRecord;
 use crate::core::types::token::{TokenEntry, TokenRecord};
-use crate::phase1::interner::{fnv1a_64, StringInterner};
+use crate::ingestion::interner::{fnv1a_64, StringInterner};
 
 pub const TCA_MAGIC: u64 = 0x544F4B434F525001; // "TOKCORP\x01"
 pub const TCA_VERSION: u32 = 0x00000001;

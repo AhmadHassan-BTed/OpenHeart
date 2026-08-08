@@ -1,6 +1,6 @@
 //! Binary BPASTSerializer for writing and reading .bpa binary files with CRC-64 integrity.
 
-use crate::phase1::serializer::crc64_ecma;
+use crate::ingestion::serializer::crc64_ecma;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
