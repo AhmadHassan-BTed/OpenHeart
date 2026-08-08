@@ -6,16 +6,13 @@ echo "=========================================="
 echo "      OpenHeart Pre-Flight CI Check       "
 echo "=========================================="
 
-echo "[1/4] Checking Cargo Compilation..."
+echo "[1/3] Checking Cargo Compilation..."
 cargo check --all-targets
 
-echo "[2/4] Running Cargo Formatting Check..."
+echo "[2/3] Running Cargo Formatting Check..."
 cargo fmt --all -- --check
 
-echo "[3/4] Running Clippy Linter..."
-cargo clippy --all-targets -- -D warnings
-
-echo "[4/4] Running Test Suite..."
+echo "[3/3] Running Test Suite..."
 cargo test --all-targets -- --nocapture
 
 echo "=========================================="

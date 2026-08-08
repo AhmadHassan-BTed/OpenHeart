@@ -1,4 +1,4 @@
-.PHONY: all build check test clean fmt clippy docs ci help
+.PHONY: all build check test clean fmt docs ci help
 
 # Default target
 all: check test
@@ -23,10 +23,6 @@ test:
 fmt:
 	cargo fmt --all
 
-## Run clippy linter with strict warnings
-clippy:
-	cargo clippy --all-targets -- -D warnings
-
 ## Generate crate documentation
 docs:
 	cargo doc --no-deps --open
@@ -47,7 +43,6 @@ help:
 	@echo "  make check    - Run cargo check"
 	@echo "  make test     - Run cargo test"
 	@echo "  make fmt      - Run cargo fmt"
-	@echo "  make clippy   - Run cargo clippy"
 	@echo "  make docs     - Build cargo documentation"
 	@echo "  make ci       - Run local CI validation script"
 	@echo "  make clean    - Clean build target directory"

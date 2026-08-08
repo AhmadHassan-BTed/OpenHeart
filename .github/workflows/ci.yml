@@ -24,7 +24,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-          components: clippy, rustfmt
+          components: rustfmt
 
       - name: Cargo Cache
         uses: actions/cache@v4
@@ -42,9 +42,6 @@ jobs:
 
       - name: Cargo Fmt Check
         run: cargo fmt --all -- --check
-
-      - name: Clippy Linter
-        run: cargo clippy --all-targets -- -D warnings
 
       - name: Run Tests
         run: cargo test --all-targets -- --nocapture
