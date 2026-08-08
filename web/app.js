@@ -12,7 +12,7 @@ mermaid.initialize({
 });
 
 /* ==========================================================================
-   1. THREE.JS WEBGL 3D MORPHING SPIKY ORB (Frame-by-Frame matching file.mp4)
+   1. THREE.JS WEBGL 3D MORPHING SPIKY ORB
    ========================================================================== */
 
 let scene, camera, renderer, orbMesh, particleSystem;
@@ -56,7 +56,6 @@ function initThreeOrb() {
   // 3D Geometry: High-resolution Icosahedron for crystalline facet spiky morphing
   const geometry = new THREE.IcosahedronGeometry(2.1, 32);
 
-  // Save original positions and normals for non-destructive morphing
   const posAttr = geometry.attributes.position;
   const normAttr = geometry.attributes.normal;
   originalPositions = new Float32Array(posAttr.array);
@@ -75,7 +74,7 @@ function initThreeOrb() {
   orbMesh = new THREE.Mesh(geometry, material);
   scene.add(orbMesh);
 
-  // Ambient Floating Dust / Code Nodes Particles
+  // Ambient Floating Particles
   const particleCount = 400;
   const particleGeo = new THREE.BufferGeometry();
   const particlePositions = new Float32Array(particleCount * 3);
@@ -124,9 +123,7 @@ function animate() {
   if (orbMesh && originalPositions) {
     const geo = orbMesh.geometry;
     const posAttr = geo.attributes.position;
-    const normAttr = geo.attributes.normal;
 
-    // Calculate spike intensity (matching frame 00:06-00:10 spiky starburst from file.mp4)
     const spikeFactor = isStudioEngaged ? 1.6 : (0.45 + Math.sin(elapsedTime * 1.5) * 0.3);
 
     for (let i = 0; i < posAttr.count; i++) {
@@ -138,7 +135,6 @@ function animate() {
       const ny = originalNormals[i * 3 + 1];
       const nz = originalNormals[i * 3 + 2];
 
-      // Multi-octave Simplex Noise displacement
       const n1 = simplex.noise3D(px * 0.9 + elapsedTime * 0.4, py * 0.9 + elapsedTime * 0.4, pz * 0.9 + elapsedTime * 0.4);
       const n2 = simplex.noise3D(px * 2.2 - elapsedTime * 0.3, py * 2.2 - elapsedTime * 0.3, pz * 2.2 - elapsedTime * 0.3);
       const noiseVal = n1 * 0.7 + n2 * 0.3;
@@ -151,7 +147,6 @@ function animate() {
     posAttr.needsUpdate = true;
     geo.computeVertexNormals();
 
-    // Rotation & Mouse Parallax
     targetX = mouseX * 0.4;
     targetY = mouseY * 0.4;
 
@@ -164,7 +159,6 @@ function animate() {
     particleSystem.rotation.y = elapsedTime * 0.012;
   }
 
-  // Smooth Camera Dynamics
   if (camera) {
     if (isStudioEngaged) {
       camera.position.z += (3.5 - camera.position.z) * 0.05;
@@ -297,7 +291,7 @@ let generatedDiagrams = {};
 let currentActiveTab = 'class';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Three.js 3D Morphing Orb Engine
+  // Initialize WebGL 3D Morphing Orb Engine
   initThreeOrb();
 
   const heroLanding = document.getElementById('hero-landing');
@@ -306,8 +300,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnBackLanding = document.getElementById('btn-back-landing');
   
   const btnFetch = document.getElementById('btn-fetch');
+  const btnToggleAdvanced = document.getElementById('btn-toggle-advanced');
+  const advancedOptions = document.getElementById('advanced-options');
+  
+  const btnPresetCore = document.getElementById('btn-preset-core');
   const btnSelectAll = document.getElementById('btn-select-all');
   const btnClearAll = document.getElementById('btn-clear-all');
+  
+  const tabStructural = document.getElementById('tab-structural');
+  const tabBehavioral = document.getElementById('tab-behavioral');
+  const viewStructural = document.getElementById('view-structural');
+  const viewBehavioral = document.getElementById('view-behavioral');
+
   const repoUrlInput = document.getElementById('repo-url-input');
   const pipelineStatus = document.getElementById('pipeline-status');
   const progressBarFill = document.getElementById('progress-bar-fill');
@@ -321,7 +325,102 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeDiagramCount = document.getElementById('active-diagram-count');
   const cornerBrandTopRight = document.querySelector('.corner-brand.top-right');
 
-  // Engage Studio (Hero -> Studio Transition)
+  // Advanced Options Toggle
+  if (btnToggleAdvanced && advancedOptions) {
+    btnToggleAdvanced.addEventListener('click', () => {
+      advancedOptions.classList.toggle('hidden-options');
+      btnToggleAdvanced.textContent = advancedOptions.classList.contains('hidden-options')
+        ? 'SETTINGS ▾'
+        : 'SETTINGS ▴';
+    });
+  }
+
+  // Scope Toggle Handler (System View vs Module Breakdown)
+  const scopeSystem = document.getElementById('scope-system');
+  const scopeModule = document.getElementById('scope-module');
+  const moduleSelector = document.getElementById('module-selector');
+
+  if (scopeSystem && scopeModule) {
+    scopeSystem.addEventListener('click', () => {
+      scopeSystem.classList.add('active');
+      scopeModule.classList.remove('active');
+      if (moduleSelector) moduleSelector.value = 'all';
+      if (currentActiveTab) renderMermaidDiagram(currentActiveTab, 'all');
+    });
+
+    scopeModule.addEventListener('click', () => {
+      scopeModule.classList.add('active');
+      scopeSystem.classList.remove('active');
+      if (moduleSelector && moduleSelector.value === 'all') moduleSelector.value = 'core';
+      if (currentActiveTab) renderMermaidDiagram(currentActiveTab, moduleSelector ? moduleSelector.value : 'core');
+    });
+  }
+
+  if (moduleSelector) {
+    moduleSelector.addEventListener('change', (e) => {
+      const mod = e.target.value;
+      if (mod !== 'all' && scopeSystem && scopeModule) {
+        scopeModule.classList.add('active');
+        scopeSystem.classList.remove('active');
+      }
+      if (currentActiveTab) renderMermaidDiagram(currentActiveTab, mod);
+    });
+  }
+
+  // Category Tabs (Structural vs Behavioral)
+  if (tabStructural && tabBehavioral) {
+    tabStructural.addEventListener('click', () => {
+      tabStructural.classList.add('active');
+      tabBehavioral.classList.remove('active');
+      viewStructural.classList.remove('hidden');
+      viewBehavioral.classList.add('hidden');
+    });
+
+    tabBehavioral.addEventListener('click', () => {
+      tabBehavioral.classList.add('active');
+      tabStructural.classList.remove('active');
+      viewBehavioral.classList.remove('hidden');
+      viewStructural.classList.add('hidden');
+    });
+  }
+
+  // Presets
+  btnPresetCore.addEventListener('click', () => {
+    setPreset(['class', 'object', 'component', 'package', 'activity', 'sequence']);
+    setActivePresetBtn(btnPresetCore);
+  });
+
+  btnSelectAll.addEventListener('click', () => {
+    const all = ['class', 'object', 'component', 'deployment', 'package', 'composite', 'profile', 'usecase', 'activity', 'statemachine', 'sequence', 'communication', 'interaction', 'timing'];
+    setPreset(all);
+    setActivePresetBtn(btnSelectAll);
+  });
+
+  btnClearAll.addEventListener('click', () => {
+    setPreset([]);
+    setActivePresetBtn(btnClearAll);
+  });
+
+  function setPreset(array) {
+    selectedDiagrams = new Set(array);
+    document.querySelectorAll('input[name="uml-type"]').forEach(cb => {
+      const isChecked = selectedDiagrams.has(cb.value);
+      cb.checked = isChecked;
+      const parentCard = cb.closest('.brutalist-checkbox');
+      if (parentCard) {
+        if (isChecked) parentCard.classList.add('active');
+        else parentCard.classList.remove('active');
+      }
+    });
+    updateCountDisplay();
+  }
+
+  function setActivePresetBtn(btn) {
+    document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // Engage Studio
   btnEngageOrb.addEventListener('click', engageStudio);
   document.getElementById('orb-canvas').addEventListener('click', () => {
     if (!isStudioEngaged) engageStudio();
@@ -345,7 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
   });
 
-  // Update Diagram Count Display
   function updateCountDisplay() {
     if (activeDiagramCount) activeDiagramCount.textContent = selectedDiagrams.size;
   }
@@ -365,26 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  btnSelectAll.addEventListener('click', () => {
-    document.querySelectorAll('input[name="uml-type"]').forEach(cb => {
-      cb.checked = true;
-      const parentCard = cb.closest('.brutalist-checkbox');
-      if (parentCard) parentCard.classList.add('active');
-      selectedDiagrams.add(cb.value);
-    });
-    updateCountDisplay();
-  });
-
-  btnClearAll.addEventListener('click', () => {
-    document.querySelectorAll('input[name="uml-type"]').forEach(cb => {
-      cb.checked = false;
-      const parentCard = cb.closest('.brutalist-checkbox');
-      if (parentCard) parentCard.classList.remove('active');
-    });
-    selectedDiagrams.clear();
-    updateCountDisplay();
-  });
-
   // Pipeline Fetch Execution
   btnFetch.addEventListener('click', () => {
     const url = repoUrlInput.value.trim();
@@ -394,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (selectedDiagrams.size === 0) {
-      alert('Please select at least one UML diagram type from the matrix.');
+      alert('Please select at least one UML diagram projection.');
       return;
     }
 
@@ -408,14 +486,14 @@ document.addEventListener('DOMContentLoaded', () => {
     statusPercent.textContent = '10%';
 
     logStep(`> Validating target repository URL: ${url}`);
-    await sleep(500);
+    await sleep(400);
 
     statusStepTitle.textContent = 'STAGE 1: LEXICAL INGESTION & TREE-SITTER WALK...';
     progressBarFill.style.width = '35%';
     statusPercent.textContent = '35%';
     logStep('> Allocating monotonic token_id counter [0..4096]');
     logStep('> Interning identifiers with 64-bit FNV-1a StringInterner');
-    await sleep(700);
+    await sleep(500);
 
     statusStepTitle.textContent = 'STAGE 2: VERIFYING CORPUS INVARIANTS 1–4...';
     progressBarFill.style.width = '65%';
@@ -424,13 +502,13 @@ document.addEventListener('DOMContentLoaded', () => {
     logStep('> Invariant 2 (Injectivity): VERIFIED');
     logStep('> Invariant 3 (Completeness): VERIFIED');
     logStep('> Invariant 4 (Index Consistency): VERIFIED');
-    await sleep(600);
+    await sleep(400);
 
-    statusStepTitle.textContent = 'STAGE 3: DERIVING 14 UML DIAGRAM VIEWS...';
+    statusStepTitle.textContent = 'STAGE 3: DERIVING UML DIAGRAM VIEWS...';
     progressBarFill.style.width = '90%';
     statusPercent.textContent = '90%';
     logStep(`> Compiling ${selectedDiagrams.size} selected UML graph projections...`);
-    await sleep(500);
+    await sleep(400);
 
     progressBarFill.style.width = '100%';
     statusPercent.textContent = '100%';
@@ -501,7 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return labels[type] || type.toUpperCase();
   }
 
-  async function renderMermaidDiagram(type) {
+  async function renderMermaidDiagram(type, selectedModule = 'all') {
     const mermaidCode = generatedDiagrams[type];
     renderContainer.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
 
@@ -513,9 +591,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Mermaid render error:', err);
     }
 
-    // Update Traceability Drawer
+    // Dynamic Module Traceability Update
+    const modPath = selectedModule === 'all' ? `src/${type}_layer.rs` : `src/${selectedModule}/${type}_spec.rs`;
     document.getElementById('trace-tid').textContent = `#${Math.floor(Math.random() * 8000 + 1000)}`;
-    document.getElementById('trace-file').textContent = `src/${type}_layer.rs`;
+    document.getElementById('trace-file').textContent = modPath;
     document.getElementById('trace-span').textContent = `L12:C4 - L48:C32`;
     document.getElementById('trace-hash').textContent = `0x${Math.floor(Math.random() * 0xFFFFFFFF).toString(16).toUpperCase()}`;
   }
