@@ -73,19 +73,19 @@ classDiagram
         +BalancedParentheses B
         +RankSelectAuxiliary index
         +NodeAttributes pre_order_array
-        +O(1) parent()
-        +O(1) first_child()
-        +O(1) lca()
+        +parent()
+        +first_child()
+        +lca()
     }
     class Layer2_CFG {
         +u32_array offsets
         +u32_array adj
-        +O(outdeg) successor_scan()
+        +successor_scan()
     }
     class Layer3_Edges {
         +WaveletTree edge_types
-        +O(log sigma) rank_c()
-        +O(log sigma) select_c()
+        +rank_c()
+        +select_c()
     }
     class Layer4_SSA_DFG {
         +u32_array def_site
@@ -95,7 +95,7 @@ classDiagram
     class Layer5_ROBDD {
         +ROBDD_Nodes f_paths
         +SiftingOptimizer reorder
-        +O(1) path_count()
+        +path_count()
     }
     Layer1_AST <|-- Layer2_CFG
     Layer2_CFG <|-- Layer3_Edges
@@ -129,9 +129,9 @@ The traceability system relies on a monotonic 32-bit `token_id` assigned during 
 
 ```mermaid
 graph TD
-    SP["Source Position (file_id, line, col)"] -->|O(log n) Binary Search| FI["Forward Index (FI)"]
+    SP["Source Position (file_id, line, col)"] -->|"O(log n) Binary Search"| FI["Forward Index (FI)"]
     FI --> TID["token_id (Monotonic u32 Anchor)"]
-    TID -->|O(1) Direct Lookup| BI["Backward Index (BI)"]
+    TID -->|"O(1) Direct Lookup"| BI["Backward Index (BI)"]
     BI --> SRS["Source Range Span"]
     TID --> Nodes["SCPG Graph Nodes"]
     Nodes --> Link["UMLLink Record"]

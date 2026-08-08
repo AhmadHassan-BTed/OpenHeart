@@ -108,9 +108,9 @@ Bidirectional source position linking relies on the `token_id` anchor.
 
 ```mermaid
 graph TD
-    SP["Source Position (file_id, line, col)"] -->|O(log n) Binary Search| FI["Forward Index (FI)"]
+    SP["Source Position (file_id, line, col)"] -->|"O(log n) Binary Search"| FI["Forward Index (FI)"]
     FI --> TID["token_id (Monotonic u32 Anchor)"]
-    TID -->|O(1) Direct Lookup| BI["Backward Index (BI)"]
+    TID -->|"O(1) Direct Lookup"| BI["Backward Index (BI)"]
     BI --> SRS["Source Range Span"]
     TID --> Nodes["SCPG Graph Nodes"]
     Nodes --> Link["UMLLink Record"]
