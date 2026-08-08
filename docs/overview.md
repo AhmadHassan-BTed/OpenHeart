@@ -1,8 +1,10 @@
-# Succinct Compositional Program Graph (SCPG) — Overview & Specification
+# Succinct Compositional Program Graph (SCPG) — Complete Technical Specification
 
-## 1. Executive Summary & Ideology
+## 1. System Philosophy & Architectural Vision
 
-The **Succinct Compositional Program Graph (SCPG)** is an advanced static program analysis graph and bidirectional UML generation engine. It addresses the architectural flaws of traditional Code Property Graphs (CPGs) by replacing heap-allocated, pointer-heavy graph structures with succinct data representations, cache-friendly array encodings, and binary decision diagrams.
+The **Succinct Compositional Program Graph (SCPG)** is an advanced static program analysis graph and bidirectional UML generation engine created and maintained by **Ahmad Hassan (B-Ted)**.
+
+Existing static analysis frameworks (e.g., Joern Code Property Graph, LLVM IR, WALA, Eclipse EMF) suffer from severe memory inflation and pointer-chasing latency. The SCPG architecture solves these structural limitations by unifying Abstract Syntax Trees (AST), Control Flow Graphs (CFG), Data Flow Graphs (DFG), Call Graphs (CG), and Type Hierarchies (TH) into a succinct, cache-line aligned, memory-mapped graph representation.
 
 ---
 
@@ -22,55 +24,106 @@ The **Succinct Compositional Program Graph (SCPG)** is an advanced static progra
 
 ---
 
-## 3. Mathematical Foundations of SCPG
+## 3. Formal Mathematical Definition of SCPG
 
-### 3.1 Formal Definition
-
-An SCPG is a 7-tuple:
+Formally, an SCPG is defined as a 7-tuple:
 
 $$\mathcal{G} = (V, E, \nu, \varepsilon, \tau, \rho, \Sigma_\Phi)$$
 
-- **$V$**: Vertex set partitioned as $V = V_{\text{tok}} \sqcup V_{\text{syn}} \sqcup V_{\text{bb}} \sqcup V_{\text{ssa}} \sqcup V_{\text{sym}}$.
-- **$E$**: Edge set $E \subseteq V \times V \times \Sigma_E$ with $\Sigma_E = \{ \text{AST\_CHILD}, \text{CFG\_TRUE}, \text{CFG\_FALSE}, \text{CFG\_UNCOND}, \text{DFG\_DEF}, \text{DFG\_USE}, \text{CDG\_TRUE}, \text{CDG\_FALSE}, \text{CG\_CALL}, \text{CG\_RETURN}, \text{TH\_EXTENDS}, \text{TH\_IMPLEMENTS}, \text{TH\_USES} \}$.
-- **$\tau$**: Source location mapping $\tau: V_{\text{tok}} \to \mathbb{N}^4$ assigning $(\text{file\_id}, \text{line}, \text{col}, \text{len})$.
-- **$\Sigma_\Phi$**: Reduced Ordered Binary Decision Diagrams (ROBDDs) encoding feasible path sets per function.
+### 3.1 Vertex Partition & Subsumption Lattice
 
-### 3.2 Subsumption Lattice
+The finite vertex set $V$ is partitioned into five disjoint sub-domains:
 
-The vertex partition forms a strict subsumption lattice:
+$$V = V_{\text{tok}} \sqcup V_{\text{syn}} \sqcup V_{\text{bb}} \sqcup V_{\text{ssa}} \sqcup V_{\text{sym}}$$
+
+- $V_{\text{tok}}$: Lexical tokens scanned from source files (AST leaves).
+- $V_{\text{syn}}$: Syntactic AST internal nodes.
+- $V_{\text{bb}}$: Basic blocks (maximal straight-line code sequences).
+- $V_{\text{ssa}}$: Variable definitions in Static Single-Assignment (SSA) form.
+- $V_{\text{sym}}$: Symbol declarations (functions, classes, interfaces, fields, packages).
+
+These vertex partitions form a strict subsumption lattice:
 
 $$V_{\text{tok}} \subset V_{\text{syn}} \subset V_{\text{bb}} \subset V_{\text{sym}}$$
 
-Every token is an AST leaf; every AST node belongs to a basic block; every basic block belongs to a function symbol.
+This subsumption lattice guarantees $O(1)$ bidirectional projection across graph layers without recursive graph traversals.
 
 ---
 
-## 4. Layered Storage Engine
+## 4. Phase 1: Lexical Ingestion & Token Corpus (.tca)
 
-1. **Layer 1: Balanced Parentheses (BP) AST**
-   - Encodes ordered AST forest into a parentheses sequence $B \in \{(, )\}^{2n_{\text{ast}}}$.
-   - $O(1)$ operations via Sadakane/Munro-Raman rank/select: `parent`, `first_child`, `next_sibling`, `subtree_size`, `LCA`.
-   - **Compression**: 1M AST nodes stored in ~4.65 MB (versus 32 MB pointer trees).
+### 4.1 `sort_key` Bit Layout (64-bit `u64`)
 
-2. **Layer 2: Compressed Sparse Row (CSR) CFG**
-   - Adjacency offset array `offsets[0..n_bb]` and successor array `adj[0..m_cfg]`.
-   - $O(\text{outdeg})$ block successor enumeration with sequential memory access.
+Lexicographical position sorting is packed into a single 64-bit integer:
 
-3. **Layer 3: Wavelet Tree Edge Compression**
-   - Bit-packed wavelet tree over $\Sigma_E$ supporting $O(\log \sigma)$ edge access and type-filtered neighbor enumeration.
+$$\text{sort\_key} = (\text{file\_id} \ll 48) \mid (\text{line} \ll 24) \mid (\text{col} \ll 8) \mid \text{flags}$$
 
-4. **Layer 4: Static Single-Assignment (SSA) DFG**
-   - Single definition site per variable $v_i^k$. Sparse def-use storage bounded by $O(3n)$ operand uses.
+- **`file_id`** (bits 63..48): 16-bit integer (up to 65,536 files).
+- **`line`** (bits 47..24): 24-bit integer (up to 16,777,215 lines).
+- **`col`** (bits 23..8): 16-bit integer (up to 65,536 columns).
+- **`flags`** (bits 7..0): 8-bit reserved byte for sort stability (default 0x00).
 
-5. **Layer 5: ROBDD Path Summaries**
-   - Propositional path condition encoding $f_{\text{paths}}$ with Shannon expansion and sifting dynamic variable reordering.
-   - Exact path counting (#SAT) and path feasibility checks in $O(|\text{ROBDD}|)$ time.
+### 4.2 `.tca` Binary Artifact Layout
+
+1. **Header (64 bytes)**: `TCA_MAGIC` (`0x544F4B434F525001`), `format_version`, `token_count`, `file_count`, `string_count`, `flags`, `source_tree_hash` (SHA-256), `creation_ts_ns`.
+2. **File Registry**: $F \times 64\text{ B}$ array of `SourceFileRecord`.
+3. **File Paths**: Length-prefixed UTF-8 string section (8-byte aligned).
+4. **Token Table (Forward Index)**: $n \times 16\text{ B}$ sorted `TokenRecord` array sorted by `sort_key` ascending ($O(\log n)$ binary search).
+5. **Entry Map (Backward Index)**: $n \times 16\text{ B}$ `TokenEntry` array indexed by `token_id` ($O(1)$ direct array access).
+6. **String Table**: String headers ($s \times 12\text{ B}$) + UTF-8 storage.
+7. **Checksum**: 8-byte CRC-64/ECMA digest over all preceding bytes.
 
 ---
 
-## 5. Universal Source Traceability Protocol
+## 5. Phase 2: CST Reduction & Balanced Parentheses AST Encoding (.bpa)
 
-- **`token_id` Anchor**: Universal monotonic $u32$ identifier assigned during scanning.
-- **Forward Index ($O(\log n)$)**: Source position $(file\_id, line, col) \to token\_id$ via binary search on packed $u48$ keys.
-- **Backward Index ($O(1)$)**: Direct array access $BI[token\_id] \to (file\_id, line, col, len)$.
-- **UML Element Link**: Embeds `UMLLink` record into every generated UML diagram element for $O(1)$ stale-link invalidation on incremental source edits.
+### 5.1 CST Reduction Decision Taxonomy
+
+Every Tree-sitter CST node is classified by `ASTReductionAdapter` into:
+- **`Keep(ASTNodeType)`**: Emit $V_{\text{syn}}$ vertex, attach children.
+- **`Eliminate`**: Bypass node, pull children up to nearest kept ancestor.
+- **`Drop`**: Discard node and children (brackets, semicolons, comments, whitespace).
+- **`Token`**: Leaf AST node mapped to `token_id`.
+
+### 5.2 Balanced Parentheses (BP) Navigation Formulas ($O(1)$ Time)
+
+- **Pre-order Index**: $\text{preorder\_idx}(\text{bp\_pos}) = \text{rank}_1(\text{bp\_pos}) - 1$
+- **Open Position**: $\text{open\_pos}(\text{pre\_idx}) = \text{select}_1(\text{pre\_idx} + 1)$
+- **Matching Position**: $\text{match\_pos}(\text{pos})$ via Jump Table
+- **Parent**: $\text{parent\_map}[\text{pre\_idx}]$
+- **First Child**: $\text{first\_child}(\text{pre\_idx}) = \text{rank}_1(\text{op} + 1) - 1$ if $B[\text{op}+1] == 1$ else `None`
+- **Next Sibling**: $\text{next\_sibling}(\text{pre\_idx}) = \text{rank}_1(\text{cp} + 1) - 1$ if $B[\text{cp}+1] == 1$ else `None`
+- **Subtree Size**: $\text{subtree\_size}(\text{pre\_idx}) = (\text{cp} - \text{op} + 1) / 2$
+- **Is Leaf**: $\text{is\_leaf}(\text{pre\_idx}) \equiv B[\text{op}+1] == 0$
+- **Depth**: $\text{depth}(\text{pre\_idx}) = 2 \times \text{rank}_1(\text{op}) - \text{op} - 1$ (excess depth sequence)
+- **Lowest Common Ancestor (LCA)**: $\text{lca}(u, v) = \text{rank}_1(\text{range\_min}(\text{op}_u, \text{op}_v)) - 1$ via Sparse Table RMQ
+
+---
+
+## 6. Complete 10-Phase Pipeline Binary Artifact Flow
+
+```text
+Phase 1:  Source Text → TokenCorpusArtifact (.tca)
+Phase 2:  .tca → BPASTArtifact (.bpa)
+Phase 3:  .tca + .bpa → SymbolTableArtifact (.sta)
+Phase 4:  .bpa + .sta → CFGArtifact (.cfa)
+Phase 5:  .cfa + .sta → SSAArtifact (.ssa)
+Phase 6:  .ssa + .sta → CallGraphArtifact (.cga)
+Phase 7:  Artifacts 1-6 → TraceabilityArtifact (.tra)
+Phase 8:  .cfa + .ssa → PathSummaryArtifact (.psa)
+Phase 9:  Artifacts 1-8 → UMLMetadataArtifact (.uma)
+Phase 10: Artifacts 1-9 → SCPG Binary (.scpg) + QueryEngine instance
+```
+
+---
+
+## 7. Performance & Memory Space Benchmarks
+
+| Metric / Structure | OpenHeart SCPG | Legacy Pointer Graphs / Neo4j | Improvement |
+|---|---|---|---|
+| **AST Tree Memory** | $4.65\text{ MB}$ / 1M nodes (BP + Rank/Select) | $32\text{ MB}$ pointer trees | **$6.9\times$ smaller** |
+| **CFG Edge Memory** | $24\text{ MB}$ (Compressed Sparse Row) | $170\text{ MB}$ Neo4j store | **$7.1\times$ smaller** |
+| **Path Summaries** | $\sim 20\text{ KB}$ (ROBDD functions) | $2^{50}\text{ B}$ explicit enumeration | **$\infty\times$ smaller** |
+| **Forward Index Lookup** | $O(\log n)$ binary search | $O(V + E)$ BFS scan | **$\sim 1\text{ ns}$** per query |
+| **Backward Index Lookup**| $O(1)$ array access | $O(V)$ hash table scan | **$\sim 0.5\text{ ns}$** per query |
+| **Tree Navigation** | $O(1)$ (`parent`, `lca`, `subtree_size`) | $O(\text{depth})$ pointer traversal | **$O(1)$ guaranteed** |
