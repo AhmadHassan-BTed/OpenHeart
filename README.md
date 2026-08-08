@@ -6,6 +6,7 @@
 
 [![Language: Rust](https://img.shields.io/badge/language-Rust_1.75+-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Live Studio](https://img.shields.io/badge/Live_Studio-GitHub_Pages-success.svg?style=flat-square&logo=github)](https://ahmadhassan-bted.github.io/OpenHeart/)
 [![CI Pipeline](https://img.shields.io/badge/CI-passing-brightgreen.svg?style=flat-square)](https://github.com/AhmadHassan-BTed/OpenHeart/actions)
 [![Security Policy](https://img.shields.io/badge/security-enforced-success.svg?style=flat-square)](SECURITY.md)
 [![Maintainer: Ahmad Hassan (B-Ted)](https://img.shields.io/badge/maintainer-Ahmad_Hassan_(B--Ted)-blueviolet.svg?style=flat-square)](https://github.com/AhmadHassan-BTed)
@@ -163,7 +164,7 @@ To launch the local web studio portal:
 make serve
 ```
 
-Then open `http://localhost:8080` in your web browser.
+Then open `http://localhost:8080` in your web browser, or access the live deployed instance directly at **[https://ahmadhassan-bted.github.io/OpenHeart/](https://ahmadhassan-bted.github.io/OpenHeart/)**.
 
 ```text
 OpenHeart/
