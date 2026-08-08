@@ -162,3 +162,24 @@ graph TD
 | **[12] Communication** | Interaction | $E^{\text{CG}}$ + Message Order | Lifeline Edge Enumeration |
 | **[13] Interaction Overview**| Interaction | High-Level Control Flow + Calls | CFG-to-Sequence Composite Mapping |
 | **[14] Timing Diagram** | Interaction | State Transitions + Time Bounds | Temporal Trace Constraint Engine |
+
+---
+
+## 6. Phase Specifications & Reference Models
+
+Each pipeline stage is defined in detail by its technical specification and interactive model:
+
+- **Phase 1: Lexical Ingestion & Token Corpus (.tca)**
+  - Technical Specification: [ImplementationPlan.md](file:///home/leech/Projects/OpenHeart/ImplementationPlan.md)
+  - Interactive Spec Model: [docs/ingestion/phase1_architecture_and_bit_layout.html](file:///home/leech/Projects/OpenHeart/docs/ingestion/phase1_architecture_and_bit_layout.html)
+
+- **Phase 2: CST Reduction & BP AST Encoding (.bpa)**
+  - Technical Specification: [Implementation_plan2.md](file:///home/leech/Projects/OpenHeart/Implementation_plan2.md)
+  - Interactive Spec Model: [docs/ast/phase2_bp_architecture.html](file:///home/leech/Projects/OpenHeart/docs/ast/phase2_bp_architecture.html)
+
+- **Complete SCPG 10-Phase Pipeline Architecture**
+  - Interactive Pipeline Model: [docs/pipeline/openheart_10_phase_pipeline.html](file:///home/leech/Projects/OpenHeart/docs/pipeline/openheart_10_phase_pipeline.html)
+
+- **SCPG 5-Layer System Architecture**
+  - Interactive Architecture Model: [docs/architecture/scpg_architecture_diagram.html](file:///home/leech/Projects/OpenHeart/docs/architecture/scpg_architecture_diagram.html)
+

@@ -37,7 +37,7 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 
 ---
 
-## Complete 10-Phase Pipeline Architecture
+## 10-Phase Pipeline Architecture
 
 The OpenHeart analysis engine is structured into a 10-phase pipeline, where each phase produces an immutable, binary artifact with CRC-64 verification:
 
@@ -53,91 +53,6 @@ The OpenHeart analysis engine is structured into a 10-phase pipeline, where each
 | **8** | **ROBDD Path Summaries** | `.cfa`, `.ssa` | `PathSummaryArtifact (.psa)` | Reduced Ordered BDD path boolean functions ($f_{\text{paths}}$), FORCE/sifting reordering. |
 | **9** | **UML Semantic Metadata** | Artifacts 1–8 | `UMLMetadataArtifact (.uma)` | Synthesis of $\rho$ mapping functions for all 14 standard UML diagram views. |
 | **10**| **SCPG Query Bootstrap** | Artifacts 1–9 | `SCPG Binary (.scpg)` | 11-section memory-mapped `.scpg` binary file & CFL-reachability query engine. |
-
----
-
-## Phase 1: Ingestion Module Flow & Pipeline Architecture
-
-```mermaid
-flowchart TD
-    SM["<b>SourceManifest</b><br/>file_paths, language_overrides, TokenFilter"] --> MB["<b>SourceManifestBuilder</b><br/>Lexicographical path sorting → file_ids 0..F-1"]
-    MB --> AR["<b>AdapterRegistry &amp; Parser</b><br/>Language auto-detection → TreeSitterParser FFI"]
-    AR --> CW["<b>CSTWalker</b><br/>Left-to-right DFS traverse → RawTokens"]
-    CW --> AL["<b>TokenIdAllocator &amp; StringInterner</b><br/>Monotonic AtomicU32 token_id | 64-bit FNV-1a"]
-    AL --> TCB["<b>TokenCorpusBuilder</b><br/>Sorts 16B TokenRecords by sort_key | Asserts Invariants 1–4"]
-    TCB --> TCA[("<b>TokenCorpusArtifact (.tca binary)</b><br/>64B Header | SourceFileRecord[] | TokenRecord[] | TokenEntry[] | CRC-64")]
-
-    style SM fill:#161b22,stroke:#30363d,color:#79c0ff
-    style MB fill:#161b22,stroke:#1f6feb,color:#f0f6fc
-    style AR fill:#161b22,stroke:#238636,color:#7ee787
-    style CW fill:#161b22,stroke:#d29922,color:#e3b341
-    style AL fill:#161b22,stroke:#a371f7,color:#d2a8ff
-    style TCB fill:#161b22,stroke:#f85149,color:#ff7b72
-    style TCA fill:#1f6feb26,stroke:#1f6feb,color:#58a6ff
-```
-
----
-
-## Phase 2: CST Reduction & Balanced Parentheses AST Encoding
-
-```mermaid
-flowchart TD
-    subgraph Legend["Reduction Decision Taxonomy"]
-        direction LR
-        L1["KEEP → AST node"] ::: keep
-        L2["ELIMINATE → flatten children up"] ::: elim
-        L3["DROP → discard"] ::: drop
-        L4["token → leaf AST node"] ::: tok
-    end
-
-    IF["if_statement<br/><b>KEEP → NN_IF_STMT</b>"] ::: keep
-    IF_KW["if<br/><b>DROP</b>"] ::: drop
-    PAREN["parenthesized_expression<br/><b>ELIMINATE → flatten children</b>"] ::: elim
-    RET["return_statement<br/><b>KEEP → NN_RETURN_STMT</b>"] ::: keep
-
-    IF --> IF_KW
-    IF --> PAREN
-    IF --> RET
-
-    BIN["binary_expression<br/><b>KEEP → NN_BINARY_EXPR</b>"] ::: keep
-    ID1["identifier 'x'<br/><b>KEEP → leaf token</b>"] ::: tok
-    OP[">&quot;<br/><b>DROP</b>"] ::: drop
-    LIT["decimal_integer_literal '0'<br/><b>KEEP → leaf token</b>"] ::: tok
-
-    PAREN --> BIN
-    BIN --> ID1
-    BIN --> OP
-    BIN --> LIT
-
-    RET_KW["return<br/><b>DROP</b>"] ::: drop
-    ID2["identifier 'x'<br/><b>KEEP → leaf token</b>"] ::: tok
-    SEMI[";<br/><b>DROP</b>"] ::: drop
-
-    RET --> RET_KW
-    RET --> ID2
-    RET --> SEMI
-
-    classDef keep fill:#23863640,stroke:#238636,color:#7ee787
-    classDef elim fill:#a371f740,stroke:#a371f7,color:#d2a8ff
-    classDef drop fill:#f8514940,stroke:#f85149,color:#ff7b72
-    classDef tok fill:#1f6feb40,stroke:#1f6feb,color:#79c0ff
-```
-
-```text
-BP Bitstring:  1  1  1  0  1  0  0  1  1  0  0  0
-               (1 = Open / Pre-order visit, 0 = Close / Post-order exit, 5 nodes = 10 bits)
-```
-
----
-
-## Performance & Complexity Analysis
-
-### Algorithmic & Space Bounds
-
-- **Overall Ingestion Complexity**: $O(N + n_{\text{ast}} \log n_{\text{ast}})$ (dominated by sparse table RMQ preprocessing; $\sim 21\text{ms}$ per million AST nodes).
-- **Traceability Lookup**: $O(\log n)$ Forward Index binary search, $O(1)$ direct Backward Index array lookup.
-- **Tree Navigation**: $O(1)$ `parent`, `first_child`, `next_sibling`, `subtree_size`, and `lca` via BP bits and Rank/Select auxiliary structures.
-- **Space Reduction**: **$6.9\times$ to $128\times$ smaller** memory footprint compared to pointer-based ASTs and graph database baselines (e.g. Neo4j).
 
 ---
 
