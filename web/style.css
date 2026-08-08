@@ -1,4 +1,4 @@
-/* OpenHeart Studio — Neo-Brutalist Design System */
+/* OpenHeart Studio — Neo-Brutalist CSS System */
 :root {
   --bg-black: #050505;
   --bg-card: #0a0a0a;
@@ -19,28 +19,28 @@
   --font-hero: 'Syne', sans-serif;
 }
 
-* {
-  box-sizing: border-box;
+html, body {
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
-}
-
-body.brutalist-theme {
+  overflow: hidden;
   background-color: var(--bg-black);
   color: var(--text-white);
   font-family: var(--font-sans);
-  overflow-x: hidden;
-  min-height: 100vh;
+}
+
+body.brutalist-theme {
   position: relative;
 }
 
-/* WebGL Canvas Background */
+/* WebGL Canvas Background (Absolute Viewport Alignment) */
 #orb-canvas {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   z-index: 1;
   pointer-events: auto;
 }
@@ -48,7 +48,7 @@ body.brutalist-theme {
 /* Corner Status Overlays (Brutalist HUD) */
 .corner-brand {
   position: fixed;
-  z-index: 10;
+  z-index: 20;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 1px;
@@ -138,35 +138,34 @@ body.brutalist-theme {
   color: var(--text-dim);
 }
 
-/* Opening Hero Overlay */
+/* Opening Hero Overlay — PURE CSS GRID DEAD-CENTERING */
 .hero-overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 5;
-  display: flex;
-  align-items: center;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  align-content: center;
   justify-content: center;
   pointer-events: none;
   transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .hero-center-content {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   text-align: center;
   pointer-events: auto;
   user-select: none;
   width: 100%;
-  max-width: 1100px;
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 0 20px;
   box-sizing: border-box;
 }
@@ -175,8 +174,8 @@ body.brutalist-theme {
   font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 4px;
-  color: var(--text-white);
-  margin-bottom: 16px;
+  color: #ffffff;
+  margin: 0 0 16px 0;
   text-transform: uppercase;
   text-align: center;
   mix-blend-mode: difference;
@@ -184,42 +183,35 @@ body.brutalist-theme {
 
 .hero-title {
   font-family: var(--font-hero);
-  font-size: clamp(52px, 10vw, 130px);
+  font-size: min(12vw, 130px);
   font-weight: 800;
-  letter-spacing: -2px;
-  line-height: 0.95;
+  letter-spacing: 0;
+  line-height: 0.9;
   color: #ffffff;
   text-transform: uppercase;
-  margin: 0 auto 20px auto;
+  margin: 0 0 24px 0;
+  padding: 0;
   text-align: center;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0;
+  justify-self: center;
+  align-self: center;
   width: 100%;
   mix-blend-mode: difference;
-}
-
-.hero-title span {
-  -webkit-text-stroke: 2px #ffffff;
-  color: transparent;
 }
 
 .hero-sub {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 2px;
-  color: var(--text-white);
-  margin-bottom: 40px;
+  color: #ffffff;
+  margin: 0 0 40px 0;
   text-align: center;
   mix-blend-mode: difference;
 }
 
 .orb-interaction-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  text-align: center;
   mix-blend-mode: difference;
 }
 
@@ -251,20 +243,11 @@ body.brutalist-theme {
   display: block;
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text-white);
+  color: #ffffff;
   margin-top: 14px;
   letter-spacing: 1px;
   text-align: center;
   mix-blend-mode: difference;
-}
-
-.hint-sub {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  margin-top: 12px;
-  letter-spacing: 1px;
 }
 
 .hero-hidden {
@@ -273,22 +256,26 @@ body.brutalist-theme {
   pointer-events: none;
 }
 
-/* App Container (Studio Room) */
+/* App Container (Studio Control Room) */
 .app-container {
-  position: relative;
-  z-index: 8;
-  min-height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  background-color: rgba(5, 5, 5, 0.85);
-  backdrop-filter: blur(12px);
+  background-color: rgba(5, 5, 5, 0.92);
+  backdrop-filter: blur(16px);
   transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow-y: auto;
 }
 
 .studio-hidden {
   opacity: 0;
   pointer-events: none;
-  display: none;
+  display: none !important;
 }
 
 /* Top Studio Nav */
