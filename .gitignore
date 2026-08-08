@@ -1,3 +1,8 @@
+# Rust build artifacts & target directory
+/target/
+**/*.rs.bk
+*.tca
+
 # Operating System Files
 .DS_Store
 .DS_Store?
@@ -29,47 +34,14 @@ yarn-error.log*
 *.sqlite
 *.db
 
-# Node / Web Dependencies & Builds
+# Node / Python / Temp
 node_modules/
 dist/
 build/
-out/
-.next/
-.cache/
-*.tsbuildinfo
-
-# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
 .venv/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-
-# Environment Variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Temporary files
 tmp/
 temp/
 *.tmp
