@@ -1,25 +1,39 @@
-# Getting Started with OpenHeart
+# Getting Started with OpenHeart (SCPG)
 
-Welcome to **OpenHeart**! This guide will help you set up your local workspace and navigate the project repository.
+Welcome to **OpenHeart**! This guide will help you set up your local Rust environment and explore the Succinct Compositional Program Graph engine.
 
-## Prerequisites
+---
 
-- **Git** (v2.20 or newer)
-- Text editor or IDE (e.g. VS Code, Neovim)
+## 🛠️ Prerequisites
 
-## Initial Setup
+- **Rust Toolchain**: Rust 1.75+ (edition 2021)
+- **Cargo**: Included with Rust toolchain
+- **Git**: v2.20 or newer
 
-1. **Clone the Repository** (or navigate to your workspace directory):
+---
+
+## 🚀 Workspace Setup
+
+1. **Clone the Repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/AhmadHassan-BTed/OpenHeart.git
    cd OpenHeart
    ```
 
-2. **Explore the Documentation**:
-   - Read [`docs/overview.md`](overview.md) to understand the project structure and goals.
-   - Review [`docs/contributing.md`](contributing.md) before submitting changes.
+2. **Verify Build**:
+   ```bash
+   cargo check
+   ```
 
-## Development Guidelines
+3. **Run Automated Test Suite**:
+   ```bash
+   cargo test
+   ```
 
-- Keep documentation updated alongside any architectural or implementation changes.
-- Ensure all new features are tracked with proper commit messages.
+---
+
+## 📚 Documentation Reference
+
+- **[System Overview](overview.md)**: Formal mathematical definitions, comparative analysis, and succinct data structures.
+- **[System Architecture](architecture.md)**: 5-Phase pipeline design and 14 UML diagram mappings.
+- **[Implementation Plan](../ImplementationPlan.md)**: Full technical specification for Phase 1 (Lexical Ingestion & Token Corpus Construction).
