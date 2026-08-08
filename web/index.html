@@ -9,7 +9,7 @@
   <!-- Google Fonts: Space Grotesk, Syne & Space Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="style.css" />
   
@@ -21,12 +21,18 @@
 </head>
 <body class="brutalist-theme">
 
+  <!-- Demo Notice Banner -->
+  <div class="demo-notice-banner">
+    <span class="banner-pulse"></span>
+    <span>DEMO PREVIEW :: OPENHEART SCPG ENGINE IN ACTIVE DEVELOPMENT — 1 OF 10 PHASES COMPLETED</span>
+  </div>
+
   <!-- WebGL 3D Background Canvas -->
   <canvas id="orb-canvas"></canvas>
 
   <!-- Corner HUD Overlay -->
   <div class="corner-brand top-left">
-    <span class="brand-tag">OPENHEART + SCPG . ENGINE</span>
+    <span class="brand-tag">OPENHEART</span>
   </div>
   <div class="corner-brand top-right">
     <button id="sound-toggle" class="brutalist-pill">sound ~/~</button>
@@ -35,14 +41,14 @@
   <div class="corner-brand bottom-left">
     <div class="status-counter-box">
       <div class="counter-box-icon"></div>
-      <div class="counter-text"><span id="active-diagram-count">7</span> / 14 DIAGRAMS DISCOVERED</div>
+      <div class="counter-text"><span id="active-diagram-count">6</span> / 14 DIAGRAMS READY</div>
     </div>
   </div>
   <div class="corner-brand bottom-right">
     <span class="author-tag">MAINTAINED BY :: AHMAD HASSAN (B-TED)</span>
   </div>
 
-  <!-- Opening Landing Overlay (Grid Centered) -->
+  <!-- Opening Landing Overlay -->
   <section id="hero-landing" class="hero-overlay">
     <div class="hero-center-content">
       <div class="hero-eyebrow">SUCCINCT COMPOSITIONAL PROGRAM GRAPH</div>
@@ -51,10 +57,10 @@
       
       <div class="orb-interaction-hint">
         <button id="btn-engage-orb" class="btn-brutalist-hero">
-          <span class="btn-text">[ ENGAGE SCPG STUDIO ]</span>
+          <span class="btn-text">[ LAUNCH UML STUDIO ]</span>
           <span class="btn-arrow">→</span>
         </button>
-        <span class="hint-sub">Click central orb or button to penetrate system layers</span>
+        <span class="hint-sub">Click central orb or button to open control room</span>
       </div>
     </div>
   </section>
@@ -66,7 +72,7 @@
     <header class="studio-nav">
       <div class="nav-left">
         <button id="btn-back-landing" class="nav-back">← RETURN TO MANIFESTO</button>
-        <h2 class="nav-title">SCPG CONTROL ROOM</h2>
+        <h2 class="nav-title">OPENHEART CONTROL ROOM</h2>
       </div>
       <div class="nav-right">
         <span class="nav-status"><span class="pulse-dot"></span> SYSTEM ONLINE :: RUST v0.1.0</span>
@@ -79,61 +85,69 @@
       <!-- Left Column: Controls & Matrix -->
       <section class="control-panel">
         
-        <!-- Repo Input Card -->
-        <div class="brutalist-card">
-          <div class="card-header">
-            <h3>01 // REPOSITORY SOURCE ADAPTER</h3>
+        <!-- Target Repository Card -->
+        <div class="brutalist-card anim-slide-up" style="animation-delay: 0.1s;">
+          <div class="card-header flex-between">
+            <h3>REPOSITORY SOURCE</h3>
+            <button id="btn-toggle-advanced" class="btn-pill-toggle">SETTINGS ▾</button>
           </div>
           <div class="card-body">
             <div class="form-group">
-              <label for="repo-url-input">GITHUB TARGET REPOSITORY URL</label>
+              <label for="repo-url-input">GITHUB REPOSITORY URL</label>
               <div class="input-row">
-                <input type="text" id="repo-url-input" class="brutalist-input" placeholder="https://github.com/AhmadHassan-BTed/OpenHeart" value="https://github.com/AhmadHassan-BTed/OpenHeart" />
-                <button id="btn-fetch" class="btn-brutalist-primary">FETCH &amp; ANALYZE →</button>
+                <input type="text" id="repo-url-input" class="brutalist-input" placeholder="https://github.com/owner/repository" value="https://github.com/AhmadHassan-BTed/OpenHeart" />
+                <button id="btn-fetch" class="btn-brutalist-primary">ANALYZE REPO →</button>
               </div>
             </div>
 
-            <div class="form-row">
+            <!-- Collapsible Advanced Options -->
+            <div id="advanced-options" class="form-row hidden-options">
               <div class="form-group flex-1">
                 <label for="repo-branch">BRANCH / TAG</label>
                 <input type="text" id="repo-branch" class="brutalist-input" value="main" />
               </div>
               <div class="form-group flex-1">
-                <label for="parser-adapter">PARSER ADAPTER</label>
+                <label for="parser-adapter">PARSER</label>
                 <select id="parser-adapter" class="brutalist-select">
                   <option value="auto">AUTO-DETECT (TREE-SITTER)</option>
-                  <option value="java">JAVA (Tree-sitter)</option>
-                  <option value="rust">RUST (Tree-sitter)</option>
-                  <option value="cpp">C / C++ (Tree-sitter)</option>
-                  <option value="python">PYTHON (Tree-sitter)</option>
+                  <option value="java">JAVA</option>
+                  <option value="rust">RUST</option>
+                  <option value="cpp">C / C++</option>
+                  <option value="python">PYTHON</option>
                 </select>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 14 UML Selection Matrix Card -->
-        <div class="brutalist-card">
+        <!-- 14 UML Selection Matrix Card with Quick Presets & Category Tabs -->
+        <div class="brutalist-card matrix-card anim-slide-up" style="animation-delay: 0.2s;">
           <div class="card-header flex-between">
-            <h3>02 // 14 UML DIAGRAM SELECTION MATRIX</h3>
+            <h3>UML DIAGRAM PROJECTIONS</h3>
             <div class="preset-links">
-              <button id="btn-select-all" class="btn-text-link">SELECT ALL (14)</button>
-              <span class="sep">|</span>
-              <button id="btn-clear-all" class="btn-text-link">CLEAR</button>
+              <button id="btn-preset-core" class="btn-preset active">QUICK 4</button>
+              <button id="btn-select-all" class="btn-preset">ALL 14</button>
+              <button id="btn-clear-all" class="btn-preset">CLEAR</button>
             </div>
           </div>
-          <div class="card-body">
+          
+          <div class="card-body matrix-card-body">
             
-            <!-- Structural Category -->
-            <div class="matrix-group">
-              <div class="group-title">STRUCTURAL DIAGRAMS (7)</div>
+            <!-- Category Tabs: Structural vs Behavioral -->
+            <div class="matrix-tabs">
+              <button id="tab-structural" class="matrix-tab-btn active">STRUCTURAL (7)</button>
+              <button id="tab-behavioral" class="matrix-tab-btn">BEHAVIORAL (7)</button>
+            </div>
+
+            <!-- Structural Category View -->
+            <div id="view-structural" class="matrix-view">
               <div class="checkbox-grid">
                 <label class="brutalist-checkbox active">
                   <input type="checkbox" name="uml-type" value="class" checked />
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Class Diagram</span>
-                    <span class="cb-spec">E^TH + V_sym</span>
+                    <span class="cb-spec">Types &amp; Hierarchies</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox active">
@@ -141,7 +155,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Object Diagram</span>
-                    <span class="cb-spec">E^TH + SSA</span>
+                    <span class="cb-spec">Runtime Instantiations</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox active">
@@ -149,7 +163,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Component Diagram</span>
-                    <span class="cb-spec">V_sym Modules</span>
+                    <span class="cb-spec">Subsystems &amp; Modules</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -157,7 +171,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Deployment</span>
-                    <span class="cb-spec">V_sym Artifacts</span>
+                    <span class="cb-spec">Artifact Topologies</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox active">
@@ -165,7 +179,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Package Diagram</span>
-                    <span class="cb-spec">V_sym Namespaces</span>
+                    <span class="cb-spec">Namespaces &amp; Crates</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -173,7 +187,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Composite Structure</span>
-                    <span class="cb-spec">Fields &amp; Ports</span>
+                    <span class="cb-spec">Internal Ports &amp; Binding</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -181,22 +195,21 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Profile Diagram</span>
-                    <span class="cb-spec">Stereotypes</span>
+                    <span class="cb-spec">Domain Stereotypes</span>
                   </div>
                 </label>
               </div>
             </div>
 
-            <!-- Behavioral Category -->
-            <div class="matrix-group margin-top">
-              <div class="group-title">BEHAVIORAL &amp; INTERACTION DIAGRAMS (7)</div>
+            <!-- Behavioral Category View -->
+            <div id="view-behavioral" class="matrix-view hidden">
               <div class="checkbox-grid">
                 <label class="brutalist-checkbox">
                   <input type="checkbox" name="uml-type" value="usecase" />
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Use Case Diagram</span>
-                    <span class="cb-spec">API + Actor</span>
+                    <span class="cb-spec">API Actors &amp; Boundaries</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox active">
@@ -204,7 +217,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Activity Diagram</span>
-                    <span class="cb-spec">E^CFG + CDG</span>
+                    <span class="cb-spec">Control &amp; Data Workflows</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -212,7 +225,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">State Machine</span>
-                    <span class="cb-spec">CFG + AbsInt</span>
+                    <span class="cb-spec">Lifecycle Transitions</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox active">
@@ -220,7 +233,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Sequence Diagram</span>
-                    <span class="cb-spec">E^CG + ROBDD</span>
+                    <span class="cb-spec">Interprocedural Calls</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -228,7 +241,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Communication</span>
-                    <span class="cb-spec">E^CG + Order</span>
+                    <span class="cb-spec">Message Exchange Order</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -236,7 +249,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Interaction Overview</span>
-                    <span class="cb-spec">CFG + Calls</span>
+                    <span class="cb-spec">High-Level Control Flows</span>
                   </div>
                 </label>
                 <label class="brutalist-checkbox">
@@ -244,7 +257,7 @@
                   <span class="cb-box"></span>
                   <div class="cb-content">
                     <span class="cb-name">Timing Diagram</span>
-                    <span class="cb-spec">State + Bounds</span>
+                    <span class="cb-spec">State Constraints &amp; Bounds</span>
                   </div>
                 </label>
               </div>
@@ -256,14 +269,14 @@
       </section>
 
       <!-- Right Column: Studio Display -->
-      <section class="viewer-panel">
+      <section class="viewer-panel anim-slide-up" style="animation-delay: 0.3s;">
         
         <!-- Live Pipeline Execution Card -->
         <div id="pipeline-status" class="brutalist-card status-card hidden">
           <div class="card-header flex-between">
             <div class="flex-align">
               <span class="status-indicator-square"></span>
-              <h4 id="status-step-title">INITIALIZING REPOSITORY INGESTION...</h4>
+              <h4 id="status-step-title">ANALYZING REPOSITORY...</h4>
             </div>
             <span id="status-percent">15%</span>
           </div>
@@ -272,7 +285,7 @@
               <div id="progress-bar-fill" class="brutalist-progress-fill" style="width: 15%;"></div>
             </div>
             <div id="status-logs" class="brutalist-logs">
-              <div class="log-line">> Parsing target repository URL...</div>
+              <div class="log-line">> Parsing source tree...</div>
             </div>
           </div>
         </div>
@@ -284,6 +297,19 @@
               <!-- Dynamically populated tabs -->
             </div>
             <div class="toolbar-actions">
+              <div class="scope-toggle-group">
+                <button id="scope-system" class="btn-scope active">SYSTEM VIEW</button>
+                <button id="scope-module" class="btn-scope">MODULE BREAKDOWN</button>
+              </div>
+
+              <!-- Dynamic Module Selector Dropdown -->
+              <select id="module-selector" class="brutalist-select-sm">
+                <option value="all">ALL MODULES (ROOT)</option>
+                <option value="core">crate::core (SCPG Models &amp; IO)</option>
+                <option value="phase1">crate::phase1 (Lexical Ingestion &amp; Interner)</option>
+                <option value="adapters">crate::adapters (Tree-sitter &amp; Web Repo)</option>
+              </select>
+
               <button id="btn-copy-mermaid" class="btn-brutalist-sm">COPY MERMAID</button>
               <button id="btn-export-svg" class="btn-brutalist-sm">EXPORT SVG</button>
             </div>
@@ -292,22 +318,22 @@
           <!-- Mermaid Canvas -->
           <div id="mermaid-render-container" class="mermaid-canvas">
             <div class="empty-state-brutalist">
-              <div class="empty-glyph">[ SCPG STUDIO ]</div>
-              <h3>NO DIAGRAM COMPILED YET</h3>
-              <p>Paste a GitHub target repository on the left and click <b>FETCH &amp; ANALYZE →</b> to derive selected UML views.</p>
+              <div class="empty-glyph">[ OPENHEART STUDIO ]</div>
+              <h3>NO DIAGRAM GENERATED YET</h3>
+              <p>Enter any public GitHub repository link on the left and click <b>ANALYZE REPO →</b> to generate interactive UML diagrams.</p>
             </div>
           </div>
 
-          <!-- Source Traceability Drawer -->
+          <!-- Traceability Bar -->
           <div class="traceability-drawer">
-            <div class="drawer-header">UNIVERSAL TRACEABILITY ANCHOR [token_id]</div>
+            <div class="drawer-header">TRACEABILITY ANCHOR [token_id]</div>
             <div class="drawer-grid">
               <div class="drawer-item">
                 <span class="label">TOKEN ID:</span>
                 <span id="trace-tid" class="val">#0000</span>
               </div>
               <div class="drawer-item">
-                <span class="label">SOURCE FILE:</span>
+                <span class="label">FILE:</span>
                 <span id="trace-file" class="val">--</span>
               </div>
               <div class="drawer-item">
@@ -315,7 +341,7 @@
                 <span id="trace-span" class="val">L0:C0 - L0:C0</span>
               </div>
               <div class="drawer-item">
-                <span class="label">SCPG DIGEST:</span>
+                <span class="label">DIGEST:</span>
                 <span id="trace-hash" class="val">0x00000000</span>
               </div>
             </div>
