@@ -4,7 +4,7 @@ Welcome to **OpenHeart**, created and maintained by **Ahmad Hassan (B-Ted)**. Th
 
 ---
 
-## ◆ Prerequisites
+## Prerequisites
 
 - **Rust Toolchain**: Rust 1.75+ (edition 2021)
 - **Cargo**: Included with Rust toolchain
@@ -12,7 +12,7 @@ Welcome to **OpenHeart**, created and maintained by **Ahmad Hassan (B-Ted)**. Th
 
 ---
 
-## ■ Workspace Setup
+## Workspace Setup
 
 1. **Clone the Repository**:
    ```bash
@@ -32,7 +32,7 @@ Welcome to **OpenHeart**, created and maintained by **Ahmad Hassan (B-Ted)**. Th
 
 ---
 
-## ● Documentation Index
+## Documentation Index
 
 - **[System Overview](overview.md)**: Formal mathematical definitions, comparative analysis, and succinct data structures.
 - **[System Architecture](architecture.md)**: 5-Phase pipeline design and 14 UML diagram mappings.

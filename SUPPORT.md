@@ -4,7 +4,7 @@ Thank you for exploring **OpenHeart**, maintained by **Ahmad Hassan (B-Ted)**. F
 
 ---
 
-## ◆ Community Support Channels
+## Community Support Channels
 
 ### 1. GitHub Discussions
 For general questions, architecture discussions, ideas, and usage guidance:
@@ -17,7 +17,7 @@ For bug reports, unexpected errors, or feature requests:
 
 ---
 
-## ■ Security Vulnerabilities
+## Security Vulnerabilities
 
 For security concerns or sensitive vulnerability disclosures:
 - Please refer to [SECURITY.md](SECURITY.md).
@@ -25,7 +25,7 @@ For security concerns or sensitive vulnerability disclosures:
 
 ---
 
-## ● Documentation Index
+## Documentation Index
 
 - **[README](../README.md)**: Project overview, setup, and key features.
 - **[System Architecture](docs/architecture.md)**: 5-layer storage engine and 14 UML matrix.

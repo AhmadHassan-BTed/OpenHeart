@@ -4,7 +4,7 @@ Thank you for contributing to **OpenHeart**! Created and maintained by **Ahmad H
 
 ---
 
-## ◆ Development Guidelines
+## Development Guidelines
 
 1. **Branching Strategy**: Create feature branches off `main`:
    ```bash

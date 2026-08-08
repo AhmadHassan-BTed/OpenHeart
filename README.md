@@ -22,7 +22,7 @@
 
 ---
 
-## ◆ Overview & System Philosophy
+## Overview & System Philosophy
 
 Software codebases are human creations designed to express complex domain logic. However, existing static program analysis tools (such as legacy Code Property Graphs or lowered compiler IRs) strip away high-level intent and introduce massive memory overheads through pointer-heavy node objects.
 
@@ -34,7 +34,7 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 
 ---
 
-## ■ Technical Pipeline Architecture
+## Technical Pipeline Architecture
 
 The ingestion pipeline converts raw source text into compact binary artifacts (`.tca`) anchored by a monotonic 32-bit `token_id` that propagates through all analysis phases.
 
@@ -68,7 +68,7 @@ graph TD
 
 ---
 
-## ▶ 5-Layer Succinct Storage Engine
+## 5-Layer Succinct Storage Engine
 
 The memory layout of OpenHeart is designed for zero-copy memory mapping and maximal CPU cache locality.
 
@@ -102,7 +102,7 @@ This subsumption lattice guarantees $O(1)$ projection between tokens, AST nodes,
 
 ---
 
-## ● Universal Source Traceability Protocol
+## Universal Source Traceability Protocol
 
 Bidirectional source position linking relies on the `token_id` anchor.
 
@@ -119,7 +119,7 @@ graph TD
 
 ---
 
-## ▲ 14 Native UML Diagram Derivations
+## 14 Native UML Diagram Derivations
 
 All 14 standard UML 2.5 diagram types are deterministically derived from SCPG graph layers:
 
@@ -141,7 +141,7 @@ graph LR
 
 ---
 
-## ◆ Repository Structure
+## Repository Structure
 
 ```text
 OpenHeart/
@@ -193,7 +193,7 @@ OpenHeart/
 
 ---
 
-## ◆ Environment Configuration
+## Environment Configuration
 
 Copy `.env.example` to `.env` for local configuration overrides:
 
@@ -213,7 +213,7 @@ Available environment options:
 
 ---
 
-## ■ Building & Developer Commands
+## Building & Developer Commands
 
 Developer tasks are managed via the included `Makefile`:
 
@@ -236,7 +236,7 @@ make docs
 
 ---
 
-## ● Security Posture
+## Security Posture
 
 OpenHeart enforces strict safety and integrity controls:
 - Safe Rust guarantee across ingestion modules.
@@ -247,7 +247,7 @@ For security reports, please review [SECURITY.md](SECURITY.md).
 
 ---
 
-## ▲ Community & Support
+## Community & Support
 
 Contributions, issue reports, and feedback are welcomed:
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Guidelines for submitting code and documentation.
@@ -256,7 +256,7 @@ Contributions, issue reports, and feedback are welcomed:
 
 ---
 
-## ▶ License & Maintainer Information
+## License & Maintainer Information
 
 This project is open-source software licensed under the **[MIT License](LICENSE)**.
 
