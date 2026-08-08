@@ -3,211 +3,327 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenHeart Studio — Web Repository UML Generator</title>
-  <meta name="description" content="Deployable web portal for OpenHeart SCPG engine. Fetch GitHub repositories and generate all 14 native UML diagrams." />
+  <title>OPENHEART — SCPG Engine & 14 UML Studio</title>
+  <meta name="description" content="Neo-Brutalist OpenHeart SCPG static program analysis engine and 14 UML diagram studio." />
+  
+  <!-- Google Fonts: Space Grotesk, Syne & Space Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="style.css" />
-  <!-- Mermaid JS for live diagram rendering -->
+  
+  <!-- Three.js for 3D Morphing WebGL Orb -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Mermaid JS for Diagram Rendering -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
-<body>
-  <div class="app-container">
-    <!-- Header Navbar -->
-    <header class="app-header">
-      <div class="brand">
-        <div class="logo-icon">OH</div>
-        <div class="brand-text">
-          <h1>OpenHeart <span>Studio</span></h1>
-          <p class="subtitle">Succinct Compositional Program Graph (SCPG) Web Portal</p>
-        </div>
+<body class="brutalist-theme">
+
+  <!-- WebGL 3D Background Canvas -->
+  <canvas id="orb-canvas"></canvas>
+
+  <!-- Corner Status Overlay -->
+  <div class="corner-brand top-left">
+    <span class="brand-tag">OPENHEART + SCPG . ENGINE</span>
+  </div>
+  <div class="corner-brand top-right">
+    <button id="sound-toggle" class="brutalist-pill">sound ~/~</button>
+    <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="brutalist-pill btn-gh">github / repo</a>
+  </div>
+  <div class="corner-brand bottom-left">
+    <div class="status-counter-box">
+      <div class="counter-box-icon"></div>
+      <div class="counter-text"><span id="active-diagram-count">7</span> / 14 DIAGRAMS DISCOVERED</div>
+    </div>
+  </div>
+  <div class="corner-brand bottom-right">
+    <span class="author-tag">MAINTAINED BY :: AHMAD HASSAN (B-TED)</span>
+  </div>
+
+  <!-- Opening Landing Overlay with Central Interactive Orb Controls -->
+  <section id="hero-landing" class="hero-overlay">
+    <div class="hero-center-content">
+      <div class="hero-eyebrow">SUCCINCT COMPOSITIONAL PROGRAM GRAPH</div>
+      <h1 class="hero-title">OPEN<span>HEART</span></h1>
+      <p class="hero-sub">HIGH-PERFORMANCE COMPILER THEORY &amp; BIJECTIVE UML GENERATION</p>
+      
+      <div class="orb-interaction-hint">
+        <button id="btn-engage-orb" class="btn-brutalist-hero">
+          <span class="btn-text">[ ENGAGE SCPG STUDIO ]</span>
+          <span class="btn-arrow">→</span>
+        </button>
+        <span class="hint-sub">Click orb or button to penetrate system layers</span>
       </div>
-      <div class="header-actions">
-        <span class="badge badge-rust">Rust Engine v0.1.0</span>
-        <span class="badge badge-author">Maintained by Ahmad Hassan (B-Ted)</span>
-        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn btn-secondary btn-sm">GitHub Repo</a>
+    </div>
+  </section>
+
+  <!-- Main App Container (Hidden initially or revealed on engage) -->
+  <div id="studio-app" class="app-container studio-hidden">
+    
+    <!-- Top Studio Navbar -->
+    <header class="studio-nav">
+      <div class="nav-left">
+        <button id="btn-back-landing" class="nav-back">← RETURN TO MANIFESTO</button>
+        <h2 class="nav-title">SCPG CONTROL ROOM</h2>
+      </div>
+      <div class="nav-right">
+        <span class="nav-status"><span class="pulse-dot"></span> SYSTEM ONLINE :: RUST v0.1.0</span>
       </div>
     </header>
 
-    <!-- Main Content Grid -->
+    <!-- Main Studio Grid -->
     <main class="main-content">
-      <!-- Left Controls Panel -->
+      
+      <!-- Left Column: Controls & Matrix -->
       <section class="control-panel">
-        <!-- Section 1: Repo URL Input -->
-        <div class="panel-card">
-          <h2 class="panel-title">Repository Adapter</h2>
-          <p class="panel-desc">Provide any public Git repository link to analyze semantics and extract succinct program graphs.</p>
-          
-          <div class="form-group">
-            <label for="repo-url-input">GitHub Repository Link</label>
-            <div class="input-wrapper">
-              <input type="text" id="repo-url-input" placeholder="https://github.com/AhmadHassan-BTed/OpenHeart" value="https://github.com/AhmadHassan-BTed/OpenHeart" />
-              <button id="btn-fetch" class="btn btn-primary">Fetch & Analyze</button>
-            </div>
+        
+        <!-- Repo Input Card -->
+        <div class="brutalist-card">
+          <div class="card-header">
+            <h3>01 // REPOSITORY SOURCE ADAPTER</h3>
           </div>
-
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label for="repo-branch">Branch / Tag</label>
-              <input type="text" id="repo-branch" value="main" />
+          <div class="card-body">
+            <div class="form-group">
+              <label for="repo-url-input">GITHUB TARGET REPOSITORY URL</label>
+              <div class="input-row">
+                <input type="text" id="repo-url-input" class="brutalist-input" placeholder="https://github.com/AhmadHassan-BTed/OpenHeart" value="https://github.com/AhmadHassan-BTed/OpenHeart" />
+                <button id="btn-fetch" class="btn-brutalist-primary">FETCH &amp; ANALYZE →</button>
+              </div>
             </div>
-            <div class="form-group flex-1">
-              <label for="parser-adapter">Language Adapter</label>
-              <select id="parser-adapter">
-                <option value="auto">Auto-Detect (Multi-Language)</option>
-                <option value="java">Java (Tree-sitter)</option>
-                <option value="rust">Rust (Tree-sitter)</option>
-                <option value="cpp">C / C++ (Tree-sitter)</option>
-                <option value="python">Python (Tree-sitter)</option>
-              </select>
+
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="repo-branch">BRANCH / TAG</label>
+                <input type="text" id="repo-branch" class="brutalist-input" value="main" />
+              </div>
+              <div class="form-group flex-1">
+                <label for="parser-adapter">PARSER ADAPTER</label>
+                <select id="parser-adapter" class="brutalist-select">
+                  <option value="auto">AUTO-DETECT (TREE-SITTER)</option>
+                  <option value="java">JAVA (Tree-sitter)</option>
+                  <option value="rust">RUST (Tree-sitter)</option>
+                  <option value="cpp">C / C++ (Tree-sitter)</option>
+                  <option value="python">PYTHON (Tree-sitter)</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Section 2: 14 UML Diagram Selection Matrix -->
-        <div class="panel-card">
-          <div class="panel-header-row">
-            <h2 class="panel-title">14 UML Diagram Selection Matrix</h2>
-            <div class="preset-buttons">
-              <button id="btn-select-all" class="btn-link">Select All (14)</button>
-              <button id="btn-clear-all" class="btn-link">Clear</button>
+        <!-- 14 UML Selection Matrix Card -->
+        <div class="brutalist-card">
+          <div class="card-header flex-between">
+            <h3>02 // 14 UML DIAGRAM SELECTION MATRIX</h3>
+            <div class="preset-links">
+              <button id="btn-select-all" class="btn-text-link">SELECT ALL (14)</button>
+              <span class="sep">|</span>
+              <button id="btn-clear-all" class="btn-text-link">CLEAR</button>
             </div>
           </div>
-          <p class="panel-desc">Tick whichever UML diagram views you wish to derive from the SCPG graph layers.</p>
-
-          <!-- Structural Category -->
-          <div class="diagram-category">
-            <h3>Structural Diagrams (7)</h3>
-            <div class="checkbox-grid">
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="class" checked />
-                <span class="cb-label">Class Diagram</span>
-                <span class="cb-sub">E^TH + V_sym</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="object" checked />
-                <span class="cb-label">Object Diagram</span>
-                <span class="cb-sub">E^TH + SSA Instances</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="component" checked />
-                <span class="cb-label">Component Diagram</span>
-                <span class="cb-sub">V_sym Modules</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="deployment" />
-                <span class="cb-label">Deployment Diagram</span>
-                <span class="cb-sub">V_sym + Artifacts</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="package" checked />
-                <span class="cb-label">Package Diagram</span>
-                <span class="cb-sub">V_sym Namespaces</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="composite" />
-                <span class="cb-label">Composite Structure</span>
-                <span class="cb-sub">Class Fields & Ports</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="profile" />
-                <span class="cb-label">Profile Diagram</span>
-                <span class="cb-sub">Stereotype Records</span>
-              </label>
+          <div class="card-body">
+            
+            <!-- Structural Category -->
+            <div class="matrix-group">
+              <div class="group-title">STRUCTURAL DIAGRAMS (7)</div>
+              <div class="checkbox-grid">
+                <label class="brutalist-checkbox active">
+                  <input type="checkbox" name="uml-type" value="class" checked />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Class Diagram</span>
+                    <span class="cb-spec">E^TH + V_sym</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox active">
+                  <input type="checkbox" name="uml-type" value="object" checked />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Object Diagram</span>
+                    <span class="cb-spec">E^TH + SSA</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox active">
+                  <input type="checkbox" name="uml-type" value="component" checked />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Component Diagram</span>
+                    <span class="cb-spec">V_sym Modules</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="deployment" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Deployment</span>
+                    <span class="cb-spec">V_sym Artifacts</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox active">
+                  <input type="checkbox" name="uml-type" value="package" checked />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Package Diagram</span>
+                    <span class="cb-spec">V_sym Namespaces</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="composite" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Composite Structure</span>
+                    <span class="cb-spec">Fields &amp; Ports</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="profile" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Profile Diagram</span>
+                    <span class="cb-spec">Stereotypes</span>
+                  </div>
+                </label>
+              </div>
             </div>
-          </div>
 
-          <!-- Behavioral Category -->
-          <div class="diagram-category">
-            <h3>Behavioral & Interaction Diagrams (7)</h3>
-            <div class="checkbox-grid">
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="usecase" />
-                <span class="cb-label">Use Case Diagram</span>
-                <span class="cb-sub">API Surface + Actor</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="activity" checked />
-                <span class="cb-label">Activity Diagram</span>
-                <span class="cb-sub">E^CFG + CDG Trees</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="statemachine" />
-                <span class="cb-label">State Machine</span>
-                <span class="cb-sub">E^CFG + AbsInt</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="sequence" checked />
-                <span class="cb-label">Sequence Diagram</span>
-                <span class="cb-sub">E^CG + ROBDD Paths</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="communication" />
-                <span class="cb-label">Communication</span>
-                <span class="cb-sub">E^CG + Order</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="interaction" />
-                <span class="cb-label">Interaction Overview</span>
-                <span class="cb-sub">CFG + Calls</span>
-              </label>
-              <label class="checkbox-card">
-                <input type="checkbox" name="uml-type" value="timing" />
-                <span class="cb-label">Timing Diagram</span>
-                <span class="cb-sub">State + Bounds</span>
-              </label>
+            <!-- Behavioral Category -->
+            <div class="matrix-group margin-top">
+              <div class="group-title">BEHAVIORAL &amp; INTERACTION DIAGRAMS (7)</div>
+              <div class="checkbox-grid">
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="usecase" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Use Case Diagram</span>
+                    <span class="cb-spec">API + Actor</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox active">
+                  <input type="checkbox" name="uml-type" value="activity" checked />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Activity Diagram</span>
+                    <span class="cb-spec">E^CFG + CDG</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="statemachine" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">State Machine</span>
+                    <span class="cb-spec">CFG + AbsInt</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox active">
+                  <input type="checkbox" name="uml-type" value="sequence" checked />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Sequence Diagram</span>
+                    <span class="cb-spec">E^CG + ROBDD</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="communication" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Communication</span>
+                    <span class="cb-spec">E^CG + Order</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="interaction" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Interaction Overview</span>
+                    <span class="cb-spec">CFG + Calls</span>
+                  </div>
+                </label>
+                <label class="brutalist-checkbox">
+                  <input type="checkbox" name="uml-type" value="timing" />
+                  <span class="cb-box"></span>
+                  <div class="cb-content">
+                    <span class="cb-name">Timing Diagram</span>
+                    <span class="cb-spec">State + Bounds</span>
+                  </div>
+                </label>
+              </div>
             </div>
+
           </div>
         </div>
+
       </section>
 
-      <!-- Right Display Studio -->
+      <!-- Right Column: Studio Display -->
       <section class="viewer-panel">
-        <!-- Pipeline Progress Status -->
-        <div id="pipeline-status" class="panel-card status-card hidden">
-          <div class="status-header">
-            <span class="status-indicator spinner"></span>
-            <span id="status-step-title">Initializing Repository Ingestion...</span>
+        
+        <!-- Live Pipeline Execution Card -->
+        <div id="pipeline-status" class="brutalist-card status-card hidden">
+          <div class="card-header flex-between">
+            <div class="flex-align">
+              <span class="status-indicator-square"></span>
+              <h4 id="status-step-title">INITIALIZING REPOSITORY INGESTION...</h4>
+            </div>
+            <span id="status-percent">15%</span>
           </div>
-          <div class="progress-bar-bg">
-            <div id="progress-bar-fill" class="progress-bar-fill" style="width: 15%;"></div>
-          </div>
-          <div id="status-logs" class="status-logs">
-            <div class="log-line">> Parsing repository URL target...</div>
+          <div class="card-body">
+            <div class="brutalist-progress-bg">
+              <div id="progress-bar-fill" class="brutalist-progress-fill" style="width: 15%;"></div>
+            </div>
+            <div id="status-logs" class="brutalist-logs">
+              <div class="log-line">> Parsing target repository URL...</div>
+            </div>
           </div>
         </div>
 
         <!-- Rendered Studio Box -->
-        <div class="panel-card studio-card">
-          <div class="studio-header">
+        <div class="brutalist-card studio-card flex-1">
+          <div class="studio-toolbar">
             <div id="diagram-tabs" class="diagram-tabs">
-              <!-- Rendered Tabs generated via app.js -->
+              <!-- Dynamically populated tabs -->
             </div>
-            <div class="studio-actions">
-              <button id="btn-copy-mermaid" class="btn btn-secondary btn-sm">Copy Mermaid</button>
-              <button id="btn-export-svg" class="btn btn-secondary btn-sm">Export SVG</button>
-            </div>
-          </div>
-
-          <!-- Mermaid Render Canvas -->
-          <div id="mermaid-render-container" class="mermaid-container">
-            <div class="empty-state">
-              <div class="empty-icon">SCPG</div>
-              <h3>No Diagram Rendered Yet</h3>
-              <p>Enter a GitHub repository link on the left and click <b>Fetch & Analyze</b> to generate native UML diagrams.</p>
+            <div class="toolbar-actions">
+              <button id="btn-copy-mermaid" class="btn-brutalist-sm">COPY MERMAID</button>
+              <button id="btn-export-svg" class="btn-brutalist-sm">EXPORT SVG</button>
             </div>
           </div>
 
-          <!-- Source Traceability Anchor Drawer -->
-          <div class="traceability-footer">
-            <div class="trace-title">Universal Traceability Anchor (token_id)</div>
-            <div id="trace-info" class="trace-info">
-              <span>Token ID: <strong id="trace-tid">#0000</strong></span>
-              <span>Source File: <strong id="trace-file">--</strong></span>
-              <span>Span: <strong id="trace-span">L0:C0 - L0:C0</strong></span>
-              <span>SCPG Digest: <strong id="trace-hash">0x00000000</strong></span>
+          <!-- Mermaid Canvas -->
+          <div id="mermaid-render-container" class="mermaid-canvas">
+            <div class="empty-state-brutalist">
+              <div class="empty-glyph">[ SCPG STUDIO ]</div>
+              <h3>NO DIAGRAM COMPILED YET</h3>
+              <p>Paste a GitHub target repository on the left and click <b>FETCH &amp; ANALYZE →</b> to derive selected UML views.</p>
             </div>
           </div>
+
+          <!-- Source Traceability Drawer -->
+          <div class="traceability-drawer">
+            <div class="drawer-header">UNIVERSAL TRACEABILITY ANCHOR [token_id]</div>
+            <div class="drawer-grid">
+              <div class="drawer-item">
+                <span class="label">TOKEN ID:</span>
+                <span id="trace-tid" class="val">#0000</span>
+              </div>
+              <div class="drawer-item">
+                <span class="label">SOURCE FILE:</span>
+                <span id="trace-file" class="val">--</span>
+              </div>
+              <div class="drawer-item">
+                <span class="label">SPAN:</span>
+                <span id="trace-span" class="val">L0:C0 - L0:C0</span>
+              </div>
+              <div class="drawer-item">
+                <span class="label">SCPG DIGEST:</span>
+                <span id="trace-hash" class="val">0x00000000</span>
+              </div>
+            </div>
+          </div>
+
         </div>
+
       </section>
+
     </main>
   </div>
 
