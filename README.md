@@ -14,6 +14,10 @@
 <br/>
 
 <p align="center">
+  <img src="docs/assets/scpg_overview.svg" alt="OpenHeart SCPG Architecture" width="100%" />
+</p>
+
+<p align="center">
   A high-performance static program analysis engine and bidirectional UML generation platform built on succinct data structures, memory-mapped binary layouts, and formal graph representations.
 </p>
 
