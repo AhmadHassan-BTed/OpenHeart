@@ -29,10 +29,7 @@ use crate::phase1::walker::walk_cst;
 pub struct Phase1Stage;
 
 impl Phase1Stage {
-    pub fn run(
-        manifest: SourceManifest,
-        out_path: &Path,
-    ) -> Result<TokenCorpusArtifact, String> {
+    pub fn run(manifest: SourceManifest, out_path: &Path) -> Result<TokenCorpusArtifact, String> {
         let mut files: Vec<PathBuf> = manifest.file_paths.clone();
         files.sort_unstable();
 
@@ -42,8 +39,10 @@ impl Phase1Stage {
         let mut source_hashes: Vec<[u8; 32]> = Vec::with_capacity(files.len());
 
         for (file_id, path) in files.iter().enumerate() {
-            let meta = fs::metadata(path).map_err(|e| format!("Failed to read metadata for {:?}: {}", path, e))?;
-            let content = fs::read(path).map_err(|e| format!("Failed to read source file {:?}: {}", path, e))?;
+            let meta = fs::metadata(path)
+                .map_err(|e| format!("Failed to read metadata for {:?}: {}", path, e))?;
+            let content = fs::read(path)
+                .map_err(|e| format!("Failed to read source file {:?}: {}", path, e))?;
 
             let mut hasher = Sha256::new();
             hasher.update(&content);
@@ -134,13 +133,7 @@ impl Phase1Stage {
             | ((manifest.filter.include_block_comments as u16) << 2)
             | ((manifest.filter.include_doc_comments as u16) << 3);
 
-        TokenCorpusSerializer::write(
-            &artifact,
-            &files,
-            flags,
-            source_tree_hash,
-            out_path,
-        )?;
+        TokenCorpusSerializer::write(&artifact, &files, flags, source_tree_hash, out_path)?;
 
         Ok(artifact)
     }

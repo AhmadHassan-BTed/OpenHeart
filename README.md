@@ -2,7 +2,9 @@
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+[![CI Status](https://github.com/AhmadHassan-BTed/OpenHeart/actions/workflows/ci.yml/badge.svg)](https://github.com/AhmadHassan-BTed/OpenHeart/actions)
+[![Security Policy](https://img.shields.io/badge/security-policy-brightgreen.svg)](SECURITY.md)
+[![Code of Conduct](https://img.shields.io/badge/code_of-conduct-pink.svg)](CODE_OF_CONDUCT.md)
 
 > **OpenHeart** is a next-generation static program analysis engine and bidirectional UML generation platform powered by the **Succinct Compositional Program Graph (SCPG)** architecture.
 
@@ -80,58 +82,131 @@ graph LR
 - [ ] **Phase 5: Interprocedural Analysis & Dynamic UML Diagram Generator**
   - IFDS framework tabulation, Abstract Interpretation (Interval/Octagon domains), CFL-reachability query engine, and incremental UML visualization synchronization.
 
+See [ROADMAP.md](ROADMAP.md) for full phase details and timeline.
+
 ---
 
 ## 🛠️ Repository Layout
 
 ```text
 OpenHeart/
+├── .github/
+│   ├── workflows/             # GitHub Actions CI & Release pipelines
+│   │   ├── ci.yml             # Cargo check, clippy, fmt & test workflow
+│   │   └── release.yml        # Release publishing workflow
+│   ├── ISSUE_TEMPLATE/        # Standardized issue templates
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── dependabot.yml         # Automated dependency update configuration
 ├── src/
 │   ├── core/
-│   │   ├── io/             # Binary Little-Endian reader/writer & mmap wrapper
-│   │   └── types/          # TokenRecord (16B), TokenEntry (16B), SourceFileRecord (64B)
+│   │   ├── io/                # Binary Little-Endian reader/writer & mmap wrapper
+│   │   └── types/             # TokenRecord (16B), TokenEntry (16B), SourceFileRecord (64B)
 │   ├── phase1/
-│   │   ├── adapter/        # LanguageAdapter trait & JavaLanguageAdapter
-│   │   ├── parser/         # Tree-sitter CST parser integration
-│   │   ├── allocator.rs    # Monotonic AtomicU32 TokenIdAllocator
-│   │   ├── builder.rs      # Forward/Backward index builder & invariant checks
-│   │   ├── interner.rs     # FNV-1a open-addressing StringInterner
-│   │   ├── serializer.rs   # Binary .tca format serializer & CRC-64 verification
-│   │   └── walker.rs       # Left-to-right DFS CST leaf token walker
-│   └── lib.rs              # Root library exports
+│   │   ├── adapter/           # LanguageAdapter trait & JavaLanguageAdapter
+│   │   ├── parser/            # Tree-sitter CST parser integration
+│   │   ├── allocator.rs       # Monotonic AtomicU32 TokenIdAllocator
+│   │   ├── builder.rs         # Forward/Backward index builder & invariant checks
+│   │   ├── interner.rs        # FNV-1a open-addressing StringInterner
+│   │   ├── serializer.rs      # Binary .tca format serializer & CRC-64 verification
+│   │   └── walker.rs          # Left-to-right DFS CST leaf token walker
+│   └── lib.rs                 # Root library exports
 ├── tests/
-│   └── phase1_tests.rs     # Integration and end-to-end pipeline tests
+│   └── phase1_tests.rs        # Integration and end-to-end pipeline tests
 ├── docs/
-│   ├── overview.md                     # Detailed SCPG mathematical specification & formal analysis
-│   ├── architecture.md                 # 5-Phase pipeline system architecture guide
-│   ├── succinct_structures.md          # BP ASTs, CSR CFGs, Wavelet Trees & ROBDD proof specs
-│   ├── uml_derivation.md               # 14 UML diagram derivation rules & query formulas
-│   ├── traceability_and_incremental.md # Universal token_id traceability & incremental diff engine
-│   ├── getting_started.md             # Quickstart & developer onboarding
-│   └── contributing.md                 # Contribution standards & commit guidelines
-├── Cargo.toml                          # Rust crate manifest
-├── ImplementationPlan.md               # Complete Phase 1 technical specification
-└── README.md                           # Repository documentation
+│   ├── overview.md            # Detailed SCPG mathematical specification & formal analysis
+│   ├── architecture.md        # 5-Phase pipeline system architecture guide
+│   ├── succinct_structures.md # BP ASTs, CSR CFGs, Wavelet Trees & ROBDD proof specs
+│   ├── uml_derivation.md      # 14 UML diagram derivation rules & query formulas
+│   ├── traceability_and_incremental.md # Universal token_id traceability & diff engine
+│   ├── security-architecture.md# Security posture, cryptographic checksums & bounds
+│   ├── codebase-guide.md      # Codebase module map & quick reference for contributors
+│   ├── technical-decisions.md # Architecture Decision Records (ADR-001 to ADR-004)
+│   ├── getting_started.md     # Quickstart & developer onboarding
+│   └── contributing.md        # Contribution standards & commit guidelines
+├── scripts/
+│   └── ci_check.sh            # Pre-flight local CI simulation script
+├── Makefile                   # Developer task automation Makefile
+├── Cargo.toml                 # Rust crate manifest
+├── ImplementationPlan.md      # Phase 1 technical specification
+├── LICENSE                    # MIT Open Source License
+├── CODE_OF_CONDUCT.md         # Contributor Covenant v2.1
+├── CONTRIBUTING.md            # Open-source contribution guidelines
+├── SECURITY.md                # Vulnerability disclosure policy
+├── CHANGELOG.md               # Version release history
+├── ROADMAP.md                 # 5-Phase development roadmap
+└── SUPPORT.md                 # Community support channels
 ```
 
 ---
 
-## 🚀 Building & Testing
+## ⚙️ Environment Configuration
 
-### Run Automated Tests
-
-```bash
-cargo test
-```
-
-### Compile Crate
+Copy `.env.example` to `.env` for local configuration overrides:
 
 ```bash
-cargo check
+cp .env.example .env
 ```
+
+Available options:
+
+| Variable | Default Value | Description |
+|---|---|---|
+| `RUST_LOG` | `info` | Logging verbosity (`error`, `warn`, `info`, `debug`, `trace`). |
+| `OPENHEART_ARTIFACT_DIR` | `./target/artifacts` | Target directory for generated `.tca` artifacts. |
+| `OPENHEART_MAX_MEMORY_MB` | `2048` | Peak memory threshold limit in megabytes. |
+| `OPENHEART_NUM_THREADS` | `0` | Parallel parsing thread count (`0` = auto-detect cores). |
+| `OPENHEART_STRICT_INVARIANTS`| `true` | Enable runtime assertions for Invariants 1–4. |
+
+---
+
+## 🚀 Developer Workflows & Commands
+
+Use the provided `Makefile` for developer tasks:
+
+```bash
+# Run local pre-flight CI checks (check, fmt, clippy, test)
+make ci
+
+# Build debug target
+make build
+
+# Run cargo test suite
+make test
+
+# Check code formatting
+make fmt
+
+# Run Clippy static analysis
+make clippy
+
+# Generate local documentation
+make docs
+```
+
+---
+
+## 🔒 Security Practices
+
+OpenHeart enforces:
+- Zero un-encapsulated `unsafe` Rust code.
+- Cryptographic SHA-256 digests for all source contents and tree states.
+- Mandatory CRC-64/ECMA verification on binary `.tca` artifacts before deserialization.
+
+For security reports, review our [Security Policy](SECURITY.md) or email **security@openheart.dev**.
+
+---
+
+## 🤝 Community & Contributing
+
+Contributions are welcome! Please read:
+- [CONTRIBUTING.md](CONTRIBUTING.md) for commit standards and code requirements.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
+- [SUPPORT.md](SUPPORT.md) for support options and GitHub Discussions.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is open-source under the terms of the **[MIT License](LICENSE)**.
