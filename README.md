@@ -141,7 +141,29 @@ graph LR
 
 ---
 
-## Repository Structure
+## Web Repository Adapter & Portal Studio
+
+OpenHeart includes a decoupled **Web Repository Adapter** module (`src/adapters/web_repo.rs`) and standalone Web Portal Studio (`web/`). 
+
+This portal allows developers to paste any public Git repository link (`https://github.com/owner/repository`), select any combination of the **14 UML diagram types** via a visual selection matrix, and generate live interactive Mermaid diagrams without modifying or interfering with core library execution.
+
+```mermaid
+graph LR
+    User["Developer / User"] -->|1. Paste Repo URL + Check 14 UMLs| WebPortal["Web Portal Studio (web/)"]
+    WebPortal -->|2. Non-blocking Fetch & Validate| WebAdapter["src/adapters/web_repo.rs"]
+    WebAdapter -->|3. Generate .tca Manifest| Engine["OpenHeart Engine"]
+    Engine -->|4. Derive Selected Diagrams| Studio["Interactive Mermaid Studio"]
+```
+
+### Launch Web Studio Locally
+
+To launch the local web studio portal:
+
+```bash
+make serve
+```
+
+Then open `http://localhost:8080` in your web browser.
 
 ```text
 OpenHeart/
@@ -151,6 +173,9 @@ OpenHeart/
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── dependabot.yml         # Automated dependency configuration
 ├── src/
+│   ├── adapters/
+│   │   ├── web_repo.rs        # Decoupled Web Repository URL Fetcher & Diagram Selector
+│   │   └── mod.rs
 │   ├── core/
 │   │   ├── io/                # Binary Little-Endian reader/writer & mmap wrapper
 │   │   └── types/             # TokenRecord (16B), TokenEntry (16B), SourceFileRecord (64B)
@@ -163,6 +188,10 @@ OpenHeart/
 │   │   ├── serializer.rs      # Binary .tca format serializer & CRC-64 verification
 │   │   └── walker.rs          # Left-to-right DFS CST leaf token walker
 │   └── lib.rs                 # Root library entry point
+├── web/                       # Standalone Web Portal Studio
+│   ├── index.html             # Web Repository UML Studio UI
+│   ├── style.css              # Dark glassmorphism CSS design system
+│   └── app.js                 # Interactive 14 UML diagram renderer (Mermaid.js)
 ├── tests/
 │   └── phase1_tests.rs        # Integration and end-to-end pipeline tests
 ├── docs/
