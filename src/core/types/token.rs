@@ -5,10 +5,10 @@ use std::fmt;
 #[repr(u8)]
 pub enum LangId {
     Unknown = 0x00,
-    Java    = 0x01,
-    Kotlin  = 0x02,
-    Swift   = 0x03,
-    Python  = 0x04,
+    Java = 0x01,
+    Kotlin = 0x02,
+    Swift = 0x03,
+    Python = 0x04,
 }
 
 impl From<u8> for LangId {
@@ -29,31 +29,31 @@ impl From<u8> for LangId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum TokenType {
-    Unknown         = 0x00,
-    Identifier      = 0x01,
-    Keyword         = 0x02,
-    Operator        = 0x03,
-    Punctuation     = 0x04,
-    IntegerLiteral  = 0x05,
-    FloatLiteral    = 0x06,
-    StringLiteral   = 0x07,
-    CharLiteral     = 0x08,
-    BooleanLiteral  = 0x09,
-    NullLiteral     = 0x0A,
-    CommentLine     = 0x0B,
-    CommentBlock    = 0x0C,
-    CommentDoc      = 0x0D,
-    Whitespace      = 0x0E,
-    Newline         = 0x0F,
-    Annotation      = 0x10,
-    TypeParameter   = 0x11,
-    LabeledStmt     = 0x12,
+    Unknown = 0x00,
+    Identifier = 0x01,
+    Keyword = 0x02,
+    Operator = 0x03,
+    Punctuation = 0x04,
+    IntegerLiteral = 0x05,
+    FloatLiteral = 0x06,
+    StringLiteral = 0x07,
+    CharLiteral = 0x08,
+    BooleanLiteral = 0x09,
+    NullLiteral = 0x0A,
+    CommentLine = 0x0B,
+    CommentBlock = 0x0C,
+    CommentDoc = 0x0D,
+    Whitespace = 0x0E,
+    Newline = 0x0F,
+    Annotation = 0x10,
+    TypeParameter = 0x11,
+    LabeledStmt = 0x12,
 
     // Java-specific extensions (0x80..0xFF)
     JavaAnnotationMarker = 0x80,
-    JavaGenericDiamond  = 0x81,
-    JavaVarKeyword       = 0x82,
-    JavaSealedKeyword    = 0x83,
+    JavaGenericDiamond = 0x81,
+    JavaVarKeyword = 0x82,
+    JavaSealedKeyword = 0x83,
 }
 
 impl TokenType {
@@ -108,9 +108,7 @@ impl fmt::Display for TokenType {
 #[inline(always)]
 pub fn build_sort_key(file_id: u16, line: u32, col: u16) -> u64 {
     debug_assert!(line <= 0x00FF_FFFF, "line number exceeds 24-bit range");
-    ((file_id as u64) << 48)
-        | (((line & 0x00FF_FFFF) as u64) << 24)
-        | ((col as u64) << 8)
+    ((file_id as u64) << 48) | (((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8)
 }
 
 /// Extracts file_id, line, col from a packed sort_key.

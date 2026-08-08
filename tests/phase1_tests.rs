@@ -1,9 +1,7 @@
 use std::fs;
 use tempfile::tempdir;
 
-use openheart::core::types::token::{
-    build_sort_key, unpack_sort_key, LangId, TokenType,
-};
+use openheart::core::types::token::{build_sort_key, unpack_sort_key, LangId, TokenType};
 use openheart::phase1::adapter::java::JavaLanguageAdapter;
 use openheart::phase1::adapter::LanguageAdapter;
 use openheart::phase1::interner::StringInterner;
@@ -53,7 +51,10 @@ fn test_java_adapter_mapping() {
 
     assert_eq!(adapter.map_node_type("class"), TokenType::Keyword);
     assert_eq!(adapter.map_node_type("identifier"), TokenType::Identifier);
-    assert_eq!(adapter.map_node_type("decimal_integer_literal"), TokenType::IntegerLiteral);
+    assert_eq!(
+        adapter.map_node_type("decimal_integer_literal"),
+        TokenType::IntegerLiteral
+    );
     assert_eq!(adapter.map_node_type("+"), TokenType::Operator);
     assert_eq!(adapter.map_node_type(";"), TokenType::Punctuation);
 }
@@ -84,14 +85,11 @@ public class PatientHeartMonitor {
 
     fs::write(&java_file, sample_code).expect("Failed to write test java file");
 
-    let manifest = SourceManifestBuilder::new()
-        .add_file(&java_file)
-        .build();
+    let manifest = SourceManifestBuilder::new().add_file(&java_file).build();
 
     let out_tca_path = dir.path().join("output.tca");
 
-    let artifact = Phase1Stage::run(manifest, &out_tca_path)
-        .expect("Phase1Stage execution failed");
+    let artifact = Phase1Stage::run(manifest, &out_tca_path).expect("Phase1Stage execution failed");
 
     assert_eq!(artifact.file_records.len(), 1);
     assert!(artifact.token_records.len() > 10);
@@ -101,12 +99,21 @@ public class PatientHeartMonitor {
     assert!(out_tca_path.exists());
 
     // Verify binary deserialization & CRC-64 checksum
-    let read_artifact = TokenCorpusSerializer::read(&out_tca_path)
-        .expect("Failed to read serialized .tca file");
+    let read_artifact =
+        TokenCorpusSerializer::read(&out_tca_path).expect("Failed to read serialized .tca file");
 
-    assert_eq!(read_artifact.file_records.len(), artifact.file_records.len());
-    assert_eq!(read_artifact.token_records.len(), artifact.token_records.len());
-    assert_eq!(read_artifact.token_entries.len(), artifact.token_entries.len());
+    assert_eq!(
+        read_artifact.file_records.len(),
+        artifact.file_records.len()
+    );
+    assert_eq!(
+        read_artifact.token_records.len(),
+        artifact.token_records.len()
+    );
+    assert_eq!(
+        read_artifact.token_entries.len(),
+        artifact.token_entries.len()
+    );
     assert_eq!(read_artifact.interner.count(), artifact.interner.count());
 
     for i in 0..read_artifact.interner.count() {

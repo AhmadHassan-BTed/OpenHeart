@@ -66,7 +66,10 @@ impl TokenCorpusBuilder {
 
         // ── Invariant 4: Forward-Backward Consistency ──
         for (token_id, entry) in self.token_entries.iter().enumerate() {
-            match self.token_records.binary_search_by_key(&entry.sort_key, |r| r.sort_key) {
+            match self
+                .token_records
+                .binary_search_by_key(&entry.sort_key, |r| r.sort_key)
+            {
                 Ok(idx) => {
                     let matched = &self.token_records[idx];
                     if matched.text_id != entry.text_id || matched.token_type != entry.token_type {

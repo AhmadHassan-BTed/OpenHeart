@@ -67,11 +67,15 @@ impl TokenCorpusSerializer {
             // ── Section 1: HEADER (64 bytes) ──
             bw.write_u64(TCA_MAGIC).map_err(|e| e.to_string())?;
             bw.write_u32(TCA_VERSION).map_err(|e| e.to_string())?;
-            bw.write_u32(artifact.token_count()).map_err(|e| e.to_string())?;
-            bw.write_u16(artifact.file_count()).map_err(|e| e.to_string())?;
-            bw.write_u32(artifact.interner.count()).map_err(|e| e.to_string())?;
+            bw.write_u32(artifact.token_count())
+                .map_err(|e| e.to_string())?;
+            bw.write_u16(artifact.file_count())
+                .map_err(|e| e.to_string())?;
+            bw.write_u32(artifact.interner.count())
+                .map_err(|e| e.to_string())?;
             bw.write_u16(flags).map_err(|e| e.to_string())?;
-            bw.write_bytes(&source_tree_hash).map_err(|e| e.to_string())?;
+            bw.write_bytes(&source_tree_hash)
+                .map_err(|e| e.to_string())?;
 
             let ts_ns = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -102,12 +106,17 @@ impl TokenCorpusSerializer {
                 bw.write_u16(rec.file_id).map_err(|e| e.to_string())?;
                 bw.write_u8(rec.language_id).map_err(|e| e.to_string())?;
                 bw.write_u8(rec.flags).map_err(|e| e.to_string())?;
-                bw.write_bytes(&rec.content_sha256).map_err(|e| e.to_string())?;
-                bw.write_u32(rec.path_str_offset).map_err(|e| e.to_string())?;
-                bw.write_u64(rec.file_size_bytes).map_err(|e| e.to_string())?;
+                bw.write_bytes(&rec.content_sha256)
+                    .map_err(|e| e.to_string())?;
+                bw.write_u32(rec.path_str_offset)
+                    .map_err(|e| e.to_string())?;
+                bw.write_u64(rec.file_size_bytes)
+                    .map_err(|e| e.to_string())?;
                 bw.write_u64(rec.mtime_ns).map_err(|e| e.to_string())?;
-                bw.write_u32(rec.first_token_id).map_err(|e| e.to_string())?;
-                bw.write_u32(rec.file_token_count).map_err(|e| e.to_string())?;
+                bw.write_u32(rec.first_token_id)
+                    .map_err(|e| e.to_string())?;
+                bw.write_u32(rec.file_token_count)
+                    .map_err(|e| e.to_string())?;
             }
 
             // Write File Paths

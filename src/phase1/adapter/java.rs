@@ -36,7 +36,9 @@ impl LanguageAdapter for JavaLanguageAdapter {
             "decimal_integer_literal" | "hex_integer_literal" | "binary_integer_literal" => {
                 TokenType::IntegerLiteral
             }
-            "decimal_floating_point_literal" | "hex_floating_point_literal" => TokenType::FloatLiteral,
+            "decimal_floating_point_literal" | "hex_floating_point_literal" => {
+                TokenType::FloatLiteral
+            }
             "string_literal" | "text_block" => TokenType::StringLiteral,
             "character_literal" => TokenType::CharLiteral,
             "true" | "false" => TokenType::BooleanLiteral,
@@ -55,14 +57,13 @@ impl LanguageAdapter for JavaLanguageAdapter {
                 TokenType::Punctuation
             }
             // Keywords
-            "if" | "else" | "for" | "while" | "do" | "switch" | "case" | "break"
-            | "continue" | "return" | "throw" | "try" | "catch" | "finally" | "new"
-            | "instanceof" | "class" | "interface" | "enum" | "record" | "extends"
-            | "implements" | "throws" | "import" | "public" | "private" | "protected"
-            | "static" | "final" | "abstract" | "native" | "synchronized" | "volatile"
-            | "transient" | "strictfp" | "default" | "void" | "boolean" | "byte" | "char"
-            | "short" | "int" | "long" | "float" | "double" | "this" | "super"
-            | "package" | "assert" | "yield" => TokenType::Keyword,
+            "if" | "else" | "for" | "while" | "do" | "switch" | "case" | "break" | "continue"
+            | "return" | "throw" | "try" | "catch" | "finally" | "new" | "instanceof" | "class"
+            | "interface" | "enum" | "record" | "extends" | "implements" | "throws" | "import"
+            | "public" | "private" | "protected" | "static" | "final" | "abstract" | "native"
+            | "synchronized" | "volatile" | "transient" | "strictfp" | "default" | "void"
+            | "boolean" | "byte" | "char" | "short" | "int" | "long" | "float" | "double"
+            | "this" | "super" | "package" | "assert" | "yield" => TokenType::Keyword,
 
             "var" => TokenType::JavaVarKeyword,
             "marker_annotation" | "annotation" => TokenType::Annotation,
@@ -74,11 +75,53 @@ impl LanguageAdapter for JavaLanguageAdapter {
     fn include_anonymous(&self, kind: &str) -> bool {
         matches!(
             kind,
-            "+" | "-" | "*" | "/" | "%" | "==" | "!=" | "<" | ">" | "<=" | ">="
-                | "&&" | "||" | "!" | "&" | "|" | "^" | "++" | "--" | "~" | "<<"
-                | ">>" | ">>>" | "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&="
-                | "|=" | "^=" | "<<=" | ">>=" | ">>>=" | ";" | "," | "." | "("
-                | ")" | "[" | "]" | "{" | "}" | "..." | "::" | "->" | "@"
+            "+" | "-"
+                | "*"
+                | "/"
+                | "%"
+                | "=="
+                | "!="
+                | "<"
+                | ">"
+                | "<="
+                | ">="
+                | "&&"
+                | "||"
+                | "!"
+                | "&"
+                | "|"
+                | "^"
+                | "++"
+                | "--"
+                | "~"
+                | "<<"
+                | ">>"
+                | ">>>"
+                | "="
+                | "+="
+                | "-="
+                | "*="
+                | "/="
+                | "%="
+                | "&="
+                | "|="
+                | "^="
+                | "<<="
+                | ">>="
+                | ">>>="
+                | ";"
+                | ","
+                | "."
+                | "("
+                | ")"
+                | "["
+                | "]"
+                | "{"
+                | "}"
+                | "..."
+                | "::"
+                | "->"
+                | "@"
         )
     }
 }

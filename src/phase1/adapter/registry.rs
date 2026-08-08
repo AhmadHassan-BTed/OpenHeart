@@ -35,10 +35,7 @@ impl AdapterRegistry {
         self.adapters.get(&lang_id).cloned()
     }
 
-    pub fn detect(
-        overrides: &HashMap<OsString, LangId>,
-        path: &Path,
-    ) -> LangId {
+    pub fn detect(overrides: &HashMap<OsString, LangId>, path: &Path) -> LangId {
         if let Some(ext) = path.extension() {
             if let Some(&lang) = overrides.get(ext) {
                 return lang;
