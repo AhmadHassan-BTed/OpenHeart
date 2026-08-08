@@ -53,6 +53,13 @@ body.brutalist-theme {
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.corner-brand.corner-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-10px);
 }
 
 .corner-brand.top-left {

@@ -1,5 +1,5 @@
 /**
- * OpenHeart Web Studio — Three.js WebGL 3D Morphing Orb Shader & Neo-Brutalist Controller
+ * OpenHeart Web Studio — WebGL 3D Morphing Spiky Orb & Neo-Brutalist Studio Controller
  * Authored for OpenHeart SCPG Engine. Maintained by Ahmad Hassan (B-Ted).
  */
 
@@ -12,28 +12,30 @@ mermaid.initialize({
 });
 
 /* ==========================================================================
-   1. THREE.JS WEBGL 3D MORPHING SPIKY ORB SHADER (Matching file.mp4)
+   1. THREE.JS WEBGL 3D MORPHING SPIKY ORB & SLAB ENGINE (Matching file.mp4)
    ========================================================================== */
 
-let scene, camera, renderer, orbMesh, material, particlesMesh;
+let scene, camera, renderer, orbMesh, particleSystem, slabMesh;
 let clock = new THREE.Clock();
 let isStudioEngaged = false;
 let mouseX = 0, mouseY = 0;
 let targetX = 0, targetY = 0;
 
-// Custom GLSL Shaders for Organic Morphing Noise Orb
-const vertexShader = `
+// High-contrast Shader for 3D Morphing Spiky Orb with Realistic Lighting
+const customVertexShader = `
   uniform float uTime;
-  uniform float uDisplacement;
+  uniform float uSpike;
   varying vec3 vNormal;
-  varying vec3 vPosition;
-  varying float vNoise;
+  varying vec3 vWorldPosition;
+  varying float vDisplacement;
 
-  // Simplex 3D noise function
-  vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
-  vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+  // 3D Simplex Noise algorithm
+  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
 
-  float snoise(vec3 v){
+  float snoise(vec3 v) {
     const vec2 C = vec2(1.0/6.0, 1.0/3.0);
     const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
     vec3 i  = floor(v + dot(v, C.yyy) );
@@ -45,11 +47,11 @@ const vertexShader = `
     vec3 x1 = x0 - i1 + 1.0 * C.xxx;
     vec3 x2 = x0 - i2 + 2.0 * C.xxx;
     vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
-    i = mod(i, 289.0 );
+    i = mod289(i);
     vec4 p = permute( permute( permute(
-                i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-              + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
-              + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+               i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+             + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
+             + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
     float n_ = 0.142857142857;
     vec3  ns = n_ * D.wyz - D.xzx;
     vec4 j = p - 49.0 * floor(p * ns.z);
@@ -81,61 +83,80 @@ const vertexShader = `
 
   void main() {
     vNormal = normal;
-    vPosition = position;
     
-    // Spiky noise calculation
-    float noise = snoise(position * 1.5 + vec3(uTime * 0.4));
-    vNoise = noise;
+    // Multi-octave noise displacement for spiky morphing
+    float noise1 = snoise(position * 1.2 + vec3(uTime * 0.5));
+    float noise2 = snoise(position * 2.5 - vec3(uTime * 0.3));
+    float combinedNoise = (noise1 * 0.7 + noise2 * 0.3);
     
-    vec3 newPosition = position + normal * (noise * uDisplacement);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    vDisplacement = combinedNoise;
+    
+    // Displace along normal with spike factor
+    vec3 newPosition = position + normal * (combinedNoise * uSpike);
+    vec4 worldPos = modelMatrix * vec4(newPosition, 1.0);
+    vWorldPosition = worldPos.xyz;
+    
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
   }
 `;
 
-const fragmentShader = `
+const customFragmentShader = `
   uniform float uTime;
   varying vec3 vNormal;
-  varying vec3 vPosition;
-  varying float vNoise;
+  varying vec3 vWorldPosition;
+  varying float vDisplacement;
 
   void main() {
-    // High contrast brutalist monochrome gradient with rim lighting
-    vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
-    float diff = max(dot(vNormal, lightDir), 0.0);
+    // 3D Directional Lighting Calculations
+    vec3 lightDir = normalize(vec3(1.5, 2.0, 2.5));
+    vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+    vec3 normal = normalize(vNormal);
     
-    // Base white-grey gradient
-    vec3 color = vec3(0.85 + vNoise * 0.15);
-    color *= (diff * 0.7 + 0.3);
+    // Diffuse shading
+    float diff = max(dot(normal, lightDir), 0.0);
     
-    // Edge rim highlight
-    float rim = 1.0 - max(dot(normalize(-vPosition), vNormal), 0.0);
-    color += vec3(pow(rim, 3.0) * 0.4);
+    // Specular highlight
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
     
-    gl_FragColor = vec4(color, 0.95);
+    // High-contrast off-white to deep grey shading
+    vec3 baseColor = vec3(0.92, 0.92, 0.92);
+    vec3 shadowColor = vec3(0.15, 0.15, 0.15);
+    
+    vec3 finalColor = mix(shadowColor, baseColor, diff * 0.7 + 0.3);
+    finalColor += vec3(spec * 0.5);
+    
+    // Subtle rim lighting
+    float rim = 1.0 - max(dot(viewDir, normal), 0.0);
+    finalColor += vec3(pow(rim, 4.0) * 0.3);
+    
+    gl_FragColor = vec4(finalColor, 0.98);
   }
 `;
 
 function initThreeOrb() {
   const canvas = document.getElementById('orb-canvas');
+  if (!canvas) return;
+
   scene = new THREE.Scene();
 
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.z = 7;
+  camera.position.set(0, 0, 6.0);
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Geometry: Detailed sphere for smooth displacement
-  const geometry = new THREE.IcosahedronGeometry(2.2, 64);
+  // High Resolution Icosahedron for sharp spikes
+  const geometry = new THREE.IcosahedronGeometry(2.0, 64);
 
-  // Custom Shader Material
-  material = new THREE.ShaderMaterial({
-    vertexShader,
-    fragmentShader,
+  // Shader Material
+  const material = new THREE.ShaderMaterial({
+    vertexShader: customVertexShader,
+    fragmentShader: customFragmentShader,
     uniforms: {
       uTime: { value: 0.0 },
-      uDisplacement: { value: 0.8 }
+      uSpike: { value: 0.6 }
     },
     wireframe: false,
     transparent: true
@@ -144,25 +165,27 @@ function initThreeOrb() {
   orbMesh = new THREE.Mesh(geometry, material);
   scene.add(orbMesh);
 
-  // Ambient Floating Code Nodes (Particles)
-  const particlesGeo = new THREE.BufferGeometry();
-  const particleCount = 200;
-  const posArray = new Float32Array(particleCount * 3);
+  // Ambient Floating Dust / Code Particle Nodes
+  const particleCount = 350;
+  const particleGeo = new THREE.BufferGeometry();
+  const particlePositions = new Float32Array(particleCount * 3);
 
-  for (let i = 0; i < particleCount * 3; i++) {
-    posArray[i] = (Math.random() - 0.5) * 15;
+  for (let i = 0; i < particleCount * 3; i += 3) {
+    particlePositions[i] = (Math.random() - 0.5) * 16;
+    particlePositions[i + 1] = (Math.random() - 0.5) * 16;
+    particlePositions[i + 2] = (Math.random() - 0.5) * 16;
   }
 
-  particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-  const particlesMat = new THREE.PointsMaterial({
-    size: 0.03,
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+  const particleMat = new THREE.PointsMaterial({
     color: 0xffffff,
+    size: 0.035,
     transparent: true,
-    opacity: 0.6
+    opacity: 0.7
   });
 
-  particlesMesh = new THREE.Points(particlesGeo, particlesMat);
-  scene.add(particlesMesh);
+  particleSystem = new THREE.Points(particleGeo, particleMat);
+  scene.add(particleSystem);
 
   // Event Listeners
   window.addEventListener('resize', onWindowResize);
@@ -173,6 +196,7 @@ function initThreeOrb() {
 }
 
 function onWindowResize() {
+  if (!camera || !renderer) return;
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -187,29 +211,31 @@ function animate() {
   requestAnimationFrame(animate);
   const elapsedTime = clock.getElapsedTime();
 
-  // Update Shader Uniforms
-  material.uniforms.uTime.value = elapsedTime;
+  if (orbMesh && orbMesh.material.uniforms) {
+    orbMesh.material.uniforms.uTime.value = elapsedTime;
 
-  // Smooth Rotation & Mouse Parallax
-  targetX = mouseX * 0.5;
-  targetY = mouseY * 0.5;
+    // Transition spike intensity when engaged vs idle
+    if (isStudioEngaged) {
+      orbMesh.material.uniforms.uSpike.value += (1.4 - orbMesh.material.uniforms.uSpike.value) * 0.05;
+      camera.position.z += (3.2 - camera.position.z) * 0.05;
+    } else {
+      // Oscillate spike morphing slowly over time
+      const targetSpike = 0.5 + Math.sin(elapsedTime * 1.5) * 0.3;
+      orbMesh.material.uniforms.uSpike.value += (targetSpike - orbMesh.material.uniforms.uSpike.value) * 0.05;
+      camera.position.z += (6.0 - camera.position.z) * 0.05;
+    }
 
-  orbMesh.rotation.y += 0.005;
-  orbMesh.rotation.x += (targetY - orbMesh.rotation.x) * 0.05;
-  orbMesh.rotation.z += (targetX - orbMesh.rotation.z) * 0.05;
+    // Parallax & smooth rotation
+    targetX = mouseX * 0.4;
+    targetY = mouseY * 0.4;
 
-  // Rotate ambient particles
-  if (particlesMesh) {
-    particlesMesh.rotation.y = elapsedTime * 0.02;
+    orbMesh.rotation.y += 0.006;
+    orbMesh.rotation.x += (targetY - orbMesh.rotation.x) * 0.05;
+    orbMesh.rotation.z += (targetX - orbMesh.rotation.z) * 0.05;
   }
 
-  // Camera zoom dynamics if studio engaged
-  if (isStudioEngaged) {
-    camera.position.z += (3.5 - camera.position.z) * 0.05;
-    material.uniforms.uDisplacement.value += (1.8 - material.uniforms.uDisplacement.value) * 0.05;
-  } else {
-    camera.position.z += (7.0 - camera.position.z) * 0.05;
-    material.uniforms.uDisplacement.value += (0.8 - material.uniforms.uDisplacement.value) * 0.05;
+  if (particleSystem) {
+    particleSystem.rotation.y = elapsedTime * 0.015;
   }
 
   renderer.render(scene, camera);
@@ -336,7 +362,7 @@ let generatedDiagrams = {};
 let currentActiveTab = 'class';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Three.js Orb Canvas
+  // Initialize WebGL 3D Morphing Orb Engine
   initThreeOrb();
 
   const heroLanding = document.getElementById('hero-landing');
@@ -358,6 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCopy = document.getElementById('btn-copy-mermaid');
   const btnExportSvg = document.getElementById('btn-export-svg');
   const activeDiagramCount = document.getElementById('active-diagram-count');
+  const cornerBrandTopRight = document.querySelector('.corner-brand.top-right');
 
   // Engage Studio (Hero -> Studio Transition)
   btnEngageOrb.addEventListener('click', engageStudio);
@@ -368,6 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function engageStudio() {
     isStudioEngaged = true;
     heroLanding.classList.add('hero-hidden');
+    if (cornerBrandTopRight) cornerBrandTopRight.classList.add('corner-hidden');
     setTimeout(() => {
       studioApp.classList.remove('studio-hidden');
     }, 400);
@@ -376,6 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnBackLanding.addEventListener('click', () => {
     isStudioEngaged = false;
     studioApp.classList.add('studio-hidden');
+    if (cornerBrandTopRight) cornerBrandTopRight.classList.remove('corner-hidden');
     setTimeout(() => {
       heroLanding.classList.remove('hero-hidden');
     }, 300);
@@ -383,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Update Diagram Count Display
   function updateCountDisplay() {
-    activeDiagramCount.textContent = selectedDiagrams.size;
+    if (activeDiagramCount) activeDiagramCount.textContent = selectedDiagrams.size;
   }
 
   // Checkbox Handlers
