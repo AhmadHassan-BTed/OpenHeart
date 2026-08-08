@@ -38,4 +38,4 @@ Welcome to **OpenHeart**, created and maintained by **Ahmad Hassan (B-Ted)**. Th
 - **[System Architecture](architecture.md)**: 5-Phase pipeline design and 14 UML diagram mappings.
 - **[Succinct Structures](succinct_structures.md)**: BP ASTs, CSR CFGs, Wavelet Trees & ROBDD proof specs.
 - **[UML Derivation](uml_derivation.md)**: Derivation rules for structural & behavioral diagrams.
-- **[Implementation Plan](../ImplementationPlan.md)**: Full technical specification for Phase 1 (Lexical Ingestion & Token Corpus Construction).
+- **[Phase 1 Implementation Plan](plans/phase1_ingestion_spec.md)**: Full technical specification for Phase 1 (Lexical Ingestion & Token Corpus Construction).

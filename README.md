@@ -264,7 +264,14 @@ OpenHeart/
 │   ├── ingestion_tests.rs     # Ingestion integration tests
 │   └── ast_tests.rs           # BP AST encoding & invariant tests
 ├── docs/
-│   ├── assets/                # Architecture SVG diagrams
+│   ├── architecture/          # SCPG 5-layer system architecture spec & model
+│   ├── ast/                   # Phase 2 BP AST encoding spec & model
+│   ├── ingestion/             # Phase 1 Lexical ingestion spec & model
+│   ├── pipeline/              # 10-Phase pipeline spec & model
+│   ├── plans/                 # Phase implementation plans & specifications
+│   │   ├── phase1_ingestion_spec.md
+│   │   └── phase2_ast_reduction_spec.md
+│   ├── assets/                # Rendered SVG assets
 │   ├── overview.md            # Technical specification & benchmarks
 │   ├── architecture.md        # 5-layer succinct storage guide
 │   └── codebase-guide.md      # Contributor codebase map
@@ -272,8 +279,6 @@ OpenHeart/
 │   └── ci_check.sh            # Pre-flight local CI validation script
 ├── Makefile                   # Developer automation commands
 ├── Cargo.toml                 # Rust crate manifest
-├── ImplementationPlan.md      # Phase 1 specification
-├── Implementation_plan2.md    # Phase 2 specification
 └── LICENSE                    # MIT License
 ```
 

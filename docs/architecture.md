@@ -170,12 +170,12 @@ graph TD
 Each pipeline stage is defined in detail by its technical specification and interactive model:
 
 - **Phase 1: Lexical Ingestion & Token Corpus (.tca)**
-  - Technical Specification: [ImplementationPlan.md](file:///home/leech/Projects/OpenHeart/ImplementationPlan.md)
-  - Interactive Spec Model: [docs/ingestion/phase1_architecture_and_bit_layout.html](file:///home/leech/Projects/OpenHeart/docs/ingestion/phase1_architecture_and_bit_layout.html)
+  - Technical Specification: [docs/plans/phase1_ingestion_spec.md](plans/phase1_ingestion_spec.md)
+  - Interactive Spec Model: [docs/ingestion/phase1_architecture_and_bit_layout.html](ingestion/phase1_architecture_and_bit_layout.html)
 
 - **Phase 2: CST Reduction & BP AST Encoding (.bpa)**
-  - Technical Specification: [Implementation_plan2.md](file:///home/leech/Projects/OpenHeart/Implementation_plan2.md)
-  - Interactive Spec Model: [docs/ast/phase2_bp_architecture.html](file:///home/leech/Projects/OpenHeart/docs/ast/phase2_bp_architecture.html)
+  - Technical Specification: [docs/plans/phase2_ast_reduction_spec.md](plans/phase2_ast_reduction_spec.md)
+  - Interactive Spec Model: [docs/ast/phase2_bp_architecture.html](ast/phase2_bp_architecture.html)
 
 - **Complete SCPG 10-Phase Pipeline Architecture**
   - Interactive Pipeline Model: [docs/pipeline/openheart_10_phase_pipeline.html](file:///home/leech/Projects/OpenHeart/docs/pipeline/openheart_10_phase_pipeline.html)
