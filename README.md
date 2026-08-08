@@ -13,7 +13,7 @@
 
 <br/>
 
-![OpenHeart SCPG Architecture](docs/assets/scpg_overview.svg)
+![OpenHeart SCPG Architecture Matrix](docs/assets/scpg_architecture_matrix.png)
 
 <p align="center">
   A high-performance static program analysis engine and bidirectional UML generation platform built on succinct data structures, memory-mapped binary layouts, and formal graph representations.
@@ -35,37 +35,37 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 
 ---
 
-## Technical Pipeline Architecture
+## Complete 10-Phase Pipeline Architecture
 
-The ingestion pipeline converts raw source text into compact binary artifacts (`.tca`) anchored by a monotonic 32-bit `token_id` that propagates through all analysis phases.
+![OpenHeart 10-Phase Pipeline Map](docs/assets/scpg_10phase_pipeline.png)
 
-```mermaid
-graph TD
-    subgraph Inputs["1. Lexical Scanner"]
-        SRC["Raw Source Bytes"] --> TS["Tree-sitter Parser"]
-        TS --> TOK["Monotonic token_id Allocator"]
-        TOK --> INT["64-bit FNV-1a String Interner"]
-    end
+The OpenHeart analysis engine is structured into a 10-phase pipeline, where each phase produces an immutable, binary artifact with CRC-64 verification:
 
-    subgraph Core_Engine["2. Ingestion & Verification"]
-        INT --> FI["Forward Index (16B TokenRecord)"]
-        INT --> BI["Backward Index (16B TokenEntry)"]
-        FI --> INV["Invariant Checks (1-4)"]
-        BI --> INV
-    end
+| Phase | Pipeline Stage | Primary Inputs | Serialized Artifact | Key Responsibility |
+|---|---|---|---|---|
+| **1** | **Lexical Ingestion** | Source text | `TokenCorpusArtifact (.tca)` | FNV-1a string interning, sorted forward index, `token_id` allocation. |
+| **2** | **CST Reduction & BP Encoding** | `.tca` artifact | `BPASTArtifact (.bpa)` | Reduced ordinal AST forest, 2-bit/node BP bitstring, jump table, RMQ LCA. |
+| **3** | **Symbol Table & Type Hierarchy** | `.tca`, `.bpa` | `SymbolTableArtifact (.sta)` | Scope resolution, symbol declaration DAG ($V_{\text{sym}}$), $E^{\text{TH}}$ type relations. |
+| **4** | **CFG & Dominator Analysis** | `.bpa`, `.sta` | `CFGArtifact (.cfa)` | Basic block partitioning ($V_{\text{bb}}$), CSR adjacency lists, Lengauer-Tarjan dominators. |
+| **5** | **SSA Conversion & Data Flow** | `.cfa`, `.sta` | `SSAArtifact (.ssa)` | Iterated dominance frontiers (Cytron 1991), $\phi$-functions, IFDS taint propagation. |
+| **6** | **Inter-procedural Call Graph** | `.ssa`, `.sta` | `CallGraphArtifact (.cga)` | Call graph ($E^{\text{CG}}$) derivation, class hierarchy analysis, $k$-CFA points-to analysis. |
+| **7** | **Traceability Index** | `.tca` through `.cga` | `TraceabilityArtifact (.tra)` | Bidirectional Forward Index (source $\rightarrow$ IR) & dense Backward Index (IR $\rightarrow$ source). |
+| **8** | **ROBDD Path Summaries** | `.cfa`, `.ssa` | `PathSummaryArtifact (.psa)` | Reduced Ordered BDD path boolean functions ($f_{\text{paths}}$), FORCE/sifting reordering. |
+| **9** | **UML Semantic Metadata** | Artifacts 1–8 | `UMLMetadataArtifact (.uma)` | Synthesis of $\rho$ mapping functions for all 14 standard UML diagram views. |
+| **10**| **SCPG Query Bootstrap** | Artifacts 1–9 | `SCPG Binary (.scpg)` | 11-section memory-mapped `.scpg` binary file & CFL-reachability query engine. |
 
-    subgraph Storage_Artifact["3. Serialized Binary Artifact"]
-        INV --> TCA[".tca Binary Artifact Writer"]
-        TCA --> CRC["CRC-64/ECMA Checksum"]
-    end
+---
 
-    subgraph Downstream_Analysis["4. Upstream SCPG Layers"]
-        CRC --> BP["Layer 1: BP AST Sequence"]
-        CRC --> CSR["Layer 2 & 3: CSR CFG & Wavelet Edges"]
-        CRC --> SSA["Layer 4: SSA DFG & ROBDD Summaries"]
-        SSA --> UML["Layer 5: 14 UML Diagram Visualizations"]
-    end
-```
+## Performance & Complexity Analysis
+
+![Phase 2 Complexity Breakdown](docs/assets/scpg_phase_complexity.png)
+
+### Algorithmic & Space Bounds
+
+- **Overall Ingestion Complexity**: $O(N + n_{\text{ast}} \log n_{\text{ast}})$ (dominated by sparse table RMQ preprocessing; $\sim 21\text{ms}$ per million AST nodes).
+- **Traceability Lookup**: $O(\log n)$ Forward Index binary search, $O(1)$ direct Backward Index array lookup.
+- **Tree Navigation**: $O(1)$ `parent`, `first_child`, `next_sibling`, `subtree_size`, and `lca` via BP bits and Rank/Select auxiliary structures.
+- **Space Reduction**: **$6.9\times$ to $128\times$ smaller** memory footprint compared to pointer-based ASTs and graph database baselines (e.g. Neo4j).
 
 ---
 
@@ -80,26 +80,6 @@ The memory layout of OpenHeart is designed for zero-copy memory mapping and maxi
 | **Layer 3: Edges** | Wavelet Tree over $\Sigma_E$ | $O(\log \sigma)$ type-filtered edge enumeration | **2×** bit compression |
 | **Layer 4: DFG** | SSA Form + Dominance Frontiers | $O(1)$ array lookup for variable definition sites | Sparse $O(3n)$ operand storage |
 | **Layer 5: Paths** | ROBDDs + Sifting Optimizer | $O(|\text{ROBDD}|)$ exact path counting (#SAT) | Compact BDD encoding |
-
-<details>
-<summary><b>Click to expand detailed mathematical formalisms</b></summary>
-
-<br/>
-
-### Formal Subsumption Lattice
-
-The vertex partition forms a strict subsumption lattice:
-
-$$V_{\text{tok}} \subset V_{\text{syn}} \subset V_{\text{bb}} \subset V_{\text{sym}}$$
-
-- $V_{\text{tok}}$: Lexical tokens scanned from source files (AST leaves).
-- $V_{\text{syn}}$: Syntactic AST internal nodes.
-- $V_{\text{bb}}$: Basic blocks (maximal straight-line code sequences).
-- $V_{\text{sym}}$: Symbol declarations (functions, classes, interfaces, fields, packages).
-
-This subsumption lattice guarantees $O(1)$ projection between tokens, AST nodes, basic blocks, SSA definitions, and symbol declarations without requiring full graph re-traversals.
-
-</details>
 
 ---
 
@@ -120,9 +100,9 @@ graph TD
 
 ---
 
-## 14 Native UML Diagram Derivations
+## 14 Native UML Diagram Visualizations
 
-All 14 standard UML 2.5 diagram types are deterministically derived from SCPG graph layers:
+OpenHeart natively derives all 14 standard UML 2.5 diagram types directly from graph layers:
 
 ```mermaid
 graph LR
@@ -132,29 +112,34 @@ graph LR
         ECFG["E^CFG (Control Flow) + AbsInt"]
         EDFG["E^DFG (Data Flow) + IFDS Taint"]
     end
-    subgraph Diagrams["Derived UML Diagram Views"]
-        ETH --> Structural["Structural: Class, Object, Component, Package, Composite"]
-        ECG --> Interaction["Interaction: Sequence, Communication, Interaction Overview"]
-        ECFG --> Behavioral["Behavioral: Activity, State Machine"]
-        EDFG --> DataFlow["Data Flow: Taint & Data Flow Overlay"]
+    subgraph Diagrams["14 Native Derived UML Views"]
+        ETH --> Class["Class Diagram"]
+        ETH --> Object["Object Diagram"]
+        ETH --> Component["Component Diagram"]
+        ETH --> Deployment["Deployment Diagram"]
+        ETH --> Package["Package Diagram"]
+        ETH --> Composite["Composite Structure"]
+        ETH --> Profile["Profile Diagram"]
+
+        ECFG --> Activity["Activity Diagram"]
+        ECFG --> StateMachine["State Machine"]
+
+        ECG --> Sequence["Sequence Diagram"]
+        ECG --> Communication["Communication Diagram"]
+        ECG --> Interaction["Interaction Overview"]
+        ECG --> Timing["Timing Diagram"]
+
+        EDFG --> UseCase["Use Case Diagram"]
     end
 ```
 
 ---
 
-## Web Repository Adapter & Portal Studio
+## Web Repository Adapter & Studio Portal
 
 OpenHeart includes a decoupled **Web Repository Adapter** module (`src/adapters/web_repo.rs`) and standalone Web Portal Studio (`web/`). 
 
-This portal allows developers to paste any public Git repository link (`https://github.com/owner/repository`), select any combination of the **14 UML diagram types** via a visual selection matrix, and generate live interactive Mermaid diagrams without modifying or interfering with core library execution.
-
-```mermaid
-graph LR
-    User["Developer / User"] -->|1. Paste Repo URL + Check 14 UMLs| WebPortal["Web Portal Studio (web/)"]
-    WebPortal -->|2. Non-blocking Fetch & Validate| WebAdapter["src/adapters/web_repo.rs"]
-    WebAdapter -->|3. Generate .tca Manifest| Engine["OpenHeart Engine"]
-    Engine -->|4. Derive Selected Diagrams| Studio["Interactive Mermaid Studio"]
-```
+This portal allows developers to paste any public Git repository link (`https://github.com/owner/repository`), select any combination of the **14 UML diagram types** via a visual selection matrix, filter by module or system scope, and generate live interactive Mermaid diagrams.
 
 ### Launch Web Studio Locally
 
@@ -166,10 +151,14 @@ make serve
 
 Then open `http://localhost:8080` in your web browser, or access the live deployed instance directly at **[https://ahmadhassan-bted.github.io/OpenHeart/](https://ahmadhassan-bted.github.io/OpenHeart/)**.
 
+---
+
+## Directory Structure
+
 ```text
 OpenHeart/
 ├── .github/
-│   ├── workflows/             # CI and Release pipelines
+│   ├── workflows/             # CI and GitHub Pages deployment pipelines
 │   ├── ISSUE_TEMPLATE/        # Standardized issue templates
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── dependabot.yml         # Automated dependency configuration
@@ -179,8 +168,8 @@ OpenHeart/
 │   │   └── mod.rs
 │   ├── core/
 │   │   ├── io/                # Binary Little-Endian reader/writer & mmap wrapper
-│   │   └── types/             # TokenRecord (16B), TokenEntry (16B), SourceFileRecord (64B)
-│   ├── phase1/
+│   │   └── types/             # TokenRecord (16B), TokenEntry (16B), ASTNodeType, NodeAttr
+│   ├── ingestion/             # Lexical Ingestion & Token Corpus (.tca) (Phase 1)
 │   │   ├── adapter/           # LanguageAdapter trait & JavaLanguageAdapter
 │   │   ├── parser/            # Tree-sitter CST parser integration
 │   │   ├── allocator.rs       # Monotonic AtomicU32 TokenIdAllocator
@@ -188,37 +177,42 @@ OpenHeart/
 │   │   ├── interner.rs        # FNV-1a open-addressing StringInterner
 │   │   ├── serializer.rs      # Binary .tca format serializer & CRC-64 verification
 │   │   └── walker.rs          # Left-to-right DFS CST leaf token walker
+│   ├── ast/                   # CST Reduction & BP AST Encoding (.bpa) (Phase 2)
+│   │   ├── adapter/           # ASTReductionAdapter trait & JavaASTReductionAdapter
+│   │   ├── bp_encoder.rs      # MSB-first packed BPEncoder (u64 bitstring)
+│   │   ├── builder.rs         # BPASTBuilder aggregating BP & Preorder arrays
+│   │   ├── jump_table.rs      # O(n) stack-built match_pos lookup table
+│   │   ├── preorder.rs        # Parallel node_types, node_attrs, token_ranges, parent_map
+│   │   ├── rank_select.rs     # O(1) rank1 & select1 popcount auxiliary index
+│   │   ├── reducer.rs         # Recursive CST reduction DFS walk
+│   │   ├── rmq.rs             # Sparse Table RMQ over excess sequence for O(1) LCA
+│   │   └── serializer.rs      # Binary .bpa format serializer & CRC-64 verification
 │   └── lib.rs                 # Root library entry point
 ├── web/                       # Standalone Web Portal Studio
 │   ├── index.html             # Web Repository UML Studio UI
 │   ├── style.css              # Dark glassmorphism CSS design system
-│   └── app.js                 # Interactive 14 UML diagram renderer (Mermaid.js)
+│   ├── app.js                 # Interactive 14 UML diagram renderer (Mermaid.js)
+│   └── favicon.svg            # Minimal line-art 3D spiky orb tab logo
 ├── tests/
-│   └── phase1_tests.rs        # Integration and end-to-end pipeline tests
+│   ├── ingestion_tests.rs     # Ingestion & Token Corpus integration tests
+│   └── ast_tests.rs           # BP AST Encoding & Invariants 1-5 integration tests
 ├── docs/
-│   ├── assets/                # Architecture diagrams and SVG assets
+│   ├── assets/                # Architecture diagrams and technical PNG/SVG assets
 │   ├── overview.md            # Detailed SCPG mathematical specification & formal analysis
-│   ├── architecture.md        # 5-Phase pipeline system architecture guide
-│   ├── succinct_structures.md # BP ASTs, CSR CFGs, Wavelet Trees & ROBDD proof specs
-│   ├── uml_derivation.md      # 14 UML diagram derivation rules & query formulas
-│   ├── traceability_and_incremental.md # Universal token_id traceability & diff engine
-│   ├── security-architecture.md# Security posture, cryptographic checksums & bounds
-│   ├── codebase-guide.md      # Codebase module map & quick reference for contributors
-│   ├── technical-decisions.md # Architecture Decision Records (ADR-001 to ADR-004)
-│   ├── getting_started.md     # Quickstart & developer onboarding
-│   └── contributing.md        # Contribution standards & commit guidelines
+│   ├── architecture.md        # 10-Phase pipeline system architecture guide
+│   └── technical-decisions.md # Architecture Decision Records (ADR-001 to ADR-004)
 ├── scripts/
 │   └── ci_check.sh            # Local pre-flight validation script
 ├── Makefile                   # Automation Makefile
 ├── Cargo.toml                 # Rust crate manifest
 ├── ImplementationPlan.md      # Phase 1 technical specification
+├── Implementation_plan2.md    # Phase 2 technical specification
 ├── LICENSE                    # MIT License
 ├── CODE_OF_CONDUCT.md         # Contributor Covenant v2.1
 ├── CONTRIBUTING.md            # Contribution guidelines
 ├── SECURITY.md                # Vulnerability disclosure policy
 ├── CHANGELOG.md               # Release history
-├── ROADMAP.md                 # 5-Phase development roadmap
-└── SUPPORT.md                 # Support channels
+└── ROADMAP.md                 # 10-Phase development roadmap
 ```
 
 ---
@@ -231,15 +225,13 @@ Copy `.env.example` to `.env` for local configuration overrides:
 cp .env.example .env
 ```
 
-Available environment options:
-
 | Option Name | Default Value | Functional Role |
 |---|---|---|
 | `RUST_LOG` | `info` | Logging verbosity (`error`, `warn`, `info`, `debug`, `trace`). |
-| `OPENHEART_ARTIFACT_DIR` | `./target/artifacts` | Target directory for generated `.tca` artifacts. |
+| `OPENHEART_ARTIFACT_DIR` | `./target/artifacts` | Target directory for generated `.tca` and `.bpa` artifacts. |
 | `OPENHEART_MAX_MEMORY_MB` | `2048` | Peak memory threshold limit in megabytes. |
 | `OPENHEART_NUM_THREADS` | `0` | Parallel parsing thread count (`0` = auto-detect CPU cores). |
-| `OPENHEART_STRICT_INVARIANTS`| `true` | Enable runtime assertions for Invariants 1–4. |
+| `OPENHEART_STRICT_INVARIANTS`| `true` | Enable runtime assertions for Invariants 1–5. |
 
 ---
 
@@ -260,8 +252,8 @@ make test
 # Format codebase according to rustfmt
 make fmt
 
-# Generate crate documentation
-make docs
+# Launch local Web Portal Studio
+make serve
 ```
 
 ---
@@ -269,20 +261,11 @@ make docs
 ## Security Posture
 
 OpenHeart enforces strict safety and integrity controls:
-- Safe Rust guarantee across ingestion modules.
+- Safe Rust guarantee across ingestion and AST reduction modules.
 - SHA-256 cryptographic digests computed for all source contents and tree states.
-- CRC-64/ECMA verification required on `.tca` binary artifacts prior to deserialization.
+- CRC-64/ECMA verification required on `.tca` and `.bpa` binary artifacts prior to deserialization.
 
 For security reports, please review [SECURITY.md](SECURITY.md).
-
----
-
-## Community & Support
-
-Contributions, issue reports, and feedback are welcomed:
-- [CONTRIBUTING.md](CONTRIBUTING.md) — Guidelines for submitting code and documentation.
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Standards of community engagement.
-- [SUPPORT.md](SUPPORT.md) — Support options and GitHub Discussions.
 
 ---
 
