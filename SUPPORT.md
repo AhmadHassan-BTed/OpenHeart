@@ -1,31 +1,31 @@
 # Getting Support for OpenHeart
 
-Thank you for using **OpenHeart**! If you need help, have questions, or encounter issues, please use the following channels:
+Thank you for exploring **OpenHeart**, maintained by **Ahmad Hassan (B-Ted)**. For support, questions, or issues, please utilize the following channels:
 
 ---
 
-## 💬 Community Support Channels
+## ◆ Community Support Channels
 
 ### 1. GitHub Discussions
-For general questions, architecture discussions, ideas, and usage help:
+For general questions, architecture discussions, ideas, and usage guidance:
 - Visit [GitHub Discussions](https://github.com/AhmadHassan-BTed/OpenHeart/discussions).
 
 ### 2. Issue Tracker
-For bug reports, unexpected errors, performance regressions, or feature requests:
+For bug reports, unexpected errors, or feature requests:
 - Search existing [GitHub Issues](https://github.com/AhmadHassan-BTed/OpenHeart/issues) before opening a new issue.
-- Please use our issue templates when submitting bug reports or feature requests.
+- Please utilize the provided issue templates when submitting requests.
 
 ---
 
-## 🔒 Security Vulnerabilities
+## ■ Security Vulnerabilities
 
 For security concerns or sensitive vulnerability disclosures:
-- Please refer to our [Security Policy](SECURITY.md).
+- Please refer to [SECURITY.md](SECURITY.md).
 - Email **security@openheart.dev** directly instead of opening a public issue.
 
 ---
 
-## 📖 Documentation Quick Links
+## ● Documentation Index
 
 - **[README](../README.md)**: Project overview, setup, and key features.
 - **[System Architecture](docs/architecture.md)**: 5-layer storage engine and 14 UML matrix.

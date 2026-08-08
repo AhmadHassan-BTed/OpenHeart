@@ -1,47 +1,13 @@
-# Rust build artifacts & target directory
 /target/
 **/*.rs.bk
 *.tca
-
-# Operating System Files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-desktop.ini
-
-# IDEs and Editors
 .vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-*.code-workspace
 .idea/
-*.gdoc
 *.swp
-*.swo
-*~
-
-# Logs and Databases
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-*.sqlite
-*.db
-
-# Node / Python / Temp
-node_modules/
-dist/
-build/
-__pycache__/
-*.py[cod]
-.venv/
 .env
 tmp/
-temp/
-*.tmp
