@@ -1,10 +1,15 @@
 /target/
 *.tca
 *.bpa
+*.sta
+*.cfa
 *.scpg
 *.log
 .env
 tmp/
+out_test/
+openheart_output/
+sample_project/
 .DS_Store
 Thumbs.db
 .vscode/

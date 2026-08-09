@@ -23,6 +23,9 @@ pub fn build_while(
 
     let header = state.new_block();
     state.flush_pending(header);
+    if state.current_block != header {
+        state.add_edge(state.current_block, header, CFGEdgeType::Uncond);
+    }
     state.add_stmt_to_block(header, cond_node, bpa);
 
     let exit = state.new_block();
@@ -35,6 +38,9 @@ pub fn build_while(
     state.current_block = body_entry;
     dispatch_stmt(body_node, state, bpa, sta);
 
+    if state.current_block != body_entry || !state.blocks[body_entry as usize].stmts.is_empty() {
+        state.add_edge(state.current_block, header, CFGEdgeType::LoopBack);
+    }
     state.flush_pending_with_type(header, CFGEdgeType::LoopBack);
 
     state.pop_continue();
