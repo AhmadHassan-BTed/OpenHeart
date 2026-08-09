@@ -32,7 +32,14 @@ pub fn build_if(
     state.add_edge(cond_block, then_entry, CFGEdgeType::True);
     state.current_block = then_entry;
     dispatch_stmt(then_node, state, bpa, sta);
-    let then_pending = state.drain_pending();
+
+    let mut then_pending = state.drain_pending();
+    if state.current_block != then_entry || !state.blocks[then_entry as usize].stmts.is_empty() {
+        then_pending.push(PendingEdge {
+            from: state.current_block,
+            edge_type: CFGEdgeType::Uncond,
+        });
+    }
 
     // ── ELSE branch ──
     let else_pending = if let Some(else_n) = else_node {
@@ -40,7 +47,16 @@ pub fn build_if(
         state.add_edge(cond_block, else_entry, CFGEdgeType::False);
         state.current_block = else_entry;
         dispatch_stmt(else_n, state, bpa, sta);
-        state.drain_pending()
+
+        let mut ep = state.drain_pending();
+        if state.current_block != else_entry || !state.blocks[else_entry as usize].stmts.is_empty()
+        {
+            ep.push(PendingEdge {
+                from: state.current_block,
+                edge_type: CFGEdgeType::Uncond,
+            });
+        }
+        ep
     } else {
         vec![PendingEdge {
             from: cond_block,

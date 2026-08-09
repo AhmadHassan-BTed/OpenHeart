@@ -41,6 +41,10 @@ pub fn build_for(
 
     let header = state.new_block();
     state.flush_pending(header);
+    if state.current_block != header {
+        state.add_edge(state.current_block, header, CFGEdgeType::Uncond);
+    }
+
     if let Some(cond) = cond_expr {
         state.add_stmt_to_block(header, cond, bpa);
     }
@@ -56,7 +60,11 @@ pub fn build_for(
     state.current_block = body_entry;
     dispatch_stmt(body_node, state, bpa, sta);
 
+    if state.current_block != body_entry || !state.blocks[body_entry as usize].stmts.is_empty() {
+        state.add_edge(state.current_block, update_block, CFGEdgeType::Uncond);
+    }
     state.flush_pending(update_block);
+
     if let Some(upd) = update_expr {
         state.add_stmt_to_block(update_block, upd, bpa);
     }
@@ -97,6 +105,9 @@ pub fn build_enhanced_for(
 
     let header = state.new_block();
     state.flush_pending(header);
+    if state.current_block != header {
+        state.add_edge(state.current_block, header, CFGEdgeType::Uncond);
+    }
 
     let exit = state.new_block();
 
@@ -108,6 +119,9 @@ pub fn build_enhanced_for(
     state.current_block = body_entry;
     dispatch_stmt(body_node, state, bpa, sta);
 
+    if state.current_block != body_entry || !state.blocks[body_entry as usize].stmts.is_empty() {
+        state.add_edge(state.current_block, header, CFGEdgeType::LoopBack);
+    }
     state.flush_pending_with_type(header, CFGEdgeType::LoopBack);
 
     state.pop_continue();

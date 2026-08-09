@@ -63,6 +63,10 @@ impl FunctionCFGBuilder {
         let exit = state.exit_block;
         state.flush_pending(exit);
 
+        if state.current_block != exit {
+            state.add_edge(state.current_block, exit, CFGEdgeType::Uncond);
+        }
+
         // Ensure ENTRY connects to EXIT if empty function body
         if state
             .edges
@@ -72,23 +76,67 @@ impl FunctionCFGBuilder {
             state.add_edge(entry, exit, CFGEdgeType::Uncond);
         }
 
-        let n = state.blocks.len();
-        let succ_lists = state.succ_lists();
-        let pred_lists = state.pred_lists();
+        let raw_n = state.blocks.len();
+        let raw_succs = state.succ_lists();
 
-        let rpo = reverse_postorder(n, &succ_lists);
-        let idom = compute_idom_cooper(n, &pred_lists, &rpo);
+        // ── Compact & Prune Unreachable Blocks ──
+        let rpo = reverse_postorder(raw_n, &raw_succs);
+
+        let mut old_to_new = vec![u32::MAX; raw_n];
+        for (new_id, &old_id) in rpo.iter().enumerate() {
+            if (old_id as usize) < raw_n {
+                old_to_new[old_id as usize] = new_id as u32;
+            }
+        }
+
+        let mut blocks = Vec::with_capacity(rpo.len());
+        for (new_id, &old_id) in rpo.iter().enumerate() {
+            let mut blk = state.blocks[old_id as usize].clone();
+            blk.id = new_id as u32;
+            blocks.push(blk);
+        }
+
+        let mut edges = Vec::new();
+        for &(u, v, etype) in &state.edges {
+            let new_u = if (u as usize) < raw_n {
+                old_to_new[u as usize]
+            } else {
+                u32::MAX
+            };
+            let new_v = if (v as usize) < raw_n {
+                old_to_new[v as usize]
+            } else {
+                u32::MAX
+            };
+            if new_u != u32::MAX && new_v != u32::MAX {
+                edges.push((new_u, new_v, etype));
+            }
+        }
+
+        let n = blocks.len();
+        let mut succ_lists = vec![Vec::new(); n];
+        let mut pred_lists = vec![Vec::new(); n];
+
+        for &(u, v, _) in &edges {
+            if (u as usize) < n && (v as usize) < n {
+                succ_lists[u as usize].push(v);
+                pred_lists[v as usize].push(u);
+            }
+        }
+
+        let new_rpo = (0..n as u32).collect::<Vec<u32>>();
+        let idom = compute_idom_cooper(n, &pred_lists, &new_rpo);
         let df_lists = compute_dominance_frontiers(n, &succ_lists, &pred_lists, &idom);
         let loop_info = analyze_loops(n, &succ_lists);
 
         // Build CSR for successors
         let mut succ_offsets = Vec::with_capacity(n + 1);
-        let mut succ_adj = Vec::with_capacity(state.edges.len());
-        let mut edge_types = Vec::with_capacity(state.edges.len());
+        let mut succ_adj = Vec::with_capacity(edges.len());
+        let mut edge_types = Vec::with_capacity(edges.len());
 
         succ_offsets.push(0);
         for i in 0..n {
-            for &(u, v, etype) in &state.edges {
+            for &(u, v, etype) in &edges {
                 if u as usize == i {
                     succ_adj.push(v);
                     edge_types.push(etype as u8);
@@ -99,11 +147,11 @@ impl FunctionCFGBuilder {
 
         // Build CSR for predecessors
         let mut pred_offsets = Vec::with_capacity(n + 1);
-        let mut pred_adj = Vec::with_capacity(state.edges.len());
+        let mut pred_adj = Vec::with_capacity(edges.len());
 
         pred_offsets.push(0);
         for i in 0..n {
-            for &(u, v, _) in &state.edges {
+            for &(u, v, _) in &edges {
                 if v as usize == i {
                     pred_adj.push(u);
                 }
@@ -120,14 +168,14 @@ impl FunctionCFGBuilder {
             df_offsets.push(df_adj.len() as u32);
         }
 
-        let num_edges = state.edges.len() as i32;
+        let num_edges = edges.len() as i32;
         let num_blocks = n as i32;
         let cyclomatic = ((num_edges - num_blocks + 2).max(1)) as u16;
 
         FunctionCFGData {
             sym_id,
-            blocks: state.blocks,
-            edges: state.edges,
+            blocks,
+            edges,
             succ_offsets,
             succ_adj,
             pred_offsets,

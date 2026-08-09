@@ -8,6 +8,7 @@ pub mod stmts;
 use crate::ast::BPASTArtifact;
 use crate::cfg::builder::{FunctionCFGBuilder, FunctionCFGData};
 use crate::cfg::serializer::{CFGArtifact, CFGSerializer};
+use crate::core::types::ast::ASTNodeType;
 use crate::core::types::symbol::SymbolKind;
 use crate::ingestion::serializer::crc64_ecma;
 use crate::symbol::SymbolTableArtifact;
@@ -44,12 +45,30 @@ impl Phase4Stage {
                 continue;
             }
 
-            let def_node = sym.def_node;
-            if def_node == u32::MAX {
+            let decl_node = sym.def_node;
+            if decl_node == u32::MAX {
                 continue; // abstract or native method without body
             }
 
-            let cfg_data = FunctionCFGBuilder::build(sym_id, def_node, bpa, sta);
+            let body_node = if bpa.node_type(decl_node) == ASTNodeType::NN_BLOCK {
+                decl_node
+            } else {
+                let mut cur = bpa.first_child(decl_node);
+                let mut found = None;
+                while let Some(c) = cur {
+                    if bpa.node_type(c) == ASTNodeType::NN_BLOCK {
+                        found = Some(c);
+                        break;
+                    }
+                    cur = bpa.next_sibling(c);
+                }
+                match found {
+                    Some(b) => b,
+                    None => continue, // abstract or interface method
+                }
+            };
+
+            let cfg_data = FunctionCFGBuilder::build(sym_id, body_node, bpa, sta);
             Self::verify_function_invariants(&cfg_data)?;
             artifact.add_function(cfg_data);
         }
