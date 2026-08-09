@@ -1,5 +1,9 @@
 <div align="center">
 
+<p align="center">
+  <img src="docs/assets/web_preview.webp" alt="OpenHeart Live Web Studio Studio Preview" width="100%" />
+</p>
+
 # OpenHeart
 
 ### Succinct Compositional Program Graph (SCPG) Engine
@@ -12,10 +16,6 @@
 [![Maintainer: Ahmad Hassan (B-Ted)](https://img.shields.io/badge/maintainer-Ahmad_Hassan_(B--Ted)-blueviolet.svg?style=flat-square)](https://github.com/AhmadHassan-BTed)
 
 <br/>
-
-<p align="center">
-  <img src="docs/assets/web_preview.webp" alt="OpenHeart Live Web Studio Studio Preview" width="100%" />
-</p>
 
 <p align="center">
   <img src="docs/assets/scpg_overview.svg" alt="OpenHeart SCPG Architecture" width="100%" />
