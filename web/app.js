@@ -196,10 +196,11 @@ const UML_TEMPLATES = {
     subgraph SCPG_Core["OpenHeart Core Engine"]
         P1["Phase 1: Lexical Ingestion"]
         P2["Phase 2: BP AST Encoder"]
-        P3["Phase 3: CSR CFG Builder"]
-        P4["Phase 4: ROBDD Path Engine"]
+        P3["Phase 3: Symbol Table & TH"]
+        P4["Phase 4: CFG & Dominators"]
+        P5["Phase 5: SSA & Data Flow"]
     end
-    P1 --> P2 --> P3 --> P4`,
+    P1 --> P2 --> P3 --> P4 --> P5`,
 
   deployment: `graph LR
     Node1["Developer Workstation"] -->|HTTPS / Git| Node2["OpenHeart Portal"]
