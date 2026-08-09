@@ -8,6 +8,7 @@ pub mod stmts;
 use crate::ast::BPASTArtifact;
 use crate::cfg::builder::{FunctionCFGBuilder, FunctionCFGData};
 use crate::cfg::serializer::{CFGArtifact, CFGSerializer};
+use crate::core::logger::{log_debug, log_info, log_trace, PhaseTimer};
 use crate::core::types::ast::ASTNodeType;
 use crate::core::types::symbol::SymbolKind;
 use crate::ingestion::serializer::crc64_ecma;
@@ -24,8 +25,14 @@ impl Phase4Stage {
         bpa_bytes: &[u8],
         out_path: &Path,
     ) -> Result<CFGArtifact, String> {
+        let _timer = PhaseTimer::start("Phase 4: Control Flow Graph & Dominator Analysis");
+
         let sta_hash = crc64_ecma(sta_bytes);
         let bpa_hash = crc64_ecma(bpa_bytes);
+        log_info(&format!(
+            "STA Link Hash: 0x{:016X} | BPA Link Hash: 0x{:016X}",
+            sta_hash, bpa_hash
+        ));
 
         let mut artifact = CFGArtifact::new(sta_hash, bpa_hash);
 
@@ -68,13 +75,36 @@ impl Phase4Stage {
                 }
             };
 
+            log_trace(&format!(
+                "Building CFG for function sym_id={} (decl_node={}, body_node={})...",
+                sym_id, decl_node, body_node
+            ));
+
             let cfg_data = FunctionCFGBuilder::build(sym_id, body_node, bpa, sta);
             Self::verify_function_invariants(&cfg_data)?;
+
+            log_debug(&format!(
+                "  Function sym_id={}: {} basic blocks, {} CFG edges, Cyclomatic V(G)={}",
+                sym_id,
+                cfg_data.blocks.len(),
+                cfg_data.edges.len(),
+                cfg_data.cyclomatic
+            ));
+
             artifact.add_function(cfg_data);
         }
 
+        log_info(&format!(
+            "Serializing CFGArtifact (.cfa) to {}...",
+            out_path.display()
+        ));
         CFGSerializer::write(&artifact, out_path)
             .map_err(|e| format!("Failed to serialize .cfa: {}", e))?;
+
+        log_info(&format!(
+            "Phase 4 Complete: Analyzed {} functions ({} blocks, {} edges).",
+            artifact.function_count, artifact.total_blocks, artifact.total_edges
+        ));
 
         Ok(artifact)
     }

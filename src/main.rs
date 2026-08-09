@@ -5,6 +5,7 @@ use openheart::ast::{ASTStage, ASTStageInput};
 use openheart::cfg::serializer::CFGArtifact;
 use openheart::cfg::Phase4Stage;
 use openheart::core::io::mmap::MemoryMappedFile;
+use openheart::core::logger::{init_logger_from_env, log_info, set_log_level, LogLevel};
 use openheart::ingestion::manifest::SourceManifest;
 use openheart::ingestion::IngestionStage;
 use openheart::symbol::serializer::SymbolTableArtifact;
@@ -26,9 +27,9 @@ USAGE:
     openheart <SUBCOMMAND> [OPTIONS]
 
 SUBCOMMANDS:
-    analyze <SOURCE_PATH> [OUTPUT_DIR]
+    analyze <SOURCE_PATH> [OUTPUT_DIR] [--verbose | --debug | --trace]
         Recursively scans <SOURCE_PATH> for .java source files and executes
-        the complete 4-phase static analysis pipeline:
+        the complete 4-phase static analysis pipeline with structured logging:
           • Phase 1: Lexical Ingestion          ─► corpus.tca
           • Phase 2: CST Reduction & BP AST     ─► ast.bpa
           • Phase 3: Symbol Table & Hierarchy   ─► symbols.sta
@@ -40,8 +41,12 @@ SUBCOMMANDS:
     help
         Prints this usage guide.
 
+FLAGS:
+    -v, --verbose, --debug    Enable verbose debug logging
+    --trace                   Enable granular trace logging (all statement dispatches)
+
 EXAMPLES:
-    openheart analyze ./src/main/java ./out
+    openheart analyze ./src/main/java ./out --debug
     openheart inspect ./out/symbols.sta
 ================================================================================
 "#
@@ -86,11 +91,11 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         ));
     }
 
-    println!("================================================================================");
-    println!(" OPENHEART STATIC ANALYSIS PIPELINE STARTING");
-    println!(" Input Path  : {}", source_path.display());
-    println!(" Java Files  : {}", java_files.len());
-    println!("================================================================================");
+    log_info("================================================================================");
+    log_info(" OPENHEART STATIC ANALYSIS PIPELINE STARTING");
+    log_info(&format!(" Input Path  : {}", source_path.display()));
+    log_info(&format!(" Java Files  : {}", java_files.len()));
+    log_info("================================================================================");
 
     let out_dir = match out_dir_str {
         Some(d) => PathBuf::from(d),
@@ -105,22 +110,12 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     let cfa_path = out_dir.join("cfg.cfa");
 
     // ── PHASE 1: Lexical Ingestion ──
-    println!("\n[1/4] Running Phase 1: Lexical Ingestion...");
-    let p1_start = Instant::now();
     let manifest = SourceManifest::new(java_files.clone());
     let tca_artifact = IngestionStage::run(manifest, &tca_path)
         .map_err(|e| format!("Phase 1 Ingestion failed: {}", e))?;
     let tca_bytes = fs::read(&tca_path).map_err(|e| format!("Failed to read .tca file: {}", e))?;
-    println!(
-        "   ✓ Phase 1 Complete in {:.2?} | Tokens Ingested: {} | Output: {}",
-        p1_start.elapsed(),
-        tca_artifact.token_records.len(),
-        tca_path.display()
-    );
 
     // ── PHASE 2: CST Reduction & BP AST Encoding ──
-    println!("\n[2/4] Running Phase 2: CST Reduction & Succinct BP AST Encoding...");
-    let p2_start = Instant::now();
     let stage_input = ASTStageInput {
         tca: MemoryMappedFile::open(&tca_path)
             .map_err(|e| format!("Failed to mmap .tca: {}", e))?,
@@ -128,32 +123,14 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     let bpa_artifact = ASTStage::run(&stage_input, &bpa_path)
         .map_err(|e| format!("Phase 2 AST Reduction failed: {}", e))?;
     let bpa_bytes = fs::read(&bpa_path).map_err(|e| format!("Failed to read .bpa file: {}", e))?;
-    println!(
-        "   ✓ Phase 2 Complete in {:.2?} | AST Nodes Encoded: {} | Output: {}",
-        p2_start.elapsed(),
-        bpa_artifact.node_count,
-        bpa_path.display()
-    );
 
     // ── PHASE 3: Symbol Table & Type Hierarchy Construction ──
-    println!("\n[3/4] Running Phase 3: Symbol Table & Type Hierarchy Construction...");
-    let p3_start = Instant::now();
     let sta_artifact = Phase3Stage::run(&tca_artifact, &bpa_artifact, &tca_bytes, &bpa_bytes)
         .map_err(|e| format!("Phase 3 Symbol Table resolution failed: {}", e))?;
     let sta_bytes = sta_artifact.serialize();
     fs::write(&sta_path, &sta_bytes).map_err(|e| format!("Failed to write .sta file: {}", e))?;
-    println!(
-        "   ✓ Phase 3 Complete in {:.2?} | Symbols: {} | Scopes: {} | Hierarchy Edges: {} | Output: {}",
-        p3_start.elapsed(),
-        sta_artifact.symbol_count,
-        sta_artifact.scope_count,
-        sta_artifact.th_edge_count,
-        sta_path.display()
-    );
 
     // ── PHASE 4: Control Flow Graph Construction & Dominator Analysis ──
-    println!("\n[4/4] Running Phase 4: Control Flow Graph & Dominator Analysis...");
-    let p4_start = Instant::now();
     let cfa_artifact = Phase4Stage::run(
         &bpa_artifact,
         &sta_artifact,
@@ -162,22 +139,23 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         &cfa_path,
     )
     .map_err(|e| format!("Phase 4 CFG Construction failed: {}", e))?;
-    println!(
-        "   ✓ Phase 4 Complete in {:.2?} | Functions Analyzed: {} | Total Basic Blocks: {} | Total Edges: {} | Output: {}",
-        p4_start.elapsed(),
+
+    log_info("================================================================================");
+    log_info(&format!(
+        " SUCCESS: Complete 4-Phase Static Analysis finished in {:.2?} | Output: {}",
+        start_time.elapsed(),
+        out_dir.display()
+    ));
+    log_info(&format!(
+        " Summary: {} tokens, {} AST nodes, {} symbols, {} functions, {} blocks, {} CFG edges.",
+        tca_artifact.token_records.len(),
+        bpa_artifact.node_count,
+        sta_artifact.symbol_count,
         cfa_artifact.function_count,
         cfa_artifact.total_blocks,
-        cfa_artifact.total_edges,
-        cfa_path.display()
-    );
-
-    println!("\n================================================================================");
-    println!(
-        " SUCCESS: Complete 4-Phase Static Analysis finished in {:.2?}",
-        start_time.elapsed()
-    );
-    println!(" Output Directory: {}", out_dir.display());
-    println!("================================================================================");
+        cfa_artifact.total_edges
+    ));
+    log_info("================================================================================");
 
     Ok(())
 }
@@ -189,30 +167,30 @@ fn cmd_inspect(artifact_path_str: &str) -> Result<(), String> {
     }
 
     let bytes = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
-    println!("Inspecting artifact: {}", path.display());
-    println!("File Size: {} bytes", bytes.len());
+    log_info(&format!("Inspecting artifact: {}", path.display()));
+    log_info(&format!("File Size: {} bytes", bytes.len()));
 
     if let Ok(cfa) = CFGArtifact::deserialize(&bytes) {
-        println!("Artifact Type  : Control Flow Graph (.cfa)");
-        println!("Format Version : {}", cfa.format_version);
-        println!("Function Count : {}", cfa.function_count);
-        println!("Total Blocks   : {}", cfa.total_blocks);
-        println!("Total Edges    : {}", cfa.total_edges);
-        println!("STA Hash Link  : 0x{:016X}", cfa.sta_hash);
-        println!("BPA Hash Link  : 0x{:016X}", cfa.bpa_hash);
-        println!("CRC-64 Check   : VERIFIED VALID");
+        log_info("Artifact Type  : Control Flow Graph (.cfa)");
+        log_info(&format!("Format Version : {}", cfa.format_version));
+        log_info(&format!("Function Count : {}", cfa.function_count));
+        log_info(&format!("Total Blocks   : {}", cfa.total_blocks));
+        log_info(&format!("Total Edges    : {}", cfa.total_edges));
+        log_info(&format!("STA Hash Link  : 0x{:016X}", cfa.sta_hash));
+        log_info(&format!("BPA Hash Link  : 0x{:016X}", cfa.bpa_hash));
+        log_info("CRC-64 Check   : VERIFIED VALID");
         return Ok(());
     }
 
     if let Ok(sta) = SymbolTableArtifact::deserialize(&bytes) {
-        println!("Artifact Type  : Symbol Table & Hierarchy (.sta)");
-        println!("Format Version : {}", sta.format_version);
-        println!("Symbol Count   : {}", sta.symbol_count);
-        println!("Scope Count    : {}", sta.scope_count);
-        println!("TH Edge Count  : {}", sta.th_edge_count);
-        println!("BPA Hash Link  : 0x{:016X}", sta.bpa_hash);
-        println!("TCA Hash Link  : 0x{:016X}", sta.tca_hash);
-        println!("CRC-64 Check   : VERIFIED VALID");
+        log_info("Artifact Type  : Symbol Table & Hierarchy (.sta)");
+        log_info(&format!("Format Version : {}", sta.format_version));
+        log_info(&format!("Symbol Count   : {}", sta.symbol_count));
+        log_info(&format!("Scope Count    : {}", sta.scope_count));
+        log_info(&format!("TH Edge Count  : {}", sta.th_edge_count));
+        log_info(&format!("BPA Hash Link  : 0x{:016X}", sta.bpa_hash));
+        log_info(&format!("TCA Hash Link  : 0x{:016X}", sta.tca_hash));
+        log_info("CRC-64 Check   : VERIFIED VALID");
         return Ok(());
     }
 
@@ -223,10 +201,24 @@ fn cmd_inspect(artifact_path_str: &str) -> Result<(), String> {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    init_logger_from_env();
+
+    let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         print_usage();
         return;
+    }
+
+    // Process logging verbosity flags
+    if args.iter().any(|arg| arg == "--trace") {
+        set_log_level(LogLevel::Trace);
+        args.retain(|arg| arg != "--trace");
+    } else if args
+        .iter()
+        .any(|arg| arg == "-v" || arg == "--verbose" || arg == "--debug")
+    {
+        set_log_level(LogLevel::Debug);
+        args.retain(|arg| arg != "-v" && arg != "--verbose" && arg != "--debug");
     }
 
     let command = args[1].as_str();

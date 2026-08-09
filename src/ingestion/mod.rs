@@ -1,3 +1,5 @@
+//! Phase 1 Lexical Ingestion Module.
+
 pub mod adapter;
 pub mod allocator;
 pub mod builder;
@@ -14,6 +16,7 @@ use std::time::UNIX_EPOCH;
 
 use sha2::{Digest, Sha256};
 
+use crate::core::logger::{log_debug, log_info, log_trace, PhaseTimer};
 use crate::core::types::source::SourceFileRecord;
 use crate::core::types::token::{build_sort_key, TokenRecord};
 use crate::ingestion::adapter::registry::AdapterRegistry;
@@ -30,12 +33,18 @@ pub struct IngestionStage;
 
 impl IngestionStage {
     pub fn run(manifest: SourceManifest, out_path: &Path) -> Result<TokenCorpusArtifact, String> {
+        let _timer = PhaseTimer::start("Phase 1: Lexical Ingestion");
+
         let mut files: Vec<PathBuf> = manifest.file_paths.clone();
         files.sort_unstable();
 
+        log_info(&format!(
+            "Ingesting {} source files from manifest...",
+            files.len()
+        ));
+
         let mut file_records: Vec<SourceFileRecord> = Vec::with_capacity(files.len());
         let adapter_reg = AdapterRegistry::new();
-
         let mut source_hashes: Vec<[u8; 32]> = Vec::with_capacity(files.len());
 
         for (file_id, path) in files.iter().enumerate() {
@@ -68,6 +77,16 @@ impl IngestionStage {
                 first_token_id: 0,
                 file_token_count: 0,
             });
+
+            log_trace(&format!(
+                "File record {}: path={}, size={} bytes, lang_id={:?}, SHA256={:02x}{:02x}...",
+                file_id,
+                path.display(),
+                meta.len(),
+                lang_id,
+                sha256_result[0],
+                sha256_result[1]
+            ));
         }
 
         // Compute overall source tree hash
@@ -76,6 +95,11 @@ impl IngestionStage {
             tree_hasher.update(hash);
         }
         let source_tree_hash: [u8; 32] = tree_hasher.finalize().into();
+
+        log_debug(&format!(
+            "Computed overall source tree hash: {:02x}{:02x}{:02x}{:02x}...",
+            source_tree_hash[0], source_tree_hash[1], source_tree_hash[2], source_tree_hash[3]
+        ));
 
         let allocator = TokenIdAllocator::new();
         let interner = Mutex::new(StringInterner::with_capacity(65536));
@@ -100,6 +124,13 @@ impl IngestionStage {
                 adapter.as_ref(),
                 &manifest.filter,
             );
+
+            log_debug(&format!(
+                "  File {} ({}): Walked CST, extracted {} tokens",
+                file_id,
+                path.display(),
+                raw_tokens.len()
+            ));
 
             {
                 let mut intern = interner.lock().unwrap();
@@ -126,6 +157,7 @@ impl IngestionStage {
             record.file_token_count = raw_tokens.len() as u32;
         }
 
+        log_info("Finalizing TokenCorpusBuilder and asserting Invariants 1-4...");
         let artifact = builder.finalize(file_records, interner.into_inner().unwrap())?;
 
         let flags: u16 = (manifest.filter.include_whitespace as u16)
@@ -133,7 +165,17 @@ impl IngestionStage {
             | ((manifest.filter.include_block_comments as u16) << 2)
             | ((manifest.filter.include_doc_comments as u16) << 3);
 
+        log_info(&format!(
+            "Serializing .tca binary artifact to {}...",
+            out_path.display()
+        ));
         TokenCorpusSerializer::write(&artifact, &files, flags, source_tree_hash, out_path)?;
+
+        log_info(&format!(
+            "Phase 1 Ingestion Complete: Ingested {} tokens across {} source files.",
+            artifact.token_records.len(),
+            artifact.file_records.len()
+        ));
 
         Ok(artifact)
     }
