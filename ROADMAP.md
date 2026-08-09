@@ -1,15 +1,21 @@
 # OpenHeart Architectural Roadmap
 
-This document outlines the development phases, technical milestones, and architectural goals for **OpenHeart** (Succinct Compositional Program Graph Engine), authored and maintained by **Ahmad Hassan (B-Ted)**.
+This document outlines the development phases, technical milestones, and architectural goals for **OpenHeart** (Succinct Compositional Program Graph Engine), authored and maintained solely by **Ahmad Hassan (B-Ted)**.
 
 ---
 
-## 5-Phase Active Engine Pipeline (5 of 10 Phases Completed)
+## Master 10-Phase SCPG Compilation Pipeline (5 of 10 Phases Completed)
 
 ```text
-Phase 1 (COMPLETE) ──► Phase 2 (COMPLETE) ──► Phase 3 (COMPLETE) ──► Phase 4 (COMPLETE) ──► Phase 5 (COMPLETE)
-Lexical Ingestion      BP AST & Succinct     Symbol Table &        CFG CSR & Dominator    SSA Conversion, CDG
-& Token Corpus (.tca)  Reduction (.bpa)      Hierarchy (.sta)      Tree (.cfa)            & IFDS Solver (.ssa)
+Phase 1 (COMPLETED) ──► Phase 2 (COMPLETED) ──► Phase 3 (COMPLETED) ──► Phase 4 (COMPLETED) ──► Phase 5 (COMPLETED)
+Lexical Ingestion       BP AST & Succinct      Symbol Table &         CFG CSR & Dominator    SSA Conversion, CDG
+& Token Corpus (.tca)   Reduction (.bpa)       Hierarchy (.sta)       Tree (.cfa)            & IFDS Solver (.ssa)
+
+        │
+        ▼
+Phase 6 (PLANNED)   ──► Phase 7 (PLANNED)   ──► Phase 8 (PLANNED)   ──► Phase 9 (PLANNED)   ──► Phase 10 (PLANNED)
+Inter-procedural        Traceability Index     ROBDD Path             UML Semantic           SCPG Binary (.scpg)
+Call Graph (.cga)       Forward/Backward       Summaries (.psa)       Metadata (.uma)        & Query Engine
 ```
 
 ---
@@ -25,7 +31,7 @@ Lexical Ingestion      BP AST & Succinct     Symbol Table &        CFG CSR & Dom
 
 ---
 
-### Phase 2: BP AST Encoding & Succinct Tree Reduction *(Completed)*
+### Phase 2: CST Reduction & BP AST Encoding *(Completed)*
 
 - [x] Balanced Parentheses (BP) sequence builder ($B \in \{(, )\}^{2n_{\text{ast}}}$).
 - [x] Jacobson $O(1)$ rank/select auxiliary index (`parent`, `lca`, `subtree_size`).
@@ -44,7 +50,7 @@ Lexical Ingestion      BP AST & Succinct     Symbol Table &        CFG CSR & Dom
 
 ---
 
-### Phase 4: CFG CSR Construction & Dominator Analysis *(Completed)*
+### Phase 4: Control Flow Graph & Dominator Analysis *(Completed)*
 
 - [x] Basic block partitioning engine ($V_{\text{bb}}$) with reachability pruning.
 - [x] Compressed Sparse Row (CSR) control flow graph adjacency encoder (`offsets`, `adj`).
@@ -54,7 +60,7 @@ Lexical Ingestion      BP AST & Succinct     Symbol Table &        CFG CSR & Dom
 
 ---
 
-### Phase 5: Static Single Assignment (SSA), CDG & IFDS Data-Flow Engine *(Completed)*
+### Phase 5: SSA Conversion, CDG & IFDS Data-Flow Engine *(Completed)*
 
 - [x] Pruned SSA backward liveness analysis fixpoint (`LiveIn`, `LiveOut`).
 - [x] Cytron's dominance frontier $\phi$-function placement worklist algorithm.
@@ -62,3 +68,47 @@ Lexical Ingestion      BP AST & Succinct     Symbol Table &        CFG CSR & Dom
 - [x] Control Dependence Graph (CDG) construction via reversed CFG post-dominators.
 - [x] Reps-Horwitz-Sagiv polynomial IFDS data-flow framework (Taint, Nullable pointers, Type-State).
 - [x] `.ssa` binary file format serializer/deserializer with CRC-64 verification.
+
+---
+
+### Phase 6: Inter-procedural Call Graph & Points-To Analysis *(Planned)*
+
+- [ ] Call graph ($E^{\text{CG}}$) derivation over $V_{\text{sym}}$ and $V_{\text{ssa}}$.
+- [ ] Class Hierarchy Analysis (CHA) for fast virtual dispatch over-approximation.
+- [ ] 1-CFA context-sensitive points-to analysis for dynamic dispatch resolution.
+- [ ] `.cga` binary file format serializer/deserializer with CRC-64 verification.
+
+---
+
+### Phase 7: Universal Bidirectional Traceability Index *(Planned)*
+
+- [ ] Aggregation of `token_id` anchor data across all prior binary artifacts.
+- [ ] Sorted Forward Index ($O(\log n)$ binary search: source location $\rightarrow$ IR node).
+- [ ] Dense Backward Index ($O(1)$ lookup: IR node $\rightarrow$ source token range).
+- [ ] `.tra` binary file format serializer/deserializer.
+
+---
+
+### Phase 8: ROBDD Path Summary Computation *(Planned)*
+
+- [ ] Control flow Boolean function encoder $f_{\text{paths}}$ via Shannon expansion.
+- [ ] Reduced Ordered Binary Decision Diagrams (ROBDDs) for path counting (#SAT).
+- [ ] Sifting variable reordering optimizer for minimal ROBDD node bounds.
+- [ ] `.psa` binary file format serializer/deserializer.
+
+---
+
+### Phase 9: UML Semantic Metadata Extraction *(Planned)*
+
+- [ ] Synthesis of $\rho$ mapping functions for all 14 standard UML diagram views.
+- [ ] Behavioral sequence extraction from call graphs and ROBDD path summaries.
+- [ ] State machine pattern detection on CFG basic blocks and field access automata.
+- [ ] `.uma` binary file format serializer/deserializer.
+
+---
+
+### Phase 10: SCPG Binary Serialization & Query Engine Bootstrap *(Planned)*
+
+- [ ] 11-section memory-mapped `.scpg` binary file format merge serializer.
+- [ ] Demand-driven query engine with CFL-reachability and IFDS tabulation algorithms.
+- [ ] LRU query cache and $O(1)$ incremental delta update protocol.
