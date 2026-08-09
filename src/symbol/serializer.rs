@@ -32,6 +32,10 @@ pub struct SymbolTableArtifact {
 }
 
 impl SymbolTableArtifact {
+    pub fn symbol(&self, sym_id: u32) -> Option<&SymbolRecord> {
+        self.symbol_records.get(sym_id as usize)
+    }
+
     pub fn build(builder: &SymbolTableBuilder, bpa_bytes: &[u8], tca_bytes: &[u8]) -> Self {
         let bpa_hash = crc64_ecma(bpa_bytes);
         let tca_hash = crc64_ecma(tca_bytes);

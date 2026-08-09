@@ -1,0 +1,343 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:44px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.ct{border-collapse:collapse;width:100%;font-size:11px;margin-top:8px}
+.ct th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.ct td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.ct td:first-child{color:var(--text-primary);font-weight:500;font-family:var(--font-mono,monospace)}
+.good{color:var(--text-success)!important}
+.art-row{display:flex;gap:4px;margin-bottom:4px;align-items:center}
+.art-lbl{width:130px;font-size:11px;font-weight:500;flex-shrink:0;color:var(--text-primary)}
+.art-bar{flex:1;padding:4px 10px;border-radius:5px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between}
+.art-bar:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+</style>
+
+<h2 class="sr-only">Phase 4 CFG construction, dominator tree, dominance frontier, and loop analysis</h2>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('cfg')">CFG example</div>
+  <div class="tab" onclick="sw('dom')">Dominator tree</div>
+  <div class="tab" onclick="sw('df')">Dominance frontier</div>
+  <div class="tab" onclick="sw('loop')">Loop analysis</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+  <div class="tab" onclick="sw('complexity')">Complexity</div>
+</div>
+
+<div id="cfg" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">CFG for <code style="font-size:11px">int compute(int x, int n)</code> — click any block or edge to learn more</div>
+<svg width="100%" viewBox="0 0 680 520" role="img">
+  <title>Control Flow Graph for compute method with 7 blocks showing if-else and for-loop structure</title>
+  <desc>Seven blocks: B0 ENTRY, B1 condition, B2 loop header, B3 loop body, B4 else branch, B5 return, B6 EXIT with typed edges</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- B0: ENTRY -->
+  <g class="c-gray node" onclick="si('B0 — ENTRY (synthetic)','Empty synthetic entry block. Always block_id=0. Single CFG_UNCOND edge to B1. Phase 4 inserts this for every function to guarantee a unique entry with no predecessors.')">
+    <rect x="270" y="20" width="130" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="335" y="38" text-anchor="middle" dominant-baseline="central">B0 — ENTRY</text>
+  </g>
+  <line x1="335" y1="56" x2="335" y2="85" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="350" y="72" style="fill:var(--text-muted)">UNCOND</text>
+
+  <!-- B1: condition block -->
+  <g class="c-teal node" onclick="si('B1 — condition block','Stmts: sum=0; condition x>0. Terminates with a conditional branch. CFG_TRUE → B2 (for-loop header). CFG_FALSE → B4 (else). cyclomatic count: +1.')">
+    <rect x="220" y="88" width="230" height="48" rx="6" stroke-width="0.5"/>
+    <text class="th" x="335" y="105" text-anchor="middle" dominant-baseline="central">B1 — sum=0; x&gt;0?</text>
+    <text class="ts" x="335" y="123" text-anchor="middle" dominant-baseline="central">condition block</text>
+  </g>
+
+  <!-- Edge B1→B2 TRUE -->
+  <path d="M280 136 L195 178" fill="none" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="222" y="165" style="fill:#085041">TRUE</text>
+
+  <!-- Edge B1→B4 FALSE -->
+  <path d="M390 136 L475 178" fill="none" stroke="#D85A30" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="445" y="165" style="fill:#712B13">FALSE</text>
+
+  <!-- B2: for-loop header -->
+  <g class="c-purple node" onclick="si('B2 — loop header','Stmts: i=0; condition i&lt;n. This is the LOOP HEADER — it is the target of the back edge from B3. idom(B2)=B1. DF(B2)={B5}. Loop depth=1.')">
+    <rect x="100" y="180" width="190" height="48" rx="6" stroke-width="0.5"/>
+    <text class="th" x="195" y="197" text-anchor="middle" dominant-baseline="central">B2 — i=0; i&lt;n?</text>
+    <text class="ts" x="195" y="215" text-anchor="middle" dominant-baseline="central">loop header</text>
+  </g>
+
+  <!-- Edge B2→B3 TRUE (loop body) -->
+  <path d="M150 228 L130 268" fill="none" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="100" y="255" style="fill:#085041">TRUE</text>
+
+  <!-- Edge B2→B5 FALSE (loop exit) -->
+  <path d="M240 228 Q335 258 335 268" fill="none" stroke="#D85A30" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <text class="ts" x="295" y="253" style="fill:#712B13">FALSE</text>
+
+  <!-- B3: loop body -->
+  <g class="c-purple node" onclick="si('B3 — loop body','Stmts: sum+=i; i++. Normal exit goes back to loop header B2 via CFG_LOOP_BACK (back edge). This is the only block with loop_depth=1 in this function. idom(B3)=B2. DF(B3)={B2}.')">
+    <rect x="60" y="270" width="190" height="48" rx="6" stroke-width="0.5"/>
+    <text class="th" x="155" y="287" text-anchor="middle" dominant-baseline="central">B3 — sum+=i; i++</text>
+    <text class="ts" x="155" y="305" text-anchor="middle" dominant-baseline="central">loop body</text>
+  </g>
+
+  <!-- Edge B3→B2 LOOP_BACK -->
+  <path d="M60 294 Q40 240 105 228" fill="none" stroke="#534AB7" stroke-width="1.5" stroke-dasharray="6 2" marker-end="url(#arr)"/>
+  <text class="ts" x="42" y="268" style="fill:#534AB7">LOOP_BACK</text>
+
+  <!-- B4: else block -->
+  <g class="c-coral node" onclick="si('B4 — else branch','Stmt: sum=-1. Only reachable when x≤0 (CFG_FALSE from B1). idom(B4)=B1. DF(B4)={B5}. Loop depth=0.')">
+    <rect x="390" y="180" width="190" height="48" rx="6" stroke-width="0.5"/>
+    <text class="th" x="485" y="197" text-anchor="middle" dominant-baseline="central">B4 — sum = -1</text>
+    <text class="ts" x="485" y="215" text-anchor="middle" dominant-baseline="central">else branch</text>
+  </g>
+
+  <!-- Edge B4→B5 UNCOND -->
+  <path d="M485 228 L485 268 L390 268 L390 360" fill="none" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- B5: return block -->
+  <g class="c-teal node" onclick="si('B5 — return block','Stmt: return sum. Emits CFG_RETURN edge to B6 (EXIT). idom(B5)=B1. DF(B5)={}. This is a join point for the if-else paths — Phase 5 may insert φ-function for sum here.')">
+    <rect x="250" y="360" width="190" height="48" rx="6" stroke-width="0.5"/>
+    <text class="th" x="345" y="377" text-anchor="middle" dominant-baseline="central">B5 — return sum</text>
+    <text class="ts" x="345" y="395" text-anchor="middle" dominant-baseline="central">return block</text>
+  </g>
+
+  <!-- Edge B5→B6 RETURN -->
+  <path d="M345 408 L345 440" fill="none" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="360" y="426" style="fill:var(--text-muted)">RETURN</text>
+
+  <!-- B2 FALSE edge to B5 -->
+  <!-- already drawn above -->
+
+  <!-- B6: EXIT -->
+  <g class="c-gray node" onclick="si('B6 — EXIT (synthetic)','Empty synthetic exit block. Always the last block (block_id = block_count-1). All return and uncaught-throw edges target this block. Phase 5 reads from this block when computing SSA live-out sets.')">
+    <rect x="270" y="442" width="150" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="345" y="460" text-anchor="middle" dominant-baseline="central">B6 — EXIT</text>
+  </g>
+
+  <!-- Legend -->
+  <line x1="50" y1="492" x2="80" y2="492" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="86" y="492" dominant-baseline="central" style="fill:var(--text-secondary)">CFG_TRUE</text>
+  <line x1="160" y1="492" x2="190" y2="492" stroke="#D85A30" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <text class="ts" x="196" y="492" dominant-baseline="central" style="fill:var(--text-secondary)">CFG_FALSE</text>
+  <line x1="280" y1="492" x2="310" y2="492" stroke="#534AB7" stroke-width="1.5" stroke-dasharray="6 2" marker-end="url(#arr)"/>
+  <text class="ts" x="316" y="492" dominant-baseline="central" style="fill:var(--text-secondary)">CFG_LOOP_BACK</text>
+  <line x1="430" y1="492" x2="460" y2="492" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="466" y="492" dominant-baseline="central" style="fill:var(--text-secondary)">CFG_UNCOND / RETURN</text>
+</svg>
+<div id="info-cfg" class="info">Click any block or edge above to see its role in Phase 4's construction.</div>
+<div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Cyclomatic complexity V(G) = E − V + 2 = 8 − 7 + 2 = <strong style="color:var(--text-primary)">3</strong> — the minimum number of test cases needed for full branch coverage.</div>
+</div>
+
+<div id="dom" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Dominator tree T_dom — the Cooper algorithm converges in 2 iterations for this function. Click any node to see its idom.</div>
+<svg width="100%" viewBox="0 0 680 300" role="img">
+  <title>Dominator tree showing immediate dominator relationships between blocks B0 through B6</title>
+  <desc>B0 dominates B1; B1 dominates B2, B4, B5; B2 dominates B3; B5 dominates B6</desc>
+  <defs>
+    <marker id="dom-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- B0 root -->
+  <g class="c-gray node" onclick="si('idom[B0] = B0','Entry block is the root of the dominator tree. It dominates every other block — every path from function entry to any block passes through B0. Self-loop sentinel.')">
+    <rect x="290" y="20" width="100" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="340" y="38" text-anchor="middle" dominant-baseline="central">B0 (ENTRY)</text>
+  </g>
+  <line x1="340" y1="56" x2="340" y2="76" stroke="#888780" stroke-width="0.5" marker-end="url(#dom-arr)"/>
+
+  <!-- B1 level 1 -->
+  <g class="c-teal node" onclick="si('idom[B1] = B0','B1 has only one predecessor: B0. Therefore its immediate dominator is B0. Cooper algorithm: processes B1 in RPO order, finds only B0 as a processed predecessor → idom = B0.')">
+    <rect x="290" y="78" width="100" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="340" y="96" text-anchor="middle" dominant-baseline="central">B1</text>
+  </g>
+
+  <!-- Lines from B1 to B2, B4, B5 -->
+  <line x1="310" y1="114" x2="175" y2="154" stroke="#888780" stroke-width="0.5" marker-end="url(#dom-arr)"/>
+  <line x1="340" y1="114" x2="340" y2="154" stroke="#888780" stroke-width="0.5" marker-end="url(#dom-arr)"/>
+  <line x1="370" y1="114" x2="505" y2="154" stroke="#888780" stroke-width="0.5" marker-end="url(#dom-arr)"/>
+
+  <!-- B2, B4, B5 at level 2 -->
+  <g class="c-purple node" onclick="si('idom[B2] = B1','B2 has two predecessors: B1 (initial entry to loop) and B3 (loop back edge). Cooper: intersect(B1, B3) climbs from B3 to B2 to B1 and meets B1 coming from B1. → idom = B1.')">
+    <rect x="120" y="156" width="110" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="175" y="174" text-anchor="middle" dominant-baseline="central">B2 (loop hdr)</text>
+  </g>
+
+  <g class="c-coral node" onclick="si('idom[B4] = B1','B4 has only one predecessor: B1 (CFG_FALSE edge). idom = B1 directly.')">
+    <rect x="285" y="156" width="110" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="340" y="174" text-anchor="middle" dominant-baseline="central">B4 (else)</text>
+  </g>
+
+  <g class="c-teal node" onclick="si('idom[B5] = B1','B5 has two predecessors: B2 (loop exit, CFG_FALSE) and B4 (else branch, CFG_UNCOND). Cooper: intersect(B2, B4). Walk from B4: B4→B1. Walk from B2: B2→B1. They meet at B1. → idom = B1.')">
+    <rect x="450" y="156" width="110" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="505" y="174" text-anchor="middle" dominant-baseline="central">B5 (return)</text>
+  </g>
+
+  <!-- B3 under B2 -->
+  <line x1="175" y1="192" x2="175" y2="232" stroke="#888780" stroke-width="0.5" marker-end="url(#dom-arr)"/>
+  <g class="c-purple node" onclick="si('idom[B3] = B2','B3 has only one predecessor: B2 (CFG_TRUE into loop body). idom = B2.')">
+    <rect x="120" y="234" width="110" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="175" y="252" text-anchor="middle" dominant-baseline="central">B3 (body)</text>
+  </g>
+
+  <!-- B6 under B5 -->
+  <line x1="505" y1="192" x2="505" y2="232" stroke="#888780" stroke-width="0.5" marker-end="url(#dom-arr)"/>
+  <g class="c-gray node" onclick="si('idom[B6] = B5','B6 has only one predecessor: B5 (CFG_RETURN). idom = B5.')">
+    <rect x="450" y="234" width="110" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="505" y="252" text-anchor="middle" dominant-baseline="central">B6 (EXIT)</text>
+  </g>
+
+  <text class="ts" x="340" y="285" text-anchor="middle" style="fill:var(--text-muted)">idom[] = [B0→B0, B1→B0, B2→B1, B3→B2, B4→B1, B5→B1, B6→B5]  — stored as u32 array in CFA</text>
+</svg>
+<div id="info-dom" class="info" style="margin-top:6px">Click any block above to see how the Cooper algorithm computed its immediate dominator.</div>
+</div>
+
+<div id="df" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Dominance frontier DF(b) — the exact set of blocks where Phase 5 must insert φ-functions for variables defined in b.</div>
+<table class="ct">
+  <thead><tr><th>Block</th><th>DF(b)</th><th>Phase 5 implication</th></tr></thead>
+  <tbody>
+    <tr onclick="si('DF(B0) = {}','B0 is the root. No block is at B0\'s dominance boundary — B0 dominates everything. No φ-functions are needed at B0\'s boundary.')">
+      <td>B0 (ENTRY)</td><td style="font-family:var(--font-mono,monospace)">∅</td><td style="color:var(--text-muted)">No φ-functions</td></tr>
+    <tr onclick="si('DF(B1) = {}','B1 strictly dominates B2, B3, B4, B5. All of B1\'s successors are strictly dominated by B1 itself (their idom is B1). So no block is at B1\'s frontier.')">
+      <td>B1 (condition)</td><td style="font-family:var(--font-mono,monospace)">∅</td><td style="color:var(--text-muted)">No φ-functions</td></tr>
+    <tr onclick="si('DF(B2) = {B5}','Proof: B2 has successor B5 (loop exit). idom(B5)=B1≠B2, and B2 dom B2. So B5 ∈ DF(B2). Also: B3 (loop back) has successor B2. Is B2 in DF(B3)? Yes. But here we\'re computing DF(B2). B2\'s only other successor is B3, which B2 dominates strictly (idom(B3)=B2). So DF(B2)={B5}.')">
+      <td>B2 (loop header)</td><td style="font-family:var(--font-mono,monospace);color:var(--text-accent)">{B5}</td><td>If sum modified in loop: φ(sum) at B5</td></tr>
+    <tr onclick="si('DF(B3) = {B2}','B3\'s sole successor is B2 (loop back edge). idom(B2)=B1≠B3, and B3 dom B3. So B2 ∈ DF(B3). This means if sum is defined in B3, the loop header B2 needs a φ-function to merge the initial value and the loop-modified value.')">
+      <td>B3 (loop body)</td><td style="font-family:var(--font-mono,monospace);color:var(--text-accent)">{B2}</td><td>Loop var defs need φ at loop header B2</td></tr>
+    <tr onclick="si('DF(B4) = {B5}','B4\'s successor is B5. idom(B5)=B1≠B4, and B4 dom B4. So B5 ∈ DF(B4). Since both branches of the if (B2 path and B4 directly) reach B5, variables defined differently in each branch need a φ at B5.')">
+      <td>B4 (else)</td><td style="font-family:var(--font-mono,monospace);color:var(--text-accent)">{B5}</td><td>Else-defined vars need φ at B5</td></tr>
+    <tr onclick="si('DF(B5) = {}','B5\'s only successor is B6. idom(B6)=B5. So B5 = idom(B6) — the condition for DF membership requires idom(y) ≠ b, which fails. So B6 ∉ DF(B5).')">
+      <td>B5 (return)</td><td style="font-family:var(--font-mono,monospace)">∅</td><td style="color:var(--text-muted)">No φ-functions</td></tr>
+    <tr onclick="si('DF(B6) = {}','B6 is EXIT with no successors. DF is empty by definition.')">
+      <td>B6 (EXIT)</td><td style="font-family:var(--font-mono,monospace)">∅</td><td style="color:var(--text-muted)">No φ-functions</td></tr>
+  </tbody>
+</table>
+<div id="info-df" class="info" style="margin-top:8px">Click any row to see the formal proof that this block belongs (or does not belong) in each DF set.</div>
+<div style="margin-top:8px;background:var(--bg-accent);border:0.5px solid var(--border-accent);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--text-accent)">
+  Phase 5 SSA algorithm: for variable <code style="font-size:11px">sum</code> (defined in B1, B3, B4): compute iterated dominance frontier DF⁺({B1,B3,B4}) = {B2, B5}. Insert φ(sum) at B2 (for loop-carried value) and φ(sum) at B5 (for if-else merge). This is Cytron et al.'s φ-placement theorem.
+</div>
+</div>
+
+<div id="loop" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Loop analysis: back edge detection via DFS coloring, natural loop identification, and loop depth annotation.</div>
+<svg width="100%" viewBox="0 0 680 260" role="img">
+  <title>Loop analysis showing DFS coloring, back edge detection, and natural loop boundary</title>
+  <desc>DFS finds one back edge B3 to B2; natural loop contains B2 and B3; loop depth array shows 0 for non-loop blocks and 1 for B2 and B3</desc>
+  <defs>
+    <marker id="la" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- DFS spanning tree (left half) -->
+  <text class="th" x="170" y="24" text-anchor="middle" dominant-baseline="central">DFS spanning tree</text>
+  <text class="ts" x="170" y="40" text-anchor="middle" style="fill:var(--text-muted)">Gray = on stack, Black = done</text>
+
+  <g class="c-gray"><rect x="130" y="50" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="170" y="65" text-anchor="middle" dominant-baseline="central">B0</text></g>
+  <line x1="170" y1="80" x2="170" y2="98" stroke="#888780" stroke-width="1" marker-end="url(#la)"/>
+  <g class="c-teal"><rect x="130" y="100" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="170" y="115" text-anchor="middle" dominant-baseline="central">B1</text></g>
+  <line x1="155" y1="130" x2="100" y2="148" stroke="#888780" stroke-width="1" marker-end="url(#la)"/>
+  <g class="c-purple"><rect x="60" y="150" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="100" y="165" text-anchor="middle" dominant-baseline="central">B2 ◀</text></g>
+  <line x1="100" y1="180" x2="100" y2="198" stroke="#888780" stroke-width="1" marker-end="url(#la)"/>
+  <g class="c-purple"><rect x="60" y="200" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="100" y="215" text-anchor="middle" dominant-baseline="central">B3</text></g>
+  <!-- Back edge B3→B2 -->
+  <path d="M60 215 Q30 190 60 168" fill="none" stroke="#534AB7" stroke-width="1.5" stroke-dasharray="5 2" marker-end="url(#la)"/>
+  <text class="ts" x="18" y="192" style="fill:#534AB7">back edge</text>
+
+  <line x1="185" y1="130" x2="240" y2="148" stroke="#888780" stroke-width="1" marker-end="url(#la)"/>
+  <g class="c-coral"><rect x="200" y="150" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="240" y="165" text-anchor="middle" dominant-baseline="central">B4</text></g>
+  <line x1="240" y1="180" x2="240" y2="198" stroke="#888780" stroke-width="1" marker-end="url(#la)"/>
+  <g class="c-teal"><rect x="200" y="200" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="240" y="215" text-anchor="middle" dominant-baseline="central">B5</text></g>
+
+  <!-- Natural loop + depth table (right half) -->
+  <text class="th" x="500" y="24" text-anchor="middle" dominant-baseline="central">Natural loop + depth array</text>
+
+  <!-- Natural loop dashed border -->
+  <rect x="380" y="90" width="150" height="100" rx="10" fill="none" stroke="#534AB7" stroke-width="1" stroke-dasharray="5 3"/>
+  <text class="ts" x="455" y="106" text-anchor="middle" style="fill:#534AB7">natural loop</text>
+  <g class="c-purple"><rect x="400" y="115" width="110" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="455" y="130" text-anchor="middle" dominant-baseline="central">B2 — depth 1</text></g>
+  <g class="c-purple"><rect x="400" y="155" width="110" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="455" y="170" text-anchor="middle" dominant-baseline="central">B3 — depth 1</text></g>
+
+  <!-- loop_depth[] array visualization -->
+  <text class="ts" x="500" y="215" text-anchor="middle" style="fill:var(--text-secondary);font-family:var(--font-mono,monospace)">loop_depth[]: [0, 0, 1, 1, 0, 0, 0]</text>
+  <text class="ts" x="500" y="232" text-anchor="middle" style="fill:var(--text-muted)">indices:          B0 B1 B2 B3 B4 B5 B6</text>
+  <text class="ts" x="500" y="249" text-anchor="middle" style="fill:var(--text-muted)">stored as u8 array in CFA block metadata</text>
+</svg>
+<div style="margin-top:8px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 14px;font-size:11px;color:var(--text-secondary)">
+  Back edge detection algorithm: DFS colors each block White → Gray (on stack) → Black (done). An edge (u,v) where v is Gray is a back edge — v is still on the DFS stack, meaning v is an ancestor of u. Back edge (B3→B2) identifies B2 as a loop header. Natural loop = all blocks that can reach B3 without passing through B2, plus B2 itself = {B2, B3}.
+</div>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">CFGArtifact (.cfa) binary layout — 15K functions, 450K blocks, 900K edges</div>
+<div class="art-row"><div class="art-lbl">Header</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What integrity fields are in the CFA header and how does it chain to the STA and BPA artifacts?')"><span>magic, function_count, total_blocks, sta_hash + bpa_hash chain</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-lbl">Function dir.</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is the function directory sorted for O(log n) lookup in the CFA file?')"><span>Sorted (sym_id, offset, block_count, edge_count) × n_func</span><span class="art-sz">300 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Succ CSR</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How is the successor CSR encoded for the CFG and why is sequential memory access important?')"><span>offsets[(n_blocks+1)×u32] + adj[n_edges×u32] per function</span><span class="art-sz">5.4 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Pred CSR</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('Why does Phase 4 store both successor and predecessor CSRs separately?')"><span>Reverse adjacency — needed by dominator algorithm and SSA renaming</span><span class="art-sz">5.4 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Edge types (WT)</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How does the wavelet tree encode CFG edge types in 3 bits per edge?')"><span>Wavelet tree over Σ_CFG (7 types, log₂7 ≈ 3 bits/edge)</span><span class="art-sz">338 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">idom arrays</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is idom[] stored per function and what does Phase 5 use it for during SSA construction?')"><span>idom[n_blocks × u32] per function — immediate dominator of each block</span><span class="art-sz">1.8 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">DF CSR</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is the dominance frontier stored as CSR and why does Phase 5 need it for φ-function placement?')"><span>df_offsets[] + df_adj[] — Phase 5 reads this for Cytron φ-placement</span><span class="art-sz">3.6 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Block metadata</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('What four parallel arrays make up the block metadata section in the CFA?')"><span>first_stmt, last_stmt, first_token, last_token, loop_depth per block</span><span class="art-sz">9.9 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Exception table</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('How are try-catch exception handler ranges stored in the CFA exception table?')"><span>(try_entry, try_exit, catch_block, ex_type_sym) per catch clause</span><span class="art-sz">500 KB</span></div></div>
+<div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:4px">Total: ≈ 27.7 MB uncompressed · ≈ 7–9 MB LZ4-compressed</div>
+</div>
+
+<div id="complexity" class="panel">
+<table class="ct">
+  <thead><tr><th>Operation</th><th>Per-function</th><th>Total</th><th>Dominant?</th></tr></thead>
+  <tbody>
+    <tr><td>CFG construction (dispatch DFS)</td><td class="good">O(n_stmts)</td><td class="good">O(n_ast)</td><td>Constant per stmt</td></tr>
+    <tr><td>RPO traversal</td><td class="good">O(V+E)</td><td class="good">O(n_ast)</td><td>Single DFS</td></tr>
+    <tr><td>Cooper dominator (iterative)</td><td>O(n_b² ) worst</td><td>O(Σ n_b²)</td><td>Typically 2–4 outer iters</td></tr>
+    <tr><td>Dominance frontiers</td><td>O(m × depth)</td><td class="good">O(n_edges)</td><td>Depth ≤ 10 typical</td></tr>
+    <tr><td>Loop back-edge DFS</td><td class="good">O(V+E)</td><td class="good">O(n_ast)</td><td>One DFS per function</td></tr>
+    <tr><td>CSR encoding</td><td class="good">O(V+E)</td><td class="good">O(n_ast)</td><td>Prefix sum + pack</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px">
+<table class="ct">
+  <thead><tr><th>Structure (15K fns, 450K blocks)</th><th>Size</th><th>Access</th></tr></thead>
+  <tbody>
+    <tr><td>Succ + Pred CSR</td><td>10.8 MB</td><td class="good">O(1) neighbor list</td></tr>
+    <tr><td>idom arrays</td><td class="good">1.8 MB</td><td class="good">O(1) per block</td></tr>
+    <tr><td>DF CSR</td><td>3.6 MB</td><td class="good">O(|DF(b)|) enumeration</td></tr>
+    <tr><td>Block metadata (5 arrays)</td><td>9.9 MB</td><td class="good">O(1) per block</td></tr>
+    <tr><td>Peak RAM (one fn at a time)</td><td class="good">O(max_blocks_f)</td><td>≈ 100 KB for largest methods</td></tr>
+  </tbody>
+</table>
+</div>
+<div style="margin-top:10px;background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-success)">
+  <strong>Phase 4 total: O(n_ast + Σ_f n_b_f²)</strong>. For 15K functions with avg 30 blocks: 15K×900 = 13.5M Cooper operations ≈ 67ms. Phase 4 is not the bottleneck. The pipeline bottleneck to this point is Phase 2's O(n_ast × log n_ast) RMQ table build.
+</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function si(title, detail){
+  ['cfg','dom','df'].forEach(id=>{
+    const el=document.getElementById('info-'+id);
+    if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+  });
+}
+</script>
