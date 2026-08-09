@@ -111,6 +111,11 @@ impl Phase5Stage {
         cfg_data: &crate::cfg::builder::FunctionCFGData,
         bpa: &BPASTArtifact,
     ) -> Result<(), String> {
+        log_trace(&format!(
+            "  Asserting Phase 5 Invariants 1-4 for function sym_id={}...",
+            ssa_data.sym_id
+        ));
+
         // ── Invariant 1: Single Assignment ──
         let mut seen_defs = HashSet::new();
         for ssa in &ssa_data.ssa_records {
