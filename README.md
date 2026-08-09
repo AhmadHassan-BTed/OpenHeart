@@ -271,15 +271,6 @@ OpenHeart/
 ├── docs/                      # Technical specifications, architecture guides, and plans
 ├── scripts/
 │   └── ci_check.sh            # Pre-flight local CI validation script
-├── Cargo.toml                 # Rust crate manifest
-└── LICENSE                    # MIT License
-```pec.md
-│   ├── assets/                # Rendered SVG assets
-│   ├── overview.md            # Technical specification & benchmarks
-│   ├── architecture.md        # 5-layer succinct storage guide
-│   └── codebase-guide.md      # Contributor codebase map
-├── scripts/
-│   └── ci_check.sh            # Pre-flight local CI validation script
 ├── Makefile                   # Developer automation commands
 ├── Cargo.toml                 # Rust crate manifest
 └── LICENSE                    # MIT License
