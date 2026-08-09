@@ -1,0 +1,339 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:42px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.ct{border-collapse:collapse;width:100%;font-size:11px;margin-top:6px}
+.ct th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.ct td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.ct td:first-child{color:var(--text-primary);font-weight:500}
+.good{color:var(--text-success)!important}
+.art-row{display:flex;gap:4px;margin-bottom:4px;align-items:center}
+.art-lbl{width:140px;font-size:11px;font-weight:500;flex-shrink:0;color:var(--text-primary)}
+.art-bar{flex:1;padding:4px 10px;border-radius:5px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between}
+.art-bar:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+</style>
+
+<h2 class="sr-only">Phase 6 call graph construction with dispatch resolution, points-to analysis, and SCC detection</h2>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('cg')">Call graph</div>
+  <div class="tab" onclick="sw('cha')">CHA vs 1-CFA</div>
+  <div class="tab" onclick="sw('pts')">Points-to</div>
+  <div class="tab" onclick="sw('scc')">SCC / recursion</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+  <div class="tab" onclick="sw('complexity')">Complexity</div>
+</div>
+
+<div id="cg" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">Call graph for an order processing system — edge color and style encode Σ_CG type. Click any node or edge.</div>
+<svg width="100%" viewBox="0 0 680 430" role="img">
+  <title>Call graph showing five methods connected by DIRECT, VIRTUAL, INTERFACE, CONSTRUCTOR, and SPECIAL call edges</title>
+  <desc>main calls new OrderService (CONSTRUCTOR) and orderService.process (VIRTUAL); process calls save (INTERFACE to two implementors) and validate (SPECIAL/private); validate is a leaf</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- main() -->
+  <g class="c-gray node" onclick="si('main() — caller','Entry point. Contains two call sites: (1) new OrderService() → CG_CONSTRUCTOR edge. (2) svc.processOrder() → CG_VIRTUAL edge. fan-in=0, fan-out=2 (deduplicated edges).')">
+    <rect x="240" y="18" width="200" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="34" text-anchor="middle" dominant-baseline="central">main()</text>
+    <text class="ts" x="340" y="50" text-anchor="middle" dominant-baseline="central">fan-in: 0, fan-out: 2</text>
+  </g>
+
+  <!-- CG_CONSTRUCTOR edge: main → new OrderService -->
+  <path d="M310 62 L195 132" fill="none" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="220" y="95" style="fill:#534AB7">CONSTRUCTOR</text>
+
+  <!-- CG_VIRTUAL edge: main → processOrder -->
+  <path d="M370 62 L455 132" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 2" marker-end="url(#arr)"/>
+  <text class="ts" x="420" y="95" style="fill:#085041">VIRTUAL</text>
+
+  <!-- OrderService() constructor -->
+  <g class="c-purple node" onclick="si('OrderService() — constructor','Target of a CG_CONSTRUCTOR edge from main(). In CGA: recorded as CalledSite with call_type=CONSTRUCTOR. Resolved to exactly one target via STA name lookup. fan-in=1.')">
+    <rect x="60" y="134" width="200" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="160" y="150" text-anchor="middle" dominant-baseline="central">OrderService()</text>
+    <text class="ts" x="160" y="166" text-anchor="middle" dominant-baseline="central">CG_CONSTRUCTOR target</text>
+  </g>
+
+  <!-- processOrder() -->
+  <g class="c-teal node" onclick="si('processOrder() — virtual dispatch target','Resolved from main() via CHA+1-CFA. Since receiver ssa var is defined by new OrderService() (alloc site), 1-CFA narrows to exactly OrderService.processOrder(). fan-in=1, fan-out=3.')">
+    <rect x="340" y="134" width="200" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="440" y="150" text-anchor="middle" dominant-baseline="central">processOrder()</text>
+    <text class="ts" x="440" y="166" text-anchor="middle" dominant-baseline="central">fan-in: 1, fan-out: 3</text>
+  </g>
+
+  <!-- CG_SPECIAL: processOrder → validate (private) -->
+  <line x1="440" y1="178" x2="440" y2="228" stroke="#D85A30" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="450" y="210" style="fill:#712B13">SPECIAL</text>
+
+  <!-- CG_INTERFACE: processOrder → repo.save (two implementors) -->
+  <path d="M380 178 L200 228" fill="none" stroke="#0C447C" stroke-width="1" stroke-dasharray="7 3" marker-end="url(#arr)"/>
+  <path d="M360 178 L120 228" fill="none" stroke="#0C447C" stroke-width="1" stroke-dasharray="7 3" marker-end="url(#arr)"/>
+
+  <!-- INTERFACE label -->
+  <text class="ts" x="270" y="210" style="fill:#0C447C">INTERFACE (×2 polymorphic)</text>
+
+  <!-- JpaRepository.save() -->
+  <g class="c-blue node" onclick="si('JpaRepository.save() — interface implementor 1','One of two CG_INTERFACE targets for repo.save(). CHA returns both JpaRepository and InMemoryRepository. 1-CFA refines based on what was assigned to the repo field — if new JpaRepository() was the only allocation, target set = {JpaRepository.save}.')">
+    <rect x="40" y="230" width="190" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="135" y="246" text-anchor="middle" dominant-baseline="central">JpaRepository.save()</text>
+    <text class="ts" x="135" y="262" text-anchor="middle" dominant-baseline="central">INTERFACE target 1</text>
+  </g>
+
+  <!-- InMemoryRepository.save() -->
+  <g class="c-blue node" onclick="si('InMemoryRepository.save() — interface implementor 2','Second CG_INTERFACE target returned by CHA. If points-to analysis shows the repo field can only hold JpaRepository instances, this edge is removed by 1-CFA refinement, reducing fan-out imprecision.')">
+    <rect x="250" y="230" width="210" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="355" y="246" text-anchor="middle" dominant-baseline="central">InMemoryRepo.save()</text>
+    <text class="ts" x="355" y="262" text-anchor="middle" dominant-baseline="central">INTERFACE target 2</text>
+  </g>
+
+  <!-- validate() private -->
+  <g class="c-coral node" onclick="si('validate() — private method (CG_SPECIAL)','Private methods use CG_SPECIAL: resolved statically to exactly one target regardless of the receiver type. No CHA or 1-CFA needed. Leaf method (fan-out=0).')">
+    <rect x="360" y="230" width="190" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="455" y="246" text-anchor="middle" dominant-baseline="central">validate()</text>
+    <text class="ts" x="455" y="262" text-anchor="middle" dominant-baseline="central">CG_SPECIAL — leaf</text>
+  </g>
+
+  <!-- Legend -->
+  <rect x="40" y="345" width="590" height="60" rx="5" fill="var(--surface-1)" stroke-width="0.5"/>
+  <line x1="60" y1="362" x2="95" y2="362" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="100" y="362" dominant-baseline="central" style="fill:var(--text-secondary)">CONSTRUCTOR</text>
+  <line x1="205" y1="362" x2="240" y2="362" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 2" marker-end="url(#arr)"/>
+  <text class="ts" x="245" y="362" dominant-baseline="central" style="fill:var(--text-secondary)">VIRTUAL</text>
+  <line x1="315" y1="362" x2="350" y2="362" stroke="#0C447C" stroke-width="1" stroke-dasharray="7 3" marker-end="url(#arr)"/>
+  <text class="ts" x="355" y="362" dominant-baseline="central" style="fill:var(--text-secondary)">INTERFACE</text>
+  <line x1="445" y1="362" x2="480" y2="362" stroke="#D85A30" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="485" y="362" dominant-baseline="central" style="fill:var(--text-secondary)">SPECIAL (private)</text>
+  <text class="ts" x="340" y="388" text-anchor="middle" style="fill:var(--text-muted)">Each call site stored as CallSite(28B) with call_token linking to TCA source position for traceability</text>
+</svg>
+<div id="info-cg" class="info">Click any method box or edge type to see the Σ_CG encoding and how Phase 7 uses the call_token for source traceability.</div>
+</div>
+
+<div id="cha" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">CHA returns all possible callees by walking the type hierarchy. 1-CFA refines this using SSA def-site information. Click any row to compare.</div>
+<table class="ct">
+  <thead><tr><th>Call site</th><th>Receiver SSA def</th><th>CHA targets</th><th>1-CFA targets</th><th>Reduction</th></tr></thead>
+  <tbody>
+    <tr onclick="si('Exact allocation site','The receiver SSA variable o^i is defined by new ConcreteList(). 1-CFA sees this alloc site and immediately returns {ConcreteList.add} — exactly one target, no hierarchy walk needed.')">
+      <td>list.add(x)</td>
+      <td>o^i = new ConcreteList()</td>
+      <td>ArrayList.add, LinkedList.add, CopyOnWriteList.add, ... (12 targets)</td>
+      <td style="color:var(--text-success)">ConcreteList.add (1 target)</td>
+      <td style="color:var(--text-success)">12× → 1</td></tr>
+    <tr onclick="si('φ-function receiver','Receiver is a φ-function merging two branches. 1-CFA finds both allocation types and returns only their implementations — still more precise than full CHA over the declared interface type.')">
+      <td>col.size()</td>
+      <td>col^3 = φ(new ArrayList(), new LinkedList())</td>
+      <td>all Collection.size() impls (28 targets)</td>
+      <td style="color:var(--text-success)">ArrayList.size, LinkedList.size (2 targets)</td>
+      <td style="color:var(--text-success)">28× → 2</td></tr>
+    <tr onclick="si('Parameter receiver — 1-CFA cannot help','Receiver is a method parameter. Its allocation site is unknown within this method. 1-CFA falls back to CHA. Interprocedural points-to (Anderson) or deeper context sensitivity would be required for precision here.')">
+      <td>param.toString()</td>
+      <td>param^0 — parameter, no local alloc</td>
+      <td>all Object.toString() overrides (many)</td>
+      <td style="color:var(--text-warning)">same as CHA (no improvement)</td>
+      <td style="color:var(--text-warning)">no change</td></tr>
+    <tr onclick="si('Field receiver — resolved by Anderson points-to','Receiver is this.repo (a field). Local 1-CFA cannot determine field allocation site. Anderson global points-to analysis finds that only new JpaRepository() was ever stored in repo fields of this class — refines to single target.')">
+      <td>repo.save(e)</td>
+      <td>repo^i = field_load(this, repo)</td>
+      <td>JpaRepository.save, InMemoryRepo.save (2 targets)</td>
+      <td style="color:var(--text-success)">JpaRepository.save (1 — via Anderson pts)</td>
+      <td style="color:var(--text-success)">2× → 1</td></tr>
+  </tbody>
+</table>
+<div id="info-cha" class="info" style="margin-top:8px">Click any row to understand what SSA information 1-CFA uses and when it falls back to CHA.</div>
+</div>
+
+<div id="pts" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Anderson inclusion constraints — pts(v) grows by worklist propagation until fixpoint. Each constraint is generated from one SSA statement.</div>
+<svg width="100%" viewBox="0 0 680 340" role="img">
+  <title>Anderson points-to analysis constraint graph showing inclusion edges between SSA variables and allocation sites</title>
+  <desc>Alloc sites for List and Map flow through copy and field assignments to pts sets of variables x, y, z</desc>
+  <defs>
+    <marker id="inc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Alloc sites (left column) -->
+  <text class="ts" x="90" y="24" text-anchor="middle" style="fill:var(--text-muted)">Allocation sites</text>
+  <g class="c-amber node" onclick="si('alloc_ArrayList — allocation site','new ArrayList() — creates a fresh abstract object. Constraint: {alloc_ArrayList} ⊆ pts(x^0). This seeds the pts set of x^0 with one abstract object.')">
+    <rect x="40" y="40" width="120" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="100" y="58" text-anchor="middle" dominant-baseline="central">alloc_ArrayList</text>
+  </g>
+  <g class="c-amber node" onclick="si('alloc_HashMap — allocation site','new HashMap() creates abstract object alloc_HashMap. Constraint: {alloc_HashMap} ⊆ pts(z^0).')">
+    <rect x="40" y="120" width="120" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="100" y="138" text-anchor="middle" dominant-baseline="central">alloc_HashMap</text>
+  </g>
+  <g class="c-amber node" onclick="si('alloc_LinkedList — allocation site','new LinkedList() — another abstract object. Flows into pts(y^0) directly, then propagates via copy to pts(x^2).')">
+    <rect x="40" y="200" width="120" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="100" y="218" text-anchor="middle" dominant-baseline="central">alloc_LinkedList</text>
+  </g>
+
+  <!-- SSA variables (middle column) -->
+  <text class="ts" x="340" y="24" text-anchor="middle" style="fill:var(--text-muted)">SSA variables pts()</text>
+  <g class="c-teal node" onclick="si('pts(x^0) = {alloc_ArrayList}','x^0 is defined by new ArrayList(). Anderson seed: {alloc_ArrayList} ⊆ pts(x^0). No copy edges incoming → pts stays as single element.')">
+    <rect x="255" y="40" width="170" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="340" y="52" text-anchor="middle" dominant-baseline="central">pts(x^0)</text>
+    <text class="ts" x="340" y="68" text-anchor="middle" dominant-baseline="central">{alloc_ArrayList}</text>
+  </g>
+  <g class="c-teal node" onclick="si('pts(y^0) = {alloc_LinkedList}','y^0 = new LinkedList(). Seed: {alloc_LinkedList}.')">
+    <rect x="255" y="120" width="170" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="340" y="132" text-anchor="middle" dominant-baseline="central">pts(y^0)</text>
+    <text class="ts" x="340" y="148" text-anchor="middle" dominant-baseline="central">{alloc_LinkedList}</text>
+  </g>
+  <g class="c-purple node" onclick="si('pts(x^2) = {alloc_ArrayList, alloc_LinkedList}','x^2 = φ(x^0, y^0). Copy constraints: pts(x^0)⊆pts(x^2) and pts(y^0)⊆pts(x^2). Worklist merges both alloc sites into pts(x^2). A virtual call x^2.add() now has two targets: ArrayList.add and LinkedList.add.')">
+    <rect x="255" y="200" width="170" height="52" rx="5" stroke-width="0.5"/>
+    <text class="th" x="340" y="216" text-anchor="middle" dominant-baseline="central">pts(x^2) = φ result</text>
+    <text class="ts" x="340" y="232" text-anchor="middle" dominant-baseline="central">{alloc_ArrayList,</text>
+    <text class="ts" x="340" y="246" text-anchor="middle" dominant-baseline="central">alloc_LinkedList}</text>
+  </g>
+
+  <!-- Constraint edges -->
+  <path d="M160 58 L253 58" fill="none" stroke="#BA7517" stroke-width="1.5" marker-end="url(#inc)"/>
+  <text class="ts" x="207" y="50" text-anchor="middle" style="fill:#633806">{.} ⊆ pts</text>
+  <path d="M160 218 L253 218" fill="none" stroke="#BA7517" stroke-width="1.5" marker-end="url(#inc)"/>
+  <text class="ts" x="207" y="210" text-anchor="middle" style="fill:#633806">{.} ⊆ pts</text>
+
+  <!-- Copy edges to phi result -->
+  <path d="M340 76 L340 198" fill="none" stroke="#534AB7" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#inc)"/>
+  <text class="ts" x="352" y="140" style="fill:#534AB7">pts(x^0)⊆</text>
+  <path d="M340 156 L340 198" fill="none" stroke="#534AB7" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#inc)"/>
+
+  <!-- Resolution output (right column) -->
+  <text class="ts" x="560" y="24" text-anchor="middle" style="fill:var(--text-muted)">Virtual call targets</text>
+  <g class="c-gray node" onclick="si('x^2.add() call resolution','pts(x^2) = {alloc_ArrayList, alloc_LinkedList}. Target set for x^2.add() = {ArrayList.add, LinkedList.add}. This is the final Anderson-refined call graph edge set — more precise than CHA.')">
+    <rect x="466" y="190" width="170" height="64" rx="5" stroke-width="0.5"/>
+    <text class="th" x="551" y="212" text-anchor="middle" dominant-baseline="central">x^2.add() targets</text>
+    <text class="ts" x="551" y="230" text-anchor="middle" dominant-baseline="central">ArrayList.add</text>
+    <text class="ts" x="551" y="246" text-anchor="middle" dominant-baseline="central">LinkedList.add</text>
+  </g>
+  <path d="M425 222 L464 222" fill="none" stroke="#888780" stroke-width="1" marker-end="url(#inc)"/>
+
+  <text class="ts" x="340" y="300" text-anchor="middle" style="fill:var(--text-muted)">Worklist propagates pts-set changes until fixpoint — O(n^1.5) empirically with BDD-compressed bitsets</text>
+</svg>
+</div>
+
+<div id="scc" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Tarjan SCC detects recursion — click any SCC to see its classification and how Phase 8 handles it.</div>
+<svg width="100%" viewBox="0 0 680 330" role="img">
+  <title>SCC decomposition of a call graph showing non-recursive, self-recursive, and mutually recursive method groups</title>
+  <desc>Three SCCs: SCC-0 with main (non-recursive), SCC-1 with processOrder calling itself (self-recursive), SCC-2 with A and B calling each other (mutual recursion)</desc>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- SCC-0: non-recursive -->
+  <g class="node" onclick="si('SCC-0 — non-recursive (size 1, no self-loop)','main() has no path from itself back to itself in the call graph. scc_class=0. Phase 8 ROBDD can treat this as a simple entry point with no bounded unwinding required.')">
+    <rect x="40" y="40" width="180" height="100" rx="10" fill="var(--surface-1)" stroke-width="0.5"/>
+    <text class="ts" x="130" y="58" text-anchor="middle" style="fill:var(--text-muted)">SCC-0 — non-recursive</text>
+    <rect x="60" y="70" width="140" height="44" rx="5" fill="#F1EFE8" stroke-width="0.5"/>
+    <text class="th" x="130" y="92" text-anchor="middle" dominant-baseline="central">main()</text>
+    <text class="ts" x="130" y="125" text-anchor="middle" style="fill:var(--text-muted)">scc_class = 0</text>
+  </g>
+
+  <!-- SCC-1: self-recursive -->
+  <g class="node" onclick="si('SCC-1 — self-recursive (size 1, has self-loop)','processOrder() calls itself in a recursive pattern. Tarjan detects this via a back edge (v→v in the call graph DFS). scc_class=1. Phase 8 uses bounded unwinding depth when computing ROBDD for inter-procedural paths through this method.')">
+    <rect x="250" y="40" width="180" height="100" rx="10" fill="var(--surface-1)" stroke-width="0.5"/>
+    <text class="ts" x="340" y="58" text-anchor="middle" style="fill:#712B13">SCC-1 — self-recursive</text>
+    <rect x="270" y="70" width="140" height="44" rx="5" fill="#FAECE7" stroke="#D85A30" stroke-width="0.5"/>
+    <text class="th" x="340" y="92" text-anchor="middle" dominant-baseline="central">processOrder()</text>
+    <path d="M340 70 Q400 40 370 92" fill="none" stroke="#D85A30" stroke-width="1" marker-end="url(#arr2)"/>
+    <text class="ts" x="340" y="125" text-anchor="middle" style="fill:var(--text-muted)">scc_class = 1</text>
+  </g>
+
+  <!-- SCC-2: mutual recursion -->
+  <g class="node" onclick="si('SCC-2 — mutually recursive (size 2)','eventHandler() and retryWithBackoff() call each other. Tarjan groups them into one SCC of size 2. scc_class=2. Phase 8 cannot unroll either method without the other — the summary computation requires a fixed-point iteration over the SCC members together.')">
+    <rect x="460" y="18" width="200" height="140" rx="10" fill="var(--surface-1)" stroke-width="0.5"/>
+    <text class="ts" x="560" y="36" text-anchor="middle" style="fill:#085041">SCC-2 — mutual recursion</text>
+    <rect x="478" y="50" width="164" height="36" rx="5" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+    <text class="th" x="560" y="68" text-anchor="middle" dominant-baseline="central">eventHandler()</text>
+    <rect x="478" y="108" width="164" height="36" rx="5" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+    <text class="th" x="560" y="126" text-anchor="middle" dominant-baseline="central">retryWithBackoff()</text>
+    <path d="M575 86 L590 86 L590 106 L575 106" fill="none" stroke="#1D9E75" stroke-width="1" marker-end="url(#arr2)"/>
+    <path d="M545 108 L530 108 L530 88 L545 88" fill="none" stroke="#1D9E75" stroke-width="1" marker-end="url(#arr2)"/>
+    <text class="ts" x="560" y="148" text-anchor="middle" style="fill:var(--text-muted)">scc_class = 2</text>
+  </g>
+
+  <!-- Condensation DAG -->
+  <text class="th" x="340" y="200" text-anchor="middle">Condensation DAG (SCCs as nodes, cross-SCC edges)</text>
+  <g class="c-gray"><rect x="80" y="220" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="120" y="235" text-anchor="middle" dominant-baseline="central">SCC-0</text></g>
+  <g class="c-coral"><rect x="300" y="220" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="340" y="235" text-anchor="middle" dominant-baseline="central">SCC-1</text></g>
+  <g class="c-teal"><rect x="520" y="220" width="80" height="30" rx="4" stroke-width="0.5"/>
+    <text class="th" x="560" y="235" text-anchor="middle" dominant-baseline="central">SCC-2</text></g>
+  <line x1="160" y1="235" x2="298" y2="235" stroke="#888780" stroke-width="1" marker-end="url(#arr2)"/>
+  <path d="M340 250 L560 250 L560 252" fill="none" stroke="#888780" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <text class="ts" x="340" y="290" text-anchor="middle" style="fill:var(--text-muted)">Condensation DAG is always a DAG — used as analysis order in Phase 8 and Phase 9 (bottom-up summaries)</text>
+</svg>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">CallGraphArtifact (.cga) binary sections — 15K methods, 45K call sites, 60K edges</div>
+<div class="art-row"><div class="art-lbl">Header</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What integrity fields does the CGA header contain and how does it chain to the SSA artifact?')"><span>magic, method_count, call_site_count, edge_count, ssa_hash + sta_hash</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-lbl">Call site table</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('Explain the 28-byte CallSite record layout and how call_token enables Phase 7 traceability?')"><span>CallSite[45K] — 28B each, sorted by caller_sym, binary search by O(log n)</span><span class="art-sz">1.26 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Callee CSR + WT</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How are call graph outgoing edges stored as CSR with wavelet tree edge types?')"><span>offsets[(15K+1)×u32] + adj[60K×u32] + Σ_CG wavelet tree</span><span class="art-sz">300 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Caller CSR</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('Why is the caller (reverse) CSR needed separately from the callee CSR?')"><span>Reverse adjacency — fan-in analysis, impact propagation, slice computation</span><span class="art-sz">300 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Site → edge map</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How does the call site to edge map handle polymorphic calls that generate multiple edges?')"><span>Maps each (from,to) pair to its call_site_ids — supports sequence diagram generation</span><span class="art-sz">480 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Points-to table</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How are Anderson points-to results stored and used for virtual dispatch refinement?')"><span>Per-method (ssa_id, alloc_type_sym_id) pairs from Anderson analysis</span><span class="art-sz">5 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">SCC table</div><div class="art-bar" style="background:#E6F1FB;border-color:#378ADD" onclick="sendPrompt('How is the Tarjan SCC table structured and what does Phase 8 use it for?')"><span>SCCRecord[15K] + member arrays, sorted in condensation DAG topological order</span><span class="art-sz">240 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Checksum</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What checksum covers the CGA file?')"><span>CRC-64/ECMA of all preceding sections</span><span class="art-sz">8 B</span></div></div>
+<div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:4px">Total: ≈ 7.6 MB uncompressed · ≈ 2–3 MB LZ4-compressed</div>
+</div>
+
+<div id="complexity" class="panel">
+<table class="ct">
+  <thead><tr><th>Operation</th><th>Complexity</th><th>Dominant?</th></tr></thead>
+  <tbody>
+    <tr><td>Call site identification (DFS)</td><td class="good">O(n_ast)</td><td>Single BP AST scan</td></tr>
+    <tr><td>CHA per virtual call site</td><td class="good">O(|subclasses(T)|)</td><td>Type hierarchy walk — O(depth × branching)</td></tr>
+    <tr><td>1-CFA per virtual call site</td><td class="good">O(1) to O(|pts(v)|)</td><td>SSA def lookup + pts set query</td></tr>
+    <tr><td>Anderson points-to (constraint gen)</td><td class="good">O(n_stmt)</td><td>One pass over SSA statements</td></tr>
+    <tr><td>Anderson points-to (fixpoint)</td><td>O(n_ptr^1.5) empirical</td><td style="color:var(--text-warning)">Dominant for large codebases</td></tr>
+    <tr><td>Tarjan SCC</td><td class="good">O(V_CG + E_CG)</td><td>Single DFS</td></tr>
+    <tr><td>CSR encoding + wavelet tree</td><td class="good">O(V + E)</td><td>Prefix sum + sort</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px;background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-success)">
+  <strong>Phase 6 total: O(n_ast + n_ptr^1.5)</strong>. Anderson dominates for large codebases. With BDD-compressed pts sets: typically 1–3 seconds for a 500K LOC Java project. Without Anderson (CHA+1-CFA only): O(n_ast × avg_subclasses) ≈ sub-second, with ~4× more imprecise call edges.
+</div>
+<div style="margin-top:10px">
+<table class="ct">
+  <thead><tr><th>Structure (15K methods)</th><th>Size</th><th>Access</th></tr></thead>
+  <tbody>
+    <tr><td>Call site table</td><td class="good">1.26 MB</td><td class="good">O(log n) by caller_sym</td></tr>
+    <tr><td>Callee + Caller CSR</td><td class="good">600 KB</td><td class="good">O(1) neighbor list</td></tr>
+    <tr><td>Points-to table</td><td>5 MB</td><td class="good">O(log n) binary search</td></tr>
+    <tr><td>SCC table</td><td class="good">240 KB</td><td class="good">O(1) by method sym_id</td></tr>
+    <tr><td>Peak RAM (Anderson fixpoint)</td><td>O(n_ptr × n_alloc / 64)</td><td>BDD-compressed bitsets</td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function si(title,detail){
+  ['cg','cha','scc'].forEach(id=>{
+    const el=document.getElementById('info-'+id);
+    if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+  });
+}
+</script>
