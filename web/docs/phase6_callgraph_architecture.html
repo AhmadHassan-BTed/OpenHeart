@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenHeart Engine :: Phase 6 Inter-procedural Call Graph & Points-To Architecture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0d14;
+            --bg-secondary: #121824;
+            --bg-card: #182232;
+            --bg-card-hover: #1f2b3e;
+            --accent-primary: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-purple: #8b5cf6;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(99, 102, 241, 0.4);
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 50%, #06b6d4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 0.25rem;
+        }
+
+        .badge-bar {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .badge {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid var(--border-highlight);
+            color: #c7d2fe;
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-author {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(10, 185, 129, 0.4);
+            color: #6ee7b7;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--border-highlight);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card h2 .icon {
+            color: var(--accent-cyan);
+        }
+
+        code, pre {
+            font-family: var(--font-mono);
+        }
+
+        pre {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            color: #e5e7eb;
+            margin: 1rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--bg-secondary);
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .interactive-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-highlight);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-radius: 0.375rem;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--accent-primary);
+            color: #fff;
+        }
+
+        .visualizer-output {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            min-height: 250px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>Phase 6: Inter-procedural Call Graph & Points-To Architecture</h1>
+            <p>Succinct Compositional Program Graph (SCPG) Static Analysis Engine</p>
+        </div>
+        <div class="badge-bar">
+            <span class="badge badge-author">Authored by Ahmad Hassan (B-Ted)</span>
+            <span class="badge">Phase 6 of 10</span>
+            <span class="badge">.cga Binary Format</span>
+        </div>
+    </header>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2><span class="icon">⚡</span> 6.1 Mandate & Boundaries</h2>
+            <p>Phase 6 assembles the inter-procedural skeleton of the SCPG. It resolves every call site in the BP AST (direct, virtual, interface, constructor, dynamic) to possible callee symbols using CHA and 1-CFA, runs Anderson points-to analysis, and extracts recursive cycles using Tarjan's SCC algorithm.</p>
+            <pre>
+Inputs:  .bpa (AST), .sta (Symbols), .cfa (CFG), .ssa (SSA)
+Output:  .cga (CallGraphArtifact binary file)
+Header:  64-byte aligned header with ssa_hash & sta_hash links
+            </pre>
+        </div>
+
+        <div class="card">
+            <h2><span class="icon">📐</span> 6.2 Formal Graph Definition</h2>
+            <p>The Call Graph is defined as <code>G_CG = (V_CG, E_CG)</code> where <code>V_CG</code> is the set of callable symbols (methods, constructors, lambdas) and <code>E_CG</code> is the set of typed, annotated call edges.</p>
+            <table>
+                <thead>
+                    <tr><th>Type Code</th><th>Edge Alphabet (Σ_CG)</th><th>Dispatch Semantics</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>0x00</code></td><td>CG_DIRECT</td><td>Static method call (Monomorphic)</td></tr>
+                    <tr><td><code>0x01</code></td><td>CG_SPECIAL</td><td>Private / Constructor / Super call</td></tr>
+                    <tr><td><code>0x02</code></td><td>CG_VIRTUAL</td><td>Instance method call (CHA/1-CFA)</td></tr>
+                    <tr><td><code>0x03</code></td><td>CG_INTERFACE</td><td>Interface method call (Polymorphic)</td></tr>
+                    <tr><td><code>0x04</code></td><td>CG_CONSTRUCTOR</td><td>Constructor allocation call</td></tr>
+                    <tr><td><code>0x05</code></td><td>CG_DYNAMIC</td><td>Lambda / Method Reference</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2><span class="icon">🔍</span> 6.3 Dispatch Resolution Algorithms</h2>
+            <p>Resolution combines Class Hierarchy Analysis (CHA) with 1-CFA allocation-site sensitivity to bound virtual dispatch fan-out efficiently.</p>
+            <pre>
+1. Direct/Special: STA symbol lookup (1 target)
+2. 1-CFA Sensitivity: Inspect SSA receiver def_stmt (NN_NEW_EXPR)
+3. CHA Fallback: Downward BFS over Symbol Table Type Hierarchy
+            </pre>
+        </div>
+
+        <div class="card">
+            <h2><span class="icon">🔄</span> 6.4 Anderson Points-To Analysis</h2>
+            <p>Inclusion-based constraint solver computing global points-to sets <code>pts: SsaId -> Set&lt;AllocTypeSymId&gt;</code> via worklist fixpoint propagation.</p>
+            <pre>
+v^i = new T()   -> {alloc_T} ⊆ pts(v^i)
+v^i = v^j (copy) -> pts(v^j) ⊆ pts(v^i)
+v^i = phi(...)   -> pts(arg) ⊆ pts(v^i)
+            </pre>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2><span class="icon">💾</span> 6.5 CallGraphArtifact Binary Layout (.cga)</h2>
+        <table>
+            <thead>
+                <tr><th>Section</th><th>Fixed Record Size</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>HEADER</td><td>64 Bytes</td><td>Magic 0x4347410001000000, method_count, ssa_hash, sta_hash</td></tr>
+                <tr><td>CALL SITE TABLE</td><td>28 Bytes / site</td><td>CallSite[n_sites] sorted by caller_sym for O(log n) lookup</td></tr>
+                <tr><td>CALLEE CSR</td><td>Variable</td><td>CSR offsets[] + adj[] + edge_types[] for outgoing calls</td></tr>
+                <tr><td>CALLER CSR</td><td>Variable</td><td>CSR offsets[] + adj[] for incoming call fan-in</td></tr>
+                <tr><td>POINTS-TO TABLE</td><td>8 Bytes / entry</td><td>PointsToEntry(ssa_id, alloc_type_sym_id)</td></tr>
+                <tr><td>SCC TABLE</td><td>12 Bytes / SCC</td><td>SCCRecord(scc_id, member_offset, count, scc_class)</td></tr>
+                <tr><td>CHECKSUM</td><td>8 Bytes</td><td>CRC-64/ECMA trailer checksum</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="interactive-section">
+        <h2>Interactive Phase 6 CGA Visualizer & Dispatch Simulator</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">Simulate dispatch resolution and inspect binary CGA structures live:</p>
+        
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('cha')">CHA vs 1-CFA Resolution</button>
+            <button class="tab-btn" onclick="switchTab('anderson')">Anderson Points-To Solver</button>
+            <button class="tab-btn" onclick="switchTab('tarjan')">Tarjan SCC Recursive Cycle Detector</button>
+        </div>
+
+        <div id="tab-content" class="visualizer-output">
+            <!-- Dynamically populated via JS -->
+        </div>
+    </div>
+
+    <script>
+        const tabContent = document.getElementById('tab-content');
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (tab === 'cha') {
+                tabContent.innerHTML = `
+[CHA vs 1-CFA Dispatch Resolution Simulator]
+Receiver SSA Var: v4 (defined by: new OrderService())
+Declared Type:    com.openheart.service.OrderService
+Called Method:    processOrder(int, int)
+
+CHA Resolution Targets:
+  └─► [Monomorphic] OrderService.processOrder(int, int) (Symbol #12)
+      Fan-out: 1 target (CHA Soundness: 100%)
+
+1-CFA Resolution:
+  └─► Def Site: NN_NEW_EXPR at AST Node #42 -> Exact Alloc Type: OrderService
+  └─► Refined Target Set: { OrderService.processOrder } (Fan-out: 1.0)
+`;
+            } else if (tab === 'anderson') {
+                tabContent.innerHTML = `
+[Anderson Inclusion-Based Points-To Solver State]
+Variables Monitored: 4 pointer SSA variables
+Constraints Seeded:  1 allocation site (new OrderService)
+
+Fixpoint Propagation Trajectory:
+  Pass 1: v1 (alloc site) -> pts(v1) = { OrderService }
+  Pass 2: v4 = phi(v1, v2) -> pts(v4) = { OrderService }
+  Fixpoint Reached in 2 iterations.
+
+Points-To Table Output:
+  SSA v1 -> [AllocType: OrderService (Sym #5)]
+  SSA v4 -> [AllocType: OrderService (Sym #5)]
+`;
+            } else if (tab === 'tarjan') {
+                tabContent.innerHTML = `
+[Tarjan's SCC Algorithm Cycle Detection]
+Callable Symbols Analyzed: 20 symbols
+
+SCC Table Classification:
+  SCC #0: { OrderService.<init> }      -> Non-Recursive (Class 0)
+  SCC #1: { OrderService.processOrder } -> Non-Recursive (Class 0)
+  SCC #2: { PaymentProcessor.execute }  -> Non-Recursive (Class 0)
+  SCC #3: { RecursiveHelper.recurse }  -> Self-Recursive (Class 1, Loopback edge: #15 -> #15)
+
+Total Recursive Cycles Detected: 1
+Condensation DAG Order: Topological Root -> Leaf Methods
+`;
+            }
+        }
+
+        // Initialize default tab
+        switchTab('cha');
+    </script>
+</body>
+</html>

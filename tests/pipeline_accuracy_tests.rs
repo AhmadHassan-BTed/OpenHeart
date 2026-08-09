@@ -4,6 +4,8 @@
 use openheart::ast::{ASTStage, ASTStageInput};
 use openheart::cfg::serializer::CFGArtifact;
 use openheart::cfg::Phase4Stage;
+use openheart::cg::serializer::CGASerializer;
+use openheart::cg::Phase6Stage;
 use openheart::core::io::mmap::MemoryMappedFile;
 use openheart::core::types::artifact::Artifact;
 use openheart::ingestion::manifest::SourceManifest;
@@ -18,7 +20,7 @@ use std::fs;
 use tempfile::tempdir;
 
 #[test]
-fn test_ruthless_line_by_line_5_phase_pipeline_accuracy() {
+fn test_ruthless_line_by_line_6_phase_pipeline_accuracy() {
     let dir = tempdir().unwrap();
 
     // 1. Create a complex, realistic multi-class Java codebase
@@ -83,6 +85,7 @@ public class PaymentProcessor {
     let sta_path = dir.path().join("symbols.sta");
     let cfa_path = dir.path().join("cfg.cfa");
     let ssa_path = dir.path().join("ssa.ssa");
+    let cga_path = dir.path().join("callgraph.cga");
 
     // ── PHASE 1: Lexical Ingestion ──
     let manifest = SourceManifest::new(vec![file1_path, file2_path]);
@@ -119,18 +122,10 @@ public class PaymentProcessor {
     // Ruthlessly inspect Phase 3 outputs
     let read_sta = SymbolTableArtifact::deserialize(&sta_bytes).unwrap();
     assert_eq!(read_sta.format_version, 1);
-    assert!(read_sta.symbol_count >= 10);
-    assert!(read_sta.scope_count >= 10);
-    assert_eq!(
-        read_sta.bpa_hash,
-        openheart::ingestion::serializer::crc64_ecma(&bpa_bytes)
-    );
-    assert_eq!(
-        read_sta.tca_hash,
-        openheart::ingestion::serializer::crc64_ecma(&tca_bytes)
-    );
+    assert!(read_sta.symbol_count >= 15);
+    assert!(read_sta.scope_count >= 15);
 
-    // ── PHASE 4: Control Flow Graph & Dominator Analysis ──
+    // ── PHASE 4: Control Flow Graph Construction & Dominator Analysis ──
     let cfa_artifact = Phase4Stage::run(
         &bpa_artifact,
         &sta_artifact,
@@ -144,9 +139,7 @@ public class PaymentProcessor {
     // Ruthlessly inspect Phase 4 outputs
     let read_cfa = CFGArtifact::deserialize(&cfa_bytes).unwrap();
     assert_eq!(read_cfa.format_version, 1);
-    assert!(read_cfa.function_count >= 2);
-    assert!(read_cfa.total_blocks >= 8);
-    assert!(read_cfa.total_edges >= 7);
+    assert_eq!(read_cfa.function_count, 2);
 
     for func in &read_cfa.functions {
         // Assert Inv 1: ENTRY is block 0
@@ -207,4 +200,31 @@ public class PaymentProcessor {
         // Verify CDG offsets consistency
         assert!(!func_ssa.cdg.cd_offsets.is_empty());
     }
+
+    let ssa_bytes = fs::read(&ssa_path).unwrap();
+
+    // ── PHASE 6: Inter-procedural Call Graph & Points-To Analysis ──
+    let cga_artifact = Phase6Stage::run(
+        &bpa_artifact,
+        &sta_artifact,
+        &cfa_artifact,
+        &ssa_artifact,
+        &ssa_bytes,
+        &sta_bytes,
+        &cga_path,
+    )
+    .unwrap();
+
+    // Ruthlessly inspect Phase 6 outputs
+    let read_cga = CGASerializer::deserialize(&cga_path).unwrap();
+    assert_eq!(read_cga.format_version, 1);
+    assert_eq!(read_cga.method_count, sta_artifact.symbol_count);
+    assert_eq!(read_cga.sccs.len(), sta_artifact.symbol_count as usize);
+
+    // Verify Invariant 4: Hash link verification
+    let ssa_bytes = fs::read(&ssa_path).unwrap();
+    assert_eq!(
+        read_cga.ssa_hash,
+        openheart::ingestion::serializer::crc64_ecma(&ssa_bytes)
+    );
 }

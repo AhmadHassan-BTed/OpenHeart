@@ -4,8 +4,12 @@
 use openheart::ast::{ASTStage, ASTStageInput};
 use openheart::cfg::serializer::CFGArtifact;
 use openheart::cfg::Phase4Stage;
+use openheart::cg::serializer::CGASerializer;
+use openheart::cg::Phase6Stage;
 use openheart::core::io::mmap::MemoryMappedFile;
-use openheart::core::logger::{init_logger_from_env, log_info, set_log_level, LogLevel};
+use openheart::core::logger::{
+    init_dual_logger, init_logger_from_env, log_info, set_log_level, LogLevel,
+};
 use openheart::ingestion::manifest::SourceManifest;
 use openheart::ingestion::IngestionStage;
 use openheart::ssa::serializer::SSASerializer;
@@ -31,15 +35,16 @@ USAGE:
 SUBCOMMANDS:
     analyze <SOURCE_PATH> [OUTPUT_DIR] [--verbose | --debug | --trace]
         Recursively scans <SOURCE_PATH> for .java source files and executes
-        the complete 5-phase static analysis pipeline with structured logging:
+        the complete 6-phase static analysis pipeline with structured logging:
           • Phase 1: Lexical Ingestion          ─► corpus.tca
           • Phase 2: CST Reduction & BP AST     ─► ast.bpa
           • Phase 3: Symbol Table & Hierarchy   ─► symbols.sta
           • Phase 4: Control Flow & Dominators  ─► cfg.cfa
           • Phase 5: SSA Form & Data Flow Graph ─► ssa.ssa
+          • Phase 6: Call Graph & Points-To     ─► callgraph.cga
 
     inspect <ARTIFACT_PATH>
-        Inspects and validates the CRC-64 integrity of a binary artifact (.tca, .bpa, .sta, .cfa, .ssa).
+        Inspects and validates the CRC-64 integrity of a binary artifact (.tca, .bpa, .sta, .cfa, .ssa, .cga).
 
     help
         Prints this usage guide.
@@ -50,7 +55,7 @@ FLAGS:
 
 EXAMPLES:
     openheart analyze ./src/main/java ./out --debug
-    openheart inspect ./out/ssa.ssa
+    openheart inspect ./out/callgraph.cga
 ================================================================================
 "#
     );
@@ -103,7 +108,7 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
 
     let session_log_path = out_dir.join("openheart_session.log");
     let persistent_log_path = out_dir.join("openheart_persistent.log");
-    openheart::core::logger::init_dual_logger(Some(&persistent_log_path), Some(&session_log_path));
+    init_dual_logger(Some(&persistent_log_path), Some(&session_log_path));
 
     log_info("================================================================================");
     log_info(" OPENHEART STATIC ANALYSIS PIPELINE STARTING");
@@ -118,6 +123,7 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     let sta_path = out_dir.join("symbols.sta");
     let cfa_path = out_dir.join("cfg.cfa");
     let ssa_path = out_dir.join("ssa.ssa");
+    let cga_path = out_dir.join("callgraph.cga");
 
     // ── PHASE 1: Lexical Ingestion ──
     let manifest = SourceManifest::new(java_files.clone());
@@ -161,14 +167,28 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     )
     .map_err(|e| format!("Phase 5 SSA Conversion failed: {}", e))?;
 
+    let ssa_bytes = fs::read(&ssa_path).map_err(|e| format!("Failed to read .ssa file: {}", e))?;
+
+    // ── PHASE 6: Inter-procedural Call Graph & Points-To Analysis ──
+    let cga_artifact = Phase6Stage::run(
+        &bpa_artifact,
+        &sta_artifact,
+        &cfa_artifact,
+        &ssa_artifact,
+        &ssa_bytes,
+        &sta_bytes,
+        &cga_path,
+    )
+    .map_err(|e| format!("Phase 6 Call Graph Construction failed: {}", e))?;
+
     log_info("================================================================================");
     log_info(&format!(
-        " SUCCESS: Complete 5-Phase Static Analysis finished in {:.2?} | Output: {}",
+        " SUCCESS: Complete 6-Phase Static Analysis finished in {:.2?} | Output: {}",
         start_time.elapsed(),
         out_dir.display()
     ));
     log_info(&format!(
-        " Summary: {} tokens, {} AST nodes, {} symbols, {} functions, {} blocks, {} CFG edges, {} SSA vars, {} φ-funcs.",
+        " Summary: {} tokens, {} AST nodes, {} symbols, {} functions, {} blocks, {} CFG edges, {} SSA vars, {} φ-funcs, {} call sites, {} call edges, {} SCCs.",
         tca_artifact.token_records.len(),
         bpa_artifact.node_count,
         sta_artifact.symbol_count,
@@ -176,7 +196,10 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         cfa_artifact.total_blocks,
         cfa_artifact.total_edges,
         ssa_artifact.total_ssa_vars,
-        ssa_artifact.total_phi_funcs
+        ssa_artifact.total_phi_funcs,
+        cga_artifact.call_site_count,
+        cga_artifact.call_edge_count,
+        cga_artifact.sccs.len()
     ));
     log_info("================================================================================");
 
@@ -192,6 +215,20 @@ fn cmd_inspect(artifact_path_str: &str) -> Result<(), String> {
     let bytes = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
     log_info(&format!("Inspecting artifact: {}", path.display()));
     log_info(&format!("File Size: {} bytes", bytes.len()));
+
+    if let Ok(cga) = CGASerializer::deserialize(path) {
+        log_info("Artifact Type  : Call Graph & Points-To (.cga)");
+        log_info(&format!("Format Version : {}", cga.format_version));
+        log_info(&format!("Method Count   : {}", cga.method_count));
+        log_info(&format!("Call Site Count: {}", cga.call_site_count));
+        log_info(&format!("Call Edge Count: {}", cga.call_edge_count));
+        log_info(&format!("Points-To Size : {}", cga.points_to_table.len()));
+        log_info(&format!("SCC Count      : {}", cga.sccs.len()));
+        log_info(&format!("SSA Hash Link  : 0x{:016X}", cga.ssa_hash));
+        log_info(&format!("STA Hash Link  : 0x{:016X}", cga.sta_hash));
+        log_info("CRC-64 Check   : VERIFIED VALID");
+        return Ok(());
+    }
 
     if let Ok(ssa) = SSASerializer::read(path) {
         log_info("Artifact Type  : Static Single Assignment (.ssa)");
