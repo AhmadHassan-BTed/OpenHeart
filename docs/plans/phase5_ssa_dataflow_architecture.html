@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenHeart Engine :: Phase 5 SSA Conversion & Data Flow Graph Architecture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0d14;
+            --bg-secondary: #121824;
+            --bg-card: #182232;
+            --bg-card-hover: #1f2b3e;
+            --accent-primary: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(99, 102, 241, 0.4);
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 50%, #06b6d4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 0.25rem;
+        }
+
+        .badge-bar {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .badge {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid var(--border-highlight);
+            color: #c7d2fe;
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .tab-btn.active {
+            color: #fff;
+            background: var(--accent-primary);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--border-highlight);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #e0e7ff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        code, pre {
+            font-family: var(--font-mono);
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 0.375rem;
+        }
+
+        code {
+            padding: 0.2rem 0.4rem;
+            font-size: 0.85rem;
+            color: #38bdf8;
+        }
+
+        pre {
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            border: 1px solid var(--border-color);
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+
+        .bit-diagram {
+            display: flex;
+            width: 100%;
+            border: 1px solid var(--border-highlight);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin: 1rem 0;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .bit-field {
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            border-right: 1px solid var(--border-color);
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        .bit-field:last-child {
+            border-right: none;
+        }
+
+        .bit-field .field-name {
+            font-weight: 700;
+            color: #a5b4fc;
+            margin-bottom: 0.25rem;
+        }
+
+        .bit-field .field-size {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .svg-container {
+            width: 100%;
+            background: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            color: #c7d2fe;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .invariant-card {
+            border-left: 4px solid var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.05);
+            padding: 1rem 1.25rem;
+            border-radius: 0 0.5rem 0.5rem 0;
+            margin-bottom: 1rem;
+        }
+
+        .invariant-title {
+            font-weight: 700;
+            color: var(--accent-cyan);
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>OpenHeart Engine :: Phase 5 Architecture</h1>
+            <p>Static Single Assignment (SSA) Conversion, Control Dependence Graph (CDG) & IFDS Data-Flow Framework</p>
+        </div>
+        <div class="badge-bar">
+            <span class="badge">FORMAT: .ssa</span>
+            <span class="badge">AUTHORED BY AHMAD HASSAN (B-TED)</span>
+        </div>
+    </header>
+
+    <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('tab-overview')">Pipeline & Architecture</button>
+        <button class="tab-btn" onclick="switchTab('tab-memory')">Memory & Record Specs</button>
+        <button class="tab-btn" onclick="switchTab('tab-algorithms')">Algorithms & Proofs</button>
+        <button class="tab-btn" onclick="switchTab('tab-binary')">Binary Format Spec</button>
+        <button class="tab-btn" onclick="switchTab('tab-invariants')">Phase Invariants 1-4</button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW & PIPELINE DIAGRAM -->
+    <div id="tab-overview" class="tab-content active">
+        <div class="card">
+            <div class="card-title">Phase 5 End-to-End Execution Pipeline</div>
+            <div class="svg-container">
+                <svg viewBox="0 0 1200 420" width="100%" height="380" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="grad-input" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.3"/>
+                            <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.1"/>
+                        </linearGradient>
+                        <linearGradient id="grad-stage" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6366f1" stop-opacity="0.4"/>
+                            <stop offset="100%" stop-color="#4338ca" stop-opacity="0.15"/>
+                        </linearGradient>
+                        <linearGradient id="grad-output" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.4"/>
+                            <stop offset="100%" stop-color="#047857" stop-opacity="0.15"/>
+                        </linearGradient>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1"/>
+                        </marker>
+                    </defs>
+
+                    <!-- INPUT ARTIFACTS -->
+                    <g transform="translate(30, 40)">
+                        <rect x="0" y="0" width="180" height="340" rx="10" fill="url(#grad-input)" stroke="#3b82f6" stroke-width="1.5"/>
+                        <text x="90" y="30" text-anchor="middle" fill="#93c5fd" font-family="Inter" font-weight="700" font-size="14">INPUT ARTIFACTS</text>
+
+                        <rect x="15" y="55" width="150" height="70" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="1"/>
+                        <text x="90" y="80" text-anchor="middle" fill="#e2e8f0" font-family="JetBrains Mono" font-size="12" font-weight="600">ast.bpa</text>
+                        <text x="90" y="100" text-anchor="middle" fill="#94a3b8" font-family="Inter" font-size="10">BP Bitstring & Preorder</text>
+
+                        <rect x="15" y="145" width="150" height="70" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="1"/>
+                        <text x="90" y="170" text-anchor="middle" fill="#e2e8f0" font-family="JetBrains Mono" font-size="12" font-weight="600">symbols.sta</text>
+                        <text x="90" y="190" text-anchor="middle" fill="#94a3b8" font-family="Inter" font-size="10">Symbols & Scopes</text>
+
+                        <rect x="15" y="235" width="150" height="70" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="1"/>
+                        <text x="90" y="260" text-anchor="middle" fill="#e2e8f0" font-family="JetBrains Mono" font-size="12" font-weight="600">cfg.cfa</text>
+                        <text x="90" y="280" text-anchor="middle" fill="#94a3b8" font-family="Inter" font-size="10">CFG CSR & Dominators</text>
+                    </g>
+
+                    <path d="M 210 210 L 260 210" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+
+                    <!-- STAGE 1: LIVENESS & PHI PLACEMENT -->
+                    <g transform="translate(270, 40)">
+                        <rect x="0" y="0" width="250" height="340" rx="10" fill="url(#grad-stage)" stroke="#6366f1" stroke-width="1.5"/>
+                        <text x="125" y="30" text-anchor="middle" fill="#c7d2fe" font-family="Inter" font-weight="700" font-size="13">STEP 1: LIVENESS & PHI-PLACEMENT</text>
+
+                        <rect x="15" y="55" width="220" height="110" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+                        <text x="125" y="80" text-anchor="middle" fill="#a5b4fc" font-family="Inter" font-weight="600" font-size="11">Pruned SSA Liveness Fixpoint</text>
+                        <text x="25" y="105" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">LiveIn(b) = UEVar(b) U</text>
+                        <text x="25" y="125" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">  (LiveOut(b) - VarKill(b))</text>
+                        <text x="25" y="145" fill="#818cf8" font-family="Inter" font-size="10">Backward Data-Flow Fixpoint</text>
+
+                        <rect x="15" y="195" width="220" height="110" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+                        <text x="125" y="220" text-anchor="middle" fill="#a5b4fc" font-family="Inter" font-weight="600" font-size="11">Cytron's φ-Placement</text>
+                        <text x="25" y="245" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">y ∈ DF[b] & y ∈ LiveIn(y)</text>
+                        <text x="25" y="265" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">=> Insert φ(v) at entry of y</text>
+                        <text x="25" y="285" fill="#818cf8" font-family="Inter" font-size="10">Dominance Frontier DF[b]</text>
+                    </g>
+
+                    <path d="M 520 210 L 560 210" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+
+                    <!-- STAGE 2: RENAMING & CDG -->
+                    <g transform="translate(570, 40)">
+                        <rect x="0" y="0" width="250" height="340" rx="10" fill="url(#grad-stage)" stroke="#6366f1" stroke-width="1.5"/>
+                        <text x="125" y="30" text-anchor="middle" fill="#c7d2fe" font-family="Inter" font-weight="700" font-size="13">STEP 2: RENAMING & CDG / IFDS</text>
+
+                        <rect x="15" y="55" width="220" height="110" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+                        <text x="125" y="80" text-anchor="middle" fill="#a5b4fc" font-family="Inter" font-weight="600" font-size="11">Dom-Tree DFS Variable Renaming</text>
+                        <text x="25" y="105" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">VersionStack S[v] per symbol</text>
+                        <text x="25" y="125" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">RHS Uses => top(S[v])</text>
+                        <text x="25" y="145" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">LHS Defs => fresh ssa_id</text>
+
+                        <rect x="15" y="195" width="220" height="110" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+                        <text x="125" y="220" text-anchor="middle" fill="#a5b4fc" font-family="Inter" font-weight="600" font-size="11">CDG & IFDS Polynomial Solvers</text>
+                        <text x="25" y="245" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">ipdom[] Reversed Cooper</text>
+                        <text x="25" y="265" fill="#94a3b8" font-family="JetBrains Mono" font-size="10">Taint / Null / Type-State</text>
+                        <text x="25" y="285" fill="#818cf8" font-family="Inter" font-size="10">Reps et al. 1995 Tabulation</text>
+                    </g>
+
+                    <path d="M 820 210 L 860 210" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+
+                    <!-- OUTPUT ARTIFACT -->
+                    <g transform="translate(870, 40)">
+                        <rect x="0" y="0" width="300" height="340" rx="10" fill="url(#grad-output)" stroke="#10b981" stroke-width="1.5"/>
+                        <text x="150" y="30" text-anchor="middle" fill="#a7f3d0" font-family="Inter" font-weight="700" font-size="14">OUTPUT: ssa.ssa ARTIFACT</text>
+
+                        <rect x="15" y="55" width="270" height="250" rx="6" fill="#064e3b" stroke="#10b981" stroke-width="1"/>
+                        <text x="150" y="80" text-anchor="middle" fill="#ecfdf5" font-family="JetBrains Mono" font-size="12" font-weight="700">SSAArtifact (.ssa)</text>
+
+                        <text x="30" y="110" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• 64B Header (cfa_hash link)</text>
+                        <text x="30" y="130" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• Function Directory Table</text>
+                        <text x="30" y="150" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• 16B SSARecord Table</text>
+                        <text x="30" y="170" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• PhiRecord Table (args[])</text>
+                        <text x="30" y="190" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• DefUseCSR (def_offsets+use_adj)</text>
+                        <text x="30" y="210" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• CDGCSR (cd_offsets+cd_adj+types)</text>
+                        <text x="30" y="230" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• Sparse IFDS Taint / Null / State</text>
+                        <text x="30" y="250" fill="#a7f3d0" font-family="JetBrains Mono" font-size="10">• 8B CRC-64/ECMA Trailer</text>
+                        <text x="150" y="285" text-anchor="middle" fill="#6ee7b7" font-family="Inter" font-weight="600" font-size="11">Guarantees Invariants 1-4</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: MEMORY & RECORD SPECS -->
+    <div id="tab-memory" class="tab-content">
+        <div class="card">
+            <div class="card-title">Cache-Aligned SSARecord Memory Layout (16 Bytes)</div>
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">Every SSA variable version created across all functions is recorded as a 16-byte fixed-size entry (§5.2.4).</p>
+            <div class="bit-diagram">
+                <div class="bit-field" style="flex: 2;">
+                    <div class="field-name">ssa_id</div>
+                    <div class="field-size">u32 (4 Bytes)</div>
+                </div>
+                <div class="bit-field" style="flex: 2;">
+                    <div class="field-name">orig_sym_id</div>
+                    <div class="field-size">u32 (4 Bytes)</div>
+                </div>
+                <div class="bit-field" style="flex: 2;">
+                    <div class="field-name">def_stmt</div>
+                    <div class="field-size">u32 (4 Bytes)</div>
+                </div>
+                <div class="bit-field" style="flex: 1;">
+                    <div class="field-name">version</div>
+                    <div class="field-size">u16 (2B)</div>
+                </div>
+                <div class="bit-field" style="flex: 0.5;">
+                    <div class="field-name">flags</div>
+                    <div class="field-size">u8 (1B)</div>
+                </div>
+                <div class="bit-field" style="flex: 0.5;">
+                    <div class="field-name">def_block</div>
+                    <div class="field-size">u8 (1B)</div>
+                </div>
+            </div>
+            <pre><code>// SSARecord Struct Definition in Rust (src/core/types/ssa.rs)
+#[repr(C)]
+pub struct SSARecord {
+    pub ssa_id: u32,        // Globally unique SSA ID within function
+    pub orig_sym_id: u32,   // Symbol ID in STA of original variable
+    pub def_stmt: u32,      // BP AST pre-order index (u32::MAX for phi)
+    pub version: u16,       // Version number for orig_sym_id (0-based)
+    pub flags: u8,          // IS_PHI:1, IS_PARAM_DEF:1, IS_FIELD_DEF:1, IS_RETURN_VAL:1, IS_CONST:1
+    pub def_block: u8,      // Basic block ID (mod 256)
+}</code></pre>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title">PhiRecord & PhiArg Specifications</div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem;">Variable-length record inserted at CFG join points (§5.4):</p>
+                <pre><code>// Header (12 Bytes)
+ssa_id:    u32  // Target SSA ID
+block_id:  u32  // Basic block where phi is placed
+arg_count: u16  // Number of predecessor arguments (k)
+orig_sym:  u16  // Symbol ID (mod 65536)
+
+// PhiArg Array (8 Bytes each x arg_count)
+pred_block_id: u32  // CFG predecessor block
+arg_ssa_id:    u32  // Live SSA version from predecessor</code></pre>
+            </div>
+
+            <div class="card">
+                <div class="card-title">DefUseCSR & CDGCSR Formats</div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem;">Sparse compressed representations for O(1) navigability (§5.4):</p>
+                <pre><code>// DefUseCSR: O(1) use enumeration per SSA variable
+def_offsets: Vec&lt;u32&gt; // (n_ssa + 1) offset index
+use_adj:     Vec&lt;u32&gt; // AST statement pre-order indices
+
+// CDGCSR: Control Dependence Graph CSR
+cd_offsets:  Vec&lt;u32&gt; // (n_blocks + 1) offset index
+cd_adj:      Vec&lt;u32&gt; // Dependent basic block Y
+cd_types:    Vec&lt;u8&gt;  // CD_EDGE_TRUE (0x01), CD_EDGE_FALSE (0x02)</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: ALGORITHMS & PROOFS -->
+    <div id="tab-algorithms" class="tab-content">
+        <div class="card">
+            <div class="card-title">Algorithms Executed in Phase 5</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Algorithm / Pass</th>
+                        <th>Mathematical Foundation</th>
+                        <th>Time Complexity</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Liveness Fixpoint</strong></td>
+                        <td>Backward data-flow fixpoint iteration</td>
+                        <td>O(n_vars × m_edges)</td>
+                        <td>Filters φ-placement for Pruned SSA form</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cytron's φ-Placement</strong></td>
+                        <td>Dominance Frontier worklist algorithm</td>
+                        <td>O(|D| × m) amortized</td>
+                        <td>Inserts φ-functions at CFG join points</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Dom-Tree Renaming</strong></td>
+                        <td>Dominator Tree DFS with VersionStack S[v]</td>
+                        <td>O(n_ast_func)</td>
+                        <td>Assigns single-assignment SSA IDs</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CDG Construction</strong></td>
+                        <td>Reversed CFG Cooper Post-Dominators</td>
+                        <td>O(m × depth_pdom)</td>
+                        <td>Derives control dependence edges</td>
+                    </tr>
+                    <tr>
+                        <td><strong>IFDS Tabulation</strong></td>
+                        <td>Reps-Horwitz-Sagiv polynomial solver</td>
+                        <td>O(|N| × |D|^2)</td>
+                        <td>Sparse Taint, Nullable & Type-State facts</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 4: BINARY FORMAT SPEC -->
+    <div id="tab-binary" class="tab-content">
+        <div class="card">
+            <div class="card-title">SSAArtifact Binary File Format (.ssa)</div>
+            <pre><code>╔═══════════════════════════════════════════════════════════════════╗
+║  SSA FILE FORMAT v1.0  (all integers: little-endian)             ║
+╠════════════════════╦══════════════╦════════════════════════════════╣
+║ Section            ║ Size         ║ Description                    ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ HEADER             ║ 64 B         ║ Magic "SSA1", cfa_hash link    ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ FUNCTION DIR.      ║ n_func×20 B  ║ (sym_id, offset, n_ssa, n_phi) ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ SSA VARIABLE TABLE ║ n_ssa×16 B   ║ SSARecord[] — def sites,       ║
+║                    ║              ║ versions, flags. O(1) lookup.  ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ PHI-FUNCTION TABLE ║ variable     ║ PhiRecord[] per function.      ║
+║                    ║              ║ 12B header + args×8B each.     ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ DEF-USE CSR        ║ variable     ║ offsets[]+adj[] per function.  ║
+║ CDG CSR            ║ variable     ║ offsets[]+adj[]+types[]        ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ IFDS TAINT         ║ sparse       ║ Sorted (ssa_id, taint_src)     ║
+║ IFDS NULLABLE      ║ sparse       ║ Sorted ssa_ids that may be null║
+║ IFDS TYPE-STATE    ║ sparse       ║ (ssa_id, state_id) pairs       ║
+╠════════════════════╬══════════════╬════════════════════════════════╣
+║ CHECKSUM           ║ 8 B          ║ CRC-64/ECMA                    ║
+╚════════════════════╩══════════════╩════════════════════════════════╝</code></pre>
+        </div>
+    </div>
+
+    <!-- TAB 5: INVARIANTS -->
+    <div id="tab-invariants" class="tab-content">
+        <div class="card">
+            <div class="card-title">Phase 5 Mandatory Invariants for Phase 6</div>
+
+            <div class="invariant-card">
+                <div class="invariant-title">Invariant 1: Single Assignment Property</div>
+                <p>∀ ssa_id v: |{stmt s : s defines v}| = 1. Every SSA variable has exactly one definition site recorded in SSARecord.def_stmt. Verified by asserting def-count per ssa_id equals 1.</p>
+            </div>
+
+            <div class="invariant-card">
+                <div class="invariant-title">Invariant 2: φ-Argument Count Completeness</div>
+                <p>For every φ-function in basic block B with k CFG predecessors: PhiRecord.arg_count == k, and PhiRecord.args has exactly one entry per predecessor of B.</p>
+            </div>
+
+            <div class="invariant-card">
+                <div class="invariant-title">Invariant 3: Def-Use CSR Completeness</div>
+                <p>∀ ssa_id v: Σ_{stmts s} [s uses v] == len(use_adj[def_offsets[v]..def_offsets[v+1]]). Every use recorded during renaming has a corresponding entry in DefUseCSR.</p>
+            </div>
+
+            <div class="invariant-card">
+                <div class="invariant-title">Invariant 4: SSA to TCA Traceability Seed</div>
+                <p>For every SSARecord where flags.IS_PHI == 0: def_stmt is a valid BP AST pre-order index. The source location is recovered via bpa.token_range(def_stmt) → token_ids → BI[token_id] in TCA.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+    </script>
+</body>
+</html>
