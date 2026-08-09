@@ -232,45 +232,48 @@ OpenHeart/
 │   ├── ISSUE_TEMPLATE/        # Issue reporting templates
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── src/
-│   ├── adapters/              # External URL & repository adapters
-│   │   └── web_repo.rs
-│   ├── core/                  # Language-agnostic types & IO primitives
-│   │   ├── io/                # Little-Endian binary writer/reader & mmap
-│   │   └── types/             # TokenRecord, TokenEntry, ASTNodeType, NodeAttr
+│   ├── core/                  # Language-agnostic types & Little-Endian binary I/O primitives
+│   │   ├── io/                # BinaryWriter, BinaryReader, MemoryMappedFile, CRC-64
+│   │   └── types/             # TokenRecord, BPARecord, SymbolRecord, CFGRecord, SSARecord
 │   ├── ingestion/             # Lexical Ingestion & Token Corpus (.tca) (Phase 1)
-│   │   ├── adapter/           # LanguageAdapter trait & Java impl
-│   │   ├── parser/            # Tree-sitter CST parser wrapper
-│   │   ├── allocator.rs       # Monotonic TokenIdAllocator
-│   │   ├── builder.rs         # Index builder & invariant assertions
+│   │   ├── adapter/           # Tree-sitter LanguageAdapter & Java scanner
 │   │   ├── interner.rs        # FNV-1a StringInterner
-│   │   ├── serializer.rs      # Binary .tca format serializer
-│   │   └── walker.rs          # Left-to-right DFS CST leaf walker
+│   │   └── serializer.rs      # Binary .tca format serializer/deserializer
 │   ├── ast/                   # CST Reduction & BP AST Encoding (.bpa) (Phase 2)
-│   │   ├── adapter/           # ASTReductionAdapter trait & Java impl
-│   │   ├── bp_encoder.rs      # Bit-packed BPEncoder (u64 bitstring)
-│   │   ├── builder.rs         # BPASTBuilder aggregating sub-structures
-│   │   ├── jump_table.rs      # O(n) stack-built match_pos lookup
-│   │   ├── preorder.rs        # Parallel preorder arrays
-│   │   ├── rank_select.rs     # O(1) rank1 & select1 popcount index
-│   │   ├── reducer.rs         # Recursive CST reduction DFS walk
-│   │   ├── rmq.rs             # Sparse Table RMQ for O(1) LCA
-│   │   └── serializer.rs      # Binary .bpa format serializer
+│   │   ├── bp_encoder.rs      # Bit-packed 2-bit BP bitstring
+│   │   ├── rank_select.rs     # Jacobson O(1) Rank/Select auxiliary indices
+│   │   ├── rmq.rs             # Sparse Table RMQ for O(1) LCA queries
+│   │   └── serializer.rs      # Binary .bpa format serializer/deserializer
+│   ├── symbol/                # Symbol Table & Type Hierarchy (.sta) (Phase 3)
+│   │   ├── passes/            # 5-pass DFS symbol discovery & scope graph resolution
+│   │   └── serializer.rs      # Binary .sta format serializer/deserializer
+│   ├── cfg/                   # Control Flow Graph & Dominators (.cfa) (Phase 4)
+│   │   ├── stmts/             # CFG statement edge builders (if, while, for, try-catch)
+│   │   ├── dominators.rs      # Cooper iterative immediate dominators (idom[])
+│   │   └── serializer.rs      # Binary .cfa format serializer/deserializer
+│   ├── ssa/                   # SSA Conversion, CDG & IFDS Engine (.ssa) (Phase 5)
+│   │   ├── liveness.rs        # Pruned SSA backward liveness fixpoint
+│   │   ├── placement.rs       # Cytron φ-function placement worklist
+│   │   ├── renaming.rs        # Dominator tree DFS renaming & VersionStack
+│   │   ├── cdg.rs             # Control Dependence Graph via reversed post-dominators
+│   │   ├── ifds.rs            # Reps-Horwitz-Sagiv polynomial IFDS solvers
+│   │   └── serializer.rs      # Binary .ssa format serializer/deserializer
+│   ├── main.rs                # CLI binary executable (analyze, inspect)
 │   └── lib.rs                 # Library crate root
-├── web/                       # Standalone Web Portal Studio
-│   ├── index.html             # Web Repository Studio UI
-│   ├── style.css              # Dark glassmorphism styling
-│   └── app.js                 # Mermaid.js 14 UML diagram renderer
+├── web/                       # Standalone Web Portal Studio & Interactive Visualizers
 ├── tests/
-│   ├── ingestion_tests.rs     # Ingestion integration tests
-│   └── ast_tests.rs           # BP AST encoding & invariant tests
-├── docs/
-│   ├── architecture/          # SCPG 5-layer system architecture spec & model
-│   ├── ast/                   # Phase 2 BP AST encoding spec & model
-│   ├── ingestion/             # Phase 1 Lexical ingestion spec & model
-│   ├── pipeline/              # 10-Phase pipeline spec & model
-│   ├── plans/                 # Phase implementation plans & specifications
-│   │   ├── phase1_ingestion_spec.md
-│   │   └── phase2_ast_reduction_spec.md
+│   ├── ingestion_tests.rs     # Phase 1 Lexical Ingestion integration tests
+│   ├── ast_tests.rs           # Phase 2 BP AST & Rank/Select tests
+│   ├── symbol_tests.rs        # Phase 3 Symbol Table & Scope Graph tests
+│   ├── cfg_tests.rs           # Phase 4 CFG & Dominator Tree tests
+│   ├── ssa_tests.rs           # Phase 5 SSA Conversion & IFDS tests
+│   └── pipeline_accuracy_tests.rs # Multi-Phase line-by-line pipeline accuracy tests
+├── docs/                      # Technical specifications, architecture guides, and plans
+├── scripts/
+│   └── ci_check.sh            # Pre-flight local CI validation script
+├── Cargo.toml                 # Rust crate manifest
+└── LICENSE                    # MIT License
+```pec.md
 │   ├── assets/                # Rendered SVG assets
 │   ├── overview.md            # Technical specification & benchmarks
 │   ├── architecture.md        # 5-layer succinct storage guide
