@@ -884,15 +884,58 @@ body.brutalist-theme {
 }
 
 @media (max-width: 768px) {
+  .hero-center-content {
+    width: 100%;
+    padding: 0 16px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: 0 auto;
+  }
+  .hero-eyebrow {
+    font-size: clamp(10px, 2.2vw, 12px);
+    text-align: center;
+  }
+  .hero-title {
+    font-size: clamp(28px, 6.2vw, 55px);
+    text-align: center;
+    margin: 0 auto 14px auto;
+    width: 100%;
+    white-space: normal;
+  }
+  .hero-sub {
+    font-size: clamp(9px, 1.8vw, 11px);
+    text-align: center;
+  }
   .main-content {
     padding: 16px;
   }
-  .corner-brand.top-left { top: 12px; left: 16px; font-size: 9px; }
+  .corner-brand.top-left { top: 12px; left: 16px; font-size: 9.35px; }
   .corner-brand.top-right { top: 12px; right: 16px; gap: 6px; }
   .corner-brand.bottom-left { bottom: 12px; left: 16px; }
-  .corner-brand.bottom-right { bottom: 12px; right: 16px; font-size: 9px; }
-  .brutalist-pill { padding: 4px 10px; font-size: 9px; }
-  .studio-nav { padding: 12px 16px; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .corner-brand.bottom-right { bottom: 12px; right: 16px; font-size: 9.35px; }
+  .brutalist-pill { padding: 4px 10px; font-size: 9.35px; }
+  .studio-nav {
+    padding: 12px 16px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    text-align: center;
+    height: auto;
+    min-height: auto;
+  }
+  .nav-left {
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+  }
+  .nav-title {
+    font-size: 11px;
+    text-align: center;
+  }
   .drawer-grid { flex-direction: column; gap: 8px; }
 }
 
@@ -901,7 +944,10 @@ body.brutalist-theme {
     grid-template-columns: 1fr;
   }
   .hero-title {
-    font-size: clamp(32px, 9.8vw, 53px);
+    font-size: clamp(24px, 7.5vw, 42px);
+    text-align: center;
+    margin: 0 auto 12px auto;
+    width: 100%;
   }
   .btn-brutalist-hero {
     padding: 10px 18px;

@@ -23,7 +23,7 @@ use crate::ingestion::interner::StringInterner;
 use crate::ingestion::manifest::SourceManifest;
 use crate::ingestion::parser::tree_sitter::TreeSitterParser;
 use crate::ingestion::parser::CSTParser;
-use crate::ingestion::serializer::{TokenCorpusArtifact, TokenCorpusSerializer};
+pub use crate::ingestion::serializer::{TokenCorpusArtifact, TokenCorpusSerializer};
 use crate::ingestion::walker::walk_cst;
 
 pub struct IngestionStage;
