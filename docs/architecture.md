@@ -8,13 +8,14 @@ Existing static analysis frameworks (e.g., Joern Code Property Graph, LLVM IR, W
 
 ```mermaid
 graph TD
-    A[Raw Source Bytes] -->|Phase 1: Tree-sitter Ingestion| B[Token Corpus .tca & Monotonic token_id Anchors]
-    B -->|Phase 2: Succinct Encoding| C[Layer 1: BP AST Sequence & Scope Graphs]
-    C -->|Phase 3: Control & Data Flow| D[Layer 2 & 3: CSR CFG, Wavelet Trees & SSA DFG]
-    D -->|Phase 4: Symbolic Execution| E[Layer 4: ROBDD Feasible Path Summaries]
-    E -->|Phase 5: Interprocedural Engine| F[Layer 5: IFDS Tabulation & CFL-Reachability Engine]
-    F -->|Deterministic Derivation| G[14 Native UML Diagram Visualizations]
-    G -->|Bijective UMLLink| B
+    A[Raw Source Bytes] -->|Phase 1: Lexical Ingestion| B[Token Corpus .tca & Monotonic token_id Anchors]
+    B -->|Phase 2: BP AST Encoding| C[Layer 1: BP AST Sequence & Rank/Select LCA]
+    C -->|Phase 3: Symbol Table & TH| D[Symbol Table .sta & Type Hierarchy DAG]
+    D -->|Phase 4: CFG & Dominators| E[Layer 2: CSR CFG & Cooper Dominator Tree]
+    E -->|Phase 5: SSA & IFDS Engine| F[Layer 3: SSA Form, CDG & IFDS Solvers]
+    F -->|Phase 6-8: Call Graph & ROBDD| G[Layer 4: Call Graph & ROBDD Path Summaries]
+    G -->|Phase 9-10: UML & Query Engine| H[Layer 5: 14 Native UML Visualizations & SCPG Binary]
+    H -->|Bijective UMLLink| B
 ```
 
 ---
