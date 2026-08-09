@@ -1,54 +1,69 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" width="100%" height="100%">
-  <rect width="1000" height="320" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="320" rx="12" fill="url(#bg-grad)" stroke="#30363d" stroke-width="2"/>
   
   <!-- Header -->
-  <text x="500" y="45" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#58a6ff" text-anchor="middle">OpenHeart — Succinct Compositional Program Graph (SCPG)</text>
-  <text x="500" y="70" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#8b949e" text-anchor="middle">High-Performance Static Analysis &amp; Bijective UML Generation Architecture</text>
+  <text x="500" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#58a6ff" text-anchor="middle">OpenHeart — Succinct Compositional Program Graph (SCPG)</text>
+  <text x="500" y="67" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#8b949e" text-anchor="middle">High-Performance Static Analysis &amp; Bijective UML Generation Architecture (10-Phase Pipeline)</text>
   
   <!-- Layer Boxes -->
   <!-- Layer 1 -->
-  <rect x="40" y="100" width="160" height="170" rx="8" fill="#161b22" stroke="#1f6feb" stroke-width="1.5"/>
-  <text x="120" y="130" font-family="sans-serif" font-size="14" font-weight="600" fill="#79c0ff" text-anchor="middle">Layer 1: AST</text>
-  <text x="120" y="160" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">Balanced Parentheses</text>
-  <text x="120" y="180" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Sadakane O(1) Rank/Select</text>
-  <rect x="55" y="215" width="130" height="35" rx="4" fill="#1f6feb" fill-opacity="0.2" stroke="#1f6feb" stroke-width="1"/>
-  <text x="120" y="237" font-family="sans-serif" font-size="12" font-weight="600" fill="#58a6ff" text-anchor="middle">128× Compression</text>
+  <rect x="40" y="95" width="160" height="180" rx="8" fill="#161b22" stroke="#1f6feb" stroke-width="1.5"/>
+  <text x="120" y="125" font-family="sans-serif" font-size="14" font-weight="600" fill="#79c0ff" text-anchor="middle">Layer 1: AST</text>
+  <text x="120" y="155" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">Balanced Parentheses</text>
+  <text x="120" y="175" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Jacobson O(1) Rank/Select</text>
+  <text x="120" y="195" font-family="sans-serif" font-size="10" fill="#38bdf8" text-anchor="middle">Phases 1 &amp; 2 (.tca, .bpa)</text>
+  <rect x="55" y="225" width="130" height="35" rx="4" fill="#1f6feb" fill-opacity="0.2" stroke="#1f6feb" stroke-width="1"/>
+  <text x="120" y="247" font-family="sans-serif" font-size="12" font-weight="600" fill="#58a6ff" text-anchor="middle">128× Compression</text>
 
   <!-- Layer 2 -->
-  <rect x="230" y="100" width="160" height="170" rx="8" fill="#161b22" stroke="#238636" stroke-width="1.5"/>
-  <text x="310" y="130" font-family="sans-serif" font-size="14" font-weight="600" fill="#7ee787" text-anchor="middle">Layer 2: CFG</text>
-  <text x="310" y="160" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">Compressed Sparse Row</text>
-  <text x="310" y="180" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Wavelet Edge Filter</text>
-  <rect x="245" y="215" width="130" height="35" rx="4" fill="#238636" fill-opacity="0.2" stroke="#238636" stroke-width="1"/>
-  <text x="310" y="237" font-family="sans-serif" font-size="12" font-weight="600" fill="#56d364" text-anchor="middle">9× CSR Efficiency</text>
+  <rect x="230" y="95" width="160" height="180" rx="8" fill="#161b22" stroke="#238636" stroke-width="1.5"/>
+  <text x="310" y="125" font-family="sans-serif" font-size="14" font-weight="600" fill="#7ee787" text-anchor="middle">Layer 2: CFG</text>
+  <text x="310" y="155" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">Compressed Sparse Row</text>
+  <text x="310" y="175" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Cooper Dominators &amp; DF</text>
+  <text x="310" y="195" font-family="sans-serif" font-size="10" fill="#34d399" text-anchor="middle">Phase 4 (.cfa)</text>
+  <rect x="245" y="225" width="130" height="35" rx="4" fill="#238636" fill-opacity="0.2" stroke="#238636" stroke-width="1"/>
+  <text x="310" y="247" font-family="sans-serif" font-size="12" font-weight="600" fill="#56d364" text-anchor="middle">9× CSR Efficiency</text>
 
   <!-- Layer 3 -->
-  <rect x="420" y="100" width="160" height="170" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
-  <text x="500" y="130" font-family="sans-serif" font-size="14" font-weight="600" fill="#e3b341" text-anchor="middle">Layer 3: DFG</text>
-  <text x="500" y="160" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">SSA Form Def-Use</text>
-  <text x="500" y="180" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Dominance Frontiers</text>
-  <rect x="435" y="215" width="130" height="35" rx="4" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1"/>
-  <text x="500" y="237" font-family="sans-serif" font-size="12" font-weight="600" fill="#e3b341" text-anchor="middle">Sparse O(3n) Operands</text>
+  <rect x="420" y="95" width="160" height="180" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
+  <text x="500" y="125" font-family="sans-serif" font-size="14" font-weight="600" fill="#e3b341" text-anchor="middle">Layer 3: DFG</text>
+  <text x="500" y="155" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">SSA Form &amp; CDG</text>
+  <text x="500" y="175" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">IFDS Taint &amp; Null Solvers</text>
+  <text x="500" y="195" font-family="sans-serif" font-size="10" fill="#fbbf24" text-anchor="middle">Phase 5 (.ssa)</text>
+  <rect x="435" y="225" width="130" height="35" rx="4" fill="#d29922" fill-opacity="0.2" stroke="#d29922" stroke-width="1"/>
+  <text x="500" y="247" font-family="sans-serif" font-size="12" font-weight="600" fill="#e3b341" text-anchor="middle">Sparse O(3n) Operands</text>
 
   <!-- Layer 4 -->
-  <rect x="610" y="100" width="160" height="170" rx="8" fill="#161b22" stroke="#a371f7" stroke-width="1.5"/>
-  <text x="690" y="130" font-family="sans-serif" font-size="14" font-weight="600" fill="#d2a8ff" text-anchor="middle">Layer 4: ROBDD</text>
-  <text x="690" y="160" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">Feasible Path Function</text>
-  <text x="690" y="180" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Sifting Reordering</text>
-  <rect x="625" y="215" width="130" height="35" rx="4" fill="#a371f7" fill-opacity="0.2" stroke="#a371f7" stroke-width="1"/>
-  <text x="690" y="237" font-family="sans-serif" font-size="12" font-weight="600" fill="#bc8cff" text-anchor="middle">O(|BDD|) #SAT Count</text>
+  <rect x="610" y="95" width="160" height="180" rx="8" fill="#161b22" stroke="#a371f7" stroke-width="1.5"/>
+  <text x="690" y="125" font-family="sans-serif" font-size="14" font-weight="600" fill="#d2a8ff" text-anchor="middle">Layer 4: ROBDD</text>
+  <text x="690" y="155" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">Feasible Path Function</text>
+  <text x="690" y="175" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Sifting Variable Reorder</text>
+  <text x="690" y="195" font-family="sans-serif" font-size="10" fill="#c084fc" text-anchor="middle">Phase 8 (.psa)</text>
+  <rect x="625" y="225" width="130" height="35" rx="4" fill="#a371f7" fill-opacity="0.2" stroke="#a371f7" stroke-width="1"/>
+  <text x="690" y="247" font-family="sans-serif" font-size="12" font-weight="600" fill="#bc8cff" text-anchor="middle">O(|BDD|) #SAT Count</text>
 
   <!-- Layer 5 -->
-  <rect x="800" y="100" width="160" height="170" rx="8" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
-  <text x="880" y="130" font-family="sans-serif" font-size="14" font-weight="600" fill="#ff7b72" text-anchor="middle">Layer 5: Output</text>
-  <text x="880" y="160" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">14 UML Diagrams</text>
-  <text x="880" y="180" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">UMLLink Traceability</text>
-  <rect x="815" y="215" width="130" height="35" rx="4" fill="#f85149" fill-opacity="0.2" stroke="#f85149" stroke-width="1"/>
-  <text x="880" y="237" font-family="sans-serif" font-size="12" font-weight="600" fill="#ff7b72" text-anchor="middle">O(1) Incremental Sync</text>
+  <rect x="800" y="95" width="160" height="180" rx="8" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
+  <text x="880" y="125" font-family="sans-serif" font-size="14" font-weight="600" fill="#ff7b72" text-anchor="middle">Layer 5: Output</text>
+  <text x="880" y="155" font-family="sans-serif" font-size="11" fill="#c9d1d9" text-anchor="middle">14 UML Diagrams</text>
+  <text x="880" y="175" font-family="sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">UMLLink Traceability</text>
+  <text x="880" y="195" font-family="sans-serif" font-size="10" fill="#f87171" text-anchor="middle">Phases 9 &amp; 10 (.scpg)</text>
+  <rect x="815" y="225" width="130" height="35" rx="4" fill="#f85149" fill-opacity="0.2" stroke="#f85149" stroke-width="1"/>
+  <text x="880" y="247" font-family="sans-serif" font-size="12" font-weight="600" fill="#ff7b72" text-anchor="middle">O(1) Incremental Sync</text>
   
   <!-- Flow arrows -->
-  <path d="M 200 185 L 230 185" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M 390 185 L 420 185" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M 580 185 L 610 185" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M 770 185 L 800 185" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M 200 185 L 222 185" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M 390 185 L 412 185" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M 580 185 L 602 185" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M 770 185 L 792 185" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
 </svg>
