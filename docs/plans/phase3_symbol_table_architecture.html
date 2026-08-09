@@ -1,0 +1,349 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:44px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.pass-row{display:grid;grid-template-columns:80px 1fr;gap:8px;margin-bottom:6px;align-items:center}
+.pass-num{font-size:11px;font-weight:500;text-align:right;color:var(--text-muted)}
+.pass-bar{display:flex;align-items:center;gap:8px}
+.pass-pill{border-radius:5px;padding:5px 12px;font-size:11px;font-weight:500;border:0.5px solid;white-space:nowrap;cursor:pointer}
+.pass-pill:hover{opacity:.8}
+.pass-desc{font-size:11px;color:var(--text-secondary)}
+.art-row{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+.art-label{width:130px;font-size:11px;font-weight:500;color:var(--text-primary);flex-shrink:0}
+.art-body{flex:1;border-radius:5px;padding:4px 10px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.art-body:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+.comp-table{width:100%;border-collapse:collapse;font-size:11px}
+.comp-table th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.comp-table td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.comp-table td:first-child{color:var(--text-primary);font-weight:500}
+.good{color:var(--text-success)!important}.warn{color:var(--text-warning)!important}
+</style>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('passes')">5 passes</div>
+  <div class="tab" onclick="sw('scope')">Scope graph</div>
+  <div class="tab" onclick="sw('hierarchy')">Type hierarchy</div>
+  <div class="tab" onclick="sw('assoc')">UML associations</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+  <div class="tab" onclick="sw('complexity')">Complexity</div>
+</div>
+
+<div id="passes" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">Phase 3 executes 5 sequential passes over the BP AST. Each pass has a single responsibility. Click any pass to understand why it exists.</div>
+
+<div class="pass-row">
+  <div class="pass-num">Pass 1</div>
+  <div class="pass-bar">
+    <div class="pass-pill" style="background:#E1F5EE;border-color:#5DCAA5;color:#085041" onclick="setInfo('p','Declaration discovery — single DFS over BP AST','Creates skeletal SymbolRecords for every declaration node (classes, methods, fields, params, locals). Opens scope nodes. Links parent-child chains. Does NOT resolve any types yet. Time: O(n_ast).')">Declaration discovery</div>
+    <div class="pass-desc">DFS — creates all SymbolRecords, opens all scopes</div>
+  </div>
+</div>
+<div class="pass-row">
+  <div class="pass-num">Pass 2</div>
+  <div class="pass-bar">
+    <div class="pass-pill" style="background:#EEEDFE;border-color:#7F77DD;color:#3C3489" onclick="setInfo('p','Import resolution — per-file import map construction','Scans import_declaration nodes at the top of each file. Builds (simple_name → qualified_name) maps for explicit imports and records wildcard packages. Adds E_I import edges to the scope graph.')">Import resolution</div>
+    <div class="pass-desc">Builds per-file import maps + scope import edges</div>
+  </div>
+</div>
+<div class="pass-row">
+  <div class="pass-num">Pass 3</div>
+  <div class="pass-bar">
+    <div class="pass-pill" style="background:#FAEEDA;border-color:#BA7517;color:#633806" onclick="setInfo('p','Type reference resolution — resolves all NN_TYPE_REF nodes','For every NN_TYPE_REF in the BP AST: look up name in local scope, then import map, then same-package, then java.lang.*. Creates SK_EXTERNAL stubs for unresolvable names. Stores (pre_order_idx → symbol_id) in TypeRefResolutions map.')">Type ref resolution</div>
+    <div class="pass-desc">Resolves all NN_TYPE_REF nodes to symbol_ids</div>
+  </div>
+</div>
+<div class="pass-row">
+  <div class="pass-num">Pass 4</div>
+  <div class="pass-bar">
+    <div class="pass-pill" style="background:#E6F1FB;border-color:#378ADD;color:#0C447C" onclick="setInfo('p','Member type assignment — fills type_id fields in SymbolRecords','For each SK_FIELD, SK_PARAM, SK_LOCAL_VAR, SK_METHOD: reads the resolved type_id from Pass 3 TypeRefResolutions and writes it into the SymbolRecord.type_id field. O(n_sym) — trivial once Pass 3 is complete.')">Member types</div>
+    <div class="pass-desc">Fills SymbolRecord.type_id from Pass 3 resolutions</div>
+  </div>
+</div>
+<div class="pass-row">
+  <div class="pass-num">Pass 5</div>
+  <div class="pass-bar">
+    <div class="pass-pill" style="background:#FAECE7;border-color:#D85A30;color:#712B13" onclick="setInfo('p','Type hierarchy + UML association construction','Extracts TH_EXTENDS / TH_IMPLEMENTS edges from class declarations. Extracts TH_USES edges from field type analysis. Detects UML association kinds (DEPENDENCY / ASSOCIATION / AGGREGATION / COMPOSITION). Encodes hierarchy as CSR + wavelet tree.')">Type hierarchy + UML</div>
+    <div class="pass-desc">Builds E^TH CSR and UMLAssociationRecord[]</div>
+  </div>
+</div>
+
+<div id="info-p" class="info">Click any pass above to see why it exists as a separate phase and what its exact inputs and outputs are.</div>
+
+<div style="margin-top:12px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 14px">
+  <div style="font-size:11px;font-weight:500;color:var(--text-primary);margin-bottom:4px">Why 5 passes and not 1?</div>
+  <div style="font-size:11px;color:var(--text-secondary);line-height:1.6">Java allows forward references — class A on line 1 can extend class B declared on line 500. A single-pass resolver would attempt to resolve A's supertype before B's symbol exists. Pass 1 must complete across ALL files before Pass 3 can begin. This is not an engineering choice — it is a formal requirement of the grammar.</div>
+</div>
+</div>
+
+<div id="scope" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Click any scope node to see its role in the resolution algorithm G_scope = (S, E_p, E_I, D, R)</div>
+<svg width="100%" viewBox="0 0 680 390" role="img">
+  <title>Scope graph for a Java class OrderService with method processOrder</title>
+  <desc>Shows nested scope nodes S0 (file), S1 (class), S2 (method), S3 (block) with parent edges E_p and import edge E_I</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#7F77DD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- S0: File scope -->
+  <g class="c-gray node" onclick="sendPrompt('Explain S0 file scope in the Phase 3 scope graph and what declarations it holds')">
+    <rect x="40" y="20" width="580" height="350" rx="12" stroke-width="0.5"/>
+    <text class="th" x="60" y="48" dominant-baseline="central">S0: file scope (OrderService.java)</text>
+    <text class="ts" x="60" y="68" dominant-baseline="central">D(S0) = {OrderService class decl, import stmts}</text>
+  </g>
+
+  <!-- Import edge to java.util package scope (external) -->
+  <g class="c-purple node" onclick="sendPrompt('How does E_I import edge work in Phase 3 scope graph resolution?')">
+    <rect x="460" y="80" width="140" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="530" y="98" text-anchor="middle" dominant-baseline="central">java.util scope</text>
+  </g>
+  <path d="M530 116 Q530 140 450 140" fill="none" stroke="#7F77DD" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr2)"/>
+  <text class="ts" x="490" y="132" text-anchor="middle" style="fill:#534AB7">E_I (import List)</text>
+
+  <!-- S1: Class scope -->
+  <g class="c-teal node" onclick="sendPrompt('Explain S1 class scope in Phase 3 — what declarations does it hold and how does inheritance scoping work?')">
+    <rect x="60" y="100" width="380" height="250" rx="10" stroke-width="0.5"/>
+    <text class="th" x="80" y="126" dominant-baseline="central">S1: class scope (OrderService)</text>
+    <text class="ts" x="80" y="144" dominant-baseline="central">D(S1) = {processOrder():method, items:List&lt;Item&gt;}    E_p → S0</text>
+  </g>
+
+  <!-- S2: Method scope -->
+  <g class="c-purple node" onclick="sendPrompt('What declarations live in S2 method scope and how does parameter resolution work?')">
+    <rect x="80" y="170" width="340" height="160" rx="8" stroke-width="0.5"/>
+    <text class="th" x="100" y="196" dominant-baseline="central">S2: method scope (processOrder)</text>
+    <text class="ts" x="100" y="214" dominant-baseline="central">D(S2) = {order:Order param, total:double param}    E_p → S1</text>
+  </g>
+
+  <!-- S3: Block scope (for loop) -->
+  <g class="c-amber node" onclick="sendPrompt('Why does a for-loop body create its own S3 block scope in Phase 3?')">
+    <rect x="100" y="240" width="300" height="72" rx="6" stroke-width="0.5"/>
+    <text class="th" x="120" y="264" dominant-baseline="central">S3: block scope (for-each body)</text>
+    <text class="ts" x="120" y="280" dominant-baseline="central">D(S3) = {item:Item loop var}    E_p → S2</text>
+    <text class="ts" x="120" y="295" dominant-baseline="central">R(S3) = {Item (ref), items (ref)} → resolves via E_p* to S1</text>
+  </g>
+
+  <!-- Parent edge labels on right -->
+  <text class="ts" x="620" y="195" text-anchor="start" style="fill:var(--text-secondary)">E_p</text>
+  <text class="ts" x="620" y="255" text-anchor="start" style="fill:var(--text-secondary)">E_p</text>
+  <text class="ts" x="620" y="295" text-anchor="start" style="fill:var(--text-secondary)">E_p</text>
+
+  <!-- Resolution example annotation -->
+  <text class="ts" x="340" y="364" text-anchor="middle" style="fill:var(--text-muted)">resolve("Item", S3): check D(S3)→miss, D(S2)→miss, D(S1)→miss, D(S0)→miss, E_I(java.util)→miss, external stub</text>
+</svg>
+</div>
+
+<div id="hierarchy" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Type hierarchy DAG H = (V_type, E^TH). Click any node or edge to see its SymbolRecord kind and edge type in the CSR.</div>
+<svg width="100%" viewBox="0 0 680 360" role="img">
+  <title>Type hierarchy DAG showing inheritance and interface implementation for Order, OrderService, Persistable, and Auditable</title>
+  <desc>Shows TH_EXTENDS edge from Order to BaseEntity, TH_IMPLEMENTS edges from Order to Persistable and Auditable, and TH_USES edge from OrderService to Order</desc>
+  <defs>
+    <marker id="arr3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- BaseEntity (abstract class - top) -->
+  <g class="c-gray node" onclick="sendPrompt('What SymbolRecord fields distinguish an abstract class like BaseEntity in Phase 3?')">
+    <rect x="245" y="20" width="180" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="335" y="38" text-anchor="middle" dominant-baseline="central">BaseEntity</text>
+    <text class="ts" x="335" y="56" text-anchor="middle" dominant-baseline="central">SK_CLASS, abstract, mod=ABSTRACT</text>
+  </g>
+
+  <!-- Persistable interface -->
+  <g class="c-purple node" onclick="sendPrompt('How is SK_INTERFACE encoded differently from SK_CLASS in the SymbolRecord?')">
+    <rect x="60" y="20" width="160" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="140" y="38" text-anchor="middle" dominant-baseline="central">Persistable</text>
+    <text class="ts" x="140" y="56" text-anchor="middle" dominant-baseline="central">SK_INTERFACE</text>
+  </g>
+
+  <!-- Auditable interface -->
+  <g class="c-purple node" onclick="sendPrompt('How are TH_IMPLEMENTS edges stored in the type hierarchy CSR?')">
+    <rect x="450" y="20" width="160" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="530" y="38" text-anchor="middle" dominant-baseline="central">Auditable</text>
+    <text class="ts" x="530" y="56" text-anchor="middle" dominant-baseline="central">SK_INTERFACE</text>
+  </g>
+
+  <!-- Order class (middle) -->
+  <g class="c-teal node" onclick="sendPrompt('How does Phase 3 extract extends and implements relationships from the Order class declaration in the BP AST?')">
+    <rect x="225" y="150" width="220" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="335" y="168" text-anchor="middle" dominant-baseline="central">Order</text>
+    <text class="ts" x="335" y="186" text-anchor="middle" dominant-baseline="central">SK_CLASS, extends BaseEntity</text>
+  </g>
+
+  <!-- OrderService class (right) -->
+  <g class="c-teal node" onclick="sendPrompt('What TH_USES edges does OrderService generate and how are they detected?')">
+    <rect x="480" y="150" width="160" height="50" rx="6" stroke-width="0.5"/>
+    <text class="th" x="560" y="168" text-anchor="middle" dominant-baseline="central">OrderService</text>
+    <text class="ts" x="560" y="186" text-anchor="middle" dominant-baseline="central">SK_CLASS</text>
+  </g>
+
+  <!-- TH_EXTENDS: Order → BaseEntity -->
+  <line x1="335" y1="150" x2="335" y2="72" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr3)"/>
+  <text class="ts" x="350" y="116" style="fill:#085041">TH_EXTENDS</text>
+
+  <!-- TH_IMPLEMENTS: Order → Persistable -->
+  <path d="M250 160 L140 72" fill="none" stroke="#7F77DD" stroke-width="1" stroke-dasharray="5 3" marker-end="url(#arr3)"/>
+  <text class="ts" x="155" y="122" style="fill:#534AB7">TH_IMPLEMENTS</text>
+
+  <!-- TH_IMPLEMENTS: Order → Auditable -->
+  <path d="M420 160 L530 72" fill="none" stroke="#7F77DD" stroke-width="1" stroke-dasharray="5 3" marker-end="url(#arr3)"/>
+  <text class="ts" x="468" y="118" style="fill:#534AB7">TH_IMPLEMENTS</text>
+
+  <!-- TH_USES: OrderService → Order -->
+  <line x1="480" y1="175" x2="447" y2="175" stroke="#BA7517" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr3)"/>
+  <text class="ts" x="453" y="165" style="fill:#633806">TH_USES</text>
+
+  <!-- CSR Representation annotation -->
+  <rect x="40" y="270" width="590" height="72" rx="6" fill="var(--surface-1)" stroke="0.5px solid var(--border)" stroke-width="0.5"/>
+  <text class="th" x="60" y="292" dominant-baseline="central">CSR encoding of E^TH (outgoing edges from Order, symbol_id=42)</text>
+  <text class="ts" x="60" y="312" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">offsets[42]=0, offsets[43]=3 → Order has 3 outgoing edges at adj[0..2]</text>
+  <text class="ts" x="60" y="330" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">adj[0]=BaseEntity_id, adj[1]=Persistable_id, adj[2]=Auditable_id</text>
+  <text class="ts" x="60" y="348" dominant-baseline="central" style="font-family:var(--font-mono,monospace)">etype (wavelet tree): [TH_EXTENDS, TH_IMPLEMENTS, TH_IMPLEMENTS]</text>
+</svg>
+</div>
+
+<div id="assoc" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">UML association detection from field analysis. Click any association kind to see the detection heuristic.</div>
+<svg width="100%" viewBox="0 0 680 400" role="img">
+  <title>UML association detection showing four association kinds based on field analysis</title>
+  <desc>Shows DEPENDENCY, ASSOCIATION, AGGREGATION, and COMPOSITION detected from field declarations</desc>
+  <defs>
+    <marker id="arr4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Source class: OrderService -->
+  <g class="c-teal">
+    <rect x="40" y="60" width="220" height="240" rx="8" stroke-width="0.5"/>
+    <text class="th" x="150" y="82" text-anchor="middle" dominant-baseline="central">OrderService</text>
+    <rect x="40" y="95" width="220" height="0.5" fill="none" stroke="#0F6E56" stroke-width="0.5"/>
+    <text class="ts" x="60" y="118" dominant-baseline="central">-repo: OrderRepository</text>
+    <text class="ts" x="60" y="138" dominant-baseline="central">-items: List&lt;Item&gt;</text>
+    <text class="ts" x="60" y="158" dominant-baseline="central">-validator: Validator</text>
+    <rect x="40" y="168" width="220" height="0.5" fill="none" stroke="#0F6E56" stroke-width="0.5"/>
+    <text class="ts" x="60" y="188" dominant-baseline="central">+processOrder(payment:IPayment)</text>
+    <text class="ts" x="60" y="208" dominant-baseline="central">+validate(order:Order): bool</text>
+    <text class="ts" x="60" y="228" dominant-baseline="central">+findById(id:long): Order</text>
+  </g>
+
+  <!-- Target: OrderRepository (COMPOSITION - filled diamond) -->
+  <g class="c-coral node" onclick="sendPrompt('How does Phase 3 detect COMPOSITION: what conditions must hold for the repo field?')">
+    <rect x="460" y="30" width="180" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="550" y="48" text-anchor="middle" dominant-baseline="central">OrderRepository</text>
+  </g>
+  <line x1="260" y1="118" x2="458" y2="48" stroke="#D85A30" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <polygon points="245,118 255,112 265,118 255,124" fill="#D85A30"/>
+  <text class="ts" x="360" y="70" text-anchor="middle" style="fill:#712B13">COMPOSITION</text>
+  <text class="ts" x="360" y="84" text-anchor="middle" style="fill:#993C1D">field is @Nonnull, final,</text>
+  <text class="ts" x="360" y="98" text-anchor="middle" style="fill:#993C1D">created in constructor</text>
+
+  <!-- Target: Item (AGGREGATION - hollow diamond) -->
+  <g class="c-amber node" onclick="sendPrompt('How does Phase 3 detect AGGREGATION from a List field type?')">
+    <rect x="460" y="120" width="180" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="550" y="138" text-anchor="middle" dominant-baseline="central">Item</text>
+  </g>
+  <line x1="260" y1="138" x2="458" y2="138" stroke="#BA7517" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <polygon points="245,138 255,132 265,138 255,144" fill="none" stroke="#BA7517" stroke-width="1.5"/>
+  <text class="ts" x="360" y="132" text-anchor="middle" style="fill:#633806">AGGREGATION  0..*</text>
+  <text class="ts" x="360" y="148" text-anchor="middle" style="fill:#854F0B">field type is List&lt;T&gt;</text>
+
+  <!-- Target: Validator (ASSOCIATION - plain) -->
+  <g class="c-gray node" onclick="sendPrompt('What distinguishes plain ASSOCIATION from AGGREGATION in Phase 3 detection?')">
+    <rect x="460" y="210" width="180" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="550" y="228" text-anchor="middle" dominant-baseline="central">Validator</text>
+  </g>
+  <line x1="260" y1="158" x2="458" y2="228" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <text class="ts" x="360" y="210" text-anchor="middle" style="fill:var(--text-secondary)">ASSOCIATION</text>
+  <text class="ts" x="360" y="224" text-anchor="middle" style="fill:var(--text-muted)">field of class type,</text>
+  <text class="ts" x="360" y="238" text-anchor="middle" style="fill:var(--text-muted)">no collection, not owned</text>
+
+  <!-- Target: IPayment (DEPENDENCY - method param, dashed) -->
+  <g class="c-gray node" onclick="sendPrompt('How does Phase 3 detect DEPENDENCY from method parameters rather than fields?')">
+    <rect x="460" y="300" width="180" height="36" rx="6" stroke-width="0.5"/>
+    <text class="th" x="550" y="318" text-anchor="middle" dominant-baseline="central">IPayment</text>
+  </g>
+  <path d="M260 188 L550 298" fill="none" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="5 3" marker-end="url(#arr4)"/>
+  <text class="ts" x="420" y="266" text-anchor="middle" style="fill:var(--text-muted)">DEPENDENCY (dashed)</text>
+  <text class="ts" x="420" y="280" text-anchor="middle" style="fill:var(--text-muted)">method parameter only</text>
+
+  <!-- Legend -->
+  <polygon points="50,372 60,366 70,372 60,378" fill="#D85A30"/>
+  <text class="ts" x="76" y="372" dominant-baseline="central" style="fill:var(--text-secondary)">COMPOSITION  </text>
+  <polygon points="175,372 185,366 195,372 185,378" fill="none" stroke="#BA7517" stroke-width="1.5"/>
+  <text class="ts" x="200" y="372" dominant-baseline="central" style="fill:var(--text-secondary)">AGGREGATION  </text>
+  <line x1="310" y1="372" x2="340" y2="372" stroke="var(--border-strong)" stroke-width="1.5"/>
+  <text class="ts" x="346" y="372" dominant-baseline="central" style="fill:var(--text-secondary)">ASSOCIATION  </text>
+  <line x1="450" y1="372" x2="480" y2="372" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="4 2"/>
+  <text class="ts" x="486" y="372" dominant-baseline="central" style="fill:var(--text-secondary)">DEPENDENCY</text>
+</svg>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">SymbolTableArtifact (.sta) binary sections — click any section to learn more (n=50K symbols, 2K classes)</div>
+<div class="art-row"><div class="art-label">Header</div><div class="art-body" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What integrity checks are in the STA header and how does bpa_hash create the artifact chain?')"><span>magic, counts, bpa_hash + tca_hash chain</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-label">Symbol table</div><div class="art-body" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('Explain the 64-byte SymbolRecord layout in Phase 3 — every field and its purpose')"><span>SymbolRecord[n_sym] — 64 B each, dense array indexed by symbol_id, O(1)</span><span class="art-sz">3.2 MB</span></div></div>
+<div class="art-row"><div class="art-label">Name index</div><div class="art-body" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is the Phase 3 name index structured for O(log n) simple-name to symbol_id lookup?')"><span>Sorted (name_id, sym_id) pairs — binary search by simple name</span><span class="art-sz">400 KB</span></div></div>
+<div class="art-row"><div class="art-label">Scope graph</div><div class="art-body" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How is the scope graph stored in the STA binary — ScopeRecord layout and edge encoding?')"><span>ScopeRecord[n_scope] + CSR parent edges E_p + import edge table E_I</span><span class="art-sz">1.2 MB</span></div></div>
+<div class="art-row"><div class="art-label">Type hierarchy</div><div class="art-body" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How is the type hierarchy DAG stored as CSR with wavelet-tree edge labels in Phase 3?')"><span>CSR offsets[]+adj[] + wavelet tree for Σ_TH edge types {EXTENDS,IMPLEMENTS,USES}</span><span class="art-sz">80 KB</span></div></div>
+<div class="art-row"><div class="art-label">Qual name table</div><div class="art-body" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('Why does Phase 3 need a separate QualifiedNameTable separate from the TCA StringInternTable?')"><span>FNV-1a hash table + UTF-8 storage for constructed FQNs not in TCA</span><span class="art-sz">450 KB</span></div></div>
+<div class="art-row"><div class="art-label">UML metadata</div><div class="art-body" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('What is stored in the UML metadata section and which diagram types does it enable?')"><span>UMLMeta per symbol + UMLAssociationRecord[] — drives all 7 structural UML diagrams</span><span class="art-sz">2.5 MB</span></div></div>
+<div class="art-row"><div class="art-label">Annotation table</div><div class="art-body" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('How are Java annotations stored in the Phase 3 annotation table?')"><span>Per-symbol annotation records (annotation symbol_id + argument values)</span><span class="art-sz">240 KB</span></div></div>
+<div class="art-row"><div class="art-label">Checksum</div><div class="art-body" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What checksum is used for the STA file and how does it chain to TCA and BPA?')"><span>CRC-64/ECMA of all preceding sections</span><span class="art-sz">8 B</span></div></div>
+<div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:4px">Total: ≈ 9.1 MB uncompressed · ≈ 3–4 MB LZ4-compressed</div>
+</div>
+
+<div id="complexity" class="panel">
+<table class="comp-table">
+  <thead><tr><th>Pass</th><th>Operation</th><th>Complexity</th><th>Dominant?</th></tr></thead>
+  <tbody>
+    <tr><td>Pass 1</td><td>Declaration discovery DFS</td><td class="good">O(n_ast)</td><td>O(1) BP nav per node</td></tr>
+    <tr><td>Pass 2</td><td>Import map construction</td><td class="good">O(n_import)</td><td>n_import ≤ 50 per file</td></tr>
+    <tr><td>Pass 3</td><td>Type reference resolution</td><td class="good">O(n_ref × D)</td><td>D ≤ 10 (import depth)</td></tr>
+    <tr><td>Pass 4</td><td>Member type assignment</td><td class="good">O(n_sym)</td><td>Trivial; uses Pass 3 map</td></tr>
+    <tr><td>Pass 5</td><td>TH CSR + wavelet tree</td><td class="good">O(n_edges × log σ)</td><td>σ=4, log 4=2 bits</td></tr>
+    <tr><td>Pass 5</td><td>UML association detection</td><td class="good">O(n_fields × n_ctor)</td><td>n_ctor ≤ 5 typically</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px;background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-success)">
+  <strong>Phase 3 total: O(n_ast)</strong> — all passes are linear in AST node count with small constants. Dominant term: Pass 3 at O(10 × n_ref) ≤ O(10 × n_ast). For n_ast=1M: ≈ 10M scope resolution lookups at ~5ns each ≈ 50ms.
+</div>
+<div style="margin-top:10px">
+<table class="comp-table">
+  <thead><tr><th>Structure</th><th>Size (50K symbols)</th><th>Access time</th></tr></thead>
+  <tbody>
+    <tr><td>Symbol table (array)</td><td class="good">3.2 MB</td><td class="good">O(1) by symbol_id</td></tr>
+    <tr><td>Name index (sorted)</td><td class="good">400 KB</td><td class="good">O(log n) by name</td></tr>
+    <tr><td>Scope graph (CSR)</td><td class="good">1.2 MB</td><td class="good">O(scope_depth) resolve</td></tr>
+    <tr><td>Type hierarchy (CSR+WT)</td><td class="good">80 KB</td><td class="good">O(1) neighbor list</td></tr>
+    <tr><td>TypeRefResolutions (transient)</td><td class="warn">8 MB peak</td><td>Freed after Pass 4</td></tr>
+    <tr><td>Peak RAM (build time)</td><td class="warn">≈ 15 MB</td><td>Including transient maps</td></tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function setInfo(id, title, detail){
+  const el=document.getElementById('info-'+id);
+  if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+}
+</script>

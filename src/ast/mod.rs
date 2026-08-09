@@ -20,7 +20,7 @@ use crate::ingestion::adapter::registry::AdapterRegistry as Phase1Registry;
 use crate::ingestion::parser::tree_sitter::TreeSitterParser;
 use crate::ingestion::parser::CSTParser;
 use adapter::registry::ASTAdapterRegistry;
-use builder::{BPASTArtifact, BPASTBuilder};
+pub use builder::{BPASTArtifact, BPASTBuilder};
 use reducer::reduce_and_encode;
 use serializer::BPASTSerializer;
 
@@ -43,30 +43,60 @@ impl ASTStage {
         }
 
         let tca_hash = crc64_ecma(tca_bytes);
-        let phase1_registry = Phase1Registry::new();
+        let _phase1_registry = Phase1Registry::new();
         let ast_registry = ASTAdapterRegistry::new();
         let mut parser = TreeSitterParser::new()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-        // Extract File Registry and Token Table from TCA
-        let file_count = u16::from_le_bytes(tca_bytes[20..22].try_into().unwrap()) as usize;
+        // Header: token_count at offset 12..16, file_count at offset 16..18
+        let token_count = u32::from_le_bytes(tca_bytes[12..16].try_into().unwrap()) as usize;
+        let file_count = u16::from_le_bytes(tca_bytes[16..18].try_into().unwrap()) as usize;
         let mut offset = TCA_HEADER_SIZE;
 
-        // Parse Source File Records
-        let mut source_paths = Vec::with_capacity(file_count);
-        for file_idx in 0..file_count {
+        // Parse Source File Records (Section 2)
+        let mut file_recs = Vec::with_capacity(file_count);
+        for _ in 0..file_count {
+            if offset + 64 > tca_bytes.len() {
+                break;
+            }
             let file_id = u16::from_le_bytes(tca_bytes[offset..offset + 2].try_into().unwrap());
             let lang_id = tca_bytes[offset + 2].into();
-            offset += 64; // skip SourceFileRecord
+            let path_str_offset =
+                u32::from_le_bytes(tca_bytes[offset + 36..offset + 40].try_into().unwrap())
+                    as usize;
+            file_recs.push((file_id, lang_id, path_str_offset));
+            offset += 64;
+        }
 
-            if let Some(_adapter) = phase1_registry.get(lang_id) {
-                let path_str = format!("sample_{}.java", file_idx);
-                source_paths.push((file_id, lang_id, path_str));
+        // Parse File Paths (Section 3)
+        let paths_start = offset;
+        let mut source_paths = Vec::with_capacity(file_count);
+        let mut paths_end = paths_start;
+
+        for (file_id, lang_id, path_off) in file_recs {
+            let p_offset = paths_start + path_off;
+            if p_offset + 2 <= tca_bytes.len() {
+                let len = u16::from_le_bytes(tca_bytes[p_offset..p_offset + 2].try_into().unwrap())
+                    as usize;
+                if p_offset + 2 + len <= tca_bytes.len() {
+                    if let Ok(path_str) =
+                        std::str::from_utf8(&tca_bytes[p_offset + 2..p_offset + 2 + len])
+                    {
+                        source_paths.push((file_id, lang_id, path_str.to_string()));
+                        paths_end = paths_end.max(p_offset + 2 + len);
+                    }
+                }
             }
         }
 
-        // Extract Sorted Token Table
-        let token_count = u32::from_le_bytes(tca_bytes[16..20].try_into().unwrap()) as usize;
+        // Align offset to 8 bytes for Token Table
+        let remainder = paths_end % 8;
+        if remainder != 0 {
+            paths_end += 8 - remainder;
+        }
+        offset = paths_end;
+
+        // Extract Sorted Token Table (Section 4)
         let mut tok_table = Vec::with_capacity(token_count);
         for _ in 0..token_count {
             if offset + 16 <= tca_bytes.len() {
