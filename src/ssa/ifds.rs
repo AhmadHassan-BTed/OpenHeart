@@ -40,6 +40,13 @@ impl IFDSAnalyzer {
         nullable_sparse.sort_unstable();
         type_state_sparse.sort_unstable();
 
+        crate::core::logger::log_trace(&format!(
+            "IFDS Analyses complete: {} taint facts, {} nullable variables, {} type-state facts",
+            taint_sparse.len(),
+            nullable_sparse.len(),
+            type_state_sparse.len()
+        ));
+
         IFDSResults {
             taint_sparse,
             nullable_sparse,

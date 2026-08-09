@@ -85,6 +85,13 @@ pub fn rename_function(
         def_offsets.push(use_adj.len() as u32);
     }
 
+    crate::core::logger::log_trace(&format!(
+        "Variable Renaming complete: generated {} SSA records, {} Phi records, {} total uses in DefUseCSR",
+        ssa_records.len(),
+        phi_records.len(),
+        use_adj.len()
+    ));
+
     RenamingResult {
         ssa_records,
         phi_records,

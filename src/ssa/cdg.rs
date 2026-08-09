@@ -69,6 +69,12 @@ impl CDGBuilder {
             cd_offsets.push(cd_adj.len() as u32);
         }
 
+        crate::core::logger::log_trace(&format!(
+            "CDG Construction complete: constructed {} control dependence edges across {} basic blocks",
+            cd_adj.len(),
+            n
+        ));
+
         (
             ipdom,
             CDGCSR {

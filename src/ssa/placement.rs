@@ -60,6 +60,12 @@ pub fn place_phi_functions(
         }
     }
 
+    crate::core::logger::log_trace(&format!(
+        "Cytron's Phi-Placement complete: placed {} φ-functions across {} variables",
+        pending_phis.len(),
+        var_defsites.len()
+    ));
+
     (pending_phis, block_phi_map)
 }
 

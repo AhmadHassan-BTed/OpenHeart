@@ -99,6 +99,12 @@ impl LivenessAnalysis {
             }
         }
 
+        let total_live_in: usize = live_in.values().map(|s| s.len()).sum();
+        crate::core::logger::log_trace(&format!(
+            "Liveness Analysis converged in {} iterations ({} live-in entries across {} blocks)",
+            iter_count, total_live_in, block_count
+        ));
+
         LivenessResult { live_in, live_out }
     }
 }
