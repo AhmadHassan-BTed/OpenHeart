@@ -14,6 +14,10 @@
 <br/>
 
 <p align="center">
+  <img src="docs/assets/web_preview.webp" alt="OpenHeart Live Web Studio Studio Preview" width="100%" />
+</p>
+
+<p align="center">
   <img src="docs/assets/scpg_overview.svg" alt="OpenHeart SCPG Architecture" width="100%" />
 </p>
 
