@@ -8,6 +8,8 @@ use openheart::core::io::mmap::MemoryMappedFile;
 use openheart::core::logger::{init_logger_from_env, log_info, set_log_level, LogLevel};
 use openheart::ingestion::manifest::SourceManifest;
 use openheart::ingestion::IngestionStage;
+use openheart::ssa::serializer::SSASerializer;
+use openheart::ssa::Phase5Stage;
 use openheart::symbol::serializer::SymbolTableArtifact;
 use openheart::symbol::Phase3Stage;
 use std::env;
@@ -29,14 +31,15 @@ USAGE:
 SUBCOMMANDS:
     analyze <SOURCE_PATH> [OUTPUT_DIR] [--verbose | --debug | --trace]
         Recursively scans <SOURCE_PATH> for .java source files and executes
-        the complete 4-phase static analysis pipeline with structured logging:
+        the complete 5-phase static analysis pipeline with structured logging:
           • Phase 1: Lexical Ingestion          ─► corpus.tca
           • Phase 2: CST Reduction & BP AST     ─► ast.bpa
           • Phase 3: Symbol Table & Hierarchy   ─► symbols.sta
           • Phase 4: Control Flow & Dominators  ─► cfg.cfa
+          • Phase 5: SSA Form & Data Flow Graph ─► ssa.ssa
 
     inspect <ARTIFACT_PATH>
-        Inspects and validates the CRC-64 integrity of a binary artifact (.tca, .bpa, .sta, .cfa).
+        Inspects and validates the CRC-64 integrity of a binary artifact (.tca, .bpa, .sta, .cfa, .ssa).
 
     help
         Prints this usage guide.
@@ -47,7 +50,7 @@ FLAGS:
 
 EXAMPLES:
     openheart analyze ./src/main/java ./out --debug
-    openheart inspect ./out/symbols.sta
+    openheart inspect ./out/ssa.ssa
 ================================================================================
 "#
     );
@@ -114,6 +117,7 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     let bpa_path = out_dir.join("ast.bpa");
     let sta_path = out_dir.join("symbols.sta");
     let cfa_path = out_dir.join("cfg.cfa");
+    let ssa_path = out_dir.join("ssa.ssa");
 
     // ── PHASE 1: Lexical Ingestion ──
     let manifest = SourceManifest::new(java_files.clone());
@@ -145,21 +149,34 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         &cfa_path,
     )
     .map_err(|e| format!("Phase 4 CFG Construction failed: {}", e))?;
+    let cfa_bytes = fs::read(&cfa_path).map_err(|e| format!("Failed to read .cfa file: {}", e))?;
+
+    // ── PHASE 5: SSA Conversion & Data Flow Graph Construction ──
+    let ssa_artifact = Phase5Stage::run(
+        &bpa_artifact,
+        &sta_artifact,
+        &cfa_artifact,
+        &cfa_bytes,
+        &ssa_path,
+    )
+    .map_err(|e| format!("Phase 5 SSA Conversion failed: {}", e))?;
 
     log_info("================================================================================");
     log_info(&format!(
-        " SUCCESS: Complete 4-Phase Static Analysis finished in {:.2?} | Output: {}",
+        " SUCCESS: Complete 5-Phase Static Analysis finished in {:.2?} | Output: {}",
         start_time.elapsed(),
         out_dir.display()
     ));
     log_info(&format!(
-        " Summary: {} tokens, {} AST nodes, {} symbols, {} functions, {} blocks, {} CFG edges.",
+        " Summary: {} tokens, {} AST nodes, {} symbols, {} functions, {} blocks, {} CFG edges, {} SSA vars, {} φ-funcs.",
         tca_artifact.token_records.len(),
         bpa_artifact.node_count,
         sta_artifact.symbol_count,
         cfa_artifact.function_count,
         cfa_artifact.total_blocks,
-        cfa_artifact.total_edges
+        cfa_artifact.total_edges,
+        ssa_artifact.total_ssa_vars,
+        ssa_artifact.total_phi_funcs
     ));
     log_info("================================================================================");
 
@@ -175,6 +192,17 @@ fn cmd_inspect(artifact_path_str: &str) -> Result<(), String> {
     let bytes = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
     log_info(&format!("Inspecting artifact: {}", path.display()));
     log_info(&format!("File Size: {} bytes", bytes.len()));
+
+    if let Ok(ssa) = SSASerializer::read(path) {
+        log_info("Artifact Type  : Static Single Assignment (.ssa)");
+        log_info(&format!("Format Version : {}", ssa.format_version));
+        log_info(&format!("Function Count : {}", ssa.function_count));
+        log_info(&format!("Total SSA Vars : {}", ssa.total_ssa_vars));
+        log_info(&format!("Total Phi Funcs: {}", ssa.total_phi_funcs));
+        log_info(&format!("CFA Hash Link  : 0x{:016X}", ssa.cfa_hash));
+        log_info("CRC-64 Check   : VERIFIED VALID");
+        return Ok(());
+    }
 
     if let Ok(cfa) = CFGArtifact::deserialize(&bytes) {
         log_info("Artifact Type  : Control Flow Graph (.cfa)");

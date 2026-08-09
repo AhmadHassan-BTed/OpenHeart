@@ -1,0 +1,293 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:42px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.ct{border-collapse:collapse;width:100%;font-size:11px;margin-top:6px}
+.ct th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.ct td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border);font-family:var(--font-mono,monospace);font-size:10px}
+.ct td:first-child{color:var(--text-primary);font-weight:500}
+.good{color:var(--text-success)!important}
+.art-row{display:flex;gap:4px;margin-bottom:4px;align-items:center}
+.art-lbl{width:140px;font-size:11px;font-weight:500;flex-shrink:0;color:var(--text-primary)}
+.art-bar{flex:1;padding:4px 10px;border-radius:5px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between}
+.art-bar:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+</style>
+
+<h2 class="sr-only">Phase 5 SSA construction, def-use chains, CDG, and IFDS analysis for the max function</h2>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('ssa')">SSA construction</div>
+  <div class="tab" onclick="sw('rename')">Renaming trace</div>
+  <div class="tab" onclick="sw('defuse')">Def-use chains</div>
+  <div class="tab" onclick="sw('cdg')">CDG</div>
+  <div class="tab" onclick="sw('ifds')">IFDS analyses</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+</div>
+
+<div id="ssa" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">SSA construction for <code style="font-size:11px">int max(int a, int b)</code> — Phase A places φ, Phase B renames. Click any node.</div>
+<svg width="100%" viewBox="0 0 680 460" role="img">
+  <title>SSA form for max function showing phi-placement and version renaming across 5 blocks</title>
+  <desc>B0 ENTRY, B1 condition a>b, B2 result=a then branch, B3 result=b else branch, B4 phi join, B5 EXIT with SSA versions a^0 b^0 result^1 result^2 result^3</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- B0 ENTRY -->
+  <g class="c-gray node" onclick="si('B0 — function entry','Synthetic ENTRY block. Parameters a and b are assigned SSA versions a^0 and b^0 here. These are the initial SSA definitions pushed onto the version stacks S[a] and S[b] at the start of Phase B renaming.')">
+    <rect x="255" y="18" width="170" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="34" text-anchor="middle" dominant-baseline="central">B0 — ENTRY</text>
+    <text class="ts" x="340" y="50" text-anchor="middle" dominant-baseline="central">params: a^0, b^0</text>
+  </g>
+  <line x1="340" y1="62" x2="340" y2="82" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- B1 condition -->
+  <g class="c-teal node" onclick="si('B1 — condition block','Uses a^0 and b^0 (from stack tops). No definitions. Phase A: defsites(result)={B2,B3}; DF(B2)={B4}; DF(B3)={B4} → φ(result) inserted at B4.')">
+    <rect x="215" y="84" width="250" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="100" text-anchor="middle" dominant-baseline="central">B1 — a^0 &gt; b^0 ?</text>
+    <text class="ts" x="340" y="116" text-anchor="middle" dominant-baseline="central">no new definitions</text>
+  </g>
+
+  <path d="M270 128 L175 168" fill="none" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="206" y="155" style="fill:#085041">TRUE</text>
+  <path d="M410 128 L505 168" fill="none" stroke="#D85A30" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="458" y="155" style="fill:#712B13">FALSE</text>
+
+  <!-- B2 then branch -->
+  <g class="c-purple node" onclick="si('B2 — then branch','Defines result^1 = a^0. Phase B: use a^0 (top of S[a]); define result^1 — push result^1 onto S[result]. This version flows as the φ-argument when control comes from B2.')">
+    <rect x="80" y="170" width="190" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="175" y="186" text-anchor="middle" dominant-baseline="central">B2 — result^1 = a^0</text>
+    <text class="ts" x="175" y="202" text-anchor="middle" dominant-baseline="central">def: result^1</text>
+  </g>
+
+  <!-- B3 else branch -->
+  <g class="c-coral node" onclick="si('B3 — else branch','Defines result^2 = b^0. Phase B: use b^0 (top of S[b]); define result^2 — push result^2 onto S[result]. This version flows as the φ-argument when control comes from B3.')">
+    <rect x="410" y="170" width="190" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="505" y="186" text-anchor="middle" dominant-baseline="central">B3 — result^2 = b^0</text>
+    <text class="ts" x="505" y="202" text-anchor="middle" dominant-baseline="central">def: result^2</text>
+  </g>
+
+  <path d="M175 214 L250 268" fill="none" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+  <path d="M505 214 L430 268" fill="none" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- B4 join with phi -->
+  <g class="c-amber node" onclick="si('B4 — join block with φ-function','Phase A placed φ(result) here because DF(B2)={B4} and DF(B3)={B4}. Phase B assigns result^3 = φ(result^1, result^2): if control came from B2 → result^1; from B3 → result^2. result^3 is used in the return statement.')">
+    <rect x="185" y="270" width="310" height="52" rx="6" stroke-width="1.5" stroke="#BA7517"/>
+    <text class="th" x="340" y="287" text-anchor="middle" dominant-baseline="central">B4 — result^3 = φ(result^1, result^2)</text>
+    <text class="ts" x="340" y="307" text-anchor="middle" dominant-baseline="central">φ-function inserted by Phase A — def: result^3</text>
+  </g>
+
+  <line x1="340" y1="322" x2="340" y2="348" stroke="#888780" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- B5 return -->
+  <g class="c-teal node" onclick="si('B5 — return block','Uses result^3 (the φ-merged value). Top of S[result] is result^3 when processing this block. The return statement is renamed: return result^3.')">
+    <rect x="220" y="350" width="240" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="366" text-anchor="middle" dominant-baseline="central">B5 — return result^3</text>
+    <text class="ts" x="340" y="382" text-anchor="middle" dominant-baseline="central">use: result^3 → EXIT</text>
+  </g>
+
+  <!-- Key annotation -->
+  <rect x="50" y="415" width="570" height="32" rx="5" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="340" y="431" text-anchor="middle" dominant-baseline="central" style="fill:var(--text-accent)">φ placed at B4 because: DF(B2)={B4} and DF(B3)={B4} → both branches of the if-else converge here</text>
+</svg>
+<div id="info-ssa" class="info">Click any block to see its role in Cytron's two-pass SSA construction algorithm.</div>
+</div>
+
+<div id="rename" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Phase B renaming trace — version stacks S[v] evolve as the DFS descends the dominator tree (B0→B1→B2, backtrack→B3, backtrack→B4→B5)</div>
+<table class="ct">
+  <thead><tr><th>Block visited</th><th>Event</th><th>S[a]</th><th>S[b]</th><th>S[result]</th><th>SSA action</th></tr></thead>
+  <tbody>
+    <tr onclick="si('Enter B0','Parameters a and b define SSA versions a^0 and b^0. They are pushed onto their respective version stacks.')">
+      <td>B0 (enter)</td><td>param defs</td><td>[a^0]</td><td>[b^0]</td><td>[]</td><td>push a^0, b^0</td></tr>
+    <tr onclick="si('Enter B1','No definitions in B1. Uses a^0 = top(S[a]), b^0 = top(S[b]). Rename: condition uses a^0 > b^0.')">
+      <td>B1 (enter)</td><td>use a, b</td><td>[a^0]</td><td>[b^0]</td><td>[]</td><td>rename a→a^0, b→b^0</td></tr>
+    <tr onclick="si('Enter B2','Definition: result = a. fresh_ssa() allocates result^1. Push result^1. Rename: result^1 = a^0. Also fill φ-arg in B4: set φ.arg[B2] = result^1.')">
+      <td>B2 (enter)</td><td>def result</td><td>[a^0]</td><td>[b^0]</td><td>[result^1]</td><td>push result^1; φ.arg[B2]=result^1</td></tr>
+    <tr onclick="si('Leave B2 (restore)','Part 5 of rename(): pop result^1 off the stack. S[result] returns to [] because result^1 was pushed in B2 and B2 has no idom-children that see this scope.')">
+      <td>B2 (restore)</td><td>pop defs</td><td>[a^0]</td><td>[b^0]</td><td>[]</td><td>pop result^1</td></tr>
+    <tr onclick="si('Enter B3','Definition: result = b. fresh_ssa() allocates result^2. Push result^2. Rename: result^2 = b^0. Fill φ-arg in B4: set φ.arg[B3] = result^2.')">
+      <td>B3 (enter)</td><td>def result</td><td>[a^0]</td><td>[b^0]</td><td>[result^2]</td><td>push result^2; φ.arg[B3]=result^2</td></tr>
+    <tr onclick="si('Leave B3 (restore)','Pop result^2. S[result] returns to [].')">
+      <td>B3 (restore)</td><td>pop defs</td><td>[a^0]</td><td>[b^0]</td><td>[]</td><td>pop result^2</td></tr>
+    <tr onclick="si('Enter B4 — φ-function target','Part 1: process φ-function. fresh_ssa() allocates result^3. Push result^3. The φ record now reads: result^3 = φ(result^1 from B2, result^2 from B3). This is the final SSA form.')">
+      <td>B4 (enter φ)</td><td>φ target</td><td>[a^0]</td><td>[b^0]</td><td>[result^3]</td><td>push result^3 (φ target)</td></tr>
+    <tr onclick="si('Enter B5','Use result. top(S[result]) = result^3. Rename: return result^3.')">
+      <td>B5 (enter)</td><td>use result</td><td>[a^0]</td><td>[b^0]</td><td>[result^3]</td><td>rename result→result^3</td></tr>
+  </tbody>
+</table>
+<div id="info-rename" class="info" style="margin-top:8px">Click any row to understand why the version stack has that value at that point in the DFS.</div>
+</div>
+
+<div id="defuse" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Def-use chains in SSA form — each SSA variable has exactly one def and O(uses). Stored as CSR: def_offsets[ssa_id] → use_adj range.</div>
+<svg width="100%" viewBox="0 0 680 320" role="img">
+  <title>Def-use chains for SSA variables a^0, b^0, result^1, result^2, result^3 in max function</title>
+  <desc>Shows definition sites and use arrows for each SSA variable: a^0 defined at param has two uses, b^0 same, result^1 and result^2 each used in phi, result^3 used in return</desc>
+  <defs>
+    <marker id="du" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- SSA variables column (left) -->
+  <text class="ts" x="110" y="24" text-anchor="middle" style="fill:var(--text-muted)">SSA variable</text>
+  <text class="ts" x="110" y="40" text-anchor="middle" style="fill:var(--text-muted)">def_site</text>
+  <text class="ts" x="420" y="24" text-anchor="middle" style="fill:var(--text-muted)">Uses (stmt pre-order indices)</text>
+
+  <g class="c-teal node" onclick="si('a^0 def-use','Defined at function entry (param). Used in: B1 condition (a^0 > b^0) and B2 assignment (result^1 = a^0). use_count=2. def_offsets[0]=0, def_offsets[1]=2 → use_adj[0..1].')">
+    <rect x="40" y="50" width="140" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="110" y="68" text-anchor="middle" dominant-baseline="central">a^0 — param</text>
+  </g>
+  <line x1="180" y1="68" x2="310" y2="68" stroke="#1D9E75" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#du)"/>
+  <line x1="180" y1="68" x2="310" y2="108" stroke="#1D9E75" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#du)"/>
+  <g class="c-gray"><rect x="310" y="50" width="220" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="420" y="68" text-anchor="middle" dominant-baseline="central">use in B1: a^0 &gt; b^0</text></g>
+  <g class="c-gray"><rect x="310" y="90" width="220" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="420" y="108" text-anchor="middle" dominant-baseline="central">use in B2: result^1 = a^0</text></g>
+
+  <g class="c-teal node" onclick="si('b^0 def-use','Defined at function entry (param). Used in: B1 condition and B3 assignment (result^2 = b^0). use_count=2.')">
+    <rect x="40" y="140" width="140" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="110" y="158" text-anchor="middle" dominant-baseline="central">b^0 — param</text>
+  </g>
+  <line x1="180" y1="158" x2="310" y2="158" stroke="#1D9E75" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#du)"/>
+  <line x1="180" y1="158" x2="310" y2="198" stroke="#1D9E75" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#du)"/>
+  <g class="c-gray"><rect x="310" y="140" width="220" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="420" y="158" text-anchor="middle" dominant-baseline="central">use in B1: a^0 &gt; b^0</text></g>
+  <g class="c-gray"><rect x="310" y="180" width="220" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="420" y="198" text-anchor="middle" dominant-baseline="central">use in B3: result^2 = b^0</text></g>
+
+  <g class="c-purple node" onclick="si('result^1 def-use','Defined in B2 (result^1 = a^0). Single use: as the φ-argument in B4 for the B2→B4 predecessor edge. def_stmt = pre-order index of result=a stmt.')">
+    <rect x="40" y="228" width="140" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="110" y="246" text-anchor="middle" dominant-baseline="central">result^1 — B2</text>
+  </g>
+  <line x1="180" y1="246" x2="310" y2="246" stroke="#534AB7" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#du)"/>
+  <g class="c-amber"><rect x="310" y="228" width="240" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="430" y="246" text-anchor="middle" dominant-baseline="central">φ-arg in B4: from B2 pred</text></g>
+
+  <g class="c-coral node" onclick="si('result^2 def-use','Defined in B3 (result^2 = b^0). Single use: as the φ-argument in B4 for the B3→B4 predecessor edge.')">
+    <rect x="40" y="276" width="140" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="110" y="294" text-anchor="middle" dominant-baseline="central">result^2 — B3</text>
+  </g>
+  <line x1="180" y1="294" x2="310" y2="294" stroke="#993C1D" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#du)"/>
+  <g class="c-amber"><rect x="310" y="276" width="240" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="430" y="294" text-anchor="middle" dominant-baseline="central">φ-arg in B4: from B3 pred</text></g>
+</svg>
+<div id="info-du" class="info">Click any variable row to see its def_site, use_count, and what the CSR lookup looks like.</div>
+</div>
+
+<div id="cdg" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Control Dependence Graph — CDG edge (X,Y) means Y's execution depends on branch X. Computed from the post-dominator tree by walking up from each CFG-edge's target.</div>
+<svg width="100%" viewBox="0 0 680 300" role="img">
+  <title>Control Dependence Graph for max function showing B2 and B3 control-dependent on B1</title>
+  <desc>CDG edges: B1 controls B2 (CD_TRUE) and B1 controls B3 (CD_FALSE). B4 and B5 have no CDG predecessors.</desc>
+  <defs>
+    <marker id="cd" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- B1 at top center -->
+  <g class="c-teal node" onclick="si('B1 — CDG source','B1 is the conditional branch a^0>b^0. It controls B2 and B3: there exist CFG edges B1→B2 (TRUE) and B1→B3 (FALSE). B2 post-dominates B2 but NOT B1; B3 post-dominates B3 but NOT B1. So both B2 and B3 are control-dependent on B1.')">
+    <rect x="255" y="20" width="170" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="42" text-anchor="middle" dominant-baseline="central">B1 — condition</text>
+  </g>
+
+  <!-- CDG edges -->
+  <path d="M290 64 L175 140" fill="none" stroke="#534AB7" stroke-width="1.5" marker-end="url(#cd)"/>
+  <text class="ts" x="214" y="106" style="fill:#534AB7">CD_TRUE</text>
+  <path d="M390 64 L505 140" fill="none" stroke="#993C1D" stroke-width="1.5" marker-end="url(#cd)"/>
+  <text class="ts" x="452" y="106" style="fill:#993C1D">CD_FALSE</text>
+
+  <!-- B2 -->
+  <g class="c-purple node" onclick="si('B2 — control-dependent on B1 (TRUE)','B2 executes only when B1 condition is TRUE. CDG encodes this as edge (B1, B2, CD_TRUE). Phase 9 uses this to annotate B2 with the guard condition a>b in UML activity diagrams.')">
+    <rect x="90" y="142" width="170" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="175" y="164" text-anchor="middle" dominant-baseline="central">B2 — then branch</text>
+  </g>
+
+  <!-- B3 -->
+  <g class="c-coral node" onclick="si('B3 — control-dependent on B1 (FALSE)','B3 executes only when B1 condition is FALSE. CDG edge (B1, B3, CD_FALSE). Guard in UML activity diagram: NOT(a>b) or equivalently a≤b.')">
+    <rect x="420" y="142" width="170" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="505" y="164" text-anchor="middle" dominant-baseline="central">B3 — else branch</text>
+  </g>
+
+  <!-- B4 and B5 - not control-dependent on B1 -->
+  <g class="c-gray node" onclick="si('B4 and B5 — not control-dependent on B1','B4 post-dominates B1 (every path from B1 to EXIT goes through B4). Therefore B4 is not control-dependent on B1 — it always executes. The φ-function at B4 merges values without conditionality.')">
+    <rect x="205" y="220" width="270" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="238" text-anchor="middle" dominant-baseline="central">B4, B5 — no CDG predecessors</text>
+    <text class="ts" x="340" y="254" text-anchor="middle" dominant-baseline="central">always execute → unconditional</text>
+  </g>
+
+  <text class="ts" x="340" y="290" text-anchor="middle" style="fill:var(--text-muted)">CDG is the dual of the dominator tree — computed from the post-dominator tree of the reversed CFG</text>
+</svg>
+<div id="info-cdg" class="info">Click any node to see the CDG derivation and how Phase 9 uses this to annotate UML activity diagram guards.</div>
+</div>
+
+<div id="ifds" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Three IFDS distributive analyses — all run on the exploded supergraph (N×D, E*). Polynomial time guaranteed by the distributivity property of flow functions.</div>
+<table class="ct">
+  <thead><tr><th>Analysis</th><th>Fact set D</th><th>Flow function (key rules)</th><th>Result stored as</th><th>Phase 9 use</th></tr></thead>
+  <tbody>
+    <tr onclick="si('Taint propagation','IFDS over SSA graph. Each taint source (annotated parameter, external API return value) is a fact. If an SSA variable is computed from a tainted operand, it becomes tainted by the same source. Sanitizer calls remove taint. Complexity O(|N|×|D|²) where |D|=n_sources.')">
+      <td>Taint</td>
+      <td>{taint_src_1,...,src_k}</td>
+      <td>result=f(tainted) → result tainted; sanitize(v) → clean</td>
+      <td>sparse (ssa_id,src) pairs</td>
+      <td>Sequence diagram — annotate message arrows with taint flow</td></tr>
+    <tr onclick="si('Nullable pointer analysis','Tracks which SSA variables may hold null. Starting from @Nullable params and null literals. Assignment propagates nullability. Null-check guards (v != null) remove nullability on the true branch. O(|N|×|vars|²) per function.')">
+      <td>Nullable</td>
+      <td>{v^i : v^i may be null}</td>
+      <td>v=null → add v^i; v=new T() → remove; null-check → remove on TRUE branch</td>
+      <td>sparse ssa_id list</td>
+      <td>Activity diagram — annotate null-check decision nodes</td></tr>
+    <tr onclick="si('Type-state analysis','Each class has a finite automaton of valid states (e.g. InputStream: CLOSED→OPEN→ERROR). Tracks which state each object-typed SSA variable is in. Method calls transition states. Invalid transitions detected as bugs. States per class drive UML state machine diagram generation.')">
+      <td>Type-state</td>
+      <td>{(v^i, state_s)}</td>
+      <td>v.open() → (v,CLOSED)→(v,OPEN); v.read() on CLOSED → violation</td>
+      <td>sparse (ssa_id,state_id) pairs</td>
+      <td>State machine diagram — one per class automaton detected</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px;background:var(--bg-accent);border:0.5px solid var(--border-accent);border-radius:8px;padding:8px 14px;font-size:11px;color:var(--text-accent)">
+  Distributivity requirement: f(X ∪ Y) = f(X) ∪ f(Y). This holds for all three analyses because: taint of a union = union of taints; nullable of a union = union of nullable; type-states of a union = union of type-states. Distributivity enables path merging at join points in polynomial time via the Reps–Horwitz–Sagiv tabulation algorithm.
+</div>
+<div id="info-ifds" class="info" style="margin-top:8px">Click any analysis row to see why the distributivity property holds and what the complexity bound is.</div>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">SSAArtifact (.ssa) binary sections — 2M SSA vars, 900K φ-functions, 6M total uses</div>
+<div class="art-row"><div class="art-lbl">Header</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What integrity fields are in the SSA header and how does it chain to the CFA?')"><span>magic, n_ssa, n_phi, function_count, cfa_hash</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-lbl">Function dir.</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is the SSA function directory structured for O(log n) function lookup?')"><span>(sym_id, offset, n_ssa, n_phi) sorted by sym_id</span><span class="art-sz">300 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">SSA var table</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('Explain the SSARecord 16-byte layout and how def_stmt enables O(1) source location lookup?')"><span>SSARecord[2M] — 16 B each, ssa_id, orig_sym, def_stmt, version, flags</span><span class="art-sz">32 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">φ-function table</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How are phi-function records stored with variable-length argument lists in the SSA artifact?')"><span>PhiRecord[] — 12B header + 8B per arg — 2.2 args avg</span><span class="art-sz">26.6 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Def-use CSR</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How does the def-use CSR enable O(1) lookup of all uses of an SSA variable?')"><span>offsets[(2M+1)×u32] + use_adj[6M×u32] — O(1) use-list access</span><span class="art-sz">32 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">CDG CSR + WT</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is the CDG stored and what does Phase 9 use it for when generating UML activity diagrams?')"><span>offsets[]+adj[] + wavelet tree for CD_TRUE/CD_FALSE edge types</span><span class="art-sz">5.4 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">IFDS taint</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How are IFDS taint results stored as a sparse bitmap and how does Phase 9 query them?')"><span>Sorted (ssa_id, taint_src_id) pairs — ~2% density</span><span class="art-sz">3 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">IFDS nullable</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How are nullable analysis results stored and queried in the SSA artifact?')"><span>Sorted ssa_id list of may-null variables — ~5% density</span><span class="art-sz">2 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">IFDS type-state</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How are type-state analysis results stored and how do they drive state machine diagram generation?')"><span>Sorted (ssa_id, state_id) pairs per class automaton</span><span class="art-sz">4 MB</span></div></div>
+<div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:4px">Total: ≈ 105 MB uncompressed · ≈ 22–28 MB LZ4-compressed · memory-mapped for lazy page loading</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function si(title,detail){
+  ['ssa','rename','du','cdg','ifds'].forEach(id=>{
+    const el=document.getElementById('info-'+id);
+    if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+  });
+}
+</script>
