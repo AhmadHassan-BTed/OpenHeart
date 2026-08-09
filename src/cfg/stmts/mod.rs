@@ -44,6 +44,13 @@ pub fn dispatch_stmt(
         ASTNodeType::NN_THROW_STMT => build_throw(node, state, bpa, sta),
         ASTNodeType::NN_BREAK_STMT => build_break(node, state, bpa, sta),
         ASTNodeType::NN_CONTINUE_STMT => build_continue(node, state, bpa, sta),
+        ASTNodeType::NN_JAVA_LABELED_STMT => {
+            let label_node = bpa.first_child(node);
+            let inner_stmt = label_node.and_then(|l| bpa.next_sibling(l));
+            if let Some(inner) = inner_stmt {
+                dispatch_stmt(inner, state, bpa, sta);
+            }
+        }
         ASTNodeType::NN_BLOCK => {
             let mut child = bpa.first_child(node);
             while let Some(c) = child {

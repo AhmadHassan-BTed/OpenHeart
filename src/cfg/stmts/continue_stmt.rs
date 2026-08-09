@@ -1,4 +1,4 @@
-//! Continue Statement CFG builder algorithm.
+//! Continue Statement CFG builder algorithm (§4.5.3).
 
 use crate::ast::BPASTArtifact;
 use crate::cfg::builder::state::CFGBuilderState;
@@ -14,7 +14,21 @@ pub fn build_continue(
     state.add_stmt_to_current(node, bpa);
     let from = state.current_block;
 
-    if let Some(frame) = state.continue_stack.last().copied() {
+    let target_label = bpa.first_child(node);
+
+    let target_frame = if let Some(label_node) = target_label {
+        state
+            .continue_stack
+            .iter()
+            .rev()
+            .find(|f| f.label == Some(label_node))
+            .or_else(|| state.continue_stack.last())
+            .copied()
+    } else {
+        state.continue_stack.last().copied()
+    };
+
+    if let Some(frame) = target_frame {
         state.add_edge(from, frame.target, CFGEdgeType::LoopBack);
     }
 
