@@ -91,18 +91,24 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         ));
     }
 
-    log_info("================================================================================");
-    log_info(" OPENHEART STATIC ANALYSIS PIPELINE STARTING");
-    log_info(&format!(" Input Path  : {}", source_path.display()));
-    log_info(&format!(" Java Files  : {}", java_files.len()));
-    log_info("================================================================================");
-
     let out_dir = match out_dir_str {
         Some(d) => PathBuf::from(d),
         None => PathBuf::from("./openheart_output"),
     };
     fs::create_dir_all(&out_dir)
         .map_err(|e| format!("Failed to create output directory: {}", e))?;
+
+    let session_log_path = out_dir.join("openheart_session.log");
+    let persistent_log_path = out_dir.join("openheart_persistent.log");
+    openheart::core::logger::init_dual_logger(Some(&persistent_log_path), Some(&session_log_path));
+
+    log_info("================================================================================");
+    log_info(" OPENHEART STATIC ANALYSIS PIPELINE STARTING");
+    log_info(&format!(" Input Path  : {}", source_path.display()));
+    log_info(&format!(" Java Files  : {}", java_files.len()));
+    log_info(&format!(" Session Log : {}", session_log_path.display()));
+    log_info(&format!(" Persist Log : {}", persistent_log_path.display()));
+    log_info("================================================================================");
 
     let tca_path = out_dir.join("corpus.tca");
     let bpa_path = out_dir.join("ast.bpa");
