@@ -289,10 +289,6 @@ OpenHeart provides an interactive Web Portal Studio hosted on GitHub Pages:
 
 👉 **[Launch OpenHeart Web Studio Portal](https://ahmadhassan-bted.github.io/OpenHeart/)**
 
-<p align="center">
-  <img src="docs/assets/web_preview.webp" alt="OpenHeart Live Web Studio Preview" width="100%" />
-</p>
-
 Paste any public GitHub repository link (`https://github.com/owner/repo`) to select from all 14 UML diagram types and generate live interactive Mermaid diagrams.
 
 ### Developer Commands
