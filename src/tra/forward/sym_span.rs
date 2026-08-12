@@ -17,12 +17,15 @@ impl SymbolSpanIndex {
 
         for sym_id in 0..sta.symbol_records.len() {
             let entry = &bi_sym[sym_id];
-            if entry.decl_first_tok == u32::MAX || (entry.decl_first_tok as usize) >= tca.token_records.len() {
+            if entry.decl_first_tok == u32::MAX
+                || (entry.decl_first_tok as usize) >= tca.token_records.len()
+            {
                 continue;
             }
 
             let start_tok = &tca.token_records[entry.decl_first_tok as usize];
-            let end_tok = &tca.token_records[entry.decl_last_tok.min(tca.token_records.len() as u32 - 1) as usize];
+            let end_tok = &tca.token_records
+                [entry.decl_last_tok.min(tca.token_records.len() as u32 - 1) as usize];
 
             let (file_id, line_start, col_start) = unpack_sort_key(start_tok.sort_key);
             let (_, line_end, _) = unpack_sort_key(end_tok.sort_key);
@@ -49,7 +52,8 @@ impl SymbolSpanIndex {
         file_id: u16,
         records: &[SymbolSpanRecord],
     ) -> Vec<u32> {
-        let upper = records.partition_point(|r| (r.file_id, r.first_token_id) <= (file_id, token_id));
+        let upper =
+            records.partition_point(|r| (r.file_id, r.first_token_id) <= (file_id, token_id));
 
         let mut results = Vec::new();
         let mut i = upper;

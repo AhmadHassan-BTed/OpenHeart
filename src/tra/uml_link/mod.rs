@@ -36,11 +36,13 @@ impl UMLLinkRegistry {
         for (sym_id, sym) in sta.symbol_records.iter().enumerate() {
             if uml_kinds.contains(&sym.kind) {
                 let entry = &bi_sym[sym_id];
-                let (file_id, line_start, col_start, line_end, col_end) = if entry.decl_first_tok != u32::MAX
+                let (file_id, line_start, col_start, line_end, col_end) = if entry.decl_first_tok
+                    != u32::MAX
                     && (entry.decl_first_tok as usize) < tca.token_records.len()
                 {
                     let start_tok = &tca.token_records[entry.decl_first_tok as usize];
-                    let end_tok = &tca.token_records[entry.decl_last_tok.min(tca.token_records.len() as u32 - 1) as usize];
+                    let end_tok = &tca.token_records
+                        [entry.decl_last_tok.min(tca.token_records.len() as u32 - 1) as usize];
                     let (fid, ls, cs) = unpack_sort_key(start_tok.sort_key);
                     let (_, le, ce) = unpack_sort_key(end_tok.sort_key);
                     (fid, ls, cs, le, ce + end_tok.len as u16)

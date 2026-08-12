@@ -50,13 +50,15 @@ impl ActivityDiagramExtractor {
             let blk = &cfg.blocks[block_id as usize];
 
             let succs_len = if (block_id as usize) + 1 < cfg.succ_offsets.len() {
-                (cfg.succ_offsets[(block_id as usize) + 1] - cfg.succ_offsets[block_id as usize]) as usize
+                (cfg.succ_offsets[(block_id as usize) + 1] - cfg.succ_offsets[block_id as usize])
+                    as usize
             } else {
                 0
             };
 
             let preds_len = if (block_id as usize) + 1 < cfg.pred_offsets.len() {
-                (cfg.pred_offsets[(block_id as usize) + 1] - cfg.pred_offsets[block_id as usize]) as usize
+                (cfg.pred_offsets[(block_id as usize) + 1] - cfg.pred_offsets[block_id as usize])
+                    as usize
             } else {
                 0
             };
@@ -78,7 +80,11 @@ impl ActivityDiagramExtractor {
             let stmt_node = blk.stmts.first().copied().unwrap_or(u32::MAX);
 
             let _label_text = if blk.is_entry || blk.is_exit {
-                if blk.is_entry { "Initial".to_string() } else { "Final".to_string() }
+                if blk.is_entry {
+                    "Initial".to_string()
+                } else {
+                    "Final".to_string()
+                }
             } else {
                 LabelExtractor::extract_label(stmt_node, bpa, tca, sta, 30)
             };
@@ -98,7 +104,11 @@ impl ActivityDiagramExtractor {
 
         // Edge transformation (§9.2.2)
         for &(u, v, et) in &cfg.edges {
-            let is_back = if et == crate::core::types::cfg::CFGEdgeType::LoopBack { 1 } else { 0 };
+            let is_back = if et == crate::core::types::cfg::CFGEdgeType::LoopBack {
+                1
+            } else {
+                0
+            };
             edges.push(ActivityEdge {
                 from_node: u as u16,
                 to_node: v as u16,

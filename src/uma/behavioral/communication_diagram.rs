@@ -6,10 +6,7 @@ use crate::uma::types::SequenceDiagramRecord;
 pub struct CommunicationDiagramExtractor;
 
 impl CommunicationDiagramExtractor {
-    pub fn extract(
-        _sta: &SymbolTableArtifact,
-        _sequences: &[SequenceDiagramRecord],
-    ) {
+    pub fn extract(_sta: &SymbolTableArtifact, _sequences: &[SequenceDiagramRecord]) {
         // Shared data with SequenceDiagramRecord, rendered as collaboration graph
     }
 }

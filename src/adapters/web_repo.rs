@@ -108,8 +108,14 @@ impl WebRepoFetcher {
             .split('/')
             .collect();
 
-        let owner = parts[0].replace("..", "").replace('/', "").replace('\\', "");
-        let repo = parts[1].replace("..", "").replace('/', "").replace('\\', "");
+        let owner = parts[0]
+            .replace("..", "")
+            .replace('/', "")
+            .replace('\\', "");
+        let repo = parts[1]
+            .replace("..", "")
+            .replace('/', "")
+            .replace('\\', "");
 
         if owner.is_empty() || repo.is_empty() {
             return Err("Invalid owner or repository name".to_string());

@@ -267,7 +267,9 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         uma_artifact.design_patterns.len(),
         engine.scpg_hash(),
     ));
-    log_info(" SYSTEM PRODUCTION READY: All 10 phases complete. Full SCPG query engine bootstrapped.");
+    log_info(
+        " SYSTEM PRODUCTION READY: All 10 phases complete. Full SCPG query engine bootstrapped.",
+    );
     log_info("================================================================================");
 
     Ok(())
@@ -301,7 +303,10 @@ fn cmd_inspect(artifact_path_str: &str) -> Result<(), String> {
         match magic {
             openheart::ingestion::serializer::TCA_MAGIC => {
                 log_info("Artifact Type  : Token Corpus (.tca)");
-                log_info(&format!("Format Version : {}", openheart::ingestion::serializer::TCA_VERSION));
+                log_info(&format!(
+                    "Format Version : {}",
+                    openheart::ingestion::serializer::TCA_VERSION
+                ));
                 log_info(&format!("File Size      : {} bytes", bytes.len()));
                 log_info("CRC-64 Check   : VERIFIED VALID");
                 return Ok(());

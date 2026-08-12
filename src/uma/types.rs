@@ -3,8 +3,8 @@
 //! All binary record structures for the 14 UML diagram types, design pattern
 //! detection records, label text tables, and `UMLMetadataArtifact (.uma)`.
 
-use std::collections::HashMap;
 use crate::tra::types::UMLLinkRecord;
+use std::collections::HashMap;
 
 /// UMA binary file magic: `b"OPENHUMA"` as little-endian u64.
 pub const UMA_MAGIC: u64 = u64::from_le_bytes(*b"OPENHUMA");

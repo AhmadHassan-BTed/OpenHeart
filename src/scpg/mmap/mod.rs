@@ -52,10 +52,14 @@ impl MemoryMappedSCPG {
         let mut directory = Vec::with_capacity(section_count as usize);
         let mut dir_offset = SCPG_HEADER_SIZE;
         for _ in 0..section_count {
-            let section_type = u32::from_le_bytes(bytes[dir_offset..dir_offset + 4].try_into().unwrap());
-            let byte_offset = u64::from_le_bytes(bytes[dir_offset + 4..dir_offset + 12].try_into().unwrap());
-            let byte_length = u64::from_le_bytes(bytes[dir_offset + 12..dir_offset + 20].try_into().unwrap());
-            let crc = u32::from_le_bytes(bytes[dir_offset + 20..dir_offset + 24].try_into().unwrap());
+            let section_type =
+                u32::from_le_bytes(bytes[dir_offset..dir_offset + 4].try_into().unwrap());
+            let byte_offset =
+                u64::from_le_bytes(bytes[dir_offset + 4..dir_offset + 12].try_into().unwrap());
+            let byte_length =
+                u64::from_le_bytes(bytes[dir_offset + 12..dir_offset + 20].try_into().unwrap());
+            let crc =
+                u32::from_le_bytes(bytes[dir_offset + 20..dir_offset + 24].try_into().unwrap());
 
             directory.push(SectionDirectoryEntry {
                 section_type,
@@ -75,7 +79,10 @@ impl MemoryMappedSCPG {
     }
 
     pub fn get_section(&self, sec_type: SCPGSectionType) -> Option<&[u8]> {
-        let entry = self.directory.iter().find(|e| e.section_type == sec_type as u32)?;
+        let entry = self
+            .directory
+            .iter()
+            .find(|e| e.section_type == sec_type as u32)?;
         let start = entry.byte_offset as usize;
         let end = start + entry.byte_length as usize;
         if end <= self.bytes.len() {

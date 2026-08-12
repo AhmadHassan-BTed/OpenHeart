@@ -113,7 +113,9 @@ fn build_switch_constraint(
     }
 
     // at_least_one: ∨ xᵢ
-    let at_least_one = xs.iter().fold(bdd.false_id(), |acc, &x| bdd.apply(BoolOp::Or, acc, x));
+    let at_least_one = xs
+        .iter()
+        .fold(bdd.false_id(), |acc, &x| bdd.apply(BoolOp::Or, acc, x));
 
     // at_most_one: ∧ ¬(xᵢ ∧ xⱼ) for all i < j
     let mut at_most_one = bdd.true_id();

@@ -30,7 +30,13 @@ impl QueryEngine {
         }
     }
 
-    pub fn is_reachable(&mut self, source: u32, target: u32, cga: &CallGraphArtifact, scpg_hash: u32) -> bool {
+    pub fn is_reachable(
+        &mut self,
+        source: u32,
+        target: u32,
+        cga: &CallGraphArtifact,
+        scpg_hash: u32,
+    ) -> bool {
         let key = QueryKey {
             query_type: 0, // CFL
             params_crc: (source as u64) << 32 | (target as u64),

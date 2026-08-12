@@ -3,7 +3,11 @@
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
 
-pub fn is_factory(class_sym: u32, sta: &SymbolTableArtifact, tca: &TokenCorpusArtifact) -> (bool, u16) {
+pub fn is_factory(
+    class_sym: u32,
+    sta: &SymbolTableArtifact,
+    tca: &TokenCorpusArtifact,
+) -> (bool, u16) {
     let sym = match sta.symbol(class_sym) {
         Some(s) => s,
         None => return (false, 0),

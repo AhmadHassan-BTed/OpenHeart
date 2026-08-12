@@ -68,7 +68,12 @@ impl PathSummaryArtifactBuilder {
             let header = FunctionPSAHeader::from_robdd(&robdd);
             total_nodes += robdd.nodes.len() as u64;
 
-            let edge_seq: Vec<u32> = robdd.ordering.as_edge_slice().iter().map(|&e| e as u32).collect();
+            let edge_seq: Vec<u32> = robdd
+                .ordering
+                .as_edge_slice()
+                .iter()
+                .map(|&e| e as u32)
+                .collect();
             let m = PathMetrics::new(
                 robdd.cyclomatic,
                 robdd.max_path_len,

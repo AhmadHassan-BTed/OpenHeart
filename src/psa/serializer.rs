@@ -41,9 +41,9 @@
 //! 56-63: _reserved : u64   (must be zero)
 //! ```
 
+use std::fs;
 use std::io;
 use std::path::Path;
-use std::fs;
 
 use crate::psa::bdd::node::ROBDDNode;
 use crate::psa::metrics::PathMetrics;
@@ -77,11 +77,7 @@ impl PathSummarySerializer {
         let dir_size = n * DIR_ENTRY_SIZE;
 
         // Variable ordering: each function's ordering is n_vars × 4 bytes.
-        let ordering_size: usize = artifact
-            .ordering_tables
-            .iter()
-            .map(|t| t.len() * 4)
-            .sum();
+        let ordering_size: usize = artifact.ordering_tables.iter().map(|t| t.len() * 4).sum();
 
         // ROBDD node arrays: each node is 12 bytes.
         let node_array_size: usize = artifact
@@ -171,9 +167,7 @@ impl PathSummarySerializer {
 
         // ── Validate CRC-64 ───────────────────────────────────────────────────
         let data_end = bytes.len() - CHECKSUM_SIZE;
-        let stored_crc = u64::from_le_bytes(
-            bytes[data_end..data_end + 8].try_into().unwrap(),
-        );
+        let stored_crc = u64::from_le_bytes(bytes[data_end..data_end + 8].try_into().unwrap());
         let computed_crc = crc64_ecma(&bytes[..data_end]);
         if stored_crc != computed_crc {
             return Err(io::Error::new(

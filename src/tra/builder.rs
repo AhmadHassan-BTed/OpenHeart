@@ -10,7 +10,8 @@ use crate::ingestion::TokenCorpusArtifact;
 use crate::ssa::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::tra::backward::{
-    ASTBackwardIndex, BlockBackwardIndex, CallSiteBackwardIndex, SSABackwardIndex, SymbolBackwardIndex,
+    ASTBackwardIndex, BlockBackwardIndex, CallSiteBackwardIndex, SSABackwardIndex,
+    SymbolBackwardIndex,
 };
 use crate::tra::forward::{CallSiteSpanIndex, SymbolSpanIndex};
 use crate::tra::types::TraceabilityArtifact;
@@ -56,7 +57,11 @@ impl TraceabilityArtifactBuilder {
         artifact
     }
 
-    pub fn verify_invariants(tra: &TraceabilityArtifact, sta: &SymbolTableArtifact, tca: &TokenCorpusArtifact) {
+    pub fn verify_invariants(
+        tra: &TraceabilityArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) {
         // Invariant 1 (BI_blk Global Completeness): Every basic block has a valid entry
         for (i, entry) in tra.bi_blk.iter().enumerate() {
             assert!(
@@ -78,7 +83,8 @@ impl TraceabilityArtifactBuilder {
             SymbolKind::SK_FIELD as u8,
             SymbolKind::SK_ENUM_CONSTANT as u8,
         ];
-        let expected_uml_count = sta.symbol_records
+        let expected_uml_count = sta
+            .symbol_records
             .iter()
             .filter(|sym| uml_kinds.contains(&sym.kind))
             .count();
@@ -107,7 +113,9 @@ impl TraceabilityArtifactBuilder {
         let check_count = (total_syms / 20).max(1).min(total_syms);
         for s in 0..check_count {
             let entry = &tra.bi_sym[s];
-            if entry.decl_first_tok != u32::MAX && (entry.decl_first_tok as usize) < tca.token_records.len() {
+            if entry.decl_first_tok != u32::MAX
+                && (entry.decl_first_tok as usize) < tca.token_records.len()
+            {
                 let start_tok = &tca.token_records[entry.decl_first_tok as usize];
                 let (file_id, _, _) = unpack_sort_key(start_tok.sort_key);
                 let forward_res = SymbolSpanIndex::forward_sym_query(

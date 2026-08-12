@@ -1,14 +1,18 @@
 //! ImpactAnalyzer — impact set computation via call graph + symbol table (§10.5).
 
-use std::collections::HashSet;
 use crate::core::types::cg::CallGraphArtifact;
 use crate::symbol::SymbolTableArtifact;
+use std::collections::HashSet;
 
 pub struct ImpactAnalyzer;
 
 impl ImpactAnalyzer {
     /// Compute impact set of modifying `sym_id` (callers, overrides, and dependents).
-    pub fn impact_set(sym_id: u32, _sta: &SymbolTableArtifact, cga: &CallGraphArtifact) -> Vec<u32> {
+    pub fn impact_set(
+        sym_id: u32,
+        _sta: &SymbolTableArtifact,
+        cga: &CallGraphArtifact,
+    ) -> Vec<u32> {
         let mut impacted = HashSet::new();
         let mut work = vec![sym_id];
 

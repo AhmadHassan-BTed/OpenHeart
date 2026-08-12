@@ -50,10 +50,9 @@ impl Phase10Stage {
     ) -> OpenHeartEngine {
         log_info("══► Starting Stage: Phase 10: SCPG Unified Binary & Engine Bootstrap...");
 
-        let scpg_hash = SCPGSerializer::write(
-            tca, bpa, sta, cfa, ssa, cga, tra, uma, psa, out_path,
-        )
-        .expect("Phase 10: Failed to write unified .scpg binary file");
+        let scpg_hash =
+            SCPGSerializer::write(tca, bpa, sta, cfa, ssa, cga, tra, uma, psa, out_path)
+                .expect("Phase 10: Failed to write unified .scpg binary file");
 
         log_info(&format!(
             "  Phase 10: Merged all 9 artifacts into unified .scpg file (scpg_hash: 0x{:08X}).",

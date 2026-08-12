@@ -222,9 +222,7 @@ pub fn resolve_method_target(
 
     // 4. Token range enclosing match
     for sym in &sta.symbol_records {
-        if sym.kind == SymbolKind::SK_METHOD as u8
-            || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
-        {
+        if sym.kind == SymbolKind::SK_METHOD as u8 || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8 {
             if tok_id >= sym.first_token_id && tok_id <= sym.last_token_id {
                 return Some(sym.symbol_id);
             }

@@ -1,12 +1,12 @@
 //! SequenceDiagramExtractor — extracts SequenceDiagramRecord[] from CGA call sites (§9.2.4).
 
-use std::collections::{HashSet, HashMap};
 use crate::cfg::serializer::CFGArtifact;
 use crate::core::types::cg::CallGraphArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::tra::types::TraceabilityArtifact;
 use crate::uma::actor_identification::{ActorIdentifier, EXTERNAL_ACTOR_ID};
 use crate::uma::types::*;
+use std::collections::{HashMap, HashSet};
 
 pub struct SequenceDiagramExtractor;
 
@@ -42,25 +42,34 @@ impl SequenceDiagramExtractor {
         let mut ordinal = 0u16;
 
         // Actor lifeline for caller
-        lifelines_map.insert(EXTERNAL_ACTOR_ID, LifelineRecord {
-            sym_id: EXTERNAL_ACTOR_ID,
-            name_id: 0,
-            type_sym_id: EXTERNAL_ACTOR_ID,
-            is_actor: 1,
-            _pad: [0; 3],
-        });
+        lifelines_map.insert(
+            EXTERNAL_ACTOR_ID,
+            LifelineRecord {
+                sym_id: EXTERNAL_ACTOR_ID,
+                name_id: 0,
+                type_sym_id: EXTERNAL_ACTOR_ID,
+                is_actor: 1,
+                _pad: [0; 3],
+            },
+        );
 
         // Target method lifeline
         let entry_class = entry_sym_rec.parent_sym;
-        let entry_class_name = sta.symbol(entry_class).map(|s| s.name_id).unwrap_or(entry_class);
+        let entry_class_name = sta
+            .symbol(entry_class)
+            .map(|s| s.name_id)
+            .unwrap_or(entry_class);
 
-        lifelines_map.insert(entry_class, LifelineRecord {
-            sym_id: entry_class,
-            name_id: entry_class_name,
-            type_sym_id: entry_class,
-            is_actor: 0,
-            _pad: [0; 3],
-        });
+        lifelines_map.insert(
+            entry_class,
+            LifelineRecord {
+                sym_id: entry_class,
+                name_id: entry_class_name,
+                type_sym_id: entry_class,
+                is_actor: 0,
+                _pad: [0; 3],
+            },
+        );
 
         messages.push(MessageRecord {
             from_lifeline: EXTERNAL_ACTOR_ID,
@@ -83,24 +92,33 @@ impl SequenceDiagramExtractor {
                 continue;
             }
 
-            let caller_class = sta.symbol(caller_sym).map(|s| s.parent_sym).unwrap_or(caller_sym);
+            let caller_class = sta
+                .symbol(caller_sym)
+                .map(|s| s.parent_sym)
+                .unwrap_or(caller_sym);
 
             for site in &cga.call_sites {
                 if site.caller_sym == caller_sym {
                     for &(clr, callee_sym, site_id) in &cga.site_to_edge_map {
                         if clr == caller_sym && site_id == site.call_site_id {
-                            let callee_class = sta.symbol(callee_sym).map(|s| s.parent_sym).unwrap_or(callee_sym);
-                            let callee_name = sta.symbol(callee_class).map(|s| s.name_id).unwrap_or(callee_class);
+                            let callee_class = sta
+                                .symbol(callee_sym)
+                                .map(|s| s.parent_sym)
+                                .unwrap_or(callee_sym);
+                            let callee_name = sta
+                                .symbol(callee_class)
+                                .map(|s| s.name_id)
+                                .unwrap_or(callee_class);
 
-                            lifelines_map.entry(callee_class).or_insert_with(|| {
-                                LifelineRecord {
+                            lifelines_map
+                                .entry(callee_class)
+                                .or_insert_with(|| LifelineRecord {
                                     sym_id: callee_class,
                                     name_id: callee_name,
                                     type_sym_id: callee_class,
                                     is_actor: 0,
                                     _pad: [0; 3],
-                                }
-                            });
+                                });
 
                             messages.push(MessageRecord {
                                 from_lifeline: caller_class,

@@ -215,7 +215,10 @@ impl UMASerializer {
     pub fn read(path: &Path) -> IoResult<UMLMetadataArtifact> {
         let bytes = fs::read(path)?;
         if bytes.len() < UMA_HEADER_SIZE + 8 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "UMA file too small"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "UMA file too small",
+            ));
         }
 
         let data_end = bytes.len() - 8;
@@ -224,7 +227,10 @@ impl UMASerializer {
         if stored_crc != computed_crc {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("UMA CRC mismatch: stored=0x{:016X}, computed=0x{:016X}", stored_crc, computed_crc),
+                format!(
+                    "UMA CRC mismatch: stored=0x{:016X}, computed=0x{:016X}",
+                    stored_crc, computed_crc
+                ),
             ));
         }
 

@@ -7,10 +7,7 @@ use crate::uma::types::*;
 pub struct StateMachineExtractor;
 
 impl StateMachineExtractor {
-    pub fn extract_all(
-        sta: &SymbolTableArtifact,
-        _ssa: &SSAArtifact,
-    ) -> Vec<StateMachineRecord> {
+    pub fn extract_all(sta: &SymbolTableArtifact, _ssa: &SSAArtifact) -> Vec<StateMachineRecord> {
         let mut machines = Vec::new();
 
         for sym_id in 0..sta.symbol_count as u32 {
@@ -18,7 +15,8 @@ impl StateMachineExtractor {
                 Some(s) => s,
                 None => continue,
             };
-            if sym.kind == 1 { // SK_CLASS
+            if sym.kind == 1 {
+                // SK_CLASS
                 let mut states = Vec::new();
                 let mut transitions = Vec::new();
 
@@ -40,7 +38,8 @@ impl StateMachineExtractor {
                 let mut child_id = sym.first_child;
                 while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
                     let child = &sta.symbol_records[child_id as usize];
-                    if child.kind == 6 { // SK_METHOD
+                    if child.kind == 6 {
+                        // SK_METHOD
                         transitions.push(TransitionRecord {
                             from_state: 0,
                             to_state: 1,

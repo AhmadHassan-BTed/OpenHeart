@@ -7,7 +7,8 @@ pub fn is_template_method(class_sym: u32, sta: &SymbolTableArtifact) -> (bool, u
         Some(s) => s,
         None => return (false, 0),
     };
-    if (sym.modifiers & 4) == 0 { // Not abstract
+    if (sym.modifiers & 4) == 0 {
+        // Not abstract
         return (false, 0);
     }
 
@@ -17,11 +18,13 @@ pub fn is_template_method(class_sym: u32, sta: &SymbolTableArtifact) -> (bool, u
     let mut child_id = sym.first_child;
     while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
         let child = &sta.symbol_records[child_id as usize];
-        if child.kind == 6 { // SK_METHOD
+        if child.kind == 6 {
+            // SK_METHOD
             if (child.modifiers & 4) != 0 {
                 has_abstract_method = true;
             }
-            if child.visibility == 3 { // Protected
+            if child.visibility == 3 {
+                // Protected
                 has_protected_method = true;
             }
         }

@@ -47,13 +47,7 @@ impl UniqueTable {
     ///   its `node_id` is returned without allocating a new node.
     ///
     /// Only if no existing node matches is a new one pushed onto `nodes`.
-    pub fn make_node(
-        &mut self,
-        var: u16,
-        lo: u32,
-        hi: u32,
-        nodes: &mut Vec<ROBDDNode>,
-    ) -> u32 {
+    pub fn make_node(&mut self, var: u16, lo: u32, hi: u32, nodes: &mut Vec<ROBDDNode>) -> u32 {
         // Rule 1 (Elimination): lo == hi ⟹ this node is redundant.
         // Both branches lead to the same result, so the variable doesn't affect the outcome.
         if lo == hi {

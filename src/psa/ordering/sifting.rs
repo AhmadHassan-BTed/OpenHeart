@@ -29,7 +29,9 @@ impl SiftingOptimizer {
         // Sort by descending node count.
         let mut priority: Vec<usize> = (0..n_vars).collect();
         priority.sort_unstable_by(|&a, &b| {
-            var_counts.get(b).unwrap_or(&0)
+            var_counts
+                .get(b)
+                .unwrap_or(&0)
                 .cmp(var_counts.get(a).unwrap_or(&0))
         });
 

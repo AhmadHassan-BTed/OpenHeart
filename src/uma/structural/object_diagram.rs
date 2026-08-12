@@ -7,10 +7,7 @@ use crate::uma::types::ObjectRecord;
 pub struct ObjectDiagramExtractor;
 
 impl ObjectDiagramExtractor {
-    pub fn extract(
-        _sta: &SymbolTableArtifact,
-        ssa: &SSAArtifact,
-    ) -> Vec<ObjectRecord> {
+    pub fn extract(_sta: &SymbolTableArtifact, ssa: &SSAArtifact) -> Vec<ObjectRecord> {
         let mut objects = Vec::new();
 
         for func_ssa in &ssa.functions {

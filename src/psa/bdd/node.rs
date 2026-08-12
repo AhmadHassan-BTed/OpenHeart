@@ -118,7 +118,11 @@ mod tests {
 
     #[test]
     fn node_is_exactly_12_bytes() {
-        assert_eq!(size_of::<ROBDDNode>(), 12, "ROBDDNode must be exactly 12 bytes for cache-line efficiency");
+        assert_eq!(
+            size_of::<ROBDDNode>(),
+            12,
+            "ROBDDNode must be exactly 12 bytes for cache-line efficiency"
+        );
     }
 
     #[test]

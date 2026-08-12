@@ -16,11 +16,7 @@ use crate::psa::ordering::rpo::{edge_index_of, pred_list, succ_list};
 /// - `n_vars`: number of Boolean variables (= cfg.edges.len()).
 /// - `hyperedges`: constraint hypergraph — each entry is a set of edge indices in one constraint.
 /// - `pos`: initial continuous position for each variable (from RPO).
-pub fn force_ordering(
-    n_vars: usize,
-    hyperedges: &[Vec<usize>],
-    mut pos: Vec<f64>,
-) -> Vec<usize> {
+pub fn force_ordering(n_vars: usize, hyperedges: &[Vec<usize>], mut pos: Vec<f64>) -> Vec<usize> {
     if n_vars == 0 {
         return Vec::new();
     }
@@ -29,20 +25,22 @@ pub fn force_ordering(
 
     for _ in 0..n_iters {
         let mut gravity = vec![0.0f64; n_vars];
-        let mut weight  = vec![0usize; n_vars];
+        let mut weight = vec![0usize; n_vars];
 
         // Accumulate gravity from each hyperedge.
         for hedge in hyperedges {
             if hedge.is_empty() {
                 continue;
             }
-            let center: f64 =
-                hedge.iter().map(|&v| if v < n_vars { pos[v] } else { 0.0 }).sum::<f64>()
-                    / hedge.len() as f64;
+            let center: f64 = hedge
+                .iter()
+                .map(|&v| if v < n_vars { pos[v] } else { 0.0 })
+                .sum::<f64>()
+                / hedge.len() as f64;
             for &v in hedge {
                 if v < n_vars {
                     gravity[v] += center;
-                    weight[v]  += 1;
+                    weight[v] += 1;
                 }
             }
         }
@@ -57,7 +55,8 @@ pub fn force_ordering(
         // Normalize: re-rank all positions as integers 0..n_vars-1.
         let mut order: Vec<usize> = (0..n_vars).collect();
         order.sort_unstable_by(|&a, &b| {
-            pos[a].partial_cmp(&pos[b])
+            pos[a]
+                .partial_cmp(&pos[b])
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then(a.cmp(&b))
         });
@@ -69,7 +68,8 @@ pub fn force_ordering(
     // Final ordering: sort by converged position.
     let mut final_order: Vec<usize> = (0..n_vars).collect();
     final_order.sort_unstable_by(|&a, &b| {
-        pos[a].partial_cmp(&pos[b])
+        pos[a]
+            .partial_cmp(&pos[b])
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     final_order

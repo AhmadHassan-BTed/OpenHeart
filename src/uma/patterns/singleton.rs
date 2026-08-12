@@ -33,7 +33,11 @@ pub fn is_singleton(class_sym: u32, sta: &SymbolTableArtifact) -> (bool, u16) {
     }
 
     if has_ctor && (has_field || has_factory) {
-        let confidence = if has_ctor && has_field && has_factory { 100 } else { 80 };
+        let confidence = if has_ctor && has_field && has_factory {
+            100
+        } else {
+            80
+        };
         (true, confidence)
     } else {
         (false, 0)

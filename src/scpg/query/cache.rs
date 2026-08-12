@@ -1,7 +1,7 @@
 //! LRUQueryCache — 512-entry LRU cache invalidated on scpg_hash change (§10.5).
 
-use std::collections::HashMap;
 use crate::scpg::types::{QueryKey, QueryResult};
+use std::collections::HashMap;
 
 pub struct LRUQueryCache {
     capacity: usize,

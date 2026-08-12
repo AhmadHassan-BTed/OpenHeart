@@ -1,17 +1,14 @@
 //! ComponentDiagramExtractor — extracts ComponentRecord[] from packages & CGA inter-package edges (§9.2.1).
 
+use super::package_diagram::PackageDiagramExtractor;
 use crate::core::types::cg::CallGraphArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::uma::types::ComponentRecord;
-use super::package_diagram::PackageDiagramExtractor;
 
 pub struct ComponentDiagramExtractor;
 
 impl ComponentDiagramExtractor {
-    pub fn extract(
-        sta: &SymbolTableArtifact,
-        _cga: &CallGraphArtifact,
-    ) -> Vec<ComponentRecord> {
+    pub fn extract(sta: &SymbolTableArtifact, _cga: &CallGraphArtifact) -> Vec<ComponentRecord> {
         let pkgs = PackageDiagramExtractor::extract(sta);
         let mut components = Vec::new();
 

@@ -14,7 +14,12 @@ impl CDGBuilder {
             return (Vec::new(), CDGCSR::default());
         }
 
-        let exit_block = cfg.blocks.iter().find(|b| b.is_exit).map(|b| b.id).unwrap_or(0);
+        let exit_block = cfg
+            .blocks
+            .iter()
+            .find(|b| b.is_exit)
+            .map(|b| b.id)
+            .unwrap_or(0);
 
         let mut rev_preds = vec![Vec::new(); n]; // reversed predecessors = forward successors
         let mut rev_succs = vec![Vec::new(); n]; // reversed successors = forward predecessors

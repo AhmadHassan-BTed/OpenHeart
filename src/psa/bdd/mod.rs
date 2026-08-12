@@ -51,15 +51,20 @@ mod library {
 
         /// The FALSE terminal node_id (always 0).
         #[inline]
-        pub fn false_id(&self) -> u32 { FALSE_ID }
+        pub fn false_id(&self) -> u32 {
+            FALSE_ID
+        }
 
         /// The TRUE terminal node_id (always 1).
         #[inline]
-        pub fn true_id(&self) -> u32 { TRUE_ID }
+        pub fn true_id(&self) -> u32 {
+            TRUE_ID
+        }
 
         /// Construct the ROBDD node for a single variable xᵢ: `make_node(i, FALSE, TRUE)`.
         pub fn var(&mut self, var_idx: u16) -> u32 {
-            self.unique_table.make_node(var_idx, FALSE_ID, TRUE_ID, &mut self.nodes)
+            self.unique_table
+                .make_node(var_idx, FALSE_ID, TRUE_ID, &mut self.nodes)
         }
 
         /// Compute `f op g` via Shannon-expansion apply (§8.2.2).
@@ -71,19 +76,31 @@ mod library {
             // `all_nodes` — the Vec never reallocates mid-recursion within one apply() call
             // because we pre-cleared the cache, bounding the number of new allocations.
             let len = self.nodes.len();
-            let read: &[ROBDDNode] = unsafe {
-                std::slice::from_raw_parts(self.nodes.as_ptr(), len)
-            };
-            apply(op, f, g, read, &mut self.unique_table, &mut self.nodes, &mut self.apply_cache)
+            let read: &[ROBDDNode] =
+                unsafe { std::slice::from_raw_parts(self.nodes.as_ptr(), len) };
+            apply(
+                op,
+                f,
+                g,
+                read,
+                &mut self.unique_table,
+                &mut self.nodes,
+                &mut self.apply_cache,
+            )
         }
 
         /// Compute `¬f` (NOT).
         pub fn apply_not(&mut self, f: u32) -> u32 {
             let len = self.nodes.len();
-            let read: &[ROBDDNode] = unsafe {
-                std::slice::from_raw_parts(self.nodes.as_ptr(), len)
-            };
-            apply_not(f, read, &mut self.unique_table, &mut self.nodes, &mut HashMap::new())
+            let read: &[ROBDDNode] =
+                unsafe { std::slice::from_raw_parts(self.nodes.as_ptr(), len) };
+            apply_not(
+                f,
+                read,
+                &mut self.unique_table,
+                &mut self.nodes,
+                &mut HashMap::new(),
+            )
         }
 
         /// Compute `a → b` (implication ≡ ¬a ∨ b) (§8.5.3).
@@ -95,10 +112,17 @@ mod library {
         /// Compute `f|_{var=val}` — the cofactor of f (§8.5.2 Step 5).
         pub fn restrict(&mut self, f: u32, var: u16, val: u8) -> u32 {
             let len = self.nodes.len();
-            let read: &[ROBDDNode] = unsafe {
-                std::slice::from_raw_parts(self.nodes.as_ptr(), len)
-            };
-            restrict(f, var, val, read, &mut self.unique_table, &mut self.nodes, &mut HashMap::new())
+            let read: &[ROBDDNode] =
+                unsafe { std::slice::from_raw_parts(self.nodes.as_ptr(), len) };
+            restrict(
+                f,
+                var,
+                val,
+                read,
+                &mut self.unique_table,
+                &mut self.nodes,
+                &mut HashMap::new(),
+            )
         }
 
         /// Compute #SAT(f) — number of satisfying assignments (§8.2.5).
@@ -110,7 +134,9 @@ mod library {
         pub fn verify_canonicity(&self) -> Result<(), String> {
             let mut seen: HashMap<(u16, u32, u32), u32> = HashMap::new();
             for (id, node) in self.nodes.iter().enumerate() {
-                if node.is_terminal() { continue; }
+                if node.is_terminal() {
+                    continue;
+                }
                 if node.lo == node.hi {
                     return Err(format!(
                         "Rule 1 violation (Elimination): node_id={} has lo==hi=={}",
@@ -132,14 +158,20 @@ mod library {
 
         /// Total node count (including terminals).
         #[inline]
-        pub fn node_count(&self) -> usize { self.nodes.len() }
+        pub fn node_count(&self) -> usize {
+            self.nodes.len()
+        }
 
         /// Consume the library and return the node array for serialization.
-        pub fn into_nodes(self) -> Vec<ROBDDNode> { self.nodes }
+        pub fn into_nodes(self) -> Vec<ROBDDNode> {
+            self.nodes
+        }
     }
 
     impl Default for BDDLibrary {
-        fn default() -> Self { Self::new() }
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     #[cfg(test)]

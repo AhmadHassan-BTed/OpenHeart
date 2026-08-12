@@ -99,10 +99,7 @@ mod tests {
 
     /// Build: x0 (var=0) with lo=FALSE, hi=TRUE → single-variable BDD.
     fn single_var_bdd() -> (Vec<ROBDDNode>, u32) {
-        let mut nodes = vec![
-            ROBDDNode::false_terminal(),
-            ROBDDNode::true_terminal(),
-        ];
+        let mut nodes = vec![ROBDDNode::false_terminal(), ROBDDNode::true_terminal()];
         let mut ut = UniqueTable::new();
         let id = ut.make_node(0, FALSE_ID, TRUE_ID, &mut nodes);
         (nodes, id)

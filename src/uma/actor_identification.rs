@@ -9,10 +9,7 @@ pub struct ActorIdentifier;
 
 impl ActorIdentifier {
     /// Identify all entry point methods in the call graph (public methods with fan-in == 0).
-    pub fn find_entry_points(
-        sta: &SymbolTableArtifact,
-        cga: &CallGraphArtifact,
-    ) -> Vec<u32> {
+    pub fn find_entry_points(sta: &SymbolTableArtifact, cga: &CallGraphArtifact) -> Vec<u32> {
         let mut entry_points = Vec::new();
 
         let method_count = cga.method_count as usize;
@@ -27,9 +24,14 @@ impl ActorIdentifier {
         for sym_id in 0..sta.symbol_count as u32 {
             if let Some(sym) = sta.symbol(sym_id) {
                 // SK_METHOD (6) or SK_CONSTRUCTOR (7), public (0 or 1)
-                if (sym.kind == 6 || sym.kind == 7) && (sym.visibility == 0 || sym.visibility == 1) {
+                if (sym.kind == 6 || sym.kind == 7) && (sym.visibility == 0 || sym.visibility == 1)
+                {
                     let method_idx = sym_id as usize;
-                    let fan_in = if method_idx < in_degrees.len() { in_degrees[method_idx] } else { 0 };
+                    let fan_in = if method_idx < in_degrees.len() {
+                        in_degrees[method_idx]
+                    } else {
+                        0
+                    };
                     if fan_in == 0 {
                         entry_points.push(sym_id);
                     }
