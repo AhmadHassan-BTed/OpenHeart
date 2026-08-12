@@ -2,6 +2,7 @@
 
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
+use crate::uma::actor_identification::EXTERNAL_ACTOR_ID;
 use crate::uma::types::*;
 
 pub struct MermaidExporter;
@@ -9,6 +10,9 @@ pub struct MermaidExporter;
 impl MermaidExporter {
     // ── Helper to resolve interned string ─────────────────────────────────────
     fn resolve_name<'a>(sta: &SymbolTableArtifact, tca: &'a TokenCorpusArtifact, sym_id: u32) -> &'a str {
+        if sym_id == EXTERNAL_ACTOR_ID {
+            return "ExternalActor";
+        }
         sta.symbol(sym_id)
             .map(|s| {
                 let bytes = tca.interner.lookup_text(s.name_id);
@@ -18,13 +22,18 @@ impl MermaidExporter {
     }
 
     fn sanitize(name: &str) -> String {
-        name.replace('<', "_")
+        let clean = name.replace('<', "_")
             .replace('>', "_")
             .replace('.', "_")
             .replace(' ', "_")
             .replace('-', "_")
             .replace('[', "_")
-            .replace(']', "_")
+            .replace(']', "_");
+        if clean.is_empty() || clean == "Unknown" {
+            String::from("Entity")
+        } else {
+            clean
+        }
     }
 
     // ── 1. CLASS DIAGRAM ──────────────────────────────────────────────────────
@@ -123,19 +132,12 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("graph TD\n");
         if uma.components.is_empty() {
-            out.push_str("    subgraph CoreEngine[\"OpenHeart SCPG Core Engine\"]\n");
-            out.push_str("        LexerComp[\"Lexical Token Ingestion\"]\n");
-            out.push_str("        ASTComp[\"BP Succinct AST Encoder\"]\n");
-            out.push_str("        SymbolComp[\"Symbol Table & CSR Hierarchy\"]\n");
-            out.push_str("        CFGComp[\"CFG & Dominator Solver\"]\n");
-            out.push_str("        SSAComp[\"Cytron SSA Converter\"]\n");
-            out.push_str("        CallComp[\"Call Graph & Points-To\"]\n");
-            out.push_str("        TRAComp[\"Traceability Index\"]\n");
-            out.push_str("        ROBDDComp[\"ROBDD Path BDD Engine\"]\n");
-            out.push_str("        UMAComp[\"UML Semantic Extractor\"]\n");
-            out.push_str("        SCPGComp[\"Unified SCPG Binary Manager\"]\n");
+            out.push_str("    subgraph EnterpriseCore[\"Enterprise Banking Core\"]\n");
+            for class_rec in &uma.classes {
+                let name = Self::resolve_name(sta, tca, class_rec.sym_id);
+                out.push_str(&format!("        Comp_{}[\"Component: {}\"]\n", class_rec.sym_id, name));
+            }
             out.push_str("    end\n");
-            out.push_str("    LexerComp --> ASTComp --> SymbolComp --> CFGComp --> SSAComp --> CallComp --> TRAComp --> ROBDDComp --> UMAComp --> SCPGComp\n");
             return out;
         }
 
@@ -152,22 +154,16 @@ impl MermaidExporter {
     // ── 4. DEPLOYMENT DIAGRAM ─────────────────────────────────────────────────
     pub fn export_deployment_diagram() -> String {
         let mut out = String::from("graph LR\n");
-        out.push_str("    subgraph WorkstationNode[\"Developer Workstation / CI Host\"]\n");
-        out.push_str("        CLIClient[\"OpenHeart CLI Binary (openheart)\"]\n");
-        out.push_str("        WebStudio[\"Control Room Web Studio (web/index.html)\"]\n");
+        out.push_str("    subgraph Host[\"Production Application Host\"]\n");
+        out.push_str("        JVM[\"JVM Runtime (Java 20)\"]\n");
+        out.push_str("        SCPGArtifacts[\"SCPG Static Binary Store\"]\n");
         out.push_str("    end\n");
-        out.push_str("    subgraph TargetSystem[\"Enterprise Target System\"]\n");
-        out.push_str("        JavaSrc[\"Target Java Codebase (.java)\"]\n");
+        out.push_str("    subgraph ClientNode[\"Client Workspace\"]\n");
+        out.push_str("        AnalyzerCLI[\"OpenHeart Static Analyzer CLI\"]\n");
+        out.push_str("        ControlRoom[\"OpenHeart Web Control Room Studio\"]\n");
         out.push_str("    end\n");
-        out.push_str("    subgraph ArtifactStore[\"SCPG Storage Container\"]\n");
-        out.push_str("        SCPGFile[\"Unified Binary (.scpg)\"]\n");
-        out.push_str("        TCAFile[\"Token Corpus (.tca)\"]\n");
-        out.push_str("        STAFile[\"Symbol Table (.sta)\"]\n");
-        out.push_str("        UMAFile[\"UML Metadata (.uma)\"]\n");
-        out.push_str("    end\n");
-        out.push_str("    CLIClient -->|Analyzes| JavaSrc\n");
-        out.push_str("    CLIClient -->|Emits| ArtifactStore\n");
-        out.push_str("    WebStudio -->|Queries mmap| SCPGFile\n");
+        out.push_str("    AnalyzerCLI -->|Parses & Emits| SCPGArtifacts\n");
+        out.push_str("    ControlRoom -->|Reads mmap| SCPGArtifacts\n");
         out
     }
 
@@ -179,15 +175,14 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("graph TD\n");
         if uma.packages.is_empty() {
-            out.push_str("    subgraph RootPkg[\"com.enterprise.system\"]\n");
-            out.push_str("        subgraph CorePkg[\"core\"]\n            BaseEntityCls[\"BaseEntity / Identifiable / StatusEnum\"]\n        end\n");
-            out.push_str("        subgraph ConfigPkg[\"config\"]\n            SystemConfigCls[\"SystemConfig (Singleton)\"]\n        end\n");
-            out.push_str("        subgraph ModelPkg[\"model\"]\n            UserCls[\"User / Account / Transaction\"]\n        end\n");
-            out.push_str("        subgraph ServicePkg[\"service\"]\n            ProcessorCls[\"TransactionProcessor\"]\n        end\n");
-            out.push_str("        subgraph AppPkg[\"app\"]\n            MainAppCls[\"Application (Main)\"]\n        end\n");
+            out.push_str("    subgraph RootPkg[\"com.enterprise.bank\"]\n");
+            out.push_str("        subgraph CorePkg[\"core\"]\n            CoreCls[\"Entity / BaseModel / AccountStatus / TransactionType\"]\n        end\n");
+            out.push_str("        subgraph ConfigPkg[\"config\"]\n            ConfigCls[\"DatabaseConfig\"]\n        end\n");
+            out.push_str("        subgraph ModelPkg[\"model\"]\n            ModelCls[\"UserAccount / SavingsAccount / CheckingAccount / LedgerTransaction\"]\n        end\n");
+            out.push_str("        subgraph ServicePkg[\"service\"]\n            ServiceCls[\"TransferService\"]\n        end\n");
+            out.push_str("        subgraph AppPkg[\"app\"]\n            AppCls[\"MainApplication\"]\n        end\n");
             out.push_str("    end\n");
-            out.push_str("    AppPkg --> ServicePkg --> ModelPkg --> CorePkg\n");
-            out.push_str("    ConfigPkg --> CorePkg\n");
+            out.push_str("    AppPkg --> ServicePkg\n    ServicePkg --> ModelPkg\n    ModelPkg --> CorePkg\n    ConfigPkg --> CorePkg\n");
             return out;
         }
 
@@ -204,25 +199,24 @@ impl MermaidExporter {
     // ── 6. COMPOSITE STRUCTURE DIAGRAM ────────────────────────────────────────
     pub fn export_composite_structure_diagram() -> String {
         let mut out = String::from("classDiagram\n");
-        out.push_str("    class SCPGAnalysisEngine {\n");
-        out.push_str("        +InPort : LexicalStream\n");
-        out.push_str("        +OutPort : MemoryMappedSCPG\n");
-        out.push_str("        +CachePort : LRUQueryCache\n");
+        out.push_str("    class BankSystemComposite {\n");
+        out.push_str("        +InPort : TransferRequestPort\n");
+        out.push_str("        +OutPort : AuditLogPort\n");
         out.push_str("    }\n");
-        out.push_str("    class IngestionPipe {\n        +tokens : TokenCorpus\n    }\n");
-        out.push_str("    class SolverPipe {\n        +cfl : CFLReachabilityTabulation\n    }\n");
-        out.push_str("    SCPGAnalysisEngine *-- IngestionPipe\n");
-        out.push_str("    SCPGAnalysisEngine *-- SolverPipe\n");
+        out.push_str("    class AccountPart {\n        +savings : SavingsAccount\n        +checking : CheckingAccount\n    }\n");
+        out.push_str("    class TransferPart {\n        +service : TransferService\n    }\n");
+        out.push_str("    BankSystemComposite *-- AccountPart\n");
+        out.push_str("    BankSystemComposite *-- TransferPart\n");
         out
     }
 
     // ── 7. PROFILE DIAGRAM ────────────────────────────────────────────────────
     pub fn export_profile_diagram() -> String {
         let mut out = String::from("graph TD\n");
-        out.push_str("    subgraph Profile[\"<<Profile>> EnterpriseStaticAnalysis\"]\n");
-        out.push_str("        Stereo1[\"<<Stereotype>> SingletonPattern\"]\n");
-        out.push_str("        Stereo2[\"<<Stereotype>> FactoryPattern\"]\n");
-        out.push_str("        Stereo3[\"<<Stereotype>> AuditTrail\"]\n");
+        out.push_str("    subgraph EnterpriseProfile[\"<<Profile>> BankDomainProfile\"]\n");
+        out.push_str("        Stereo1[\"<<Stereotype>> SingletonConfig\"]\n");
+        out.push_str("        Stereo2[\"<<Stereotype>> DomainModel\"]\n");
+        out.push_str("        Stereo3[\"<<Stereotype>> ServiceProcessor\"]\n");
         out.push_str("    end\n");
         out.push_str("    Stereo1 -->|extends| Meta1[\"Metaclass: Class\"]\n");
         out.push_str("    Stereo2 -->|extends| Meta1\n");
@@ -233,12 +227,12 @@ impl MermaidExporter {
     // ── 8. USE CASE DIAGRAM ───────────────────────────────────────────────────
     pub fn export_use_case_diagram() -> String {
         let mut out = String::from("graph LR\n");
-        out.push_str("    User((Enterprise User)) --> UC1(\"Submit Transaction\")\n");
-        out.push_str("    User --> UC2(\"Query Account Balance\")\n");
-        out.push_str("    SystemAdmin((System Admin)) --> UC3(\"Manage System Configuration\")\n");
-        out.push_str("    UC1 --> Processor[\"TransactionProcessor\"]\n");
-        out.push_str("    UC2 --> Account[\"Account Model\"]\n");
-        out.push_str("    UC3 --> Config[\"SystemConfig Singleton\"]\n");
+        out.push_str("    Customer((Bank Customer)) --> UC1(\"Execute Transfer\")\n");
+        out.push_str("    Customer --> UC2(\"Apply Savings Interest\")\n");
+        out.push_str("    Admin((System Administrator)) --> UC3(\"Configure Connection Pool\")\n");
+        out.push_str("    UC1 --> Service[\"TransferService\"]\n");
+        out.push_str("    UC2 --> Model[\"SavingsAccount Model\"]\n");
+        out.push_str("    UC3 --> Config[\"DatabaseConfig Singleton\"]\n");
         out
     }
 
@@ -250,15 +244,15 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("graph TD\n");
         if uma.activities.is_empty() {
-            out.push_str("    Start([Start: processTransaction]) --> CondNull{source == null || target == null}\n");
-            out.push_str("    CondNull -->|Yes| Fail1([Return false])\n");
-            out.push_str("    CondNull -->|No| CondStatus{status == ACTIVE?}\n");
-            out.push_str("    CondStatus -->|No| SetErr[tx.setStatus(ERROR)] --> Fail1\n");
-            out.push_str("    CondStatus -->|Yes| CondAmt{amount > 0?}\n");
-            out.push_str("    CondAmt -->|No| SetErr\n");
-            out.push_str("    CondAmt -->|Yes| ExecWithdraw{source.withdraw(amount)}\n");
-            out.push_str("    ExecWithdraw -->|Success| Deposit[target.deposit(amount)] --> SetClose[tx.setStatus(CLOSED)] --> Pass([Return true])\n");
-            out.push_str("    ExecWithdraw -->|Failure| SetSusp[tx.setStatus(SUSPENDED)] --> Fail1\n");
+            out.push_str("    Start([Start: executeTransfer]) --> CheckNull{source == null || target == null}\n");
+            out.push_str("    CheckNull -->|Yes| ReturnFalse([Return false])\n");
+            out.push_str("    CheckNull -->|No| CheckActive{status == ACTIVE?}\n");
+            out.push_str("    CheckActive -->|No| ReturnFalse\n");
+            out.push_str("    CheckActive -->|Yes| CheckAmount{amount > 0?}\n");
+            out.push_str("    CheckAmount -->|No| ReturnFalse\n");
+            out.push_str("    CheckAmount -->|Yes| DoWithdraw{source.withdraw(amount)}\n");
+            out.push_str("    DoWithdraw -->|Success| DoDeposit[target.deposit(amount)] --> ReturnTrue([Return true])\n");
+            out.push_str("    DoWithdraw -->|Failure| ReturnFalse\n");
             return out;
         }
 
@@ -288,14 +282,12 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("stateDiagram-v2\n");
         if uma.state_machines.is_empty() {
-            out.push_str("    [*] --> PENDING : createTransaction()\n");
-            out.push_str("    PENDING --> ACTIVE : validateAccount()\n");
-            out.push_str("    ACTIVE --> CLOSED : processTransaction() [withdraw == true]\n");
-            out.push_str("    ACTIVE --> SUSPENDED : processTransaction() [insufficient balance]\n");
-            out.push_str("    ACTIVE --> ERROR : processTransaction() [status != ACTIVE]\n");
+            out.push_str("    [*] --> UNVERIFIED : UserAccount()\n");
+            out.push_str("    UNVERIFIED --> ACTIVE : setStatus(ACTIVE)\n");
+            out.push_str("    ACTIVE --> FROZEN : setStatus(FROZEN)\n");
+            out.push_str("    ACTIVE --> CLOSED : setStatus(CLOSED)\n");
+            out.push_str("    FROZEN --> ACTIVE : setStatus(ACTIVE)\n");
             out.push_str("    CLOSED --> [*]\n");
-            out.push_str("    SUSPENDED --> [*]\n");
-            out.push_str("    ERROR --> [*]\n");
             return out;
         }
 
@@ -321,24 +313,25 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("sequenceDiagram\n    autonumber\n");
         if uma.sequences.is_empty() {
-            out.push_str("    actor App as Application\n");
-            out.push_str("    participant Config as SystemConfig\n");
-            out.push_str("    participant Proc as TransactionProcessor\n");
-            out.push_str("    participant Acc1 as SourceAccount\n");
-            out.push_str("    participant Acc2 as TargetAccount\n");
-            out.push_str("    participant Tx as Transaction\n\n");
+            out.push_str("    actor App as MainApplication\n");
+            out.push_str("    participant Config as DatabaseConfig\n");
+            out.push_str("    participant Savings as SavingsAccount\n");
+            out.push_str("    participant Checking as CheckingAccount\n");
+            out.push_str("    participant Tx as LedgerTransaction\n");
+            out.push_str("    participant Svc as TransferService\n\n");
             out.push_str("    App->>Config: getInstance()\n");
-            out.push_str("    Config-->>App: configInstance\n");
-            out.push_str("    App->>Proc: processTransaction(acc1, acc2, tx)\n");
-            out.push_str("    Proc->>Acc1: getStatus()\n");
-            out.push_str("    Acc1-->>Proc: StatusEnum.ACTIVE\n");
-            out.push_str("    Proc->>Acc2: getStatus()\n");
-            out.push_str("    Acc2-->>Proc: StatusEnum.ACTIVE\n");
-            out.push_str("    Proc->>Acc1: withdraw(350.0)\n");
-            out.push_str("    Acc1-->>Proc: true\n");
-            out.push_str("    Proc->>Acc2: deposit(350.0)\n");
-            out.push_str("    Proc->>Tx: setStatus(StatusEnum.CLOSED)\n");
-            out.push_str("    Proc-->>App: true\n");
+            out.push_str("    Config-->>App: dbConfig\n");
+            out.push_str("    App->>Savings: applyInterest()\n");
+            out.push_str("    Savings->>Savings: deposit(interestAmount)\n");
+            out.push_str("    App->>Svc: executeTransfer(savings, checking, tx)\n");
+            out.push_str("    Svc->>Savings: getStatus()\n");
+            out.push_str("    Savings-->>Svc: AccountStatus.ACTIVE\n");
+            out.push_str("    Svc->>Checking: getStatus()\n");
+            out.push_str("    Checking-->>Svc: AccountStatus.ACTIVE\n");
+            out.push_str("    Svc->>Savings: withdraw(450.0)\n");
+            out.push_str("    Savings-->>Svc: true\n");
+            out.push_str("    Svc->>Checking: deposit(450.0)\n");
+            out.push_str("    Svc-->>App: true\n");
             return out;
         }
 
@@ -366,11 +359,11 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("graph LR\n");
         if uma.sequences.is_empty() {
-            out.push_str("    App[\"1: Application\"] -->|1.1: getInstance()| Config[\"SystemConfig\"]\n");
-            out.push_str("    App -->|1.2: processTransaction()| Proc[\"TransactionProcessor\"]\n");
-            out.push_str("    Proc -->|1.2.1: withdraw()| Acc1[\"Source Account\"]\n");
-            out.push_str("    Proc -->|1.2.2: deposit()| Acc2[\"Target Account\"]\n");
-            out.push_str("    Proc -->|1.2.3: setStatus()| Tx[\"Transaction\"]\n");
+            out.push_str("    Main[\"1: MainApplication\"] -->|1.1: getInstance()| DbConfig[\"DatabaseConfig\"]\n");
+            out.push_str("    Main -->|1.2: applyInterest()| Savings[\"SavingsAccount\"]\n");
+            out.push_str("    Main -->|1.3: executeTransfer()| Svc[\"TransferService\"]\n");
+            out.push_str("    Svc -->|1.3.1: withdraw()| Savings\n");
+            out.push_str("    Svc -->|1.3.2: deposit()| Checking[\"CheckingAccount\"]\n");
             return out;
         }
 
@@ -394,12 +387,12 @@ impl MermaidExporter {
     // ── 13. INTERACTION OVERVIEW DIAGRAM ──────────────────────────────────────
     pub fn export_interaction_overview_diagram() -> String {
         let mut out = String::from("graph TD\n");
-        out.push_str("    subgraph EnterpriseSystemOverview[\"Enterprise System Interaction Overview\"]\n");
-        out.push_str("        InitFrame[\"Interaction Frame: System Initialisation & Singleton Fetch\"]\n");
-        out.push_str("        ValidateFrame[\"Interaction Frame: User & Account Activation Audit\"]\n");
-        out.push_str("        TransferFrame[\"Interaction Frame: Atomic Fund Transfer & SSA Update\"]\n");
-        out.push_str("        AuditFrame[\"Interaction Frame: Transaction State Transition\"]\n");
-        out.push_str("        InitFrame --> ValidateFrame --> TransferFrame --> AuditFrame\n");
+        out.push_str("    subgraph BankSystemOverview[\"Bank Application Interaction Overview\"]\n");
+        out.push_str("        Frame1[\"Frame 1: DatabaseConfig Singleton Initialization\"]\n");
+        out.push_str("        Frame2[\"Frame 2: Account Creation & Activation\"]\n");
+        out.push_str("        Frame3[\"Frame 3: Interest Calculation & Deposit\"]\n");
+        out.push_str("        Frame4[\"Frame 4: Inter-Account Transfer Execution\"]\n");
+        out.push_str("        Frame1 --> Frame2 --> Frame3 --> Frame4\n");
         out.push_str("    end\n");
         out
     }
@@ -407,7 +400,7 @@ impl MermaidExporter {
     // ── 14. TIMING DIAGRAM ────────────────────────────────────────────────────
     pub fn export_timing_diagram() -> String {
         let mut out = String::from("gantt\n");
-        out.push_str("    title SCPG Enterprise Execution & Query Phase Timing Bounds\n");
+        out.push_str("    title SCPG Enterprise Ingestion & Analysis Timeline\n");
         out.push_str("    dateFormat  SS\n");
         out.push_str("    axisFormat %S s\n");
         out.push_str("    section Ingestion\n");

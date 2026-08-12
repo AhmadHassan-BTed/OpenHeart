@@ -40,87 +40,84 @@ classDiagram
 
 %% 3. COMPONENT DIAGRAM
 graph TD
-    subgraph CoreEngine["OpenHeart SCPG Core Engine"]
-        LexerComp["Lexical Token Ingestion"]
-        ASTComp["BP Succinct AST Encoder"]
-        SymbolComp["Symbol Table & CSR Hierarchy"]
-        CFGComp["CFG & Dominator Solver"]
-        SSAComp["Cytron SSA Converter"]
-        CallComp["Call Graph & Points-To"]
-        TRAComp["Traceability Index"]
-        ROBDDComp["ROBDD Path BDD Engine"]
-        UMAComp["UML Semantic Extractor"]
-        SCPGComp["Unified SCPG Binary Manager"]
+    subgraph EnterpriseCore["Enterprise Banking Core"]
+        Comp_0["Component: MainApplication"]
+        Comp_1["Component: MainApplication"]
+        Comp_2["Component: void"]
+        Comp_3["Component: args"]
+        Comp_4["Component: DatabaseConfig"]
+        Comp_5["Component: config"]
+        Comp_6["Component: SavingsAccount"]
+        Comp_7["Component: savings"]
+        Comp_8["Component: CheckingAccount"]
+        Comp_9["Component: checking"]
+        Comp_10["Component: LedgerTransaction"]
+        Comp_11["Component: tx"]
     end
-    LexerComp --> ASTComp --> SymbolComp --> CFGComp --> SSAComp --> CallComp --> TRAComp --> ROBDDComp --> UMAComp --> SCPGComp
 
 
 %% 4. DEPLOYMENT DIAGRAM
 graph LR
-    subgraph WorkstationNode["Developer Workstation / CI Host"]
-        CLIClient["OpenHeart CLI Binary (openheart)"]
-        WebStudio["Control Room Web Studio (web/index.html)"]
+    subgraph Host["Production Application Host"]
+        JVM["JVM Runtime (Java 20)"]
+        SCPGArtifacts["SCPG Static Binary Store"]
     end
-    subgraph TargetSystem["Enterprise Target System"]
-        JavaSrc["Target Java Codebase (.java)"]
+    subgraph ClientNode["Client Workspace"]
+        AnalyzerCLI["OpenHeart Static Analyzer CLI"]
+        ControlRoom["OpenHeart Web Control Room Studio"]
     end
-    subgraph ArtifactStore["SCPG Storage Container"]
-        SCPGFile["Unified Binary (.scpg)"]
-        TCAFile["Token Corpus (.tca)"]
-        STAFile["Symbol Table (.sta)"]
-        UMAFile["UML Metadata (.uma)"]
-    end
-    CLIClient -->|Analyzes| JavaSrc
-    CLIClient -->|Emits| ArtifactStore
-    WebStudio -->|Queries mmap| SCPGFile
+    AnalyzerCLI -->|Parses & Emits| SCPGArtifacts
+    ControlRoom -->|Reads mmap| SCPGArtifacts
 
 
 %% 5. PACKAGE DIAGRAM
 graph TD
-    subgraph RootPkg["com.enterprise.system"]
+    subgraph RootPkg["com.enterprise.bank"]
         subgraph CorePkg["core"]
-            BaseEntityCls["BaseEntity / Identifiable / StatusEnum"]
+            CoreCls["Entity / BaseModel / AccountStatus / TransactionType"]
         end
         subgraph ConfigPkg["config"]
-            SystemConfigCls["SystemConfig (Singleton)"]
+            ConfigCls["DatabaseConfig"]
         end
         subgraph ModelPkg["model"]
-            UserCls["User / Account / Transaction"]
+            ModelCls["UserAccount / SavingsAccount / CheckingAccount / LedgerTransaction"]
         end
         subgraph ServicePkg["service"]
-            ProcessorCls["TransactionProcessor"]
+            ServiceCls["TransferService"]
         end
         subgraph AppPkg["app"]
-            MainAppCls["Application (Main)"]
+            AppCls["MainApplication"]
         end
     end
-    AppPkg --> ServicePkg --> ModelPkg --> CorePkg
+    AppPkg --> ServicePkg
+    ServicePkg --> ModelPkg
+    ModelPkg --> CorePkg
     ConfigPkg --> CorePkg
 
 
 %% 6. COMPOSITE STRUCTURE DIAGRAM
 classDiagram
-    class SCPGAnalysisEngine {
-        +InPort : LexicalStream
-        +OutPort : MemoryMappedSCPG
-        +CachePort : LRUQueryCache
+    class BankSystemComposite {
+        +InPort : TransferRequestPort
+        +OutPort : AuditLogPort
     }
-    class IngestionPipe {
-        +tokens : TokenCorpus
+    class AccountPart {
+        +savings : SavingsAccount
+        +checking : CheckingAccount
     }
-    class SolverPipe {
-        +cfl : CFLReachabilityTabulation
+    class TransferPart {
+        +service : TransferService
     }
-    SCPGAnalysisEngine *-- IngestionPipe
-    SCPGAnalysisEngine *-- SolverPipe
+    BankSystemComposite *-- AccountPart
+    BankSystemComposite *-- TransferPart
 
 
 %% 7. PROFILE DIAGRAM
 graph TD
-    subgraph Profile["<<Profile>> EnterpriseStaticAnalysis"]
-        Stereo1["<<Stereotype>> SingletonPattern"]
-        Stereo2["<<Stereotype>> FactoryPattern"]
-        Stereo3["<<Stereotype>> AuditTrail"]
+    subgraph EnterpriseProfile["<<Profile>> BankDomainProfile"]
+        Stereo1["<<Stereotype>> SingletonConfig"]
+        Stereo2["<<Stereotype>> DomainModel"]
+        Stereo3["<<Stereotype>> ServiceProcessor"]
     end
     Stereo1 -->|extends| Meta1["Metaclass: Class"]
     Stereo2 -->|extends| Meta1
@@ -129,86 +126,85 @@ graph TD
 
 %% 8. USE CASE DIAGRAM
 graph LR
-    User((Enterprise User)) --> UC1("Submit Transaction")
-    User --> UC2("Query Account Balance")
-    SystemAdmin((System Admin)) --> UC3("Manage System Configuration")
-    UC1 --> Processor["TransactionProcessor"]
-    UC2 --> Account["Account Model"]
-    UC3 --> Config["SystemConfig Singleton"]
+    Customer((Bank Customer)) --> UC1("Execute Transfer")
+    Customer --> UC2("Apply Savings Interest")
+    Admin((System Administrator)) --> UC3("Configure Connection Pool")
+    UC1 --> Service["TransferService"]
+    UC2 --> Model["SavingsAccount Model"]
+    UC3 --> Config["DatabaseConfig Singleton"]
 
 
 %% 9. ACTIVITY DIAGRAM
 graph TD
-    Start([Start: processTransaction]) --> CondNull{source == null || target == null}
-    CondNull -->|Yes| Fail1([Return false])
-    CondNull -->|No| CondStatus{status == ACTIVE?}
-    CondStatus -->|No| SetErr[tx.setStatus(ERROR)] --> Fail1
-    CondStatus -->|Yes| CondAmt{amount > 0?}
-    CondAmt -->|No| SetErr
-    CondAmt -->|Yes| ExecWithdraw{source.withdraw(amount)}
-    ExecWithdraw -->|Success| Deposit[target.deposit(amount)] --> SetClose[tx.setStatus(CLOSED)] --> Pass([Return true])
-    ExecWithdraw -->|Failure| SetSusp[tx.setStatus(SUSPENDED)] --> Fail1
+    Start([Start: executeTransfer]) --> CheckNull{source == null || target == null}
+    CheckNull -->|Yes| ReturnFalse([Return false])
+    CheckNull -->|No| CheckActive{status == ACTIVE?}
+    CheckActive -->|No| ReturnFalse
+    CheckActive -->|Yes| CheckAmount{amount > 0?}
+    CheckAmount -->|No| ReturnFalse
+    CheckAmount -->|Yes| DoWithdraw{source.withdraw(amount)}
+    DoWithdraw -->|Success| DoDeposit[target.deposit(amount)] --> ReturnTrue([Return true])
+    DoWithdraw -->|Failure| ReturnFalse
 
 
 %% 10. STATE MACHINE DIAGRAM
 stateDiagram-v2
-    [*] --> PENDING : createTransaction()
-    PENDING --> ACTIVE : validateAccount()
-    ACTIVE --> CLOSED : processTransaction() [withdraw == true]
-    ACTIVE --> SUSPENDED : processTransaction() [insufficient balance]
-    ACTIVE --> ERROR : processTransaction() [status != ACTIVE]
+    [*] --> UNVERIFIED : UserAccount()
+    UNVERIFIED --> ACTIVE : setStatus(ACTIVE)
+    ACTIVE --> FROZEN : setStatus(FROZEN)
+    ACTIVE --> CLOSED : setStatus(CLOSED)
+    FROZEN --> ACTIVE : setStatus(ACTIVE)
     CLOSED --> [*]
-    SUSPENDED --> [*]
-    ERROR --> [*]
 
 
 %% 11. SEQUENCE DIAGRAM
 sequenceDiagram
     autonumber
-    actor App as Application
-    participant Config as SystemConfig
-    participant Proc as TransactionProcessor
-    participant Acc1 as SourceAccount
-    participant Acc2 as TargetAccount
-    participant Tx as Transaction
+    actor App as MainApplication
+    participant Config as DatabaseConfig
+    participant Savings as SavingsAccount
+    participant Checking as CheckingAccount
+    participant Tx as LedgerTransaction
+    participant Svc as TransferService
 
     App->>Config: getInstance()
-    Config-->>App: configInstance
-    App->>Proc: processTransaction(acc1, acc2, tx)
-    Proc->>Acc1: getStatus()
-    Acc1-->>Proc: StatusEnum.ACTIVE
-    Proc->>Acc2: getStatus()
-    Acc2-->>Proc: StatusEnum.ACTIVE
-    Proc->>Acc1: withdraw(350.0)
-    Acc1-->>Proc: true
-    Proc->>Acc2: deposit(350.0)
-    Proc->>Tx: setStatus(StatusEnum.CLOSED)
-    Proc-->>App: true
+    Config-->>App: dbConfig
+    App->>Savings: applyInterest()
+    Savings->>Savings: deposit(interestAmount)
+    App->>Svc: executeTransfer(savings, checking, tx)
+    Svc->>Savings: getStatus()
+    Savings-->>Svc: AccountStatus.ACTIVE
+    Svc->>Checking: getStatus()
+    Checking-->>Svc: AccountStatus.ACTIVE
+    Svc->>Savings: withdraw(450.0)
+    Savings-->>Svc: true
+    Svc->>Checking: deposit(450.0)
+    Svc-->>App: true
 
 
 %% 12. COMMUNICATION DIAGRAM
 graph LR
-    App["1: Application"] -->|1.1: getInstance()| Config["SystemConfig"]
-    App -->|1.2: processTransaction()| Proc["TransactionProcessor"]
-    Proc -->|1.2.1: withdraw()| Acc1["Source Account"]
-    Proc -->|1.2.2: deposit()| Acc2["Target Account"]
-    Proc -->|1.2.3: setStatus()| Tx["Transaction"]
+    Main["1: MainApplication"] -->|1.1: getInstance()| DbConfig["DatabaseConfig"]
+    Main -->|1.2: applyInterest()| Savings["SavingsAccount"]
+    Main -->|1.3: executeTransfer()| Svc["TransferService"]
+    Svc -->|1.3.1: withdraw()| Savings
+    Svc -->|1.3.2: deposit()| Checking["CheckingAccount"]
 
 
 %% 13. INTERACTION OVERVIEW DIAGRAM
 graph TD
-    subgraph EnterpriseSystemOverview["Enterprise System Interaction Overview"]
-        InitFrame["Interaction Frame: System Initialisation & Singleton Fetch"]
-        ValidateFrame["Interaction Frame: User & Account Activation Audit"]
-        TransferFrame["Interaction Frame: Atomic Fund Transfer & SSA Update"]
-        AuditFrame["Interaction Frame: Transaction State Transition"]
-        InitFrame --> ValidateFrame --> TransferFrame --> AuditFrame
+    subgraph BankSystemOverview["Bank Application Interaction Overview"]
+        Frame1["Frame 1: DatabaseConfig Singleton Initialization"]
+        Frame2["Frame 2: Account Creation & Activation"]
+        Frame3["Frame 3: Interest Calculation & Deposit"]
+        Frame4["Frame 4: Inter-Account Transfer Execution"]
+        Frame1 --> Frame2 --> Frame3 --> Frame4
     end
 
 
 %% 14. TIMING DIAGRAM
 gantt
-    title SCPG Enterprise Execution & Query Phase Timing Bounds
+    title SCPG Enterprise Ingestion & Analysis Timeline
     dateFormat  SS
     axisFormat %S s
     section Ingestion
