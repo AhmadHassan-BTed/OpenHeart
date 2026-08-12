@@ -65,9 +65,12 @@ EXAMPLES:
     );
 }
 
-fn collect_java_files(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
+fn collect_source_files(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
     if path.is_file() {
-        if path.extension().map_or(false, |ext| ext == "java") {
+        if path
+            .extension()
+            .map_or(false, |ext| ext == "java" || ext == "kt" || ext == "kts")
+        {
             files.push(path.to_path_buf());
         }
     } else if path.is_dir() {
@@ -75,8 +78,11 @@ fn collect_java_files(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<
             let entry = entry?;
             let p = entry.path();
             if p.is_dir() {
-                collect_java_files(&p, files)?;
-            } else if p.extension().map_or(false, |ext| ext == "java") {
+                collect_source_files(&p, files)?;
+            } else if p
+                .extension()
+                .map_or(false, |ext| ext == "java" || ext == "kt" || ext == "kts")
+            {
                 files.push(p);
             }
         }
@@ -92,13 +98,13 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         return Err(format!("Source path '{}' does not exist", source_path_str));
     }
 
-    let mut java_files = Vec::new();
-    collect_java_files(source_path, &mut java_files)
+    let mut source_files = Vec::new();
+    collect_source_files(source_path, &mut source_files)
         .map_err(|e| format!("Failed to scan directory: {}", e))?;
 
-    if java_files.is_empty() {
+    if source_files.is_empty() {
         return Err(format!(
-            "No .java files found under source path '{}'",
+            "No .java or .kt files found under source path '{}'",
             source_path_str
         ));
     }
@@ -117,7 +123,7 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     log_info("================================================================================");
     log_info(" OPENHEART STATIC ANALYSIS PIPELINE STARTING");
     log_info(&format!(" Input Path  : {}", source_path.display()));
-    log_info(&format!(" Java Files  : {}", java_files.len()));
+    log_info(&format!(" Source Files: {}", source_files.len()));
     log_info(&format!(" Session Log : {}", session_log_path.display()));
     log_info(&format!(" Persist Log : {}", persistent_log_path.display()));
     log_info("================================================================================");
@@ -134,7 +140,7 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
     let scpg_path = out_dir.join("unified.scpg");
 
     // ── PHASE 1: Lexical Ingestion ──
-    let manifest = SourceManifest::new(java_files.clone());
+    let manifest = SourceManifest::new(source_files.clone());
     let tca_artifact = IngestionStage::run(manifest, &tca_path)
         .map_err(|e| format!("Phase 1 Ingestion failed: {}", e))?;
     let tca_bytes = fs::read(&tca_path).map_err(|e| format!("Failed to read .tca file: {}", e))?;

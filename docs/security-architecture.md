@@ -2,6 +2,8 @@
 
 This document details the security posture, memory safety guarantees, input sanitization boundaries, and cryptographic verification mechanisms of **OpenHeart**.
 
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
 ---
 
 ## 1. Zero-Unsafe Ingestion Policy

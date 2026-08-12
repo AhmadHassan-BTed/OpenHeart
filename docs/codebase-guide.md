@@ -2,6 +2,8 @@
 
 This guide provides a structural breakdown of the **OpenHeart** codebase for contributors and maintainers. Created and maintained solely by **Ahmad Hassan (B-Ted)**.
 
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
 ---
 
 ## Source Module Layout (5 Active Completed Engine Phases)

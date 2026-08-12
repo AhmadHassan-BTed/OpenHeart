@@ -42,10 +42,15 @@ impl ClassDiagramExtractor {
             let mut methods = Vec::new();
             let mut inner_classes = Vec::new();
 
-            // Iterate children via first_child / next_sibling
-            let mut child_id = sym.first_child;
-            while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
-                let child = &sta.symbol_records[child_id as usize];
+            // Collect all member symbols whose parent_sym == sym_id
+            for child_sym_id in 0..sta.symbol_count as u32 {
+                let child = match sta.symbol(child_sym_id) {
+                    Some(c) => c,
+                    None => continue,
+                };
+                if child.parent_sym != sym_id {
+                    continue;
+                }
                 let child_kind = SymbolKind::from(child.kind);
 
                 match child_kind {
@@ -86,8 +91,49 @@ impl ClassDiagramExtractor {
                     }
                     _ => {}
                 }
+            }
 
-                child_id = child.next_sibling;
+            let mut association_syms = Vec::new();
+            let mut implements_syms = Vec::new();
+
+            for field in &fields {
+                if field.type_sym_id != u32::MAX && field.type_sym_id != sym_id {
+                    if let Some(target_sym) = sta.symbol(field.type_sym_id) {
+                        let target_kind = SymbolKind::from(target_sym.kind);
+                        if matches!(
+                            target_kind,
+                            SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM
+                        ) {
+                            if !association_syms.contains(&field.type_sym_id) {
+                                association_syms.push(field.type_sym_id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for method in &methods {
+                if method.return_type_sym_id != u32::MAX && method.return_type_sym_id != sym_id {
+                    if let Some(target_sym) = sta.symbol(method.return_type_sym_id) {
+                        let target_kind = SymbolKind::from(target_sym.kind);
+                        if matches!(
+                            target_kind,
+                            SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM
+                        ) {
+                            if !association_syms.contains(&method.return_type_sym_id) {
+                                association_syms.push(method.return_type_sym_id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if sym.parent_sym != u32::MAX {
+                if let Some(parent_sym) = sta.symbol(sym.parent_sym) {
+                    if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_INTERFACE {
+                        implements_syms.push(sym.parent_sym);
+                    }
+                }
             }
 
             // Find UMLLink for this class from TRA
@@ -113,7 +159,7 @@ impl ClassDiagramExtractor {
                 stereotype,
                 visibility: sym.visibility,
                 modifiers: sym.modifiers,
-                extends_sym: sym.parent_sym,
+                extends_sym: u32::MAX,
                 field_count: fields.len() as u16,
                 method_count: methods.len() as u16,
                 inner_count: inner_classes.len() as u16,
@@ -125,6 +171,8 @@ impl ClassDiagramExtractor {
                 fields,
                 methods,
                 inner_classes,
+                implements_syms,
+                association_syms,
             });
         }
 

@@ -28,6 +28,8 @@ pub struct SymbolTableBuilder {
     pub th_edges: Vec<TypeHierarchyEdge>,
     pub associations: Vec<UMLAssociationRecord>,
     pub type_ref_resolutions: HashMap<u32, u32>,
+    pub custom_package_names: HashMap<u32, String>,
+    pub file_package_names: HashMap<u16, String>,
 }
 
 impl Default for SymbolTableBuilder {
@@ -50,6 +52,8 @@ impl SymbolTableBuilder {
             th_edges: Vec::new(),
             associations: Vec::new(),
             type_ref_resolutions: HashMap::new(),
+            custom_package_names: HashMap::new(),
+            file_package_names: HashMap::new(),
         }
     }
 

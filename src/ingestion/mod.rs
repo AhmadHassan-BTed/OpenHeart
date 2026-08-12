@@ -134,11 +134,21 @@ impl IngestionStage {
 
             {
                 let mut intern = interner.lock().unwrap();
+                let mut prev_base_key = 0u64;
+                let mut dup_count = 0u8;
                 for rt in &raw_tokens {
                     let token_id = allocator.next_id();
                     let text = &source[rt.text_start..rt.text_start + rt.text_len];
                     let text_id = intern.intern(text);
-                    let sort_key = build_sort_key(rt.file_id, rt.line, rt.col);
+                    let base_key = build_sort_key(rt.file_id, rt.line, rt.col);
+                    let sort_key = if base_key == prev_base_key {
+                        dup_count = dup_count.wrapping_add(1);
+                        base_key | (dup_count as u64)
+                    } else {
+                        prev_base_key = base_key;
+                        dup_count = 0;
+                        base_key
+                    };
 
                     builder.push(
                         token_id,

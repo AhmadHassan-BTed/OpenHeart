@@ -666,15 +666,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function renderMermaidDiagram(type, selectedModule = 'all') {
-    const mermaidCode = generatedDiagrams[type];
-    renderContainer.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
+    const mermaidCode = generatedDiagrams[type] || `graph TD\n A["${type} Diagram"]`;
+    const uniqueId = `mermaid-svg-${Date.now()}`;
 
     try {
-      await mermaid.run({
-        nodes: renderContainer.querySelectorAll('.mermaid')
-      });
+      if (typeof mermaid.render === 'function') {
+        const { svg } = await mermaid.render(uniqueId, mermaidCode);
+        renderContainer.innerHTML = svg;
+      } else {
+        renderContainer.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
+        await mermaid.run({ nodes: renderContainer.querySelectorAll('.mermaid') });
+      }
     } catch (err) {
-      console.error('Mermaid render error:', err);
+      console.warn('Mermaid primary render warning, using node fallback:', err);
+      renderContainer.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
+      try {
+        await mermaid.run({ nodes: renderContainer.querySelectorAll('.mermaid') });
+      } catch (fallbackErr) {
+        console.error('Mermaid fallback render error:', fallbackErr);
+      }
     }
 
     // Dynamic Module Traceability Update

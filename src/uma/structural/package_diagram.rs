@@ -16,6 +16,13 @@ impl PackageDiagramExtractor {
                 None => continue,
             };
             if SymbolKind::from(sym.kind) == SymbolKind::SK_PACKAGE {
+                if !sta.custom_package_names.contains_key(&sym_id)
+                    && sym.first_child == u32::MAX
+                    && sym.name_id == u32::MAX
+                {
+                    continue;
+                }
+
                 let mut class_count = 0u16;
                 let mut subpackage_count = 0u16;
 

@@ -154,11 +154,19 @@ fn find_method_name_token(call_node: u32, bpa: &BPASTArtifact) -> u32 {
     let mut child = bpa.first_child(call_node);
     while let Some(c) = child {
         if bpa.node_type(c) == ASTNodeType::NN_IDENTIFIER_EXPR {
-            return bpa.token_range(c).0;
+            let (tok, _) = bpa.token_range(c);
+            if tok != u32::MAX {
+                return tok;
+            }
         }
         child = bpa.next_sibling(c);
     }
-    bpa.token_range(call_node).0
+    let (t_start, _) = bpa.token_range(call_node);
+    if t_start != u32::MAX {
+        t_start
+    } else {
+        0
+    }
 }
 
 fn count_arguments(call_node: u32, bpa: &BPASTArtifact) -> usize {

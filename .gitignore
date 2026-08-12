@@ -1,15 +1,33 @@
+# Build & Binary Output Target Directories
 /target/
+tmp/
+out_test/
+openheart_output/
+fractal_android_output/
+fractal_android_output_answer/
+target_repos/
+sample_project/
+
+# SCPG Phase 1-10 Binary Artifact Files
 *.tca
 *.bpa
 *.sta
 *.cfa
+*.ssa
+*.cga
+*.tra
+*.psa
+*.uma
 *.scpg
+
+# Logs & Temporary Dump Files
 *.log
+*.txt
+*.bin.png.txt
+*.png.txt
+
+# Environment & Editor Files
 .env
-tmp/
-out_test/
-openheart_output/
-sample_project/
 .DS_Store
 Thumbs.db
 .vscode/

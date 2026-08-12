@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::core::types::token::LangId;
 use crate::ingestion::adapter::java::JavaLanguageAdapter;
+use crate::ingestion::adapter::kotlin::KotlinLanguageAdapter;
 use crate::ingestion::adapter::LanguageAdapter;
 
 #[derive(Clone)]
@@ -20,6 +21,7 @@ impl AdapterRegistry {
             ext_map: HashMap::new(),
         };
         reg.register(Arc::new(JavaLanguageAdapter::new()));
+        reg.register(Arc::new(KotlinLanguageAdapter::new()));
         reg
     }
 

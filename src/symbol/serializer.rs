@@ -28,6 +28,8 @@ pub struct SymbolTableArtifact {
     pub th_edges: Vec<TypeHierarchyEdge>,
     pub associations: Vec<UMLAssociationRecord>,
     pub qual_names: Vec<String>,
+    pub custom_package_names: std::collections::HashMap<u32, String>,
+    pub file_package_names: std::collections::HashMap<u16, String>,
     pub crc64_checksum: u64,
 }
 
@@ -48,7 +50,7 @@ impl SymbolTableArtifact {
 
         name_index.sort_by_key(|&(nid, _)| nid);
 
-        Self {
+        let mut artifact = Self {
             magic: STA_MAGIC,
             format_version: STA_FORMAT_VERSION,
             symbol_count: builder.symbols.len() as u32,
@@ -65,8 +67,11 @@ impl SymbolTableArtifact {
             th_edges: builder.th_edges.clone(),
             associations: builder.associations.clone(),
             qual_names: builder.qual_names.all_names().to_vec(),
+            custom_package_names: builder.custom_package_names.clone(),
+            file_package_names: builder.file_package_names.clone(),
             crc64_checksum: 0,
-        }
+        };
+        artifact
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -155,6 +160,28 @@ impl SymbolTableArtifact {
             for name in &self.qual_names {
                 writer.write_u32(name.len() as u32).unwrap();
                 writer.write_bytes(name.as_bytes()).unwrap();
+            }
+
+            // 8. Custom Package Names Map
+            writer
+                .write_u32(self.custom_package_names.len() as u32)
+                .unwrap();
+            for (sym_id, name) in &self.custom_package_names {
+                writer.write_u32(*sym_id).unwrap();
+                let name_bytes = name.as_bytes();
+                writer.write_u32(name_bytes.len() as u32).unwrap();
+                writer.write_bytes(name_bytes).unwrap();
+            }
+
+            // 9. File Package Names Map
+            writer
+                .write_u32(self.file_package_names.len() as u32)
+                .unwrap();
+            for (fid, name) in &self.file_package_names {
+                writer.write_u16(*fid).unwrap();
+                let name_bytes = name.as_bytes();
+                writer.write_u32(name_bytes.len() as u32).unwrap();
+                writer.write_bytes(name_bytes).unwrap();
             }
         }
 
@@ -343,6 +370,32 @@ impl SymbolTableArtifact {
             qual_names.push(str_val);
         }
 
+        let mut custom_package_names = std::collections::HashMap::new();
+        if let Ok(custom_count) = reader.read_u32() {
+            for _ in 0..custom_count {
+                if let (Ok(sym_id), Ok(len)) = (reader.read_u32(), reader.read_u32()) {
+                    if let Ok(bytes) = reader.read_exact_bytes(len as usize) {
+                        if let Ok(name) = String::from_utf8(bytes) {
+                            custom_package_names.insert(sym_id, name);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut file_package_names = std::collections::HashMap::new();
+        if let Ok(file_count) = reader.read_u32() {
+            for _ in 0..file_count {
+                if let (Ok(fid), Ok(len)) = (reader.read_u16(), reader.read_u32()) {
+                    if let Ok(bytes) = reader.read_exact_bytes(len as usize) {
+                        if let Ok(name) = String::from_utf8(bytes) {
+                            file_package_names.insert(fid, name);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(Self {
             magic,
             format_version,
@@ -359,6 +412,8 @@ impl SymbolTableArtifact {
             th_edges,
             associations,
             qual_names,
+            custom_package_names,
+            file_package_names,
             crc64_checksum: expected_checksum,
         })
     }

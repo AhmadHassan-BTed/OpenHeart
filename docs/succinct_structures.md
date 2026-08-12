@@ -2,6 +2,8 @@
 
 This document details the mathematical algorithms, succinct representations, and complexity proofs underlying the **Succinct Compositional Program Graph (SCPG)** engine.
 
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
 ---
 
 ## 1. Succinct AST Encoding via Balanced Parentheses (BP)

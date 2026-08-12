@@ -2,6 +2,8 @@
 
 Thank you for exploring **OpenHeart**, maintained by **Ahmad Hassan (B-Ted)**. For support, questions, or issues, please utilize the following channels:
 
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
 ---
 
 ## Community Support Channels
