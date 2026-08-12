@@ -22,7 +22,6 @@ pub fn build_continue(
             .iter()
             .rev()
             .find(|f| f.label == Some(label_node))
-            .or_else(|| state.continue_stack.last())
             .copied()
     } else {
         state.continue_stack.last().copied()

@@ -1,0 +1,127 @@
+%% ==========================================
+%% OPENHEART SCPG ENGINE GENERATED MERMAID CODE (BIG ENTERPRISE PROJECT - ALL 14 UML DIAGRAM TYPES)
+%% ==========================================
+
+%% 1. CLASS DIAGRAM
+classDiagram
+    class Application {
+    }
+    class Application {
+    }
+    class void {
+    }
+    class args {
+    }
+    class SystemConfig {
+    }
+    class config {
+    }
+    class User {
+    }
+    class user1 {
+    }
+    class User {
+    }
+    class user2 {
+    }
+
+
+%% 2. OBJECT DIAGRAM
+classDiagram
+    class orderInstance {
+        id = 101
+        state = "APPROVED"
+    }
+
+
+%% 3. COMPONENT DIAGRAM
+graph TD
+    subgraph Core["OpenHeart Core Engine"]
+        Comp1["Engine Component"]
+        Comp2["Ingestion Stream"]
+    end
+    Comp1 --> Comp2
+
+
+%% 4. DEPLOYMENT DIAGRAM
+graph LR
+    Client["Client Workstation"] -->|HTTPS| Server["OpenHeart Server"]
+    Server --> Database["SCPG Unified Store (.scpg)"]
+
+
+%% 5. PACKAGE DIAGRAM
+graph TD
+    subgraph RootPkg["com.openheart.app"]
+        PkgA["service"]
+        PkgB["model"]
+    end
+    PkgA --> PkgB
+
+
+%% 6. COMPOSITE STRUCTURE DIAGRAM
+classDiagram
+    class CompositeStructure {
+        +Port1 : IngestionStream
+        +Port2 : SerializerPipe
+    }
+
+
+%% 7. PROFILE DIAGRAM
+graph TD
+    Profile["<<Stereotype>> SystemComponent"] --> Target["SCPG Engine"]
+
+
+%% 8. USE CASE DIAGRAM
+graph LR
+    Developer((Developer)) --> UC1("Analyze Codebase")
+    Developer --> UC2("Generate 14 UML Views")
+    Developer --> UC3("Export SCPG Binary")
+    UC1 --> Engine((OpenHeart Engine))
+
+
+%% 9. ACTIVITY DIAGRAM
+graph TD
+    Start([Start]) --> Action[Execute] --> End([End])
+
+
+%% 10. STATE MACHINE DIAGRAM
+stateDiagram-v2
+    [*] --> StateA
+    StateA --> StateB : trigger
+    StateB --> [*]
+
+
+%% 11. SEQUENCE DIAGRAM
+sequenceDiagram
+    autonumber
+    actor User
+    participant App as System
+    User->>App: request()
+    App-->>User: response()
+
+
+%% 12. COMMUNICATION DIAGRAM
+graph LR
+    User -->|1: submit_url()| Portal
+    Portal -->|2: walk_cst()| Scanner
+
+
+%% 13. INTERACTION OVERVIEW DIAGRAM
+graph TD
+    subgraph Overview["Interaction Overview"]
+        Init["Init Pipeline"] --> Seq1["Sequence: Scanner Handshake"]
+        Seq1 --> Seq2["Sequence: UML Derivation"]
+    end
+
+
+%% 14. TIMING DIAGRAM
+gantt
+    title SCPG Ingestion Phase Timing Bounds
+    dateFormat  SS
+    axisFormat %S s
+    section Ingestion
+    Lexical Scanning     :a1, 00, 02s
+    String Interning     :a2, after a1, 01s
+    section Execution
+    UML Derivation       :b1, after a2, 02s
+

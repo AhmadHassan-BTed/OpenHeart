@@ -199,8 +199,13 @@ const UML_TEMPLATES = {
         P3["Phase 3: Symbol Table & TH"]
         P4["Phase 4: CFG & Dominators"]
         P5["Phase 5: SSA & Data Flow"]
+        P6["Phase 6: Call Graph & Points-To"]
+        P7["Phase 7: Traceability Index"]
+        P8["Phase 8: ROBDD Path Summaries"]
+        P9["Phase 9: UML Semantic Metadata"]
+        P10["Phase 10: SCPG Unified & API"]
     end
-    P1 --> P2 --> P3 --> P4 --> P5`,
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9 --> P10`,
 
   deployment: `graph LR
     Node1["Developer Workstation"] -->|HTTPS / Git| Node2["OpenHeart Portal"]
@@ -217,8 +222,26 @@ const UML_TEMPLATES = {
             parser["parser"]
             builder["builder"]
         end
+        subgraph phase8_mod["psa"]
+            bdd["bdd"]
+            ordering["ordering"]
+            construction["construction"]
+        end
+        subgraph phase9_mod["uma"]
+            structural["structural"]
+            behavioral["behavioral"]
+            patterns["patterns"]
+        end
+        subgraph phase10_mod["scpg"]
+            query["query"]
+            api["api"]
+            serializer["serializer"]
+        end
     end
-    phase1_mod --> core_mod`,
+    phase1_mod --> core_mod
+    phase8_mod --> core_mod
+    phase9_mod --> core_mod
+    phase10_mod --> core_mod`,
 
   composite: `classDiagram
     class ClassStructure {
@@ -284,7 +307,15 @@ const UML_TEMPLATES = {
     Lexical Scanning     :a1, 00, 02s
     String Interning     :a2, after a1, 01s
     section Phase 2
-    BP AST Construction  :b1, after a2, 02s`
+    BP AST Construction  :b1, after a2, 02s
+    section Phase 7
+    Traceability Index   :c1, after b1, 02s
+    section Phase 8
+    ROBDD Path Summaries :c2, after c1, 03s
+    section Phase 9
+    UML Metadata Extract :c3, after c2, 01s
+    section Phase 10
+    Unified SCPG & API   :c4, after c3, 01s`
 };
 
 let selectedDiagrams = new Set(['class', 'object', 'component', 'package', 'activity', 'sequence']);
@@ -483,38 +514,92 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runPipelineSimulation(url) {
     pipelineStatus.classList.remove('hidden');
     statusLogs.innerHTML = '';
-    progressBarFill.style.width = '10%';
-    statusPercent.textContent = '10%';
+    progressBarFill.style.width = '5%';
+    statusPercent.textContent = '5%';
 
     logStep(`> Validating target repository URL: ${url}`);
-    await sleep(400);
+    await sleep(200);
 
-    statusStepTitle.textContent = 'STAGE 1: LEXICAL INGESTION & TREE-SITTER WALK...';
-    progressBarFill.style.width = '35%';
-    statusPercent.textContent = '35%';
+    // Phase 1
+    statusStepTitle.textContent = 'PHASE 1/10: LEXICAL INGESTION & STRING INTERNING...';
+    progressBarFill.style.width = '10%';
+    statusPercent.textContent = '10%';
     logStep('> Allocating monotonic token_id counter [0..4096]');
     logStep('> Interning identifiers with 64-bit FNV-1a StringInterner');
-    await sleep(500);
+    logStep('> Phase 1 Ingestion Complete: .tca written');
+    await sleep(250);
 
-    statusStepTitle.textContent = 'STAGE 2: VERIFYING CORPUS INVARIANTS 1–4...';
-    progressBarFill.style.width = '65%';
-    statusPercent.textContent = '65%';
-    logStep('> Invariant 1 (Monotonicity): VERIFIED');
-    logStep('> Invariant 2 (Injectivity): VERIFIED');
-    logStep('> Invariant 3 (Completeness): VERIFIED');
-    logStep('> Invariant 4 (Index Consistency): VERIFIED');
-    await sleep(400);
+    // Phase 2
+    statusStepTitle.textContent = 'PHASE 2/10: CST REDUCTION & BP AST ENCODING...';
+    progressBarFill.style.width = '20%';
+    statusPercent.textContent = '20%';
+    logStep('> Encoding Balanced Parentheses (BP) bitstring & succinct rank/select');
+    logStep('> Phase 2 Complete: Encoded BP AST nodes to .bpa');
+    await sleep(250);
 
-    statusStepTitle.textContent = 'STAGE 3: DERIVING UML DIAGRAM VIEWS...';
+    // Phase 3
+    statusStepTitle.textContent = 'PHASE 3/10: SYMBOL TABLE & TYPE HIERARCHY CSR...';
+    progressBarFill.style.width = '30%';
+    statusPercent.textContent = '30%';
+    logStep('> Executing 5-Pass Symbol Discovery DFS & Type Resolution');
+    logStep('> Phase 3 Complete: Symbol Table constructed to .sta');
+    await sleep(250);
+
+    // Phase 4
+    statusStepTitle.textContent = 'PHASE 4/10: CONTROL FLOW GRAPH & DOMINATORS...';
+    progressBarFill.style.width = '40%';
+    statusPercent.textContent = '40%';
+    logStep('> Computing Cooper Dominators & Dominance Frontiers');
+    logStep('> Phase 4 Complete: CFG functions analyzed to .cfa');
+    await sleep(250);
+
+    // Phase 5
+    statusStepTitle.textContent = 'PHASE 5/10: CYTRON SSA & DATA FLOW GRAPH...';
+    progressBarFill.style.width = '50%';
+    statusPercent.textContent = '50%';
+    logStep('> Placing phi-functions & renaming variables');
+    logStep('> Phase 5 Complete: SSA Conversion complete to .ssa');
+    await sleep(250);
+
+    // Phase 6
+    statusStepTitle.textContent = 'PHASE 6/10: CALL GRAPH & POINTS-TO ANALYSIS...';
+    progressBarFill.style.width = '60%';
+    statusPercent.textContent = '60%';
+    logStep('> Anderson Points-To solver & Tarjan SCC recursion analysis');
+    logStep('> Phase 6 Complete: Call Graph constructed to .cga');
+    await sleep(250);
+
+    // Phase 7
+    statusStepTitle.textContent = 'PHASE 7/10: TRACEABILITY INDEX CONSTRUCTION...';
+    progressBarFill.style.width = '70%';
+    statusPercent.textContent = '70%';
+    logStep('> Asserting Invariants 1-4 & building backward indexes');
+    logStep('> Phase 7 Complete: Traceability Index written to .tra');
+    await sleep(250);
+
+    // Phase 8
+    statusStepTitle.textContent = 'PHASE 8/10: ROBDD PATH SUMMARY COMPUTATION...';
+    progressBarFill.style.width = '80%';
+    statusPercent.textContent = '80%';
+    logStep('> Computing ROBDD satisfying assignments & FORCE ordering');
+    logStep('> Phase 8 Complete: Path summaries written to .psa');
+    await sleep(250);
+
+    // Phase 9
+    statusStepTitle.textContent = 'PHASE 9/10: UML SEMANTIC METADATA EXTRACTION...';
     progressBarFill.style.width = '90%';
     statusPercent.textContent = '90%';
-    logStep(`> Compiling ${selectedDiagrams.size} selected UML graph projections...`);
-    await sleep(400);
+    logStep(`> Extracting records for all 14 UML diagram types & 6 design patterns`);
+    logStep('> Phase 9 Complete: UML Metadata written to .uma');
+    await sleep(250);
 
+    // Phase 10
+    statusStepTitle.textContent = 'PHASE 10/10: SCPG UNIFIED BINARY & API BOOTSTRAP...';
     progressBarFill.style.width = '100%';
     statusPercent.textContent = '100%';
-    statusStepTitle.textContent = 'ANALYSIS COMPLETE :: SCPG ARTIFACT RENDERED';
-    logStep('> Serialization completed successfully.');
+    logStep('> Merging 9 artifacts into 11 sections (Hot -> Warm -> Cold layout)');
+    logStep('> Bootstrapping OpenHeartEngine LRU query engine (scpg_hash: 0x0D581DA3)');
+    logStep('SYSTEM PRODUCTION READY :: ALL 10 PHASES COMPLETED');
     await sleep(300);
 
     pipelineStatus.classList.add('hidden');

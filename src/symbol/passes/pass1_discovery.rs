@@ -150,12 +150,17 @@ impl Pass1Discovery {
         bpa: &BPASTArtifact,
         adapter: &dyn SemanticAdapter,
     ) -> SymbolVisibility {
-        let (ft, _) = bpa.token_range(pre_idx);
-        if ft != u32::MAX {
-            let kind = adapter.symbol_kind(bpa.node_type(pre_idx));
-            adapter.default_visibility(kind)
-        } else {
-            SymbolVisibility::Package
+        let attr = bpa.node_attr(pre_idx);
+        let raw_vis = NodeAttr::unpack_visibility(attr);
+        match raw_vis {
+            NodeAttr::VISIBILITY_PUBLIC => SymbolVisibility::Public,
+            NodeAttr::VISIBILITY_PRIVATE => SymbolVisibility::Private,
+            NodeAttr::VISIBILITY_PROTECTED => SymbolVisibility::Protected,
+            NodeAttr::VISIBILITY_PACKAGE_PRIVATE => SymbolVisibility::Package,
+            _ => {
+                let kind = adapter.symbol_kind(bpa.node_type(pre_idx));
+                adapter.default_visibility(kind)
+            }
         }
     }
 
@@ -171,6 +176,21 @@ impl Pass1Discovery {
         }
         if (unpacked & NodeAttr::MOD_ABSTRACT) != 0 {
             mods |= SymbolModifiers::ABSTRACT;
+        }
+        if (unpacked & NodeAttr::MOD_SYNCHRONIZED) != 0 {
+            mods |= SymbolModifiers::SYNCHRONIZED;
+        }
+        if (unpacked & NodeAttr::MOD_NATIVE) != 0 {
+            mods |= SymbolModifiers::NATIVE;
+        }
+        if (unpacked & NodeAttr::MOD_VOLATILE) != 0 {
+            mods |= SymbolModifiers::VOLATILE;
+        }
+        if (unpacked & NodeAttr::MOD_TRANSIENT) != 0 {
+            mods |= SymbolModifiers::TRANSIENT;
+        }
+        if (unpacked & NodeAttr::MOD_SEALED) != 0 {
+            mods |= SymbolModifiers::SEALED;
         }
         mods
     }

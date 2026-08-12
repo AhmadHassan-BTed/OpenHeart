@@ -14,13 +14,7 @@ impl CDGBuilder {
             return (Vec::new(), CDGCSR::default());
         }
 
-        let mut _exit_block = 0;
-        for b in &cfg.blocks {
-            if b.is_exit {
-                _exit_block = b.id;
-                break;
-            }
-        }
+        let exit_block = cfg.blocks.iter().find(|b| b.is_exit).map(|b| b.id).unwrap_or(0);
 
         let mut rev_preds = vec![Vec::new(); n]; // reversed predecessors = forward successors
         let mut rev_succs = vec![Vec::new(); n]; // reversed successors = forward predecessors
@@ -32,7 +26,33 @@ impl CDGBuilder {
             }
         }
 
-        let rev_rpo = (0..n as u32).collect::<Vec<u32>>();
+        let mut visited = vec![false; n];
+        let mut post_order = Vec::with_capacity(n);
+
+        fn dfs(u: u32, rev_preds: &[Vec<u32>], visited: &mut [bool], post_order: &mut Vec<u32>) {
+            let u_idx = u as usize;
+            if u_idx >= visited.len() || visited[u_idx] {
+                return;
+            }
+            visited[u_idx] = true;
+            if let Some(succs) = rev_preds.get(u_idx) {
+                for &v in succs {
+                    dfs(v, rev_preds, visited, post_order);
+                }
+            }
+            post_order.push(u);
+        }
+
+        dfs(exit_block, &rev_preds, &mut visited, &mut post_order);
+
+        for b in 0..n as u32 {
+            if !visited[b as usize] {
+                dfs(b, &rev_preds, &mut visited, &mut post_order);
+            }
+        }
+
+        post_order.reverse();
+        let rev_rpo = post_order;
         let ipdom = compute_idom_cooper(n, &rev_preds, &rev_rpo);
 
         let mut cdg_adj: Vec<Vec<(u32, u8)>> = vec![Vec::new(); n];

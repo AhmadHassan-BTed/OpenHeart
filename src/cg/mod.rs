@@ -230,7 +230,7 @@ impl Phase6Stage {
     fn assert_invariants(
         artifact: &CallGraphArtifact,
         bpa: &BPASTArtifact,
-        sta: &SymbolTableArtifact,
+        _sta: &SymbolTableArtifact,
     ) -> Result<(), String> {
         let mut expected_call_nodes = 0u32;
         for pre_idx in 0..bpa.node_count {
@@ -260,10 +260,10 @@ impl Phase6Stage {
         }
 
         let total_scc_members: usize = artifact.sccs.iter().map(|s| s.member_count as usize).sum();
-        if total_scc_members != sta.symbol_count as usize {
+        if total_scc_members != artifact.method_count as usize {
             return Err(format!(
-                "Invariant 3 Violation: SCC total members ({}) != STA symbol count ({}).",
-                total_scc_members, sta.symbol_count
+                "Invariant 3 Violation: SCC total members ({}) != method count ({}).",
+                total_scc_members, artifact.method_count
             ));
         }
 

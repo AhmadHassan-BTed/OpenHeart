@@ -44,7 +44,10 @@ pub fn place_phi_functions(
                 // Pruned SSA check: place phi only if var_sym is live at entry of y
                 if !phi_placed.contains(&y) && liveness.is_live_in(y, var_sym) {
                     phi_placed.insert(y);
-                    block_phi_map.entry(y).or_default().push(var_sym);
+                    let list = block_phi_map.entry(y).or_default();
+                    if !list.contains(&var_sym) {
+                        list.push(var_sym);
+                    }
 
                     pending_phis.push(PendingPhi {
                         block_id: y,

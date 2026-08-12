@@ -45,12 +45,14 @@ pub fn build_switch(
             state.add_edge(prev, case_entry, CFGEdgeType::Uncond);
         }
 
+        let mut is_label = false;
         let first_child = bpa.first_child(case_node);
         if let Some(fc) = first_child {
             let ntype = bpa.node_type(fc);
             if ntype == ASTNodeType::NN_LITERAL || ntype == ASTNodeType::NN_IDENTIFIER_EXPR {
                 // Label
                 state.add_stmt_to_block(case_entry, fc, bpa);
+                is_label = true;
             } else {
                 has_default = true;
             }
@@ -58,8 +60,12 @@ pub fn build_switch(
 
         state.current_block = case_entry;
 
-        // Process statements inside case group
-        let mut stmt = first_child;
+        // Process statements inside case group (skip label node if present)
+        let mut stmt = if is_label && first_child.is_some() {
+            bpa.next_sibling(first_child.unwrap())
+        } else {
+            first_child
+        };
         while let Some(s) = stmt {
             dispatch_stmt(s, state, bpa, sta);
             stmt = bpa.next_sibling(s);

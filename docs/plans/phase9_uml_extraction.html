@@ -1,0 +1,386 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:44px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.ct{border-collapse:collapse;width:100%;font-size:11px;margin-top:6px}
+.ct th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.ct td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.ct td:first-child{color:var(--text-primary);font-weight:500}
+.good{color:var(--text-success)!important}
+.art-row{display:flex;gap:4px;margin-bottom:4px;align-items:center}
+.art-lbl{width:150px;font-size:11px;font-weight:500;flex-shrink:0;color:var(--text-primary)}
+.art-bar{flex:1;padding:4px 10px;border-radius:5px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between}
+.art-bar:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+.pat-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--surface-1)}
+.pat-row:hover{border-color:var(--border-strong)}
+.pat-name{font-size:12px;font-weight:500;color:var(--text-primary);width:120px;flex-shrink:0}
+.pat-criteria{font-size:11px;color:var(--text-secondary);flex:1}
+.conf-bar{height:6px;border-radius:3px;background:var(--border);width:80px;flex-shrink:0;overflow:hidden}
+.conf-fill{height:100%;border-radius:3px}
+</style>
+
+<h2 class="sr-only">Phase 9 UML semantic metadata extraction across all 14 diagram types</h2>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('map')">14 diagrams map</div>
+  <div class="tab" onclick="sw('activity')">Activity diagram</div>
+  <div class="tab" onclick="sw('statemachine')">State machine</div>
+  <div class="tab" onclick="sw('sequence')">Sequence diagram</div>
+  <div class="tab" onclick="sw('patterns')">Pattern detection</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+</div>
+
+<div id="map" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Each UML diagram type is extracted from specific SCPG layers. Click any row to see the extraction function.</div>
+<table class="ct">
+  <thead><tr><th>#</th><th>Diagram</th><th>Type</th><th>Primary SCPG source</th><th>Secondary sources</th></tr></thead>
+  <tbody>
+    <tr onclick="si('Class diagram','STA V_sym symbols with their fields, methods, and visibility. E^TH edges give extends/implements. PSA.cyclomatic annotates each method. TRA.uml_links provide source navigation anchors. Produces: ClassRecord[] with full UML class box semantics.')">
+      <td>1</td><td>Class</td><td style="color:#085041">Structural</td><td>V_sym + E^TH</td><td>PSA cyclomatic, TRA links</td></tr>
+    <tr onclick="si('Object diagram','SSA allocation sites (new T() expressions) represent runtime instances. The heap shape at a specific program point is reconstructed from SSA def-use chains. Limited to static analysis approximation.')">
+      <td>2</td><td>Object</td><td style="color:#085041">Structural</td><td>SSA alloc sites</td><td>STA type hierarchy</td></tr>
+    <tr onclick="si('Component diagram','Package-level grouping: each STA package becomes a component. CGA inter-package call edges become component dependencies (provided/required interfaces).')">
+      <td>3</td><td>Component</td><td style="color:#085041">Structural</td><td>STA packages + CGA</td><td>CGA inter-pkg edges</td></tr>
+    <tr onclick="si('Package diagram','STA namespace hierarchy: each package is a node, each import relationship is an edge. Shows the dependency structure between packages.')">
+      <td>5</td><td>Package</td><td style="color:#085041">Structural</td><td>STA namespaces</td><td>E^TH TH_USES pkg-level</td></tr>
+    <tr onclick="si('Use case diagram','Entry points: public methods with CGA fan-in=0. Their parameter types that are external (SK_EXTERNAL) become actors. Each entry point becomes a use case ellipse.')">
+      <td>8</td><td>Use Case</td><td style="color:#534AB7">Behavioral</td><td>CGA fan-in=0 methods</td><td>STA public visibility</td></tr>
+    <tr onclick="si('Activity diagram','CFA basic blocks classified into UML activity node types (ActionNode, DecisionNode, MergeNode, etc.). CFG edges become activity flow edges with guard condition text extracted from the AST. Sequential actions merged into compound nodes.')">
+      <td>9</td><td>Activity</td><td style="color:#534AB7">Behavioral</td><td>CFA blocks + E^CFG</td><td>PSA ROBDD, SSA CDG</td></tr>
+    <tr onclick="si('State machine diagram','SSA IFDS type-state results group (ssa_id, state_id) pairs by class type. Method calls that change state become transitions. The automaton is lifted directly from the IFDS fixed-point solution.')">
+      <td>10</td><td>State Machine</td><td style="color:#534AB7">Behavioral</td><td>SSA IFDS type-state</td><td>STA type hierarchy</td></tr>
+    <tr onclick="si('Sequence diagram','DFS over CGA from fan-in=0 entry points. Call sites ordered by CFA topological position within each method. Each call becomes a message arrow. Loops and conditionals in the CFG become LOOP/ALT combined fragments.')">
+      <td>11</td><td>Sequence</td><td style="color:#534AB7">Behavioral</td><td>CGA call sites + SCC order</td><td>CFA block topo order</td></tr>
+    <tr onclick="si('Communication diagram','Same data as sequence but rendered as object collaboration graph instead of timeline. Objects as nodes, numbered messages on edges.')">
+      <td>12</td><td>Communication</td><td style="color:#534AB7">Behavioral</td><td>CGA + STA associations</td><td>TRA call_site spans</td></tr>
+    <tr onclick="si('Interaction Overview','Hybrid: an activity diagram where some action nodes contain embedded sequence diagram fragments. Built by combining ActivityRecord and SequenceDiagramRecord.')">
+      <td>13</td><td>Interaction Ov.</td><td style="color:#534AB7">Behavioral</td><td>CFA + CGA hybrid</td><td>Activity + Sequence records</td></tr>
+  </tbody>
+</table>
+<div id="info-map" class="info">Click any row to see exactly which SCPG entities are read and what UML records they produce.</div>
+</div>
+
+<div id="activity" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">CFG basic blocks → UML activity nodes. Each block type maps to a different UML node. Click any block or arrow.</div>
+<svg width="100%" viewBox="0 0 680 490" role="img">
+  <title>CFG to UML activity diagram transformation showing InitialNode, ActionNode, DecisionNode, MergeNode, and FinalNode mapped from basic blocks</title>
+  <desc>B0 ENTRY maps to InitialNode (filled circle), B1 condition maps to DecisionNode (diamond), B2 and B3 action blocks map to ActionNode (rounded rect), B4 join maps to MergeNode, B5 return maps to FinalNode</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- CFG side (left) -->
+  <text class="ts" x="160" y="24" text-anchor="middle" style="fill:var(--text-muted)">CFA basic blocks</text>
+  <g class="c-gray node" onclick="si('B0 (ENTRY) → InitialNode','entry_block == true → filled black circle in UML activity diagram. No label. Always the topmost node. Invariant: exactly one InitialNode per activity diagram.')">
+    <rect x="80" y="40" width="160" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="160" y="58" text-anchor="middle" dominant-baseline="central">B0 — ENTRY (synthetic)</text>
+  </g>
+  <line x1="160" y1="76" x2="160" y2="105" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <g class="c-purple node" onclick="si('B1 (condition) → DecisionNode','successors.len()==2 → diamond shape. Guard text extracted from condition expression in the AST: classify_block returns DecisionNode. The two outgoing edges get [condition] and [¬condition] guard labels.')">
+    <rect x="80" y="107" width="160" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="160" y="125" text-anchor="middle" dominant-baseline="central">B1 — x&gt;0? (condition)</text>
+  </g>
+  <path d="M125 143 L80 195" fill="none" stroke="#1D9E75" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="86" y="172" style="fill:#085041">[true]</text>
+  <path d="M195 143 L240 195" fill="none" stroke="#D85A30" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="204" y="172" style="fill:#712B13">[false]</text>
+
+  <g class="c-teal node" onclick="si('B2 → ActionNode','predecessors.len()==1, successors.len()==1 → ActionNode (rounded rectangle). Label extracted from stmt AST: "result = a". Sequential ActionNodes with no branches are merged into compound nodes.')">
+    <rect x="40" y="197" width="120" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="100" y="215" text-anchor="middle" dominant-baseline="central">B2 — result=a</text>
+  </g>
+  <g class="c-coral node" onclick="si('B3 → ActionNode','Same classification as B2. Label: "result = b". Both B2 and B3 are straight-line execution blocks with one predecessor and one successor.')">
+    <rect x="200" y="197" width="120" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="260" y="215" text-anchor="middle" dominant-baseline="central">B3 — result=b</text>
+  </g>
+  <path d="M100 233 L160 278" fill="none" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+  <path d="M260 233 L200 278" fill="none" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <g class="c-gray node" onclick="si('B4 → MergeNode','predecessors.len()>=2, successors.len()==1 → MergeNode (second diamond shape). Marks where multiple control flow paths converge. May also contain the φ-function for result^3 in the SSA layer.')">
+    <rect x="100" y="280" width="120" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="160" y="298" text-anchor="middle" dominant-baseline="central">B4 — join (merge)</text>
+  </g>
+  <line x1="160" y1="316" x2="160" y2="354" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <g class="c-gray node" onclick="si('B5 → ActivityFinalNode','Contains a return statement → ActivityFinalNode (bull's-eye circle). Label: "return result^3".')">
+    <rect x="90" y="356" width="140" height="36" rx="5" stroke-width="0.5"/>
+    <text class="th" x="160" y="374" text-anchor="middle" dominant-baseline="central">B5 — return result</text>
+  </g>
+
+  <!-- Separator -->
+  <line x1="350" y1="30" x2="350" y2="450" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4 2"/>
+  <text class="ts" x="505" y="24" text-anchor="middle" style="fill:var(--text-muted)">UML activity diagram output</text>
+
+  <!-- UML side (right) -->
+  <circle cx="505" cy="58" r="12" fill="var(--text-primary)" class="node" onclick="si('InitialNode','Filled black circle. No label. Fixed mapping: ENTRY block → InitialNode. Always exactly one per activity diagram.')"/>
+  <line x1="505" y1="70" x2="505" y2="108" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- Decision diamond -->
+  <polygon points="505,110 540,130 505,150 470,130" fill="var(--bg-accent)" stroke="var(--border-accent)" stroke-width="0.5" class="node" onclick="si('DecisionNode','Diamond shape. Guard text from condition expression. Two outgoing edges with [x>0] and [¬(x>0)] guards.')"/>
+  <text class="ts" x="505" y="130" text-anchor="middle" dominant-baseline="central" style="fill:var(--text-accent)">x&gt;0?</text>
+  <path d="M470 130 L420 185" fill="none" stroke="#1D9E75" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="430" y="162" style="fill:#085041">[x&gt;0]</text>
+  <path d="M540 130 L590 185" fill="none" stroke="#D85A30" stroke-width="1" marker-end="url(#arr)"/>
+  <text class="ts" x="556" y="162" style="fill:#712B13">[else]</text>
+
+  <g class="c-teal"><rect x="380" y="187" width="100" height="36" rx="10" stroke-width="0.5"/>
+    <text class="th" x="430" y="205" text-anchor="middle" dominant-baseline="central">result = a</text></g>
+  <g class="c-coral"><rect x="545" y="187" width="100" height="36" rx="10" stroke-width="0.5"/>
+    <text class="th" x="595" y="205" text-anchor="middle" dominant-baseline="central">result = b</text></g>
+
+  <path d="M430 223 L505 275" fill="none" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+  <path d="M595 223 L545 275" fill="none" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- Merge diamond -->
+  <polygon points="505,277 535,295 505,313 475,295" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="0.5" class="node" onclick="si('MergeNode','Second diamond — marks convergence. predecessors.len()>=2 AND successors.len()==1.')"/>
+  <line x1="505" y1="313" x2="505" y2="348" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <g class="c-gray"><rect x="435" y="350" width="140" height="36" rx="10" stroke-width="0.5"/>
+    <text class="th" x="505" y="368" text-anchor="middle" dominant-baseline="central">return result</text></g>
+  <line x1="505" y1="386" x2="505" y2="420" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr)"/>
+
+  <!-- Final node bull's eye -->
+  <circle cx="505" cy="435" r="14" fill="none" stroke="var(--text-primary)" stroke-width="1.5" class="node" onclick="si('ActivityFinalNode','Bull s-eye: outer circle + filled inner circle. return or throw block → final node.')"/>
+  <circle cx="505" cy="435" r="8" fill="var(--text-primary)"/>
+</svg>
+<div id="info-activity" class="info">Click any block (left) or UML node (right) to see the exact classification rule and the resulting ActivityRecord field values.</div>
+</div>
+
+<div id="statemachine" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">IFDS type-state results → UML state machine. Each unique state in the IFDS output becomes a UML State. Method calls that change state become Transitions. Click any element.</div>
+<svg width="100%" viewBox="0 0 680 360" role="img">
+  <title>State machine diagram for InputStream class extracted from IFDS type-state analysis showing CLOSED, OPEN, and ERROR states</title>
+  <desc>Three states: CLOSED (initial), OPEN, ERROR (final). Transitions: CLOSED to OPEN via open(), OPEN to CLOSED via close(), OPEN to ERROR via read() when error, ERROR to CLOSED via reset()</desc>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- IFDS input (left) -->
+  <text class="ts" x="160" y="24" text-anchor="middle" style="fill:var(--text-muted)">SSA IFDS type-state output</text>
+  <rect x="40" y="36" width="250" height="160" rx="8" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="55" y="56" style="font-family:var(--font-mono,monospace)">(stream^0, CLOSED)</text>
+  <text class="ts" x="55" y="74" style="font-family:var(--font-mono,monospace)">(stream^1, OPEN) after open()</text>
+  <text class="ts" x="55" y="92" style="font-family:var(--font-mono,monospace)">(stream^2, CLOSED) after close()</text>
+  <text class="ts" x="55" y="110" style="font-family:var(--font-mono,monospace)">(stream^3, ERROR) on IOEx</text>
+  <text class="ts" x="55" y="128" style="font-family:var(--font-mono,monospace)">(stream^4, CLOSED) after reset()</text>
+  <text class="ts" x="55" y="162" style="fill:var(--text-muted)">Grouped by class_type=InputStream</text>
+  <text class="ts" x="55" y="178" style="fill:var(--text-muted)">States: {CLOSED, OPEN, ERROR}</text>
+
+  <path d="M290 116 L360 116" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr2)"/>
+  <text class="ts" x="325" y="108" text-anchor="middle" style="fill:var(--text-muted)">extract</text>
+
+  <!-- State machine (right) -->
+  <text class="ts" x="510" y="24" text-anchor="middle" style="fill:var(--text-muted)">UML state machine output</text>
+
+  <!-- Initial pseudo-state -->
+  <circle cx="365" cy="70" r="10" fill="var(--text-primary)"/>
+  <line x1="375" y1="70" x2="418" y2="70" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <!-- CLOSED state -->
+  <g class="c-gray node" onclick="si('CLOSED — initial state','initial_state_of_class(InputStream) = CLOSED because new FileInputStream() allocations start in this state. is_initial=true. Rendered with entry from the initial pseudo-state node.')">
+    <rect x="420" y="48" width="110" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="475" y="70" text-anchor="middle" dominant-baseline="central">CLOSED</text>
+  </g>
+
+  <!-- open() transition: CLOSED → OPEN -->
+  <path d="M530 70 L595 120" fill="none" stroke="#1D9E75" stroke-width="1" marker-end="url(#arr2)"/>
+  <text class="ts" x="572" y="96" text-anchor="start" style="fill:#085041">open()</text>
+
+  <!-- OPEN state -->
+  <g class="c-teal node" onclick="si('OPEN — reachable state','Reached after calling open(). Multiple transitions out: close() → CLOSED, read() with IOException → ERROR. is_initial=false, is_final=false.')">
+    <rect x="546" y="130" width="110" height="44" rx="8" stroke-width="0.5"/>
+    <text class="th" x="601" y="152" text-anchor="middle" dominant-baseline="central">OPEN</text>
+  </g>
+
+  <!-- close() transition: OPEN → CLOSED -->
+  <path d="M546 145 L485 145 L485 92" fill="none" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="3 0" marker-end="url(#arr2)"/>
+  <text class="ts" x="456" y="142" text-anchor="start" style="fill:var(--text-secondary)">close()</text>
+
+  <!-- read() with IOException → ERROR -->
+  <path d="M601 174 L530 240" fill="none" stroke="#D85A30" stroke-width="1" marker-end="url(#arr2)"/>
+  <text class="ts" x="574" y="212" text-anchor="end" style="fill:#712B13">read() / IOEx</text>
+
+  <!-- ERROR state -->
+  <g class="c-coral node" onclick="si('ERROR — final state','is_final=true: no valid outgoing transitions except reset(). Detecting a read() call when in ERROR state = type-state violation. Phase 9 emits a diagnostic annotation on the ClassRecord.')">
+    <rect x="420" y="255" width="110" height="44" rx="8" stroke-width="1.5" stroke="#D85A30"/>
+    <text class="th" x="475" y="277" text-anchor="middle" dominant-baseline="central">ERROR</text>
+  </g>
+
+  <!-- reset() transition: ERROR → CLOSED -->
+  <path d="M420 277 L390 277 L390 70 L418 70" fill="none" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#arr2)"/>
+  <text class="ts" x="360" y="200" text-anchor="end" style="fill:var(--text-secondary)">reset()</text>
+
+  <!-- Final state marker -->
+  <circle cx="475" cy="325" r="12" fill="none" stroke="var(--text-primary)" stroke-width="1.5"/>
+  <circle cx="475" cy="325" r="7" fill="var(--text-primary)"/>
+  <line x1="475" y1="299" x2="475" y2="313" stroke="var(--text-muted)" stroke-width="1" marker-end="url(#arr2)"/>
+
+  <text class="ts" x="340" y="340" text-anchor="middle" style="fill:var(--text-muted)">StateMachineRecord: class_sym=InputStream, 3 states, 4 transitions, initial=CLOSED</text>
+</svg>
+<div id="info-sm" class="info">Click any state or transition to see how Phase 9 derives it from the SSA IFDS type-state results.</div>
+</div>
+
+<div id="sequence" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Call graph DFS from fan-in=0 entry points generates sequence diagrams. Messages ordered by CFA topological position. Click any element.</div>
+<svg width="100%" viewBox="0 0 680 350" role="img">
+  <title>Sequence diagram for processOrder entry point showing actor lifeline, OrderService, OrderRepository, and Validator interaction</title>
+  <desc>Actor calls processOrder on OrderService. OrderService calls validate on Validator, then save on OrderRepository. Return messages flow back.</desc>
+  <defs>
+    <marker id="arr3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr3r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Lifelines -->
+  <g class="c-gray node" onclick="si('Actor lifeline — fan-in=0 entry point','processOrder() has CGA fan-in=0 (no in-codebase callers). Its implicit external caller becomes the Actor lifeline. Actor identification: public method with fan-in=0 → is_actor=true.')">
+    <rect x="40" y="20" width="90" height="40" rx="6" stroke-width="0.5"/>
+    <text class="th" x="85" y="40" text-anchor="middle" dominant-baseline="central">Actor</text>
+  </g>
+  <line x1="85" y1="60" x2="85" y2="320" stroke="var(--border-strong)" stroke-width="0.5" stroke-dasharray="5 3"/>
+
+  <g class="c-teal node" onclick="si('OrderService lifeline','Class containing processOrder(), the entry point method. becomes the first lifeline after the actor.')">
+    <rect x="215" y="20" width="120" height="40" rx="6" stroke-width="0.5"/>
+    <text class="th" x="275" y="40" text-anchor="middle" dominant-baseline="central">OrderService</text>
+  </g>
+  <line x1="275" y1="60" x2="275" y2="320" stroke="var(--border-strong)" stroke-width="0.5" stroke-dasharray="5 3"/>
+
+  <g class="c-purple node" onclick="si('Validator lifeline','Appears because validate() is called first in CFG topological order within processOrder(). CFA block ordering determines message ordinal.')">
+    <rect x="400" y="20" width="110" height="40" rx="6" stroke-width="0.5"/>
+    <text class="th" x="455" y="40" text-anchor="middle" dominant-baseline="central">Validator</text>
+  </g>
+  <line x1="455" y1="60" x2="455" y2="320" stroke="var(--border-strong)" stroke-width="0.5" stroke-dasharray="5 3"/>
+
+  <g class="c-amber node" onclick="si('OrderRepository lifeline','Appears because repo.save() is called second in CFG topological order. Ordinal=1 > validate() ordinal=0.')">
+    <rect x="560" y="20" width="100" height="40" rx="6" stroke-width="0.5"/>
+    <text class="th" x="610" y="40" text-anchor="middle" dominant-baseline="central">OrderRepo</text>
+  </g>
+  <line x1="610" y1="60" x2="610" y2="320" stroke="var(--border-strong)" stroke-width="0.5" stroke-dasharray="5 3"/>
+
+  <!-- Message 0: Actor → OrderService: processOrder() -->
+  <line x1="85" y1="90" x2="273" y2="90" stroke="var(--text-primary)" stroke-width="1.5" marker-end="url(#arr3)"/>
+  <text class="ts" x="179" y="83" text-anchor="middle" style="fill:var(--text-primary)">processOrder(order)</text>
+  <text class="ts" x="50" y="95" style="fill:var(--text-muted)">0</text>
+
+  <!-- Activation box on OrderService -->
+  <rect x="268" y="90" width="14" height="140" fill="var(--bg-accent)" stroke="var(--border-accent)" stroke-width="0.5"/>
+
+  <!-- Message 1: OrderService → Validator: validate() -->
+  <line x1="282" y1="120" x2="453" y2="120" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#arr3)"/>
+  <text class="ts" x="367" y="113" text-anchor="middle">validate(order)</text>
+  <text class="ts" x="240" y="125" style="fill:var(--text-muted)">1</text>
+  <rect x="448" y="120" width="10" height="40" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="0.5"/>
+
+  <!-- Return from Validator -->
+  <line x1="448" y1="148" x2="284" y2="148" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr3r)"/>
+  <text class="ts" x="367" y="143" text-anchor="middle" style="fill:var(--text-muted)">:boolean</text>
+
+  <!-- Message 2: OrderService → OrderRepository: save() -->
+  <line x1="282" y1="180" x2="608" y2="180" stroke="var(--border-strong)" stroke-width="1" marker-end="url(#arr3)"/>
+  <text class="ts" x="445" y="173" text-anchor="middle">save(order)</text>
+  <text class="ts" x="240" y="185" style="fill:var(--text-muted)">2</text>
+  <rect x="603" y="180" width="10" height="40" fill="var(--surface-1)" stroke="var(--border-strong)" stroke-width="0.5"/>
+
+  <!-- Return from repository -->
+  <line x1="603" y1="208" x2="284" y2="208" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr3r)"/>
+  <text class="ts" x="445" y="203" text-anchor="middle" style="fill:var(--text-muted)">:OrderId</text>
+
+  <!-- Return to Actor -->
+  <line x1="268" y1="230" x2="87" y2="230" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr3r)"/>
+  <text class="ts" x="179" y="225" text-anchor="middle" style="fill:var(--text-muted)">:void</text>
+
+  <text class="ts" x="340" y="300" text-anchor="middle" style="fill:var(--text-muted)">Messages ordered by CFA topological position within processOrder() — validate() block comes before save() block in CFA RPO</text>
+  <text class="ts" x="340" y="316" text-anchor="middle" style="fill:var(--text-muted)">Each MessageRecord carries a UMLLinkRecord → clicking a message arrow navigates to the call site in source</text>
+</svg>
+<div id="info-seq" class="info">Click any lifeline or message to see how Phase 9 derives it from the CGA and CFA artifacts.</div>
+</div>
+
+<div id="patterns" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Design patterns detected by structural queries over V_sym + E^CG + E^TH. Click a pattern to see the query.</div>
+
+<div class="pat-row" onclick="si('Singleton query','Criteria: (1) private/protected constructor ∧ (2) static self-typed field ∧ (3) static factory method returning self. All three checked via STA symbol table — no CFG or SSA needed. O(n_methods_of_class) per class.')">
+  <div class="pat-name">Singleton</div>
+  <div class="pat-criteria">private ctor + static self-field + static factory method</div>
+  <div class="conf-bar"><div class="conf-fill" style="width:92%;background:#1D9E75"></div></div>
+  <span style="font-size:10px;color:var(--text-success)">92%</span>
+</div>
+
+<div class="pat-row" onclick="si('Observer query','Criteria: (1) collection field of interface type ∧ (2) add/register listener method ∧ (3) call graph shows calls on that interface. Requires STA + CGA neighborhood query. More expensive than Singleton but still O(n_fields + n_callee_edges).')">
+  <div class="pat-name">Observer</div>
+  <div class="pat-criteria">listener collection + add/remove + calls on interface</div>
+  <div class="conf-bar"><div class="conf-fill" style="width:78%;background:#1D9E75"></div></div>
+  <span style="font-size:10px;color:var(--text-success)">78%</span>
+</div>
+
+<div class="pat-row" onclick="si('Builder query','Criteria: (1) >50% of methods return declaring class (fluent) ∧ (2) exactly one terminal method returning a different type. Checks method return type_id against class sym_id. O(n_methods_of_class).')">
+  <div class="pat-name">Builder</div>
+  <div class="pat-criteria">fluent methods (return self) + one terminal build() method</div>
+  <div class="conf-bar"><div class="conf-fill" style="width:85%;background:#1D9E75"></div></div>
+  <span style="font-size:10px;color:var(--text-success)">85%</span>
+</div>
+
+<div class="pat-row" onclick="si('Factory Method query','Criteria: (1) method returns an interface/abstract type ∧ (2) caller cannot determine the exact concrete type ∧ (3) CFA shows multiple new Subtype() allocation sites inside the method. Requires CFG analysis of the method body.')">
+  <div class="pat-name">Factory Method</div>
+  <div class="pat-criteria">abstract return type + multiple concrete alloc sites</div>
+  <div class="conf-bar"><div class="conf-fill" style="width:62%;background:#BA7517"></div></div>
+  <span style="font-size:10px;color:var(--text-warning)">62%</span>
+</div>
+
+<div class="pat-row" onclick="si('State pattern query','Criteria: (1) field of abstract/interface type S ∧ (2) S has >2 implementing classes ∧ (3) calls on S field are virtual dispatch into S\'s methods ∧ (4) IFDS type-state shows state transitions. Requires STA + CGA + SSA IFDS. Most expensive pattern query.')">
+  <div class="pat-name">State/Strategy</div>
+  <div class="pat-criteria">interface field + virtual dispatch + IFDS state transitions</div>
+  <div class="conf-bar"><div class="conf-fill" style="width:71%;background:#1D9E75"></div></div>
+  <span style="font-size:10px;color:var(--text-success)">71%</span>
+</div>
+
+<div class="pat-row" onclick="si('Template Method query','Criteria: (1) abstract class with (2) at least one protected abstract method ∧ (3) at least one public non-abstract method that calls the protected abstract method (via CGA). The public method is the template; protected abstract is the hook.')">
+  <div class="pat-name">Template Method</div>
+  <div class="pat-criteria">abstract class + protected abstract method + caller in public method</div>
+  <div class="conf-bar"><div class="conf-fill" style="width:88%;background:#1D9E75"></div></div>
+  <span style="font-size:10px;color:var(--text-success)">88%</span>
+</div>
+
+<div id="info-patterns" class="info" style="margin-top:8px">Click any pattern row to see the exact graph query used and which SCPG artifacts it reads.</div>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">UMLMetadataArtifact (.uma) — 2K classes, 15K methods, 200 entry points</div>
+<div class="art-row"><div class="art-lbl">Header</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What counts are in the UMA header and how does it chain to the TRA artifact?')"><span>magic, diagram counts, tra_hash + psa_hash chain</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-lbl">Class records</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('What fields does each ClassRecord contain and which UML diagram types does it drive?')"><span>ClassRecord[] — fields, methods, extends, implements, design_pattern, UMLLink</span><span class="art-sz">1 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Activity records</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How are ActivityNode and ActivityEdge records structured and how are sequential actions merged?')"><span>ActivityRecord[] per function — ActivityNode[] + ActivityEdge[] + compound merges</span><span class="art-sz">12 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">State machine rec.</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How many state machines are typically detected and what is the average state count?')"><span>StateMachineRecord[] — states, transitions, initial/final states per class type</span><span class="art-sz">7.5 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Sequence diagrams</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How does Phase 9 determine which methods are entry points for sequence diagrams?')"><span>SequenceDiagramRecord[] — one per fan-in=0 public entry point method</span><span class="art-sz">160 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Package records</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How are Java packages mapped to UML package diagram nodes?')"><span>PackageRecord[] — namespace hierarchy + inter-package dependency edges</span><span class="art-sz">50 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Pattern table</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How is confidence computed for design pattern detection and what threshold triggers a display?')"><span>(class_sym:u32, pattern_kind:u8, confidence:u8, _pad:u16) × detected</span><span class="art-sz">2.4 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Label text table</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What UML label text strings are interned in the Phase 9 label text table?')"><span>Activity node labels, guard conditions, state names — extracted from AST</span><span class="art-sz">1.9 MB</span></div></div>
+<div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:4px">Total: ≈ 15 MB uncompressed · ≈ 4–5 MB LZ4-compressed</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function si(title,detail){
+  ['map','activity','sm','seq','patterns'].forEach(id=>{
+    const el=document.getElementById('info-'+id);
+    if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+  });
+}
+</script>

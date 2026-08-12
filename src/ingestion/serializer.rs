@@ -286,9 +286,11 @@ impl TokenCorpusSerializer {
         }
 
         // String headers & storage
+        let mut str_headers = Vec::with_capacity(string_count as usize);
         for _ in 0..string_count {
-            br.read_u64().map_err(|e| e.to_string())?;
-            br.read_u32().map_err(|e| e.to_string())?;
+            let hash = br.read_u64().map_err(|e| e.to_string())?;
+            let offset = br.read_u32().map_err(|e| e.to_string())?;
+            str_headers.push((hash, offset));
         }
 
         let mut interner = StringInterner::with_capacity(string_count as usize);

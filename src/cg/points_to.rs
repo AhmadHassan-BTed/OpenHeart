@@ -15,7 +15,7 @@ impl AndersonPointsTo {
     pub fn run(
         ssa: &SSAArtifact,
         bpa: &BPASTArtifact,
-        _sta: &SymbolTableArtifact,
+        sta: &SymbolTableArtifact,
     ) -> HashMap<u32, HashSet<u32>> {
         let mut pts: HashMap<u32, HashSet<u32>> = HashMap::new();
         let mut copy_edges: HashMap<u32, Vec<u32>> = HashMap::new();
@@ -28,7 +28,17 @@ impl AndersonPointsTo {
                 if rec.def_stmt != u32::MAX {
                     let ntype = bpa.node_type(rec.def_stmt);
                     if ntype == NN_NEW_EXPR {
-                        let alloc_type = rec.orig_sym_id;
+                        let alloc_type = if let Some(sym) = sta.symbol(rec.orig_sym_id) {
+                            if sym.type_id != u32::MAX {
+                                sym.type_id
+                            } else if sym.parent_sym != u32::MAX {
+                                sym.parent_sym
+                            } else {
+                                rec.orig_sym_id
+                            }
+                        } else {
+                            rec.orig_sym_id
+                        };
                         pts.entry(v).or_default().insert(alloc_type);
                         worklist.push_back(v);
                     }
