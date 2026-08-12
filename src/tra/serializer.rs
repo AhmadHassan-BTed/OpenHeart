@@ -13,7 +13,7 @@ impl TraceabilitySerializer {
     pub fn write(artifact: &TraceabilityArtifact, out_path: &Path) -> std::io::Result<()> {
         let mut buf = Vec::new();
 
-        // 64-byte Header
+        // 96-byte Header
         buf.extend_from_slice(&TRA_MAGIC.to_le_bytes()); // 0..8
         buf.extend_from_slice(&artifact.format_version.to_le_bytes()); // 8..12
         buf.extend_from_slice(&(artifact.bi_ast.len() as u32).to_le_bytes()); // 12..16
@@ -22,15 +22,15 @@ impl TraceabilitySerializer {
         buf.extend_from_slice(&(artifact.bi_ssa.len() as u32).to_le_bytes()); // 24..28
         buf.extend_from_slice(&(artifact.bi_cs.len() as u32).to_le_bytes()); // 28..32
         buf.extend_from_slice(&(artifact.uml_links.len() as u32).to_le_bytes()); // 32..36
-        buf.extend_from_slice(&artifact.hashes.scpg_hash.to_le_bytes()); // 36..40
-        buf.extend_from_slice(&artifact.hashes.tca_hash.to_le_bytes()); // 40..48
-        buf.extend_from_slice(&artifact.hashes.bpa_hash.to_le_bytes()); // 48..56
-        buf.extend_from_slice(&artifact.hashes.sta_hash.to_le_bytes()); // 56..64
-
-        // Remaining 3 hashes
-        buf.extend_from_slice(&artifact.hashes.cfa_hash.to_le_bytes());
-        buf.extend_from_slice(&artifact.hashes.ssa_hash.to_le_bytes());
-        buf.extend_from_slice(&artifact.hashes.cga_hash.to_le_bytes());
+        buf.extend_from_slice(&(artifact.sym_span.len() as u32).to_le_bytes()); // 36..40
+        buf.extend_from_slice(&(artifact.cs_span.len() as u32).to_le_bytes()); // 40..44
+        buf.extend_from_slice(&artifact.hashes.scpg_hash.to_le_bytes()); // 44..48
+        buf.extend_from_slice(&artifact.hashes.tca_hash.to_le_bytes()); // 48..56
+        buf.extend_from_slice(&artifact.hashes.bpa_hash.to_le_bytes()); // 56..64
+        buf.extend_from_slice(&artifact.hashes.sta_hash.to_le_bytes()); // 64..72
+        buf.extend_from_slice(&artifact.hashes.cfa_hash.to_le_bytes()); // 72..80
+        buf.extend_from_slice(&artifact.hashes.ssa_hash.to_le_bytes()); // 80..88
+        buf.extend_from_slice(&artifact.hashes.cga_hash.to_le_bytes()); // 88..96
 
         // BI_AST section
         for entry in &artifact.bi_ast {
@@ -112,24 +112,10 @@ impl TraceabilitySerializer {
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
 
-        if buf.len() < 88 {
+        if buf.len() < 96 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "TRA artifact file too small",
-            ));
-        }
-
-        let payload_len = buf.len() - 8;
-        let expected_crc = u64::from_le_bytes(buf[payload_len..].try_into().unwrap());
-        let computed_crc = crc64_ecma(&buf[..payload_len]);
-
-        if expected_crc != computed_crc {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "TRA CRC-64 mismatch: expected {:#X}, got {:#X}",
-                    expected_crc, computed_crc
-                ),
             ));
         }
 
@@ -148,14 +134,16 @@ impl TraceabilitySerializer {
         let n_ssa = u32::from_le_bytes(buf[24..28].try_into().unwrap()) as usize;
         let n_cs = u32::from_le_bytes(buf[28..32].try_into().unwrap()) as usize;
         let n_uml = u32::from_le_bytes(buf[32..36].try_into().unwrap()) as usize;
-        let scpg_hash = u32::from_le_bytes(buf[36..40].try_into().unwrap());
-        let tca_hash = u64::from_le_bytes(buf[40..48].try_into().unwrap());
-        let bpa_hash = u64::from_le_bytes(buf[48..56].try_into().unwrap());
-        let sta_hash = u64::from_le_bytes(buf[56..64].try_into().unwrap());
+        let n_sym_span = u32::from_le_bytes(buf[36..40].try_into().unwrap()) as usize;
+        let n_cs_span = u32::from_le_bytes(buf[40..44].try_into().unwrap()) as usize;
+        let scpg_hash = u32::from_le_bytes(buf[44..48].try_into().unwrap());
+        let tca_hash = u64::from_le_bytes(buf[48..56].try_into().unwrap());
+        let bpa_hash = u64::from_le_bytes(buf[56..64].try_into().unwrap());
+        let sta_hash = u64::from_le_bytes(buf[64..72].try_into().unwrap());
 
-        let cfa_hash = u64::from_le_bytes(buf[64..72].try_into().unwrap());
-        let ssa_hash = u64::from_le_bytes(buf[72..80].try_into().unwrap());
-        let cga_hash = u64::from_le_bytes(buf[80..88].try_into().unwrap());
+        let cfa_hash = u64::from_le_bytes(buf[72..80].try_into().unwrap());
+        let ssa_hash = u64::from_le_bytes(buf[80..88].try_into().unwrap());
+        let cga_hash = u64::from_le_bytes(buf[88..96].try_into().unwrap());
 
         let hashes = ScpgHashChain {
             tca_hash,
@@ -167,7 +155,21 @@ impl TraceabilitySerializer {
             scpg_hash,
         };
 
-        let mut offset = 88;
+        // ── Validate CRC-64 ───────────────────────────────────────────────────
+        let data_end = buf.len() - 8;
+        let stored_crc = u64::from_le_bytes(buf[data_end..].try_into().unwrap());
+        let computed_crc = crc64_ecma(&buf[..data_end]);
+        if stored_crc != computed_crc {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "TRA CRC-64 mismatch: expected {:#X}, got {:#X}",
+                    stored_crc, computed_crc
+                ),
+            ));
+        }
+
+        let mut offset = 96;
 
         let mut bi_ast = Vec::with_capacity(n_ast);
         for _ in 0..n_ast {
@@ -226,8 +228,8 @@ impl TraceabilitySerializer {
             offset += 4;
         }
 
-        let mut sym_span = Vec::with_capacity(n_sym);
-        for _ in 0..n_sym {
+        let mut sym_span = Vec::with_capacity(n_sym_span);
+        for _ in 0..n_sym_span {
             let ft = u32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap());
             let lt = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
             let sid = u32::from_le_bytes(buf[offset + 8..offset + 12].try_into().unwrap());
@@ -247,8 +249,8 @@ impl TraceabilitySerializer {
             offset += 20;
         }
 
-        let mut cs_span = Vec::with_capacity(n_cs);
-        for _ in 0..n_cs {
+        let mut cs_span = Vec::with_capacity(n_cs_span);
+        for _ in 0..n_cs_span {
             let ft = u32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap());
             let csid = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
             let fid = u16::from_le_bytes(buf[offset + 8..offset + 10].try_into().unwrap());

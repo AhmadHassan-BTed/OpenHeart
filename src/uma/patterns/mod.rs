@@ -34,7 +34,7 @@ impl PatternDetector {
             let sym_id = class_rec.sym_id;
 
             // Singleton
-            if let (true, conf) = is_singleton(sym_id, sta) {
+            if let (true, conf) = is_singleton(sym_id, sta, tca) {
                 class_rec.design_pattern = PATTERN_SINGLETON;
                 records.push(DesignPatternRecord {
                     class_sym: sym_id,

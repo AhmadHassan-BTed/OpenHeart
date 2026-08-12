@@ -1,4 +1,5 @@
 pub mod java;
+pub mod kotlin;
 pub mod registry;
 
 use crate::core::types::source::TokenFilter;

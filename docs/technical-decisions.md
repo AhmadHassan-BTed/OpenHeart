@@ -2,6 +2,8 @@
 
 This document records the major architectural choices, design trade-offs, and engineering rationales in **OpenHeart**.
 
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
 ---
 
 ## ADR-001: 64-bit FNV-1a Hash Function for String Interning

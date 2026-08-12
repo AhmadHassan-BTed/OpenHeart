@@ -1,5 +1,7 @@
 # Security Policy
 
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
 ## Supported Versions
 
 Only the latest major release of **OpenHeart** receives security updates.

@@ -5,11 +5,15 @@ All notable changes to the **OpenHeart** project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
+
+## [1.0.0] - 2026-08-13
 
 ### Added
-- Phase 2 BP AST sequence encoder & rank/select auxiliary structures (planned).
-- Phase 3 CSR CFG construction & SSA DFG encoding (planned).
+- **10-Phase Pipeline Engine**: Completed all 10 analysis engine phases (Lexical Ingestion, BP AST, Symbol Table, CFG CSR, SSA Form, Call Graph, Traceability, ROBDD Paths, UML Metadata, SCPG Binary).
+- **100% Dynamic 14 UML 2.5 Diagram Exporters**: Native Mermaid exporters for all 14 standard UML diagram types (Class, Object, Component, Deployment, Package, Composite Structure, Profile, Use Case, Activity, State Machine, Sequence, Communication, Interaction Overview, Timing).
+- **Zero-Hardcoding Invariant**: 100% generic, AST-driven graph construction and Lowest Common Ancestor (LCA) edge scoping algorithm across any codebase.
+- **Web Studio Portal (GitHub Pages)**: Live deployed interactive portal at `https://ahmadhassan-bted.github.io/OpenHeart/`.
 
 ## [0.1.0] - 2026-08-08
 
@@ -29,4 +33,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Adapters & Parsers**:
   - Tree-sitter integration, `LanguageAdapter` trait, `JavaLanguageAdapter`, and `AdapterRegistry`.
 - **Automated Testing Suite**:
-  - Integration tests in `tests/phase1_tests.rs` covering parsing, interning, sorting, binary round-trip, and invariant assertions.
+  - Integration tests covering parsing, interning, sorting, binary round-trip, and invariant assertions.

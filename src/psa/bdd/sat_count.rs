@@ -73,9 +73,10 @@ pub fn sat_count(
     } else {
         nodes[n.lo as usize].var
     };
-    let lo_gap = (lo_top - n.var - 1) as u32;
+    let lo_gap = lo_top.saturating_sub(n.var).saturating_sub(1) as u32;
     let lo_depth = depth.saturating_sub(1 + lo_gap as u16);
-    let lo_count = (1u64 << lo_gap).saturating_mul(sat_count(n.lo, lo_depth, nodes, n_vars, memo));
+    let lo_count =
+        (1u64 << lo_gap.min(63)).saturating_mul(sat_count(n.lo, lo_depth, nodes, n_vars, memo));
 
     // ── hi branch ────────────────────────────────────────────────────────────
     let hi_top = if n.hi == FALSE_ID || n.hi == TRUE_ID {
@@ -83,9 +84,10 @@ pub fn sat_count(
     } else {
         nodes[n.hi as usize].var
     };
-    let hi_gap = (hi_top - n.var - 1) as u32;
+    let hi_gap = hi_top.saturating_sub(n.var).saturating_sub(1) as u32;
     let hi_depth = depth.saturating_sub(1 + hi_gap as u16);
-    let hi_count = (1u64 << hi_gap).saturating_mul(sat_count(n.hi, hi_depth, nodes, n_vars, memo));
+    let hi_count =
+        (1u64 << hi_gap.min(63)).saturating_mul(sat_count(n.hi, hi_depth, nodes, n_vars, memo));
 
     let total = lo_count.saturating_add(hi_count);
     memo.insert(node, total);

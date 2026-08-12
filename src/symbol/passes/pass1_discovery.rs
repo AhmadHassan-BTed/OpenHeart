@@ -3,10 +3,14 @@
 
 use crate::ast::BPASTArtifact;
 use crate::core::types::ast::{ASTNodeType, NodeAttr};
-use crate::core::types::symbol::{ScopeKind, SymbolModifiers, SymbolRecord, SymbolVisibility};
+use crate::core::types::symbol::{
+    ScopeKind, SymbolKind, SymbolModifiers, SymbolRecord, SymbolVisibility,
+};
+use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::adapter::SemanticAdapter;
 use crate::symbol::builder::SymbolTableBuilder;
+use std::collections::HashMap;
 
 pub struct Pass1Discovery;
 
@@ -121,6 +125,308 @@ impl Pass1Discovery {
                 });
             }
         }
+
+        // ── Secondary Token-Level Discovery Sweep for Kotlin & Multi-Lang Declarations ──
+        let mut registered_name_ids: std::collections::HashSet<u32> = builder
+            .symbols
+            .iter()
+            .map(|s| s.name_id)
+            .filter(|&id| id != u32::MAX)
+            .collect();
+
+        // Default top-level class symbol to parent orphan top-level methods/fields
+        let mut default_file_class = u32::MAX;
+        for sym_id in 0..builder.symbols.len() as u32 {
+            if let Some(sym) = builder.symbols.get(sym_id as usize) {
+                if sym.kind == crate::core::types::symbol::SymbolKind::SK_CLASS as u8
+                    || sym.kind == crate::core::types::symbol::SymbolKind::SK_MODULE as u8
+                {
+                    default_file_class = sym_id;
+                    break;
+                }
+            }
+        }
+        if default_file_class == u32::MAX {
+            let mut sym_rec = SymbolRecord::UNINIT;
+            sym_rec.kind = crate::core::types::symbol::SymbolKind::SK_CLASS as u8;
+            sym_rec.visibility = crate::core::types::symbol::SymbolVisibility::Public as u8;
+            sym_rec.scope_id = root_scope;
+            default_file_class = builder.create_symbol(sym_rec);
+        }
+
+        let mut current_class_sym = default_file_class;
+        let mut current_pkg_sym = u32::MAX;
+        let mut tok_idx = 0usize;
+        while tok_idx < tca.token_records.len() {
+            let rec = &tca.token_records[tok_idx];
+            let bytes = tca.interner.lookup_text(rec.text_id);
+            if let Ok(text) = std::str::from_utf8(bytes) {
+                let sym_kind = match text {
+                    "class" | "object" => Some(crate::core::types::symbol::SymbolKind::SK_CLASS),
+                    "interface" => Some(crate::core::types::symbol::SymbolKind::SK_INTERFACE),
+                    "enum" => Some(crate::core::types::symbol::SymbolKind::SK_ENUM),
+                    _ => None,
+                };
+
+                if let Some(kind) = sym_kind {
+                    let mut lookahead = tok_idx + 1;
+                    while lookahead < tca.token_records.len() && lookahead < tok_idx + 10 {
+                        let next_rec = &tca.token_records[lookahead];
+                        let next_bytes = tca.interner.lookup_text(next_rec.text_id);
+                        if let Ok(next_text) = std::str::from_utf8(next_bytes) {
+                            if !next_text.is_empty()
+                                && (next_text.chars().next().unwrap_or('\0').is_alphabetic()
+                                    || next_text.starts_with('_'))
+                                && ![
+                                    "class",
+                                    "interface",
+                                    "object",
+                                    "enum",
+                                    "fun",
+                                    "val",
+                                    "var",
+                                    "public",
+                                    "private",
+                                    "protected",
+                                    "internal",
+                                    "data",
+                                    "sealed",
+                                    "open",
+                                    "abstract",
+                                    "companion",
+                                    "constructor",
+                                ]
+                                .contains(&next_text)
+                            {
+                                if registered_name_ids.insert(next_rec.text_id) {
+                                    let mut sym_rec = SymbolRecord::UNINIT;
+                                    sym_rec.name_id = next_rec.text_id;
+                                    sym_rec.kind = kind as u8;
+                                    sym_rec.visibility =
+                                        crate::core::types::symbol::SymbolVisibility::Public as u8;
+                                    sym_rec.scope_id = root_scope;
+                                    if current_pkg_sym != u32::MAX {
+                                        sym_rec.parent_sym = current_pkg_sym;
+                                    }
+                                    let sym_id = builder.create_symbol(sym_rec);
+                                    if current_pkg_sym != u32::MAX {
+                                        builder.append_child(current_pkg_sym, sym_id);
+                                    }
+                                    current_class_sym = sym_id;
+                                }
+                                break;
+                            }
+                        }
+                        lookahead += 1;
+                    }
+                } else if text == "fun" || text == "val" || text == "var" {
+                    let is_func = text == "fun";
+                    let kind = if is_func {
+                        crate::core::types::symbol::SymbolKind::SK_METHOD
+                    } else {
+                        crate::core::types::symbol::SymbolKind::SK_FIELD
+                    };
+                    let mut lookahead = tok_idx + 1;
+                    while lookahead < tca.token_records.len() && lookahead < tok_idx + 10 {
+                        let next_rec = &tca.token_records[lookahead];
+                        let next_bytes = tca.interner.lookup_text(next_rec.text_id);
+                        if let Ok(next_text) = std::str::from_utf8(next_bytes) {
+                            if !next_text.is_empty()
+                                && (next_text.chars().next().unwrap_or('\0').is_alphabetic()
+                                    || next_text.starts_with('_'))
+                                && ![
+                                    "class",
+                                    "interface",
+                                    "object",
+                                    "enum",
+                                    "fun",
+                                    "val",
+                                    "var",
+                                    "public",
+                                    "private",
+                                    "protected",
+                                    "internal",
+                                    "data",
+                                    "sealed",
+                                    "open",
+                                    "abstract",
+                                    "override",
+                                ]
+                                .contains(&next_text)
+                            {
+                                if registered_name_ids.insert(next_rec.text_id) {
+                                    let target_parent = if current_class_sym != u32::MAX {
+                                        current_class_sym
+                                    } else {
+                                        default_file_class
+                                    };
+                                    let mut sym_rec = SymbolRecord::UNINIT;
+                                    sym_rec.name_id = next_rec.text_id;
+                                    sym_rec.kind = kind as u8;
+                                    sym_rec.visibility =
+                                        crate::core::types::symbol::SymbolVisibility::Public as u8;
+                                    sym_rec.scope_id = root_scope;
+                                    sym_rec.parent_sym = target_parent;
+                                    let sym_id = builder.create_symbol(sym_rec);
+                                    builder.append_child(target_parent, sym_id);
+                                }
+                                break;
+                            }
+                        }
+                        lookahead += 1;
+                    }
+                }
+            }
+            tok_idx += 1;
+        }
+
+        // ── Link class symbols to their file package symbols ──
+        let mut file_pkg_map: HashMap<u16, u32> = HashMap::new();
+        let mut visited_pkg_files: std::collections::HashSet<u16> =
+            std::collections::HashSet::new();
+        let mut package_path_ids: HashMap<String, u32> = HashMap::new();
+        let mut tok_idx = 0usize;
+        while tok_idx < tca.token_records.len() {
+            let rec = &tca.token_records[tok_idx];
+            let rec_fid = unpack_sort_key(rec.sort_key).0;
+            let bytes = tca.interner.lookup_text(rec.text_id);
+            if let Ok(text) = std::str::from_utf8(bytes) {
+                if text == "package" && visited_pkg_files.insert(rec_fid) {
+                    let mut lookahead = tok_idx + 1;
+                    let mut pkg_parts: Vec<(u32, String)> = Vec::new();
+                    let pkg_line = unpack_sort_key(rec.sort_key).1;
+                    let mut expecting_ident = true;
+
+                    while lookahead < tca.token_records.len() && lookahead < tok_idx + 40 {
+                        let next_rec = &tca.token_records[lookahead];
+                        let (next_fid, next_line, _) = unpack_sort_key(next_rec.sort_key);
+                        if next_fid != rec_fid || next_line != pkg_line {
+                            break;
+                        }
+                        let next_bytes = tca.interner.lookup_text(next_rec.text_id);
+                        if let Ok(next_text) = std::str::from_utf8(next_bytes) {
+                            if next_text == ";" || next_text == "\n" {
+                                break;
+                            }
+                            if expecting_ident {
+                                let is_ident = !next_text.is_empty()
+                                    && next_text.chars().all(|c| c.is_alphanumeric() || c == '_')
+                                    && ![
+                                        "package",
+                                        "import",
+                                        "class",
+                                        "interface",
+                                        "fun",
+                                        "val",
+                                        "var",
+                                        "public",
+                                        "private",
+                                        "object",
+                                        "enum",
+                                        "data",
+                                        "sealed",
+                                        "open",
+                                        "abstract",
+                                    ]
+                                    .contains(&next_text);
+                                if is_ident {
+                                    pkg_parts.push((next_rec.text_id, next_text.to_string()));
+                                    expecting_ident = false;
+                                } else {
+                                    break;
+                                }
+                            } else if next_text == "." {
+                                expecting_ident = true;
+                            } else {
+                                break;
+                            }
+                        }
+                        lookahead += 1;
+                    }
+
+                    if !pkg_parts.is_empty() {
+                        let mut current_pkg_sym = u32::MAX;
+                        let mut current_path = String::new();
+                        for (name_id, part) in pkg_parts {
+                            current_path = if current_path.is_empty() {
+                                part.clone()
+                            } else {
+                                format!("{}.{}", current_path, part)
+                            };
+
+                            let pkg_sym_id =
+                                if let Some(existing) = package_path_ids.get(&current_path) {
+                                    *existing
+                                } else {
+                                    let mut sym_rec = SymbolRecord::UNINIT;
+                                    sym_rec.name_id = name_id;
+                                    sym_rec.kind =
+                                        crate::core::types::symbol::SymbolKind::SK_PACKAGE as u8;
+                                    sym_rec.visibility =
+                                        crate::core::types::symbol::SymbolVisibility::Public as u8;
+                                    sym_rec.scope_id = root_scope;
+                                    sym_rec.parent_sym = current_pkg_sym;
+                                    let pkg_sym_id = builder.create_symbol(sym_rec);
+                                    if current_pkg_sym != u32::MAX {
+                                        builder.append_child(current_pkg_sym, pkg_sym_id);
+                                    }
+                                    builder
+                                        .custom_package_names
+                                        .insert(pkg_sym_id, current_path.clone());
+                                    package_path_ids.insert(current_path.clone(), pkg_sym_id);
+                                    pkg_sym_id
+                                };
+
+                            current_pkg_sym = pkg_sym_id;
+                        }
+
+                        if current_pkg_sym != u32::MAX {
+                            file_pkg_map.insert(rec_fid, current_pkg_sym);
+                            builder
+                                .file_package_names
+                                .insert(rec_fid, current_path.clone());
+                        }
+                    }
+                }
+            }
+            tok_idx += 1;
+        }
+
+        for sym_idx in 0..builder.symbols.len() {
+            let kind = SymbolKind::from(builder.symbols[sym_idx].kind);
+            if matches!(
+                kind,
+                SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM
+            ) {
+                let decl_node = builder.symbols[sym_idx].decl_node;
+                let fid = if decl_node != u32::MAX {
+                    let (ft, _) = bpa.token_range(decl_node);
+                    if (ft as usize) < tca.token_records.len() {
+                        unpack_sort_key(tca.token_records[ft as usize].sort_key).0
+                    } else {
+                        u16::MAX
+                    }
+                } else {
+                    let ft = builder.symbols[sym_idx].first_token_id;
+                    if (ft as usize) < tca.token_records.len() {
+                        unpack_sort_key(tca.token_records[ft as usize].sort_key).0
+                    } else {
+                        u16::MAX
+                    }
+                };
+
+                if fid != u16::MAX {
+                    if let Some(&pkg_sym_id) = file_pkg_map.get(&fid) {
+                        if builder.symbols[sym_idx].parent_sym == u32::MAX
+                            || builder.symbols[sym_idx].parent_sym == default_file_class
+                        {
+                            builder.symbols[sym_idx].parent_sym = pkg_sym_id;
+                            builder.append_child(pkg_sym_id, sym_idx as u32);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn extract_name_token(
@@ -131,12 +437,82 @@ impl Pass1Discovery {
     ) -> u32 {
         let (ft, lt) = bpa.token_range(pre_idx);
         if ft != u32::MAX && ft < tca.token_records.len() as u32 {
-            for tok_idx in ft..=lt.min(tca.token_records.len() as u32 - 1) {
-                let text_id = tca.token_records[tok_idx as usize].text_id;
-                let bytes = tca.interner.lookup_text(text_id);
+            let keywords = [
+                "package",
+                "import",
+                "public",
+                "private",
+                "protected",
+                "static",
+                "final",
+                "abstract",
+                "class",
+                "interface",
+                "enum",
+                "record",
+                "extends",
+                "implements",
+                "fun",
+                "val",
+                "var",
+                "object",
+                "companion",
+                "data",
+                "sealed",
+                "open",
+                "override",
+                "internal",
+                "void",
+                "synchronized",
+                "transient",
+                "volatile",
+                "default",
+                "strictfp",
+                "native",
+                "throws",
+            ];
+            let ntype = bpa.node_type(pre_idx);
+            let end_tok = lt.min(tca.token_records.len() as u32 - 1);
+
+            // For field declarations, pick the identifier immediately preceding = or ;
+            if matches!(
+                ntype,
+                ASTNodeType::NN_FIELD_DECL | ASTNodeType::NN_LOCAL_VAR_DECL
+            ) {
+                let mut candidate = u32::MAX;
+                for tok_idx in ft..=end_tok {
+                    let rec = &tca.token_records[tok_idx as usize];
+                    let bytes = tca.interner.lookup_text(rec.text_id);
+                    if let Ok(text) = std::str::from_utf8(bytes) {
+                        if text == "=" || text == ";" {
+                            if candidate != u32::MAX {
+                                return candidate;
+                            }
+                        }
+                        if !text.is_empty()
+                            && (text.chars().next().unwrap_or('\0').is_alphabetic()
+                                || text.starts_with('_'))
+                            && !keywords.contains(&text)
+                        {
+                            candidate = rec.text_id;
+                        }
+                    }
+                }
+                if candidate != u32::MAX {
+                    return candidate;
+                }
+            }
+
+            for tok_idx in ft..=end_tok {
+                let rec = &tca.token_records[tok_idx as usize];
+                let bytes = tca.interner.lookup_text(rec.text_id);
                 if let Ok(text) = std::str::from_utf8(bytes) {
-                    if !text.is_empty() && text.chars().next().unwrap_or('\0').is_alphabetic() {
-                        return text_id;
+                    if !text.is_empty()
+                        && (text.chars().next().unwrap_or('\0').is_alphabetic()
+                            || text.starts_with('_'))
+                        && !keywords.contains(&text)
+                    {
+                        return rec.text_id;
                     }
                 }
             }

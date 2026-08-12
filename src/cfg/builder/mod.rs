@@ -67,6 +67,15 @@ impl FunctionCFGBuilder {
             state.add_edge(state.current_block, exit, CFGEdgeType::Uncond);
         }
 
+        // Guarantee that all sink blocks connect to exit so EXIT is uniquely reachable and present
+        let temp_n = state.blocks.len();
+        let temp_succs = state.succ_lists();
+        for u in 0..temp_n as u32 {
+            if u != exit && temp_succs[u as usize].is_empty() {
+                state.add_edge(u, exit, CFGEdgeType::Uncond);
+            }
+        }
+
         // Ensure ENTRY connects to EXIT if empty function body
         if state
             .edges
@@ -80,7 +89,10 @@ impl FunctionCFGBuilder {
         let raw_succs = state.succ_lists();
 
         // ── Compact & Prune Unreachable Blocks ──
-        let rpo = reverse_postorder(raw_n, &raw_succs);
+        let mut rpo = reverse_postorder(raw_n, &raw_succs);
+        if !rpo.contains(&exit) {
+            rpo.push(exit);
+        }
 
         let mut old_to_new = vec![u32::MAX; raw_n];
         for (new_id, &old_id) in rpo.iter().enumerate() {

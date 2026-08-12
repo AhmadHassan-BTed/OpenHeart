@@ -48,8 +48,8 @@ body.brutalist-theme {
   pointer-events: auto;
 }
 
-/* Demo Notice Banner */
-.demo-notice-banner {
+/* System Notice Banner */
+.system-notice-banner {
   position: fixed;
   top: 0;
   left: 0;

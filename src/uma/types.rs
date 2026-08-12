@@ -87,6 +87,8 @@ pub struct ClassRecord {
     pub fields: Vec<FieldRecord>,
     pub methods: Vec<MethodRecord>,
     pub inner_classes: Vec<u32>,
+    pub implements_syms: Vec<u32>,
+    pub association_syms: Vec<u32>,
 }
 
 // ── Activity Node (16 bytes) ──────────────────────────────────────────────────
