@@ -204,7 +204,7 @@ public class PaymentProcessor {
     let ssa_bytes = fs::read(&ssa_path).unwrap();
 
     // ── PHASE 6: Inter-procedural Call Graph & Points-To Analysis ──
-    let cga_artifact = Phase6Stage::run(
+    let _cga_artifact = Phase6Stage::run(
         &bpa_artifact,
         &sta_artifact,
         &cfa_artifact,

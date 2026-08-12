@@ -1,0 +1,315 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:44px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.ct{border-collapse:collapse;width:100%;font-size:11px;margin-top:6px}
+.ct th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.ct td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.ct td:first-child{color:var(--text-primary);font-weight:500}
+.good{color:var(--text-success)!important}
+.art-row{display:flex;gap:4px;margin-bottom:4px;align-items:center}
+.art-lbl{width:140px;font-size:11px;font-weight:500;flex-shrink:0;color:var(--text-primary)}
+.art-bar{flex:1;padding:4px 10px;border-radius:5px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between}
+.art-bar:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+</style>
+
+<h2 class="sr-only">Phase 7 traceability index: six-layer chain, forward and backward queries, UMLLink pre-computation, and incremental delta sync</h2>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('chain')">Six-layer chain</div>
+  <div class="tab" onclick="sw('query')">Query mechanics</div>
+  <div class="tab" onclick="sw('uml')">UMLLink</div>
+  <div class="tab" onclick="sw('delta')">Delta sync</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+  <div class="tab" onclick="sw('complexity')">Complexity</div>
+</div>
+
+<div id="chain" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">τ(entity) resolves downward through the layers until it reaches TCA token_ids, which have direct source positions. Click any layer.</div>
+<svg width="100%" viewBox="0 0 680 490" role="img">
+  <title>Six-layer traceability chain showing how each SCPG layer derives source positions from layers below it</title>
+  <desc>L5 Call sites use call_token to reach L0 tokens. L4 SSA uses def_stmt to reach L1 AST nodes. L3 blocks use first/last stmt tokens. L2 symbols use decl_node AST. L1 AST uses first/last token pair. L0 tokens have direct source positions in TCA.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- L0: Token layer (bottom) -->
+  <g class="c-amber node" onclick="si('L0 — Token layer (TCA)','The foundation. Every token_id maps directly to (file_id, line, col, len) via TCA.BI[token_id]. O(1) lookup. 2M tokens × 10 bytes = 20 MB. This is the only layer that stores absolute source positions — all other layers derive from it.')">
+    <rect x="140" y="420" width="400" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="436" text-anchor="middle" dominant-baseline="central">L0 — Token layer (TCA)</text>
+    <text class="ts" x="340" y="452" text-anchor="middle" dominant-baseline="central">token_id → (file_id, line, col, len) — direct storage, O(1)</text>
+  </g>
+
+  <!-- L1: AST layer -->
+  <line x1="340" y1="420" x2="340" y2="395" stroke="#BA7517" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <g class="c-teal node" onclick="si('L1 — AST layer (BPA)','Each AST node stores (first_token_id, last_token_id) computed by Phase 2 bottom-up pass. τ(L_AST, v) = span(BPA.first_token[v], BPA.last_token[v]). O(1) via BI_ast[preorder_idx]. 1M nodes × 8 bytes = 8 MB.')">
+    <rect x="140" y="352" width="400" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="340" y="368" text-anchor="middle" dominant-baseline="central">L1 — AST layer (BPA)</text>
+    <text class="ts" x="340" y="384" text-anchor="middle" dominant-baseline="central">ast_node → (first_tok, last_tok) via BPA token_ranges</text>
+  </g>
+
+  <!-- L2: Symbol layer -->
+  <line x1="300" y1="352" x2="280" y2="327" stroke="#1D9E75" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <g class="c-teal node" onclick="si('L2 — Symbol layer (STA)','Each STA symbol has decl_node pointing into the BPA AST. τ(L_SYM, s) = τ(L_AST, STA.symbol(s).decl_node). O(1) via BI_sym[sym_id]. 50K symbols × 16 bytes = 800 KB. This is the primary source of UMLLink records.')">
+    <rect x="40" y="284" width="260" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="170" y="300" text-anchor="middle" dominant-baseline="central">L2 — Symbol layer (STA)</text>
+    <text class="ts" x="170" y="316" text-anchor="middle" dominant-baseline="central">sym_id → decl/def AST ranges</text>
+  </g>
+
+  <!-- L3: Block layer -->
+  <line x1="380" y1="352" x2="440" y2="327" stroke="#1D9E75" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <g class="c-teal node" onclick="si('L3 — Basic block layer (CFA)','Each CFA block stores first_stmt and last_stmt as BP AST pre-order indices. τ(L_BLK, b) uses CFA.first_token[b] and CFA.last_token[b] directly. O(1) via BI_blk[global_block_id]. 450K blocks × 8 bytes = 3.6 MB.')">
+    <rect x="380" y="284" width="260" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="510" y="300" text-anchor="middle" dominant-baseline="central">L3 — Block layer (CFA)</text>
+    <text class="ts" x="510" y="316" text-anchor="middle" dominant-baseline="central">block_id → first/last token pair</text>
+  </g>
+
+  <!-- L4: SSA layer -->
+  <line x1="170" y1="284" x2="200" y2="259" stroke="#085041" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <g class="c-purple node" onclick="si('L4 — SSA layer (SSA)','Each SSA variable has def_stmt (BP AST pre-order index). τ(L_SSA, v) = τ(L_AST, SSA.def_stmt[v]). For φ-functions (def_stmt == MAX): uses block entry position. O(1) via BI_ssa[ssa_id]. 2M SSA vars × 12 bytes = 24 MB.')">
+    <rect x="140" y="216" width="260" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="270" y="232" text-anchor="middle" dominant-baseline="central">L4 — SSA layer (SSA)</text>
+    <text class="ts" x="270" y="248" text-anchor="middle" dominant-baseline="central">ssa_id → def_stmt → AST range</text>
+  </g>
+
+  <!-- L5: Call site layer -->
+  <line x1="510" y1="284" x2="480" y2="259" stroke="#085041" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <g class="c-purple node" onclick="si('L5 — Call site layer (CGA)','Each call site has call_token: the TCA token_id of the method name lexeme. τ(L_CS, c) = τ(L_TOK, CGA.call_token[c]). O(1) via BI_cs[call_site_id]. 45K call sites × 4 bytes = 180 KB. This is the traceability anchor for sequence diagram arrows.')">
+    <rect x="380" y="216" width="260" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="510" y="232" text-anchor="middle" dominant-baseline="central">L5 — Call site layer (CGA)</text>
+    <text class="ts" x="510" y="248" text-anchor="middle" dominant-baseline="central">call_site_id → call_token → source</text>
+  </g>
+
+  <!-- Forward query arrow (τ⁻¹) -->
+  <rect x="40" y="140" width="590" height="54" rx="8" fill="var(--bg-accent)" stroke-width="0.5"/>
+  <text class="th" x="335" y="159" text-anchor="middle" dominant-baseline="central">τ⁻¹: forward query — source position → all SCPG entities</text>
+  <text class="ts" x="335" y="179" text-anchor="middle" dominant-baseline="central">Symbol Span Index (sorted SymbolSpanRecord[]) + Call Site Span Index → O(log n + k)</text>
+
+  <!-- Backward query annotation -->
+  <rect x="40" y="60" width="590" height="54" rx="8" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="th" x="335" y="79" text-anchor="middle" dominant-baseline="central">τ: backward query — any SCPG entity → source range</text>
+  <text class="ts" x="335" y="99" text-anchor="middle" dominant-baseline="central">Per-layer dense array (BI_ast, BI_sym, BI_blk, BI_ssa, BI_cs) → O(1) direct indexing</text>
+
+  <text class="ts" x="335" y="35" text-anchor="middle" style="fill:var(--text-muted)">All six layers feed into TraceabilityArtifact (.tra) — the single cross-reference for all SCPG entities</text>
+</svg>
+<div id="info-chain" class="info">Click any layer to see exactly how τ(layer, entity_id) resolves the source range and which BI array backs it.</div>
+</div>
+
+<div id="query" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Both query directions run in sub-millisecond time. Click a row to see the exact algorithm.</div>
+<table class="ct">
+  <thead><tr><th>Query direction</th><th>Input</th><th>Output</th><th>Algorithm</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr onclick="si('Backward: token → source (L0)','TCA.BI[token_id] = (file_id, line, col, len). Dense u32 array indexed directly by token_id. Single memory access. Example: token_id=42500 → (file_id=3, line=247, col=12, len=8) = the identifier "validate" at line 247.')">
+      <td>token → source</td><td>token_id: u32</td><td>(file, line, col)</td><td>BI array at TCA.BI[t]</td><td class="good">O(1)</td></tr>
+    <tr onclick="si('Backward: AST node → source range','BI_ast[preorder_idx] = (first_tok, last_tok). Two O(1) TCA.BI lookups give start and end source positions. Example: preorder_idx=8820 (a method_declaration node) → tokens 8800..8950 → line 241..line 265.')">
+      <td>AST node → range</td><td>preorder_idx: u32</td><td>(start, end) source</td><td>BI_ast[v] then TCA.BI[ft], TCA.BI[lt]</td><td class="good">O(1)</td></tr>
+    <tr onclick="si('Backward: symbol → source range','BI_sym[sym_id] = (decl_first_tok, decl_last_tok, def_first_tok, def_last_tok). O(1) array lookup gives all four token anchors. Example: sym_id=1240 (OrderService class) → decl_ft=5000, decl_lt=9800 → file 2, lines 10..310.')">
+      <td>symbol → range</td><td>sym_id: u32</td><td>(decl_range, def_range)</td><td>BI_sym[s] — two-range record</td><td class="good">O(1)</td></tr>
+    <tr onclick="si('Forward: source position → symbols','Build sort_key from (file_id, token_id). binary_search on sorted SymbolSpanRecord[] to find upper bound. Scan backward to collect all symbols whose last_tok >= token_id. Returns multiple results for nested scopes (method inside class inside package).')">
+      <td>source → symbols</td><td>(file_id, token_id)</td><td>Vec&lt;sym_id&gt;</td><td>binary_search + backward scan on SymbolSpanIndex</td><td class="good">O(log n)</td></tr>
+    <tr onclick="si('Forward: source → call sites','Sorted (sort_key, call_site_id) pairs. binary_search on call_token. Call sites are point locations (single token), so this is exact match not range match. Typically returns 0 or 1 results.')">
+      <td>source → call sites</td><td>(file_id, token_id)</td><td>Vec&lt;call_site_id&gt;</td><td>binary_search on CallSiteSpanIndex</td><td class="good">O(log n)</td></tr>
+    <tr onclick="si('Stale UMLLink detection','Compare umllink.scpg_hash against current scpg_hash (read from TRA header). Single u32 comparison per UMLLink. If any upstream artifact changed since this UMLLink was generated, the hashes differ. O(1) per link, O(n_uml) total for a full scan.')">
+      <td>stale link detection</td><td>UMLLink.scpg_hash</td><td>bool: is_stale</td><td>u32 comparison vs current scpg_hash</td><td class="good">O(1)</td></tr>
+  </tbody>
+</table>
+<div id="info-query" class="info" style="margin-top:8px">Click any row to see the exact algorithm and a concrete example from the OrderService codebase.</div>
+</div>
+
+<div id="uml" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">UMLLink records are pre-computed in Phase 7 and embedded in every generated diagram element by Phase 9. They make click-to-source navigation O(1).</div>
+<svg width="100%" viewBox="0 0 680 360" role="img">
+  <title>UMLLink record structure showing sym_id, source range, scpg_hash, and navigation from UML element to source</title>
+  <desc>UML class box for OrderService links to UMLLinkRecord with sym_id 1240, file 2, lines 10 to 310, scpg_hash. Arrow shows navigation from UML to source and back.</desc>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- UML Class box (left) -->
+  <g class="c-teal node" onclick="si('UML class box — generated by Phase 9','This class box is generated in Phase 9 from the STA symbol for OrderService. At generation time, Phase 9 reads UMLLinkRecord[sym_id=1240] from the TRA and embeds the source range. The scpg_hash stamps the pipeline version.')">
+    <rect x="40" y="60" width="180" height="180" rx="8" stroke-width="0.5"/>
+    <text class="th" x="130" y="82" text-anchor="middle" dominant-baseline="central">OrderService</text>
+    <line x1="40" y1="96" x2="220" y2="96" stroke="#085041" stroke-width="0.5"/>
+    <text class="ts" x="130" y="116" text-anchor="middle" dominant-baseline="central">-repo: OrderRepository</text>
+    <text class="ts" x="130" y="134" text-anchor="middle" dominant-baseline="central">-validator: Validator</text>
+    <line x1="40" y1="148" x2="220" y2="148" stroke="#085041" stroke-width="0.5"/>
+    <text class="ts" x="130" y="168" text-anchor="middle" dominant-baseline="central">+processOrder()</text>
+    <text class="ts" x="130" y="186" text-anchor="middle" dominant-baseline="central">+validate()</text>
+    <text class="ts" x="130" y="226" text-anchor="middle" dominant-baseline="central">UMLLink embedded here</text>
+  </g>
+
+  <!-- Arrow to UMLLinkRecord -->
+  <path d="M220 150 L298 150" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr2)"/>
+  <text class="ts" x="258" y="142" text-anchor="middle" style="fill:var(--text-muted)">embeds</text>
+
+  <!-- UMLLinkRecord (center) -->
+  <g class="c-gray node" onclick="si('UMLLinkRecord — 24 bytes pre-computed in Phase 7','sym_id indexes into BI_sym for O(1) range retrieval. scpg_hash encodes the entire pipeline state. sym_kind routes Phase 9 to the correct UML generator (class box vs method slot vs arrow).')">
+    <rect x="300" y="40" width="200" height="210" rx="8" stroke-width="0.5"/>
+    <text class="th" x="400" y="62" text-anchor="middle" dominant-baseline="central">UMLLinkRecord</text>
+    <line x1="300" y1="76" x2="500" y2="76" stroke="var(--border)" stroke-width="0.5"/>
+    <text class="ts" x="320" y="96" dominant-baseline="central">sym_id:      1240</text>
+    <text class="ts" x="320" y="114" dominant-baseline="central">file_id:     2</text>
+    <text class="ts" x="320" y="132" dominant-baseline="central">line_start:  10</text>
+    <text class="ts" x="320" y="150" dominant-baseline="central">col_start:   0</text>
+    <text class="ts" x="320" y="168" dominant-baseline="central">line_end:    310</text>
+    <text class="ts" x="320" y="186" dominant-baseline="central">col_end:     1</text>
+    <text class="ts" x="320" y="204" dominant-baseline="central" style="fill:var(--text-accent)">scpg_hash:   0xA3F29C11</text>
+    <text class="ts" x="320" y="222" dominant-baseline="central">sym_kind:    SK_CLASS</text>
+  </g>
+
+  <!-- Arrow to source file -->
+  <path d="M500 150 L578 150" fill="none" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#arr2)"/>
+  <text class="ts" x="538" y="142" text-anchor="middle" style="fill:#085041">navigate</text>
+
+  <!-- Source file (right) -->
+  <g class="c-gray node" onclick="si('Source file navigation — O(1)','Phase 9 reads UMLLinkRecord, navigates the IDE to file_id=2 (OrderService.java), line 10..310. The TCA file registry maps file_id=2 to the absolute path. No further computation needed — the range is pre-resolved.')">
+    <rect x="580" y="60" width="82" height="180" rx="6" stroke-width="0.5"/>
+    <text class="th" x="621" y="82" text-anchor="middle" dominant-baseline="central">Order</text>
+    <text class="th" x="621" y="96" text-anchor="middle" dominant-baseline="central">Service</text>
+    <text class="th" x="621" y="110" text-anchor="middle" dominant-baseline="central">.java</text>
+    <rect x="588" y="126" width="66" height="100" rx="3" fill="var(--bg-accent)" stroke-width="0.5"/>
+    <text class="ts" x="621" y="148" text-anchor="middle" dominant-baseline="central">lines</text>
+    <text class="ts" x="621" y="164" text-anchor="middle" dominant-baseline="central">10–310</text>
+    <text class="ts" x="621" y="180" text-anchor="middle" dominant-baseline="central">highlighted</text>
+    <text class="ts" x="621" y="196" text-anchor="middle" dominant-baseline="central">in IDE</text>
+  </g>
+
+  <!-- Bottom: stale detection -->
+  <rect x="40" y="278" width="620" height="52" rx="6" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="th" x="350" y="296" text-anchor="middle" dominant-baseline="central">Stale detection after source edit</text>
+  <text class="ts" x="350" y="316" text-anchor="middle" dominant-baseline="central">if (umllink.scpg_hash ≠ current_tra.scpg_hash) → stale: regenerate from updated TRA</text>
+</svg>
+<div id="info-uml" class="info">Click any element to see the exact fields and how navigation works from UML element to source and back.</div>
+</div>
+
+<div id="delta" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">When source code changes, Phase 7 computes a minimal delta — only the affected UMLLinks are re-generated. Click any step.</div>
+<svg width="100%" viewBox="0 0 680 340" role="img">
+  <title>Incremental delta processing: source edit triggers partial re-run, stale UMLLink detection, and selective re-generation</title>
+  <desc>Five steps: source edit, incremental re-tokenize, re-analyze changed scope, compute new scpg_hash, detect stale UMLLinks by hash comparison, regenerate only stale elements</desc>
+  <defs>
+    <marker id="arr3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Step 1: Source edit -->
+  <g class="c-coral node" onclick="si('Step 1 — Source edit','User edits OrderService.java. The IDE notifies the engine with a character-level delta: (file_id=2, byte_range=[4200..4250], new_text="validate(Order o, User u)").')">
+    <rect x="40" y="40" width="140" height="52" rx="6" stroke-width="0.5"/>
+    <text class="th" x="110" y="58" text-anchor="middle" dominant-baseline="central">Source edit</text>
+    <text class="ts" x="110" y="76" text-anchor="middle" dominant-baseline="central">character-level delta</text>
+  </g>
+  <line x1="180" y1="66" x2="220" y2="66" stroke="#888780" stroke-width="1" marker-end="url(#arr3)"/>
+
+  <!-- Step 2: Incremental re-parse -->
+  <g class="c-amber node" onclick="si('Step 2 — Incremental re-tokenize + re-parse (Phases 1 and 2)','Tree-sitter re-parses only the changed region O(|delta|). Phase 1 re-assigns token_ids for changed tokens. Phase 2 re-encodes the affected AST subtree. New TCA and BPA hashes are computed.')">
+    <rect x="222" y="40" width="140" height="52" rx="6" stroke-width="0.5"/>
+    <text class="th" x="292" y="58" text-anchor="middle" dominant-baseline="central">Re-parse</text>
+    <text class="ts" x="292" y="76" text-anchor="middle" dominant-baseline="central">Phases 1–2, O(|delta|)</text>
+  </g>
+  <line x1="362" y1="66" x2="402" y2="66" stroke="#888780" stroke-width="1" marker-end="url(#arr3)"/>
+
+  <!-- Step 3: Re-analyze changed scope -->
+  <g class="c-amber node" onclick="si('Step 3 — Re-analyze changed scope (Phases 3–6)','Only re-run phases for the affected scope. A method signature change triggers re-analysis of: that method symbol (Phase 3), its CFG (Phase 4), its SSA (Phase 5), its call edges (Phase 6). Unchanged methods are NOT reanalyzed.')">
+    <rect x="404" y="40" width="140" height="52" rx="6" stroke-width="0.5"/>
+    <text class="th" x="474" y="58" text-anchor="middle" dominant-baseline="central">Re-analyze</text>
+    <text class="ts" x="474" y="76" text-anchor="middle" dominant-baseline="central">Phases 3–6, O(|scope|)</text>
+  </g>
+  <line x1="544" y1="66" x2="584" y2="66" stroke="#888780" stroke-width="1" marker-end="url(#arr3)"/>
+
+  <!-- Step 4: New scpg_hash -->
+  <g class="c-teal node" onclick="si('Step 4 — New scpg_hash (Phase 7)','Phase 7 recomputes BI_sym for changed symbols, updates the Symbol Span Index, recomputes UMLLinkRecords for changed symbols, and derives a new scpg_hash from the updated artifact hashes.')">
+    <rect x="586" y="40" width="80" height="52" rx="6" stroke-width="0.5"/>
+    <text class="th" x="626" y="58" text-anchor="middle" dominant-baseline="central">New hash</text>
+    <text class="ts" x="626" y="76" text-anchor="middle" dominant-baseline="central">Phase 7</text>
+  </g>
+
+  <!-- Step 5: Stale detection -->
+  <g class="c-purple node" onclick="si('Step 5 — Stale detection','Scan all open diagram views UMLLinks. For each link, compare link.scpg_hash against new scpg_hash. O(1) per link. Typically only 2–10% of links are stale after a single edit (only those derived from changed symbols).')">
+    <rect x="40" y="140" width="240" height="80" rx="6" stroke-width="0.5"/>
+    <text class="th" x="160" y="162" text-anchor="middle" dominant-baseline="central">Stale detection scan</text>
+    <text class="ts" x="160" y="180" text-anchor="middle" dominant-baseline="central">∀ link: link.scpg_hash ≠ new_hash?</text>
+    <text class="ts" x="160" y="198" text-anchor="middle" dominant-baseline="central">O(1) per link, O(n_uml) total</text>
+  </g>
+
+  <!-- Step 6: Selective regeneration -->
+  <g class="c-teal node" onclick="si('Step 6 — Selective regeneration','Only stale UMLLinks trigger Phase 9 re-generation for their diagram elements. Unchanged elements reuse their existing rendered output. A single method signature change typically invalidates 1 class box + 1 method slot + affected sequence diagrams.')">
+    <rect x="340" y="140" width="300" height="80" rx="6" stroke-width="0.5"/>
+    <text class="th" x="490" y="162" text-anchor="middle" dominant-baseline="central">Selective regeneration</text>
+    <text class="ts" x="490" y="180" text-anchor="middle" dominant-baseline="central">Only stale links re-derive from TRA</text>
+    <text class="ts" x="490" y="198" text-anchor="middle" dominant-baseline="central">O(n_stale) — typically O(1) to O(10)</text>
+  </g>
+
+  <line x1="280" y1="180" x2="338" y2="180" stroke="#888780" stroke-width="1" marker-end="url(#arr3)"/>
+
+  <!-- Cost table -->
+  <rect x="40" y="258" width="600" height="60" rx="6" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="th" x="340" y="276" text-anchor="middle" dominant-baseline="central">Incremental update cost vs full rebuild</text>
+  <text class="ts" x="340" y="296" text-anchor="middle" dominant-baseline="central">Full rebuild: O(n_ast + n_sym log n_sym) ≈ 15ms for 500K LOC project</text>
+  <text class="ts" x="340" y="312" text-anchor="middle" dominant-baseline="central">Incremental (one method edit): O(|delta| + n_stale) ≈ 1–3ms — 5–15× faster</text>
+</svg>
+<div id="info-delta" class="info">Click any step to see the exact scope of work and why partial re-analysis is sound.</div>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">TraceabilityArtifact (.tra) binary sections — medium project: 1M AST nodes, 50K symbols, 450K blocks, 2M SSA, 45K call sites</div>
+<div class="art-row"><div class="art-lbl">Header</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What integrity information is in the TRA header and how does it encode the full SCPG hash chain?')"><span>magic, counts, all 6 upstream CRC-64 hashes + composite scpg_hash</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-lbl">BI_AST</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is BI_ast constructed and what does Phase 8 use it for when annotating ROBDD path nodes?')"><span>Dense array: preorder_idx → (first_tok:u32, last_tok:u32)</span><span class="art-sz">8 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">BI_SYM</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('Why does BI_sym store four token IDs (decl_first, decl_last, def_first, def_last) rather than two?')"><span>Dense array: sym_id → (decl_ft, decl_lt, def_ft, def_lt)</span><span class="art-sz">800 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">BI_BLK</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('What is a global_block_id in Phase 7 and how is it computed from a function symbol and local block id?')"><span>Dense array: global_block_id → (first_tok:u32, last_tok:u32)</span><span class="art-sz">3.6 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">BI_SSA</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How does BI_ssa handle phi-functions which have no direct source location?')"><span>Dense array: ssa_id → (def_stmt:u32, first_tok:u32, last_tok:u32)</span><span class="art-sz">24 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">BI_CS</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How does call_token enable sequence diagram arrow-to-source navigation?')"><span>Dense array: call_site_id → call_token:u32</span><span class="art-sz">180 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Symbol span index</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('Explain the interval stabbing algorithm used for forward queries on the Symbol Span Index?')"><span>Sorted SymbolSpanRecord[] — binary search + backward scan for O(log n)</span><span class="art-sz">1 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Call site span index</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('How does the call site span index enable source-to-call-site forward queries?')"><span>Sorted (sort_key:u64, call_site_id:u32) — exact token match</span><span class="art-sz">540 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">UMLLink table</div><div class="art-bar" style="background:#FAEEDA;border-color:#BA7517" onclick="sendPrompt('What is stored in each UMLLinkRecord and how does Phase 9 use it when generating diagram elements?')"><span>UMLLinkRecord[35K] — sym_id, source range, scpg_hash, sym_kind. O(1) access.</span><span class="art-sz">840 KB</span></div></div>
+<div style="text-align:right;font-size:11px;color:var(--text-muted);margin-top:4px">Total: ≈ 39 MB uncompressed · ≈ 9–12 MB LZ4-compressed</div>
+</div>
+
+<div id="complexity" class="panel">
+<table class="ct">
+  <thead><tr><th>Operation</th><th>Complexity</th><th>Size (medium project)</th></tr></thead>
+  <tbody>
+    <tr><td>Hash chain (CRC64 per artifact)</td><td class="good">O(total_artifact_bytes)</td><td>Negligible — one-pass CRC</td></tr>
+    <tr><td>BI_ast construction</td><td class="good">O(n_ast)</td><td>1M nodes → 8 MB</td></tr>
+    <tr><td>BI_sym construction</td><td class="good">O(n_sym)</td><td>50K syms → 800 KB</td></tr>
+    <tr><td>BI_blk construction</td><td class="good">O(n_blk)</td><td>450K blocks → 3.6 MB</td></tr>
+    <tr><td>BI_ssa construction</td><td class="good">O(n_ssa)</td><td>2M SSA → 24 MB</td></tr>
+    <tr><td>BI_cs construction</td><td class="good">O(n_cs)</td><td>45K call sites → 180 KB</td></tr>
+    <tr><td>Symbol Span Index sort</td><td class="good">O(n_sym log n_sym)</td><td>50K × log 50K ≈ 800K ops</td></tr>
+    <tr><td>UMLLink pre-computation</td><td class="good">O(n_uml)</td><td>35K records → 840 KB</td></tr>
+    <tr><td>Backward query τ(ε)</td><td class="good">O(1)</td><td>Dense array index</td></tr>
+    <tr><td>Forward query τ⁻¹(pos)</td><td class="good">O(log n + depth)</td><td>Binary search + nesting depth</td></tr>
+    <tr><td>Stale UMLLink detection</td><td class="good">O(1) per link</td><td>Single u32 comparison</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px;background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-success)">
+  <strong>Phase 7 total: O(n_ast + n_sym log n_sym)</strong> — the fastest analysis phase. Dominated by the O(n_sym log n_sym) symbol span index sort. For 500K LOC Java project: ≈ 15ms construction time. All runtime queries are O(1) or O(log n). Phase 7 is never the bottleneck.
+</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function si(title,detail){
+  ['chain','query','uml','delta'].forEach(id=>{
+    const el=document.getElementById('info-'+id);
+    if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+  });
+}
+</script>

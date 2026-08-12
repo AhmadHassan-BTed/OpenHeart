@@ -81,10 +81,15 @@ pub fn build_try(
     state.current_block = post_try;
 }
 
-fn resolve_catch_type(catch_node: u32, bpa: &BPASTArtifact, _sta: &SymbolTableArtifact) -> u32 {
+fn resolve_catch_type(catch_node: u32, bpa: &BPASTArtifact, sta: &SymbolTableArtifact) -> u32 {
     if let Some(param) = bpa.first_child(catch_node) {
         if let Some(type_ref) = bpa.first_child(param) {
             if bpa.node_type(type_ref) == ASTNodeType::NN_TYPE_REF {
+                for sym in &sta.symbol_records {
+                    if sym.decl_node == type_ref || sym.def_node == type_ref {
+                        return sym.symbol_id;
+                    }
+                }
                 return type_ref;
             }
         }

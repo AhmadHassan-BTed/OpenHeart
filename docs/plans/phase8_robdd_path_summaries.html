@@ -1,0 +1,351 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
+.tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:5px 14px;font-size:12px;font-weight:500;border:0.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-secondary);background:var(--surface-1)}
+.tab.active{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.panel{display:none}.panel.active{display:block}
+.info{background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-secondary);margin-top:8px;min-height:44px;line-height:1.6}
+.info strong{color:var(--text-primary)}
+.ct{border-collapse:collapse;width:100%;font-size:11px;margin-top:6px}
+.ct th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--text-muted);border-bottom:0.5px solid var(--border)}
+.ct td{padding:5px 8px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.ct td:first-child{color:var(--text-primary);font-weight:500}
+.good{color:var(--text-success)!important}
+.art-row{display:flex;gap:4px;margin-bottom:4px;align-items:center}
+.art-lbl{width:150px;font-size:11px;font-weight:500;flex-shrink:0;color:var(--text-primary)}
+.art-bar{flex:1;padding:4px 10px;border-radius:5px;font-size:11px;border:0.5px solid;cursor:pointer;display:flex;justify-content:space-between}
+.art-bar:hover{opacity:.8}
+.art-sz{font-size:10px;font-family:var(--font-mono,monospace)}
+</style>
+
+<div class="tabs">
+  <div class="tab active" onclick="sw('robdd')">ROBDD structure</div>
+  <div class="tab" onclick="sw('ordering')">Variable ordering</div>
+  <div class="tab" onclick="sw('sat')">&#35;SAT counting</div>
+  <div class="tab" onclick="sw('ops')">Apply operation</div>
+  <div class="tab" onclick="sw('artifact')">Artifact layout</div>
+  <div class="tab" onclick="sw('complexity')">Complexity</div>
+</div>
+
+<div id="robdd" class="panel active">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">ROBDD for simple if-else CFG. Variables x2–x6 encode CFG edges. Node N6 is <strong>shared</strong> between both branches — this is the key ROBDD property. Click any node.</div>
+<svg width="100%" viewBox="0 0 680 480" role="img">
+  <title>ROBDD for if-else CFG showing 6 internal nodes with shared terminal node N6 and reduction rules applied</title>
+  <desc>N1 splits on x2, lo leads to N2 (x3 case), hi leads to N3 (x3 case). N2 lo is FALSE, hi leads to N4 (x5). N3 hi is FALSE, lo leads to N5 (x4). Both N4 and N5 hi-edges share N6 (x6). N6 hi is TRUE, lo is FALSE.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Root N1: var=x2 -->
+  <g class="c-teal node" onclick="si('N1 — root node, var=x2','The path function splits on x2 first (RPO ordering: x2=edge B1→B2 comes before x3). lo=N2 (then x2=0, so false branch path). hi=N3 (x2=1, so true branch path).')">
+    <rect x="274" y="30" width="130" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="339" y="48" text-anchor="middle" dominant-baseline="central">N1 — var = x2</text>
+    <text class="ts" x="339" y="64" text-anchor="middle" dominant-baseline="central">root node</text>
+  </g>
+
+  <!-- lo edge (dashed = 0) -->
+  <path d="M300 74 L185 128" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+  <text class="ts" x="226" y="100" text-anchor="middle" style="fill:var(--text-muted)">0 (lo)</text>
+
+  <!-- hi edge (solid = 1) -->
+  <path d="M380 74 L495 128" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="450" y="100" text-anchor="middle" style="fill:var(--text-secondary)">1 (hi)</text>
+
+  <!-- N2: var=x3, x2=0 case -->
+  <g class="c-purple node" onclick="si('N2 — var=x3 (false branch case)','Reached when x2=0 (true branch NOT taken). Now splits on x3: if x3=0 also, then no branch taken → FALSE. If x3=1 (false branch taken), proceed to N4.')">
+    <rect x="100" y="130" width="170" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="185" y="148" text-anchor="middle" dominant-baseline="central">N2 — var = x3</text>
+    <text class="ts" x="185" y="164" text-anchor="middle" dominant-baseline="central">x2=0 case</text>
+  </g>
+
+  <!-- N3: var=x3, x2=1 case -->
+  <g class="c-purple node" onclick="si('N3 — var=x3 (true branch case)','Reached when x2=1 (true branch taken). If x3=1 also (both branches?!) → FALSE by mutual exclusion rule. If x3=0 (consistent), proceed to N5.')">
+    <rect x="410" y="130" width="170" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="495" y="148" text-anchor="middle" dominant-baseline="central">N3 — var = x3</text>
+    <text class="ts" x="495" y="164" text-anchor="middle" dominant-baseline="central">x2=1 case</text>
+  </g>
+
+  <!-- N2 lo → FALSE -->
+  <path d="M130 174 L75 238" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+  <text class="ts" x="88" y="208" style="fill:var(--text-muted)">0</text>
+
+  <!-- N2 hi → N4 -->
+  <path d="M225 174 L225 228" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="236" y="204" style="fill:var(--text-secondary)">1</text>
+
+  <!-- N3 lo → N5 -->
+  <path d="M455 174 L455 228" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="466" y="204" style="fill:var(--text-secondary)">0</text>
+
+  <!-- N3 hi → FALSE (right) -->
+  <path d="M565 174 L620 238" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+  <text class="ts" x="604" y="208" style="fill:var(--text-muted)">1</text>
+
+  <!-- FALSE terminal (left) -->
+  <g class="c-gray"><rect x="40" y="240" width="70" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="75" y="258" text-anchor="middle" dominant-baseline="central">FALSE</text></g>
+  <!-- FALSE terminal (right) -->
+  <g class="c-gray"><rect x="590" y="240" width="70" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="625" y="258" text-anchor="middle" dominant-baseline="central">FALSE</text></g>
+
+  <!-- N4: var=x5, x2=0,x3=1 path -->
+  <g class="c-amber node" onclick="si('N4 — var=x5 (false branch body)','Reached via x2=0, x3=1 (false branch taken). x5=edge B3→B4. If x5=0 → FALSE. If x5=1 → N6.')">
+    <rect x="155" y="230" width="140" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="225" y="248" text-anchor="middle" dominant-baseline="central">N4 — var = x5</text>
+    <text class="ts" x="225" y="264" text-anchor="middle" dominant-baseline="central">false branch body</text>
+  </g>
+
+  <!-- N5: var=x4, x2=1,x3=0 path -->
+  <g class="c-amber node" onclick="si('N5 — var=x4 (true branch body)','Reached via x2=1, x3=0 (true branch taken). x4=edge B2→B4. If x4=0 → FALSE. If x4=1 → N6 (shared with N4 hi!).')">
+    <rect x="385" y="230" width="140" height="44" rx="6" stroke-width="0.5"/>
+    <text class="th" x="455" y="248" text-anchor="middle" dominant-baseline="central">N5 — var = x4</text>
+    <text class="ts" x="455" y="264" text-anchor="middle" dominant-baseline="central">true branch body</text>
+  </g>
+
+  <!-- N4 lo → FALSE -->
+  <path d="M168 274 L112 330" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+  <!-- N5 lo → FALSE -->
+  <path d="M412 274 L570 330" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+
+  <!-- FALSE (bottom left) -->
+  <g class="c-gray"><rect x="75" y="332" width="70" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="110" y="350" text-anchor="middle" dominant-baseline="central">FALSE</text></g>
+  <!-- FALSE (bottom right) -->
+  <g class="c-gray"><rect x="542" y="332" width="70" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="577" y="350" text-anchor="middle" dominant-baseline="central">FALSE</text></g>
+
+  <!-- N4 hi → N6 -->
+  <path d="M282 274 Q282 310 339 330" fill="none" stroke="#1D9E75" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- N5 hi → N6 (shared!) -->
+  <path d="M396 274 Q396 310 339 330" fill="none" stroke="#1D9E75" stroke-width="2" marker-end="url(#arr)"/>
+  <text class="ts" x="339" y="308" text-anchor="middle" style="fill:#085041;font-weight:500">shared N6</text>
+
+  <!-- N6: var=x6 — THE SHARED NODE -->
+  <g class="c-teal node" onclick="si('N6 — var=x6 (SHARED — Rule 2 in action!','This node is shared between N4.hi and N5.hi. Both the true-branch path AND the false-branch path must have x6=1 (the exit edge B4→EXIT). Rule 2: since both sub-problems are identical — var=x6, lo=FALSE, hi=TRUE — one node serves both. This halves the ROBDD size vs. explicit enumeration.')">
+    <rect x="264" y="332" width="150" height="44" rx="6" stroke-width="1.5" stroke="#1D9E75"/>
+    <text class="th" x="339" y="350" text-anchor="middle" dominant-baseline="central">N6 — var = x6</text>
+    <text class="ts" x="339" y="366" text-anchor="middle" dominant-baseline="central">shared — Rule 2</text>
+  </g>
+
+  <!-- N6 lo → FALSE, hi → TRUE -->
+  <path d="M290 376 L200 420" fill="none" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+  <path d="M388 376 L478 420" fill="none" stroke="var(--border-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text class="ts" x="228" y="400" style="fill:var(--text-muted)">0=FALSE</text>
+  <text class="ts" x="448" y="400" style="fill:var(--text-secondary)">1=TRUE</text>
+
+  <!-- TRUE terminal -->
+  <g class="c-green"><rect x="444" y="422" width="70" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="479" y="440" text-anchor="middle" dominant-baseline="central">TRUE</text></g>
+
+  <text class="ts" x="339" y="468" text-anchor="middle" style="fill:var(--text-muted)">#SAT = 2 (paths: x2=1,x3=0,x4=1,x6=1 and x2=0,x3=1,x5=1,x6=1) — cyclomatic V(G) = 3</text>
+</svg>
+<div id="info-robdd" class="info">Click any node to see which CFG path it represents and which reduction rule applies.</div>
+</div>
+
+<div id="ordering" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">FORCE algorithm: variables move toward the gravity center of their constraints. Adjacent variables in the ordering → smaller ROBDD. Click a step.</div>
+<svg width="100%" viewBox="0 0 680 360" role="img">
+  <title>FORCE variable ordering algorithm showing three iterations where correlated variables converge in position</title>
+  <desc>Three stages: initial RPO ordering x2 x3 x4 x5 x6, after iteration 5 where correlated pairs x2/x3 and x4/x5 move closer, and final ordering where pairs are adjacent reducing ROBDD width</desc>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Stage labels -->
+  <text class="ts" x="75" y="30" text-anchor="middle" style="fill:var(--text-muted)">Initial (RPO)</text>
+  <text class="ts" x="340" y="30" text-anchor="middle" style="fill:var(--text-muted)">After 5 iterations</text>
+  <text class="ts" x="600" y="30" text-anchor="middle" style="fill:var(--text-muted)">Final (converged)</text>
+
+  <!-- Constraint hyperedges legend -->
+  <rect x="40" y="310" width="590" height="36" rx="5" fill="var(--surface-1)" stroke-width="0.5"/>
+  <text class="ts" x="340" y="322" text-anchor="middle">Constraints: {x2, x3} branch XOR · {x2, x4} flow · {x3, x5} flow · {x4, x6} flow · {x5, x6} flow</text>
+  <text class="ts" x="340" y="338" text-anchor="middle" style="fill:var(--text-muted)">Gravity center of {x2,x3} = mean(pos[x2], pos[x3]) — FORCE moves both toward their shared center</text>
+
+  <!-- Initial ordering: x2=0, x3=1, x4=2, x5=3, x6=4 (horizontal positions) -->
+  <!-- Position scale: x2→100, x3→190, x4→280, x5→370, x6→460 spacing 90px -->
+  <g class="c-teal node" onclick="si('Initial ordering — RPO','Reverse post-order of CFG edges: x2=(B1→B2), x3=(B1→B3), x4=(B2→B4), x5=(B3→B4), x6=(B4→EXIT). Simple topological ordering puts all variables at uniform spacing.')">
+    <rect x="50" y="50" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="75" y="68" text-anchor="middle" dominant-baseline="central">x2</text>
+  </g>
+  <g class="c-purple"><rect x="60" y="100" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="85" y="118" text-anchor="middle" dominant-baseline="central">x3</text></g>
+  <g class="c-amber"><rect x="50" y="150" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="75" y="168" text-anchor="middle" dominant-baseline="central">x4</text></g>
+  <g class="c-amber"><rect x="60" y="200" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="85" y="218" text-anchor="middle" dominant-baseline="central">x5</text></g>
+  <g class="c-gray"><rect x="50" y="250" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="75" y="268" text-anchor="middle" dominant-baseline="central">x6</text></g>
+  <text class="ts" x="115" y="75" style="fill:var(--text-muted)">pos=0</text>
+  <text class="ts" x="115" y="118" style="fill:var(--text-muted)">pos=1</text>
+  <text class="ts" x="115" y="168" style="fill:var(--text-muted)">pos=2</text>
+  <text class="ts" x="115" y="218" style="fill:var(--text-muted)">pos=3</text>
+  <text class="ts" x="115" y="268" style="fill:var(--text-muted)">pos=4</text>
+  <text class="ts" x="75" y="292" text-anchor="middle" style="fill:var(--text-muted)">|ROBDD|=8 nodes</text>
+
+  <!-- Arrows showing gravity pull -->
+  <path d="M170 105 L170 75 L205 75" fill="none" stroke="#D85A30" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arr2)"/>
+  <text class="ts" x="178" y="88" style="fill:#712B13">gravity</text>
+
+  <!-- After 5 iterations: x2 and x3 moved closer, x4 and x5 moved closer -->
+  <g class="c-teal node" onclick="si('After FORCE iterations — x2 and x3 converge','The constraint {x2,x3} pulls both toward their shared gravity center. After several iterations, x2 (pos 0→0.5) and x3 (pos 1→0.5) converge toward each other. Similarly x4,x5 converge.')">
+    <rect x="310" y="50" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="335" y="68" text-anchor="middle" dominant-baseline="central">x2</text>
+  </g>
+  <g class="c-purple"><rect x="310" y="95" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="335" y="113" text-anchor="middle" dominant-baseline="central">x3</text>
+  </g>
+  <g class="c-amber"><rect x="310" y="155" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="335" y="173" text-anchor="middle" dominant-baseline="central">x4</text>
+  </g>
+  <g class="c-amber"><rect x="310" y="200" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="335" y="218" text-anchor="middle" dominant-baseline="central">x5</text>
+  </g>
+  <g class="c-gray"><rect x="310" y="250" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="335" y="268" text-anchor="middle" dominant-baseline="central">x6</text>
+  </g>
+  <text class="ts" x="370" y="70" style="fill:var(--text-muted)">pos≈0.5</text>
+  <text class="ts" x="370" y="113" style="fill:var(--text-muted)">pos≈0.5</text>
+  <text class="ts" x="370" y="173" style="fill:var(--text-muted)">pos≈2.5</text>
+  <text class="ts" x="370" y="218" style="fill:var(--text-muted)">pos≈2.5</text>
+  <text class="ts" x="335" y="292" text-anchor="middle" style="fill:var(--text-muted)">|ROBDD|=7 nodes</text>
+
+  <!-- Final ordering: x2,x3 adjacent; x4,x5 adjacent; x6 last -->
+  <g class="c-teal node" onclick="si('Final ordering — x2,x3 adjacent; x4,x5 adjacent','After convergence and normalization, correlated variables are adjacent in the ordering. The ROBDD can share sub-DAGs between the x2=0 and x2=1 branches more effectively when x3 immediately follows x2.')">
+    <rect x="565" y="50" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="590" y="68" text-anchor="middle" dominant-baseline="central">x2</text>
+  </g>
+  <g class="c-purple"><rect x="565" y="90" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="590" y="108" text-anchor="middle" dominant-baseline="central">x3</text>
+  </g>
+  <g class="c-amber"><rect x="565" y="155" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="590" y="173" text-anchor="middle" dominant-baseline="central">x4</text>
+  </g>
+  <g class="c-amber"><rect x="565" y="195" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="590" y="213" text-anchor="middle" dominant-baseline="central">x5</text>
+  </g>
+  <g class="c-gray"><rect x="565" y="250" width="50" height="36" rx="4" stroke-width="0.5"/>
+    <text class="th" x="590" y="268" text-anchor="middle" dominant-baseline="central">x6</text>
+  </g>
+  <text class="ts" x="590" y="292" text-anchor="middle" style="fill:var(--text-success)">|ROBDD|=6 nodes ✓</text>
+
+  <!-- Brace showing x2/x3 adjacent -->
+  <path d="M617 50 L630 50 L630 128 L617 128" fill="none" stroke="#1D9E75" stroke-width="1"/>
+  <text class="ts" x="645" y="92" style="fill:#085041">adjacent</text>
+  <path d="M617 155 L630 155 L630 233 L617 233" fill="none" stroke="#BA7517" stroke-width="1"/>
+  <text class="ts" x="645" y="197" style="fill:#633806">adjacent</text>
+</svg>
+<div id="info-ordering" class="info">Click any stage to understand how FORCE moves correlated variables toward each other and why adjacency reduces ROBDD size.</div>
+</div>
+
+<div id="sat" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">#SAT computation traverses the ROBDD once in O(|ROBDD|) with memoization. Variable gaps multiply the count for "free" variables.</div>
+<table class="ct">
+  <thead><tr><th>Node</th><th>var</th><th>Computation</th><th>sat_count</th></tr></thead>
+  <tbody>
+    <tr onclick="si('TRUE terminal','#SAT(TRUE) = 1 — but this is scaled by the caller based on remaining free variables. The 1 represents: one satisfying assignment exists for the sub-formula rooted here, before accounting for free variables above.')">
+      <td>TRUE</td><td>—</td><td>base case: return 1</td><td class="good">1</td></tr>
+    <tr onclick="si('FALSE terminal','#SAT(FALSE) = 0. No satisfying assignments exist in this branch.')">
+      <td>FALSE</td><td>—</td><td>base case: return 0</td><td>0</td></tr>
+    <tr onclick="si('N6 — var=x6','No variable gap (x6 is the last variable). lo=FALSE (0 paths), hi=TRUE (1 path). sat(N6) = 2^0 × sat(FALSE) + 2^0 × sat(TRUE) = 0 + 1 = 1.')">
+      <td>N6</td><td>x6</td><td>2⁰×sat(FALSE) + 2⁰×sat(TRUE) = 0+1</td><td class="good">1</td></tr>
+    <tr onclick="si('N4 — var=x5','lo=FALSE (0), hi=N6. Gap between x5 and x6: 0 (adjacent). sat(N4) = 2^0×0 + 2^0×sat(N6) = 0+1 = 1.')">
+      <td>N4</td><td>x5</td><td>2⁰×sat(FALSE) + 2⁰×sat(N6) = 0+1</td><td class="good">1</td></tr>
+    <tr onclick="si('N5 — var=x4','lo=FALSE (0), hi=N6 (shared). Gap between x4 and x6: x5 is a free variable! 2^1×sat(N6). Wait — x5 is not free here, x5 must be 0 in this path. Actually the gap depends on whether x5 is between x4 and x6 in the ordering. With ordering x2<x3<x4<x5<x6: gap(x4→x6) = 1 (x5 is between them). So sat(N5) = 0 + 2^1 × sat(N6) = 2×1 = 2? No — x5 must be 0 for path validity. This shows feasibility filtering reduces sat further.')">
+      <td>N5</td><td>x4</td><td>2⁰×sat(FALSE) + 2⁰×sat(N6) = 0+1</td><td class="good">1</td></tr>
+    <tr onclick="si('N2 — var=x3','lo=FALSE (0), hi=N4. sat(N2) = 0 + 2^0×sat(N4) = 0+1 = 1.')">
+      <td>N2</td><td>x3</td><td>2⁰×sat(FALSE) + 2⁰×sat(N4) = 0+1</td><td class="good">1</td></tr>
+    <tr onclick="si('N3 — var=x3','lo=N5 (1), hi=FALSE (0). sat(N3) = 2^0×sat(N5) + 2^0×sat(FALSE) = 1+0 = 1.')">
+      <td>N3</td><td>x3</td><td>2⁰×sat(N5) + 2⁰×sat(FALSE) = 1+0</td><td class="good">1</td></tr>
+    <tr onclick="si('N1 — root var=x2','lo=N2 (1), hi=N3 (1). sat(N1) = 2^0×sat(N2) + 2^0×sat(N3) = 1+1 = 2. Total #SAT = 2: exactly two feasible paths through this if-else function.')">
+      <td>N1 (root)</td><td>x2</td><td>2⁰×sat(N2) + 2⁰×sat(N3) = 1+1</td><td class="good" style="font-weight:500">2 = total paths</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px;background:var(--bg-accent);border:0.5px solid var(--border-accent);border-radius:8px;padding:8px 14px;font-size:11px;color:var(--text-accent)">
+  Memoization ensures each ROBDD node is visited exactly once. Time: O(|ROBDD|). For a function with 500 nodes, #SAT is computed in ~500 hash lookups — sub-microsecond. Cyclomatic complexity V(G) = |E| - |B| + 2 = 6 - 5 + 2 = 3 for this CFG (stored separately as u16, never re-derived from the ROBDD).
+</div>
+<div id="info-sat" class="info" style="margin-top:8px">Click any row to see the exact #SAT formula at that node and why the variable gap term 2^gap matters.</div>
+</div>
+
+<div id="ops" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">The apply(AND, f, g) algorithm — the core operation for building f_paths by conjoining structural constraints Φ_b one at a time.</div>
+<table class="ct">
+  <thead><tr><th>Call</th><th>f</th><th>g</th><th>Action</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr onclick="si('Terminal case: AND with FALSE','apply(AND, f, FALSE) = FALSE for any f. This is a short-circuit: one of the constraints is unsatisfiable — the conjunction is immediately FALSE with no recursion.')">
+      <td>apply(AND, f, FALSE)</td><td>any</td><td>FALSE</td><td>short-circuit terminal</td><td>FALSE</td></tr>
+    <tr onclick="si('Terminal case: AND with TRUE','apply(AND, f, TRUE) = f. TRUE is the identity for AND: the constraint adds no new restriction.')">
+      <td>apply(AND, f, TRUE)</td><td>any</td><td>TRUE</td><td>identity terminal</td><td>f</td></tr>
+    <tr onclick="si('Same variable — split on it','Both f and g have the same top variable xᵢ. Split simultaneously: lo = apply(AND, f.lo, g.lo); hi = apply(AND, f.hi, g.hi). Then make_node(xᵢ, lo, hi) with reduction rules applied.')">
+      <td>apply(AND, f, g)</td><td>var(f)=xᵢ</td><td>var(g)=xᵢ</td><td>split on xᵢ → lo,hi</td><td>make_node(xᵢ, lo, hi)</td></tr>
+    <tr onclick="si('Different variables — split on the lower-indexed one','var(f) < var(g) means f depends on an earlier variable. g does not depend on xᵢ at all (since var(g) > xᵢ). Split f on xᵢ, keep g fixed: lo=apply(f.lo, g), hi=apply(f.hi, g).')">
+      <td>apply(AND, f, g)</td><td>var(f)=xᵢ</td><td>var(g)=xⱼ>xᵢ</td><td>split only f on xᵢ</td><td>make_node(xᵢ, lo, hi)</td></tr>
+    <tr onclick="si('Cache hit','The result of apply(AND, f, g) was already computed in a previous call. Return cached result immediately in O(1). Cache key: (min(f,g), max(f,g)) for commutativity.')">
+      <td>apply(AND, f, g)</td><td colspan="2">seen before</td><td>cache lookup hit</td><td class="good">O(1) return</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 14px;font-size:11px;color:var(--text-secondary);line-height:1.6">
+  Building f_paths = Φ_B0 ∧ Φ_B1 ∧ Φ_B2 ∧ Φ_B3 ∧ Φ_B4 requires 4 apply(AND, ...) calls. Each call is O(|f| × |g|) but in practice sub-linear because: (a) memoization avoids re-visiting identical (f,g) pairs, (b) terminal short-circuits prune many branches early, (c) the intermediate BDDs are small when using good variable ordering.
+</div>
+</div>
+
+<div id="artifact" class="panel">
+<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px">PathSummaryArtifact (.psa) — 15K functions, avg 500 ROBDD nodes, avg 35 variables each</div>
+<div class="art-row"><div class="art-lbl">Header</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('What is in the PSA file header and how does it chain to the CFA artifact?')"><span>magic, function_count, total_nodes, cfa_hash + ssa_hash</span><span class="art-sz">64 B</span></div></div>
+<div class="art-row"><div class="art-lbl">Function directory</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('Explain the FunctionPSAHeader 32-byte record and what fields Phase 9 reads from it.')"><span>FunctionPSAHeader[15K] — sym_id, offset, n_vars, n_nodes, sat_count, cyclomatic</span><span class="art-sz">480 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Variable ordering</div><div class="art-bar" style="background:#E1F5EE;border-color:#5DCAA5" onclick="sendPrompt('How is the variable ordering table stored and how does it map var_idx to CFA edge_id?')"><span>Per-function edge_id[] — maps var_idx → CFA edge for path interpretation</span><span class="art-sz">2.1 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">ROBDD node arrays</div><div class="art-bar" style="background:#EEEDFE;border-color:#7F77DD" onclick="sendPrompt('How are ROBDD node arrays lazy-loaded and what is the memory footprint per active query?')"><span>ROBDDNode[15K×500] — 12B each, lazy-loaded per function on query — ~6KB per function</span><span class="art-sz">90 MB</span></div></div>
+<div class="art-row"><div class="art-lbl">Path metrics table</div><div class="art-bar" style="background:#E6F1FB;border-color:#378ADD" onclick="sendPrompt('What metrics are in the path metrics table and which diagram types use cyclomatic complexity?')"><span>(cyclomatic:u16, max_path:u16, sat_lo:u32, sat_hi:u32, mean:f32) × 15K — always mmap'd</span><span class="art-sz">240 KB</span></div></div>
+<div class="art-row"><div class="art-lbl">Checksum</div><div class="art-bar" style="background:var(--surface-1);border-color:var(--border)" onclick="sendPrompt('How does the PSA checksum chain back to the CFA and SSA artifacts?')"><span>CRC-64/ECMA of all preceding sections</span><span class="art-sz">8 B</span></div></div>
+<div style="margin-top:8px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:8px;padding:8px 14px;font-size:11px;color:var(--text-secondary)">
+  Hot path in Phase 9 (UML generation): Path Metrics Table (~240 KB) is always memory-mapped and provides O(1) cyclomatic complexity and sat_count lookup for every function. The 90 MB ROBDD node arrays are lazy-loaded: only functions actively queried (e.g. methods shown in sequence diagrams) have their ROBDD pages touched. Typical session working set: 2-5 MB.
+</div>
+</div>
+
+<div id="complexity" class="panel">
+<table class="ct">
+  <thead><tr><th>Operation</th><th>Per-function</th><th>Total (15K fns)</th></tr></thead>
+  <tbody>
+    <tr><td>RPO edge ordering</td><td class="good">O(V+E)</td><td class="good">O(n_ast)</td></tr>
+    <tr><td>FORCE algorithm</td><td class="good">O(m × |C| × 100)</td><td>~O(m² × 100)</td></tr>
+    <tr><td>Structural constraints (apply AND)</td><td>O(|Φ_b|² per block)</td><td>O(n_ast × max_ROBDD²)</td></tr>
+    <tr><td>Sifting optimization</td><td>O(m × |ROBDD|)</td><td style="color:var(--text-warning)">Dominant: O(m×|BDD|×15K)</td></tr>
+    <tr><td>#SAT computation</td><td class="good">O(|ROBDD|)</td><td class="good">O(total_nodes)</td></tr>
+    <tr><td>Serialization</td><td class="good">O(n_nodes)</td><td class="good">O(total_nodes)</td></tr>
+  </tbody>
+</table>
+<div style="margin-top:10px">
+<table class="ct">
+  <thead><tr><th>Structure</th><th>Size</th><th>RAM access pattern</th></tr></thead>
+  <tbody>
+    <tr><td>ROBDD node arrays</td><td>90 MB on disk</td><td>Lazy — ~6 KB per queried function</td></tr>
+    <tr><td>Variable ordering tables</td><td class="good">2.1 MB</td><td>Loaded when ROBDD is queried</td></tr>
+    <tr><td>Path metrics (always mmap'd)</td><td class="good">240 KB</td><td>O(1) per function — always hot</td></tr>
+    <tr><td>BDDLibrary during construction</td><td>~50 MB peak</td><td>One function at a time — freed after sift</td></tr>
+  </tbody>
+</table>
+</div>
+<div style="margin-top:10px;background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--text-success)">
+  <strong>Phase 8 total: O(m × |ROBDD| × n_functions)</strong> — dominated by sifting. For 15K functions at avg 35 vars and 500 nodes: 15K × 35 × 500 = 262M operations ≈ 1.3 seconds. This is the most CPU-intensive phase after Phase 5 IFDS. It is embarrassingly parallelizable — each function's ROBDD is built independently in O(m × |ROBDD|) with no shared mutable state except the (lock-free) unique table.
+</div>
+</div>
+
+<script>
+function sw(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+function si(title,detail){
+  ['robdd','ordering','sat'].forEach(id=>{
+    const el=document.getElementById('info-'+id);
+    if(el) el.innerHTML=`<strong>${title}</strong><br>${detail}`;
+  });
+}
+</script>

@@ -54,7 +54,8 @@ pub fn reduce_and_encode(
 
             if node.child_count() == 0 {
                 let start = node.start_position();
-                let sort_key = build_sort_key(file_id, (start.row + 1) as u32, start.column as u16);
+                let col = (start.column.min(u16::MAX as usize)) as u16;
+                let sort_key = build_sort_key(file_id, (start.row + 1) as u32, col);
                 let token_id = tok_table_lookup(tok_table, sort_key);
                 if token_id != u32::MAX {
                     first_tok = token_id;

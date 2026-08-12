@@ -63,24 +63,45 @@ impl RankSelectIndex {
 
     /// O(1) rank1 query: returns number of 1-bits in BP[0..=i].
     pub fn rank1(&self, bp: &BPEncoder, i: usize) -> u32 {
-        let limit = (i + 1).min(bp.bit_count);
-        let mut count = 0u32;
-        for pos in 0..limit {
-            if bp.get_bit(pos) == 1 {
-                count += 1;
+        if bp.bit_count == 0 {
+            return 0;
+        }
+        let pos = i.min(bp.bit_count - 1);
+        let sb_idx = pos / 512;
+        let blk_idx = pos / 8;
+
+        let sb_base = self.superblocks.get(sb_idx).copied().unwrap_or(0);
+        let blk_base = self.blocks.get(blk_idx).copied().unwrap_or(0) as u32;
+
+        let byte_start = (pos / 8) * 8;
+        let mut partial_byte: u8 = 0;
+        for bit_i in 0..=(pos % 8) {
+            if byte_start + bit_i < bp.bit_count {
+                if bp.get_bit(byte_start + bit_i) == 1 {
+                    partial_byte |= 1 << (7 - bit_i);
+                }
             }
         }
-        count
+
+        sb_base + blk_base + partial_byte.count_ones()
     }
 
-    /// O(1) select1 query: returns position of j-th 1-bit in BP (1-indexed target rank).
+    /// Accelerated select1 query: returns position of j-th 1-bit in BP (1-indexed target rank).
     pub fn select1(&self, bp: &BPEncoder, target_rank: u32) -> usize {
         if target_rank == 0 || bp.bit_count == 0 {
             return 0;
         }
 
-        let mut current_rank = 0u32;
-        for pos in 0..bp.bit_count {
+        // Binary search over superblocks
+        let sb_idx = match self.superblocks.binary_search(&target_rank) {
+            Ok(idx) => idx.saturating_sub(1),
+            Err(idx) => idx.saturating_sub(1),
+        };
+
+        let start_pos = sb_idx * 512;
+        let mut current_rank = self.superblocks.get(sb_idx).copied().unwrap_or(0);
+
+        for pos in start_pos..bp.bit_count {
             if bp.get_bit(pos) == 1 {
                 current_rank += 1;
                 if current_rank == target_rank {

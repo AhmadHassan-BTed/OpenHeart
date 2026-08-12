@@ -8,7 +8,7 @@ use crate::ssa::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
 use std::collections::{HashMap, HashSet, VecDeque};
 
-pub const MOD_ABSTRACT: u16 = 1 << 10;
+pub const MOD_ABSTRACT: u16 = SymbolModifiers::ABSTRACT;
 
 /// Dispatch Resolver for Call Sites (§6.2.3, §6.2.4)
 pub struct DispatchResolver<'a> {
@@ -86,7 +86,7 @@ impl<'a> DispatchResolver<'a> {
                     && s.name_id == name_id
                     && (s.kind == SymbolKind::SK_METHOD as u8
                         || s.kind == SymbolKind::SK_CONSTRUCTOR as u8)
-                    && (s.modifiers & MOD_ABSTRACT) == 0
+                    && (s.modifiers & SymbolModifiers::ABSTRACT) == 0
                 {
                     targets.insert(s.symbol_id);
                 }
@@ -135,7 +135,7 @@ impl<'a> DispatchResolver<'a> {
                             && s.name_id == name_id
                             && (s.kind == SymbolKind::SK_METHOD as u8
                                 || s.kind == SymbolKind::SK_CONSTRUCTOR as u8)
-                            && (s.modifiers & MOD_ABSTRACT) == 0
+                            && (s.modifiers & SymbolModifiers::ABSTRACT) == 0
                         {
                             targets.push(s.symbol_id);
                         }
@@ -178,9 +178,10 @@ impl<'a> DispatchResolver<'a> {
 /// Helper function to resolve target method symbol for an AST call node
 pub fn resolve_method_target(
     call_node: u32,
-    _bpa: &BPASTArtifact,
+    bpa: &BPASTArtifact,
     sta: &SymbolTableArtifact,
 ) -> Option<u32> {
+    // 1. Direct def/decl node match
     for sym in &sta.symbol_records {
         if sym.kind == SymbolKind::SK_METHOD as u8
             || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
@@ -192,10 +193,43 @@ pub fn resolve_method_target(
             }
         }
     }
+
+    // 2. Find method identifier token or first token of call node
+    let mut child = bpa.first_child(call_node);
+    let mut tok_id = u32::MAX;
+    while let Some(c) = child {
+        if bpa.node_type(c) == ASTNodeType::NN_IDENTIFIER_EXPR {
+            tok_id = bpa.token_range(c).0;
+            break;
+        }
+        child = bpa.next_sibling(c);
+    }
+    if tok_id == u32::MAX {
+        tok_id = bpa.token_range(call_node).0;
+    }
+
+    // 3. Match symbol by token position
     for sym in &sta.symbol_records {
-        if sym.kind == SymbolKind::SK_METHOD as u8 || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8 {
+        if (sym.kind == SymbolKind::SK_METHOD as u8
+            || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
+            || sym.kind == SymbolKind::SK_STATIC_INIT as u8
+            || sym.kind == SymbolKind::SK_LAMBDA as u8)
+            && sym.first_token_id == tok_id
+        {
             return Some(sym.symbol_id);
         }
     }
+
+    // 4. Token range enclosing match
+    for sym in &sta.symbol_records {
+        if sym.kind == SymbolKind::SK_METHOD as u8
+            || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
+        {
+            if tok_id >= sym.first_token_id && tok_id <= sym.last_token_id {
+                return Some(sym.symbol_id);
+            }
+        }
+    }
+
     None
 }

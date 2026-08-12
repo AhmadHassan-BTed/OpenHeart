@@ -1,6 +1,3 @@
-//! Call Site Extraction & Classification for Phase 6.
-//! Authored solely by Ahmad Hassan (B-Ted).
-
 use crate::ast::BPASTArtifact;
 use crate::cfg::serializer::CFGArtifact;
 use crate::cg::resolution::resolve_method_target;
@@ -11,7 +8,6 @@ use crate::core::types::*;
 use crate::ssa::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
 
-pub const MOD_STATIC: u16 = 1 << 3;
 pub const VIS_PRIVATE: u8 = SymbolVisibility::Private as u8;
 
 /// Extract all call sites from the BP AST (§6.5.1)
@@ -110,7 +106,7 @@ fn classify_call(
             }
             if let Some(target_sym) = resolve_method_target(call_node, bpa, sta) {
                 if let Some(sym) = sta.symbol(target_sym) {
-                    if (sym.modifiers & MOD_STATIC) != 0 {
+                    if (sym.modifiers & SymbolModifiers::STATIC) != 0 {
                         CG_EDGE_DIRECT
                     } else if sym.visibility == VIS_PRIVATE {
                         CG_EDGE_SPECIAL
@@ -155,6 +151,13 @@ fn find_block_for_stmt(stmt_node: u32, caller_sym: u32, cfa: &CFGArtifact) -> u3
 }
 
 fn find_method_name_token(call_node: u32, bpa: &BPASTArtifact) -> u32 {
+    let mut child = bpa.first_child(call_node);
+    while let Some(c) = child {
+        if bpa.node_type(c) == ASTNodeType::NN_IDENTIFIER_EXPR {
+            return bpa.token_range(c).0;
+        }
+        child = bpa.next_sibling(c);
+    }
     bpa.token_range(call_node).0
 }
 

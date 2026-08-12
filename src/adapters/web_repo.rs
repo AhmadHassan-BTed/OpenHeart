@@ -108,13 +108,14 @@ impl WebRepoFetcher {
             .split('/')
             .collect();
 
-        if parts.len() < 2 || parts[0].is_empty() || parts[1].is_empty() {
-            return Err(
-                "Invalid repository URL format. Expected github.com/owner/repo".to_string(),
-            );
+        let owner = parts[0].replace("..", "").replace('/', "").replace('\\', "");
+        let repo = parts[1].replace("..", "").replace('/', "").replace('\\', "");
+
+        if owner.is_empty() || repo.is_empty() {
+            return Err("Invalid owner or repository name".to_string());
         }
 
-        Ok((parts[0].to_string(), parts[1].to_string()))
+        Ok((owner, repo))
     }
 }
 

@@ -196,7 +196,7 @@ impl SymbolTableBuilder {
         let mut adj: HashMap<u32, Vec<u32>> = HashMap::new();
 
         for edge in &self.th_edges {
-            if edge.relation == THRelation::TH_EXTENDS {
+            if edge.relation == THRelation::TH_EXTENDS || edge.relation == THRelation::TH_IMPLEMENTS {
                 *in_degree.entry(edge.to_sym).or_insert(0) += 0;
                 *in_degree.entry(edge.from_sym).or_insert(0) += 1;
                 adj.entry(edge.to_sym).or_default().push(edge.from_sym);

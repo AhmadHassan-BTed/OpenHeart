@@ -86,7 +86,12 @@ impl SparseTableRMQ {
         let op_v = rs.select1(bp, v + 1);
         let l = op_u.min(op_v);
         let r = op_u.max(op_v);
-        let min_pos = self.range_min(l.saturating_sub(1), r);
-        rs.rank1(bp, min_pos as usize).saturating_sub(1)
+        let min_pos = self.range_min(l, r) as usize;
+        let node_idx = rs.rank1(bp, min_pos).saturating_sub(1);
+        if bp.get_bit(min_pos) == 0 {
+            node_idx.saturating_sub(1)
+        } else {
+            node_idx
+        }
     }
 }

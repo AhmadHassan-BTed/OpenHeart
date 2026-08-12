@@ -106,7 +106,7 @@ impl Pass3Types {
     }
 
     fn get_or_create_external(
-        simple_name: &str,
+        _simple_name: &str,
         qual_name_id: u32,
         builder: &mut SymbolTableBuilder,
     ) -> u32 {
@@ -116,10 +116,9 @@ impl Pass3Types {
             }
         }
 
-        let name_id = builder.qual_names.get_or_intern(simple_name);
         builder.create_symbol(SymbolRecord {
             symbol_id: u32::MAX,
-            name_id,
+            name_id: 0,
             qual_name_id,
             type_id: u32::MAX,
             decl_node: u32::MAX,
