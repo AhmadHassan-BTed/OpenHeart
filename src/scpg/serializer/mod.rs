@@ -59,9 +59,7 @@ impl SCPGSerializer {
                     b.extend_from_slice(&(tca.token_records.len() as u32).to_le_bytes());
                     b
                 }
-                SCPGSectionType::StringTable => {
-                    tca.interner.get_storage_bytes().to_vec()
-                }
+                SCPGSectionType::StringTable => tca.interner.get_storage_bytes().to_vec(),
                 SCPGSectionType::Traceability => {
                     let mut b = Vec::new();
                     b.extend_from_slice(&(tra.uml_links.len() as u32).to_le_bytes());

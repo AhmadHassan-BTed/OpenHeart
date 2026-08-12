@@ -1,9 +1,9 @@
 //! SliceEngine — backward and forward program slicing via CDG + def-use CSR (§10.6.3).
 
-use std::collections::HashSet;
 use crate::core::types::cg::CallGraphArtifact;
 use crate::ssa::serializer::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
+use std::collections::HashSet;
 
 pub struct SliceEngine;
 

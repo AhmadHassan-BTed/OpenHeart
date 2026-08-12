@@ -32,18 +32,34 @@ pub fn apply(
     // ── Terminal short-circuit cases ──────────────────────────────────────────
     match op {
         BoolOp::And => {
-            if f == FALSE_ID || g == FALSE_ID { return FALSE_ID; }
-            if f == TRUE_ID { return g; }
-            if g == TRUE_ID { return f; }
+            if f == FALSE_ID || g == FALSE_ID {
+                return FALSE_ID;
+            }
+            if f == TRUE_ID {
+                return g;
+            }
+            if g == TRUE_ID {
+                return f;
+            }
         }
         BoolOp::Or => {
-            if f == TRUE_ID || g == TRUE_ID { return TRUE_ID; }
-            if f == FALSE_ID { return g; }
-            if g == FALSE_ID { return f; }
+            if f == TRUE_ID || g == TRUE_ID {
+                return TRUE_ID;
+            }
+            if f == FALSE_ID {
+                return g;
+            }
+            if g == FALSE_ID {
+                return f;
+            }
         }
         BoolOp::Xor => {
-            if f == FALSE_ID { return g; }
-            if g == FALSE_ID { return f; }
+            if f == FALSE_ID {
+                return g;
+            }
+            if g == FALSE_ID {
+                return f;
+            }
             if f == TRUE_ID {
                 return apply_not(g, nodes, unique_table, all_nodes, &mut HashMap::new());
             }
@@ -101,13 +117,21 @@ pub fn apply_not(
     all_nodes: &mut Vec<ROBDDNode>,
     cache: &mut HashMap<(u32, u32), u32>,
 ) -> u32 {
-    if f == FALSE_ID { return TRUE_ID; }
-    if f == TRUE_ID  { return FALSE_ID; }
+    if f == FALSE_ID {
+        return TRUE_ID;
+    }
+    if f == TRUE_ID {
+        return FALSE_ID;
+    }
 
     let key = (f, u32::MAX);
-    if let Some(&cached) = cache.get(&key) { return cached; }
+    if let Some(&cached) = cache.get(&key) {
+        return cached;
+    }
 
-    if f as usize >= nodes.len() { return FALSE_ID; }
+    if f as usize >= nodes.len() {
+        return FALSE_ID;
+    }
 
     let fn_ = &nodes[f as usize];
     let lo = apply_not(fn_.lo, nodes, unique_table, all_nodes, cache);
@@ -120,9 +144,9 @@ pub fn apply_not(
 
 #[cfg(test)]
 mod tests {
+    use crate::psa::bdd::node::{FALSE_ID, TRUE_ID};
     use crate::psa::bdd::BDDLibrary;
     use crate::psa::types::BoolOp;
-    use crate::psa::bdd::node::{FALSE_ID, TRUE_ID};
 
     #[test]
     fn and_false_is_false() {

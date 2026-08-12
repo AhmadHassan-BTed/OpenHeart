@@ -9,7 +9,11 @@ pub struct MermaidExporter;
 
 impl MermaidExporter {
     // ── Helper to resolve interned string ─────────────────────────────────────
-    fn resolve_name<'a>(sta: &SymbolTableArtifact, tca: &'a TokenCorpusArtifact, sym_id: u32) -> &'a str {
+    fn resolve_name<'a>(
+        sta: &SymbolTableArtifact,
+        tca: &'a TokenCorpusArtifact,
+        sym_id: u32,
+    ) -> &'a str {
         if sym_id == EXTERNAL_ACTOR_ID {
             return "ExternalActor";
         }
@@ -22,7 +26,8 @@ impl MermaidExporter {
     }
 
     fn sanitize(name: &str) -> String {
-        let clean = name.replace('<', "_")
+        let clean = name
+            .replace('<', "_")
             .replace('>', "_")
             .replace('.', "_")
             .replace(' ', "_")
@@ -92,7 +97,11 @@ impl MermaidExporter {
 
             if class_rec.extends_sym != u32::MAX {
                 let parent_name = Self::resolve_name(sta, tca, class_rec.extends_sym);
-                out.push_str(&format!("    {} <|-- {}\n", Self::sanitize(parent_name), safe_name));
+                out.push_str(&format!(
+                    "    {} <|-- {}\n",
+                    Self::sanitize(parent_name),
+                    safe_name
+                ));
             }
         }
         out
@@ -106,7 +115,9 @@ impl MermaidExporter {
     ) -> String {
         let mut out = String::from("classDiagram\n");
         if uma.objects.is_empty() {
-            out.push_str("    class instance_1 {\n        id = 1001\n        status = \"ACTIVE\"\n    }\n");
+            out.push_str(
+                "    class instance_1 {\n        id = 1001\n        status = \"ACTIVE\"\n    }\n",
+            );
             return out;
         }
 
@@ -135,7 +146,10 @@ impl MermaidExporter {
             out.push_str("    subgraph EnterpriseCore[\"Enterprise Banking Core\"]\n");
             for class_rec in &uma.classes {
                 let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-                out.push_str(&format!("        Comp_{}[\"Component: {}\"]\n", class_rec.sym_id, name));
+                out.push_str(&format!(
+                    "        Comp_{}[\"Component: {}\"]\n",
+                    class_rec.sym_id, name
+                ));
             }
             out.push_str("    end\n");
             return out;
@@ -258,16 +272,32 @@ impl MermaidExporter {
 
         for act in &uma.activities {
             let func_name = Self::resolve_name(sta, tca, act.function_sym_id);
-            out.push_str(&format!("    subgraph Activity_{}[\"Activity: {}\"]\n", act.function_sym_id, func_name));
-            out.push_str(&format!("        Start_{}([Start: {}])\n", act.function_sym_id, func_name));
+            out.push_str(&format!(
+                "    subgraph Activity_{}[\"Activity: {}\"]\n",
+                act.function_sym_id, func_name
+            ));
+            out.push_str(&format!(
+                "        Start_{}([Start: {}])\n",
+                act.function_sym_id, func_name
+            ));
 
             for node in &act.nodes {
-                let label = uma.label_texts.get(&node.label_text_id).cloned().unwrap_or_else(|| format!("Block_{}", node.node_id));
-                out.push_str(&format!("        Node_{}_{}[\"{}\"]\n", act.function_sym_id, node.node_id, label));
+                let label = uma
+                    .label_texts
+                    .get(&node.label_text_id)
+                    .cloned()
+                    .unwrap_or_else(|| format!("Block_{}", node.node_id));
+                out.push_str(&format!(
+                    "        Node_{}_{}[\"{}\"]\n",
+                    act.function_sym_id, node.node_id, label
+                ));
             }
 
             for edge in &act.edges {
-                out.push_str(&format!("        Node_{}_{} --> Node_{}_{}\n", act.function_sym_id, edge.from_node, act.function_sym_id, edge.to_node));
+                out.push_str(&format!(
+                    "        Node_{}_{} --> Node_{}_{}\n",
+                    act.function_sym_id, edge.from_node, act.function_sym_id, edge.to_node
+                ));
             }
             out.push_str("    end\n");
         }
@@ -293,7 +323,10 @@ impl MermaidExporter {
 
         for sm in &uma.state_machines {
             let class_name = Self::resolve_name(sta, tca, sm.class_sym_id);
-            out.push_str(&format!("    note right of [*] : StateMachine for {}\n", class_name));
+            out.push_str(&format!(
+                "    note right of [*] : StateMachine for {}\n",
+                class_name
+            ));
             for tr in &sm.transitions {
                 let trigger = Self::resolve_name(sta, tca, tr.trigger_method_sym);
                 out.push_str(&format!(
@@ -387,7 +420,9 @@ impl MermaidExporter {
     // ── 13. INTERACTION OVERVIEW DIAGRAM ──────────────────────────────────────
     pub fn export_interaction_overview_diagram() -> String {
         let mut out = String::from("graph TD\n");
-        out.push_str("    subgraph BankSystemOverview[\"Bank Application Interaction Overview\"]\n");
+        out.push_str(
+            "    subgraph BankSystemOverview[\"Bank Application Interaction Overview\"]\n",
+        );
         out.push_str("        Frame1[\"Frame 1: DatabaseConfig Singleton Initialization\"]\n");
         out.push_str("        Frame2[\"Frame 2: Account Creation & Activation\"]\n");
         out.push_str("        Frame3[\"Frame 3: Interest Calculation & Deposit\"]\n");

@@ -1,7 +1,7 @@
 //! CFLReachability — cubic worklist tabulation algorithm for inter-procedural path reachability (§10.3).
 
-use std::collections::{HashSet, VecDeque};
 use crate::core::types::cg::CallGraphArtifact;
+use std::collections::{HashSet, VecDeque};
 
 pub struct CFLReachability;
 

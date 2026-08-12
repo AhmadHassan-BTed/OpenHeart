@@ -128,16 +128,28 @@ public class SystemCompleteTest {
     assert!(to_src.is_some() || to_src.is_none());
 
     // ── Export Layer Tests (§10.4) ──
-    let mermaid_class = openheart::scpg::diagram::export::mermaid::MermaidExporter::export_class_diagram(&uma, &sta, &tca);
+    let mermaid_class =
+        openheart::scpg::diagram::export::mermaid::MermaidExporter::export_class_diagram(
+            &uma, &sta, &tca,
+        );
     assert!(mermaid_class.starts_with("classDiagram"));
 
-    let mermaid_act = openheart::scpg::diagram::export::mermaid::MermaidExporter::export_activity_diagram(&uma, &sta, &tca);
+    let mermaid_act =
+        openheart::scpg::diagram::export::mermaid::MermaidExporter::export_activity_diagram(
+            &uma, &sta, &tca,
+        );
     assert!(mermaid_act.starts_with("graph TD"));
 
-    let mermaid_seq = openheart::scpg::diagram::export::mermaid::MermaidExporter::export_sequence_diagram(&uma, &sta, &tca);
+    let mermaid_seq =
+        openheart::scpg::diagram::export::mermaid::MermaidExporter::export_sequence_diagram(
+            &uma, &sta, &tca,
+        );
     assert!(mermaid_seq.starts_with("sequenceDiagram"));
 
-    let mermaid_sm = openheart::scpg::diagram::export::mermaid::MermaidExporter::export_state_machine(&uma, &sta, &tca);
+    let mermaid_sm =
+        openheart::scpg::diagram::export::mermaid::MermaidExporter::export_state_machine(
+            &uma, &sta, &tca,
+        );
     assert!(mermaid_sm.starts_with("stateDiagram-v2"));
 
     let xmi = engine.export_xmi(&uma.classes);

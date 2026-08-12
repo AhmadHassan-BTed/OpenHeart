@@ -3,7 +3,11 @@
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
 
-pub fn is_builder(class_sym: u32, sta: &SymbolTableArtifact, tca: &TokenCorpusArtifact) -> (bool, u16) {
+pub fn is_builder(
+    class_sym: u32,
+    sta: &SymbolTableArtifact,
+    tca: &TokenCorpusArtifact,
+) -> (bool, u16) {
     let sym = match sta.symbol(class_sym) {
         Some(s) => s,
         None => return (false, 0),
@@ -17,7 +21,8 @@ pub fn is_builder(class_sym: u32, sta: &SymbolTableArtifact, tca: &TokenCorpusAr
     let mut child_id = sym.first_child;
     while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
         let child = &sta.symbol_records[child_id as usize];
-        if child.kind == 6 { // SK_METHOD
+        if child.kind == 6 {
+            // SK_METHOD
             total_methods += 1;
             if child.type_id == class_sym {
                 self_returning += 1;
@@ -27,10 +32,18 @@ pub fn is_builder(class_sym: u32, sta: &SymbolTableArtifact, tca: &TokenCorpusAr
     }
 
     let is_name_builder = name.ends_with("Builder");
-    let fluent_ratio = if total_methods > 0 { self_returning as f32 / total_methods as f32 } else { 0.0 };
+    let fluent_ratio = if total_methods > 0 {
+        self_returning as f32 / total_methods as f32
+    } else {
+        0.0
+    };
 
     if is_name_builder || fluent_ratio > 0.4 {
-        let conf = if is_name_builder && fluent_ratio > 0.4 { 95 } else { 75 };
+        let conf = if is_name_builder && fluent_ratio > 0.4 {
+            95
+        } else {
+            75
+        };
         (true, conf)
     } else {
         (false, 0)

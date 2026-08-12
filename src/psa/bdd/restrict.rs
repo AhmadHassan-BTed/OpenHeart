@@ -75,8 +75,8 @@ pub fn restrict(
 
 #[cfg(test)]
 mod tests {
-    use crate::psa::bdd::BDDLibrary;
     use crate::psa::bdd::node::{FALSE_ID, TRUE_ID};
+    use crate::psa::bdd::BDDLibrary;
 
     #[test]
     fn restrict_terminal_false() {
@@ -119,4 +119,3 @@ mod tests {
         assert_eq!(r, x2);
     }
 }
-

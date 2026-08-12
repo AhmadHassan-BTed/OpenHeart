@@ -6,10 +6,7 @@ use crate::uma::types::ClassRecord;
 pub struct CompositeDiagramExtractor;
 
 impl CompositeDiagramExtractor {
-    pub fn extract(
-        _sta: &SymbolTableArtifact,
-        _classes: &[ClassRecord],
-    ) {
+    pub fn extract(_sta: &SymbolTableArtifact, _classes: &[ClassRecord]) {
         // Inner class structure & composition links are encoded within ClassRecord.inner_classes
     }
 }

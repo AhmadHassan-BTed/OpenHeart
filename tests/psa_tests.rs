@@ -91,10 +91,14 @@ public class PathSummaryTest {
 
     // Verify .psa binary file creation
     assert!(psa_path.exists(), "paths.psa output file must exist");
-    assert!(psa.function_count() > 0, "PSA must contain processed functions");
+    assert!(
+        psa.function_count() > 0,
+        "PSA must contain processed functions"
+    );
 
     // Deserialization check
-    let loaded_psa = PathSummarySerializer::read(&psa_path).expect("PSA deserialization must succeed");
+    let loaded_psa =
+        PathSummarySerializer::read(&psa_path).expect("PSA deserialization must succeed");
     assert_eq!(loaded_psa.function_count(), psa.function_count());
     assert_eq!(loaded_psa.total_nodes, psa.total_nodes);
 

@@ -126,7 +126,10 @@ impl TraceabilitySerializer {
         if expected_crc != computed_crc {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("TRA CRC-64 mismatch: expected {:#X}, got {:#X}", expected_crc, computed_crc),
+                format!(
+                    "TRA CRC-64 mismatch: expected {:#X}, got {:#X}",
+                    expected_crc, computed_crc
+                ),
             ));
         }
 
@@ -170,7 +173,10 @@ impl TraceabilitySerializer {
         for _ in 0..n_ast {
             let ft = u32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap());
             let lt = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
-            bi_ast.push(BIAstEntry { first_token_id: ft, last_token_id: lt });
+            bi_ast.push(BIAstEntry {
+                first_token_id: ft,
+                last_token_id: lt,
+            });
             offset += 8;
         }
 
@@ -180,7 +186,12 @@ impl TraceabilitySerializer {
             let dlt = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
             let bft = u32::from_le_bytes(buf[offset + 8..offset + 12].try_into().unwrap());
             let blt = u32::from_le_bytes(buf[offset + 12..offset + 16].try_into().unwrap());
-            bi_sym.push(BISymEntry { decl_first_tok: dft, decl_last_tok: dlt, def_first_tok: bft, def_last_tok: blt });
+            bi_sym.push(BISymEntry {
+                decl_first_tok: dft,
+                decl_last_tok: dlt,
+                def_first_tok: bft,
+                def_last_tok: blt,
+            });
             offset += 16;
         }
 
@@ -188,7 +199,10 @@ impl TraceabilitySerializer {
         for _ in 0..n_blk {
             let ft = u32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap());
             let lt = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
-            bi_blk.push(BIBlkEntry { first_token_id: ft, last_token_id: lt });
+            bi_blk.push(BIBlkEntry {
+                first_token_id: ft,
+                last_token_id: lt,
+            });
             offset += 8;
         }
 
@@ -197,7 +211,11 @@ impl TraceabilitySerializer {
             let ds = u32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap());
             let ft = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
             let lt = u32::from_le_bytes(buf[offset + 8..offset + 12].try_into().unwrap());
-            bi_ssa.push(BISsaEntry { def_stmt: ds, first_token_id: ft, last_token_id: lt });
+            bi_ssa.push(BISsaEntry {
+                def_stmt: ds,
+                first_token_id: ft,
+                last_token_id: lt,
+            });
             offset += 12;
         }
 
@@ -217,7 +235,15 @@ impl TraceabilitySerializer {
             let ls = u16::from_le_bytes(buf[offset + 14..offset + 16].try_into().unwrap());
             let cs = u16::from_le_bytes(buf[offset + 16..offset + 18].try_into().unwrap());
             let le = u16::from_le_bytes(buf[offset + 18..offset + 20].try_into().unwrap());
-            sym_span.push(SymbolSpanRecord { first_token_id: ft, last_token_id: lt, sym_id: sid, file_id: fid, line_start: ls, col_start: cs, line_end: le });
+            sym_span.push(SymbolSpanRecord {
+                first_token_id: ft,
+                last_token_id: lt,
+                sym_id: sid,
+                file_id: fid,
+                line_start: ls,
+                col_start: cs,
+                line_end: le,
+            });
             offset += 20;
         }
 
@@ -227,7 +253,12 @@ impl TraceabilitySerializer {
             let csid = u32::from_le_bytes(buf[offset + 4..offset + 8].try_into().unwrap());
             let fid = u16::from_le_bytes(buf[offset + 8..offset + 10].try_into().unwrap());
             let ls = u16::from_le_bytes(buf[offset + 10..offset + 12].try_into().unwrap());
-            cs_span.push(CallSiteSpanRecord { first_token_id: ft, call_site_id: csid, file_id: fid, line_start: ls });
+            cs_span.push(CallSiteSpanRecord {
+                first_token_id: ft,
+                call_site_id: csid,
+                file_id: fid,
+                line_start: ls,
+            });
             offset += 12;
         }
 

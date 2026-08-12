@@ -26,6 +26,14 @@ pub fn compose_scpg_hash(
     uma_hash: u64,
     psa_hash: u64,
 ) -> u32 {
-    let combined = tca_hash ^ bpa_hash ^ sta_hash ^ cfa_hash ^ ssa_hash ^ cga_hash ^ tra_hash ^ uma_hash ^ psa_hash;
+    let combined = tca_hash
+        ^ bpa_hash
+        ^ sta_hash
+        ^ cfa_hash
+        ^ ssa_hash
+        ^ cga_hash
+        ^ tra_hash
+        ^ uma_hash
+        ^ psa_hash;
     (combined & 0xFFFF_FFFF) as u32 ^ ((combined >> 32) as u32)
 }

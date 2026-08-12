@@ -113,33 +113,32 @@ impl FunctionPSAHeader {
     /// Deserialize from 32 raw bytes.
     pub fn from_bytes(buf: &[u8; 32]) -> Self {
         Self {
-            sym_id:       u32::from_le_bytes([buf[0],  buf[1],  buf[2],  buf[3]]),
-            n_vars:       u32::from_le_bytes([buf[4],  buf[5],  buf[6],  buf[7]]),
-            n_nodes:      u32::from_le_bytes([buf[8],  buf[9],  buf[10], buf[11]]),
-            root_node:    u32::from_le_bytes([buf[12], buf[13], buf[14], buf[15]]),
-            sat_count:    u64::from_le_bytes([
-                buf[16], buf[17], buf[18], buf[19],
-                buf[20], buf[21], buf[22], buf[23],
+            sym_id: u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]),
+            n_vars: u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]),
+            n_nodes: u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]),
+            root_node: u32::from_le_bytes([buf[12], buf[13], buf[14], buf[15]]),
+            sat_count: u64::from_le_bytes([
+                buf[16], buf[17], buf[18], buf[19], buf[20], buf[21], buf[22], buf[23],
             ]),
-            cyclomatic:   u16::from_le_bytes([buf[24], buf[25]]),
+            cyclomatic: u16::from_le_bytes([buf[24], buf[25]]),
             max_path_len: u16::from_le_bytes([buf[26], buf[27]]),
             unwind_depth: u16::from_le_bytes([buf[28], buf[29]]),
-            _reserved:    0,
+            _reserved: 0,
         }
     }
 
     /// Build a `FunctionPSAHeader` from a completed `FunctionROBDD`.
     pub fn from_robdd(robdd: &FunctionROBDD) -> Self {
         Self {
-            sym_id:       robdd.sym_id,
-            n_vars:       robdd.ordering.n_vars() as u32,
-            n_nodes:      robdd.nodes.len() as u32,
-            root_node:    robdd.root,
-            sat_count:    robdd.sat_count,
-            cyclomatic:   robdd.cyclomatic,
+            sym_id: robdd.sym_id,
+            n_vars: robdd.ordering.n_vars() as u32,
+            n_nodes: robdd.nodes.len() as u32,
+            root_node: robdd.root,
+            sat_count: robdd.sat_count,
+            cyclomatic: robdd.cyclomatic,
             max_path_len: robdd.max_path_len,
             unwind_depth: robdd.unwind_depth,
-            _reserved:    0,
+            _reserved: 0,
         }
     }
 }
@@ -209,9 +208,15 @@ mod tests {
     #[test]
     fn function_psa_header_serializes_to_32_bytes() {
         let h = FunctionPSAHeader {
-            sym_id: 42, n_vars: 35, n_nodes: 500, root_node: 100,
-            sat_count: 1024, cyclomatic: 7, max_path_len: 15,
-            unwind_depth: 0, _reserved: 0,
+            sym_id: 42,
+            n_vars: 35,
+            n_nodes: 500,
+            root_node: 100,
+            sat_count: 1024,
+            cyclomatic: 7,
+            max_path_len: 15,
+            unwind_depth: 0,
+            _reserved: 0,
         };
         assert_eq!(h.to_bytes().len(), 32);
     }
@@ -219,9 +224,15 @@ mod tests {
     #[test]
     fn function_psa_header_round_trip() {
         let h = FunctionPSAHeader {
-            sym_id: 1234, n_vars: 50, n_nodes: 800, root_node: 200,
-            sat_count: 9_999_999_999, cyclomatic: 11, max_path_len: 30,
-            unwind_depth: 3, _reserved: 0,
+            sym_id: 1234,
+            n_vars: 50,
+            n_nodes: 800,
+            root_node: 200,
+            sat_count: 9_999_999_999,
+            cyclomatic: 11,
+            max_path_len: 30,
+            unwind_depth: 3,
+            _reserved: 0,
         };
         let h2 = FunctionPSAHeader::from_bytes(&h.to_bytes());
         assert_eq!(h2.sym_id, 1234);

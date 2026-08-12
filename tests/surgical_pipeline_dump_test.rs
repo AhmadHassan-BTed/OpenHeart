@@ -112,7 +112,12 @@ public class Dog extends Animal {
     for (i, sf) in tca.file_records.iter().enumerate() {
         println!(
             "    File[{}]: file_id={} lang_id={:#04x} first_token={} file_tokens={} size={}B",
-            i, sf.file_id, sf.language_id, sf.first_token_id, sf.file_token_count, sf.file_size_bytes
+            i,
+            sf.file_id,
+            sf.language_id,
+            sf.first_token_id,
+            sf.file_token_count,
+            sf.file_size_bytes
         );
     }
     println!("  First 10 tokens:");
@@ -138,7 +143,11 @@ public class Dog extends Animal {
     println!("========================================================================");
     println!("  .bpa file size:       {} bytes", bpa_bytes.len());
     println!("  Total AST node count: {}", bpa.node_count);
-    println!("  BP bitstring length:  {} bits ({}B)", bpa.node_count * 2, bpa.node_count * 2 / 8);
+    println!(
+        "  BP bitstring length:  {} bits ({}B)",
+        bpa.node_count * 2,
+        bpa.node_count * 2 / 8
+    );
 
     // Node type distribution
     let mut type_counts = std::collections::HashMap::new();
@@ -162,7 +171,11 @@ public class Dog extends Animal {
             "    Node[{:3}]: type={:?} parent={} token_range=[{}, {}]",
             i,
             nt,
-            if parent == u32::MAX { "ROOT".to_string() } else { parent.to_string() },
+            if parent == u32::MAX {
+                "ROOT".to_string()
+            } else {
+                parent.to_string()
+            },
             tok_start,
             tok_end
         );
@@ -234,8 +247,16 @@ public class Dog extends Animal {
         println!(
             "    Scope[{:3}]: parent={:3} owner_sym={:3} kind={:?}",
             sc.scope_id,
-            if sc.parent_scope == u32::MAX { -1i32 } else { sc.parent_scope as i32 },
-            if sc.owner_symbol == u32::MAX { -1i32 } else { sc.owner_symbol as i32 },
+            if sc.parent_scope == u32::MAX {
+                -1i32
+            } else {
+                sc.parent_scope as i32
+            },
+            if sc.owner_symbol == u32::MAX {
+                -1i32
+            } else {
+                sc.owner_symbol as i32
+            },
             ScopeKind::from(sc.scope_kind)
         );
     }
@@ -258,8 +279,13 @@ public class Dog extends Animal {
     println!("  Total CFG edges:      {}", total_edges);
 
     for func in &cfa.functions {
-        println!("\n    Function sym_id={} ({} blocks, {} edges, cyclomatic={}):",
-            func.sym_id, func.blocks.len(), func.edges.len(), func.cyclomatic);
+        println!(
+            "\n    Function sym_id={} ({} blocks, {} edges, cyclomatic={}):",
+            func.sym_id,
+            func.blocks.len(),
+            func.edges.len(),
+            func.cyclomatic
+        );
         for blk in &func.blocks {
             println!(
                 "      BB[{:2}]: stmts={:?} entry={} exit={} first_tok={} last_tok={}",
@@ -271,11 +297,31 @@ public class Dog extends Animal {
             println!("        {} -> {} [type={:?}]", from, to, etype);
         }
         println!("      idom[{}]: {:?}", func.idom.len(), func.idom);
-        println!("      Succ CSR offsets[{}]: {:?}", func.succ_offsets.len(), func.succ_offsets);
-        println!("      Succ CSR adj[{}]: {:?}", func.succ_adj.len(), func.succ_adj);
-        println!("      Pred CSR offsets[{}]: {:?}", func.pred_offsets.len(), func.pred_offsets);
-        println!("      Pred CSR adj[{}]: {:?}", func.pred_adj.len(), func.pred_adj);
-        println!("      DF offsets[{}]: {:?}", func.df_offsets.len(), func.df_offsets);
+        println!(
+            "      Succ CSR offsets[{}]: {:?}",
+            func.succ_offsets.len(),
+            func.succ_offsets
+        );
+        println!(
+            "      Succ CSR adj[{}]: {:?}",
+            func.succ_adj.len(),
+            func.succ_adj
+        );
+        println!(
+            "      Pred CSR offsets[{}]: {:?}",
+            func.pred_offsets.len(),
+            func.pred_offsets
+        );
+        println!(
+            "      Pred CSR adj[{}]: {:?}",
+            func.pred_adj.len(),
+            func.pred_adj
+        );
+        println!(
+            "      DF offsets[{}]: {:?}",
+            func.df_offsets.len(),
+            func.df_offsets
+        );
         println!("      DF adj[{}]: {:?}", func.df_adj.len(), func.df_adj);
     }
 
@@ -299,7 +345,9 @@ public class Dog extends Animal {
     for func in &ssa.functions {
         println!(
             "\n    Function sym_id={} ({} SSA vars, {} phi-funcs):",
-            func.sym_id, func.ssa_records.len(), func.phi_records.len()
+            func.sym_id,
+            func.ssa_records.len(),
+            func.phi_records.len()
         );
         for rec in &func.ssa_records {
             println!(
@@ -316,15 +364,35 @@ public class Dog extends Animal {
 
         // CDG dump
         if !func.cdg.cd_offsets.is_empty() {
-            println!("      CDG offsets[{}]: {:?}", func.cdg.cd_offsets.len(), func.cdg.cd_offsets);
-            println!("      CDG adj[{}]: {:?}", func.cdg.cd_adj.len(), func.cdg.cd_adj);
-            println!("      CDG types[{}]: {:?}", func.cdg.cd_types.len(), func.cdg.cd_types);
+            println!(
+                "      CDG offsets[{}]: {:?}",
+                func.cdg.cd_offsets.len(),
+                func.cdg.cd_offsets
+            );
+            println!(
+                "      CDG adj[{}]: {:?}",
+                func.cdg.cd_adj.len(),
+                func.cdg.cd_adj
+            );
+            println!(
+                "      CDG types[{}]: {:?}",
+                func.cdg.cd_types.len(),
+                func.cdg.cd_types
+            );
         }
 
         // Def-Use dump
         if !func.def_use.def_offsets.is_empty() {
-            println!("      DefUse offsets[{}]: {:?}", func.def_use.def_offsets.len(), func.def_use.def_offsets);
-            println!("      DefUse use_adj[{}]: {:?}", func.def_use.use_adj.len(), func.def_use.use_adj);
+            println!(
+                "      DefUse offsets[{}]: {:?}",
+                func.def_use.def_offsets.len(),
+                func.def_use.def_offsets
+            );
+            println!(
+                "      DefUse use_adj[{}]: {:?}",
+                func.def_use.use_adj.len(),
+                func.def_use.use_adj
+            );
         }
     }
 
@@ -371,27 +439,59 @@ public class Dog extends Animal {
     }
 
     if !cga.site_to_edge_map.is_empty() {
-        println!("\n  Site-to-Edge Map ({} entries):", cga.site_to_edge_map.len());
+        println!(
+            "\n  Site-to-Edge Map ({} entries):",
+            cga.site_to_edge_map.len()
+        );
         for &(caller, callee, site_id) in &cga.site_to_edge_map {
-            println!("    caller={} -> callee={} via site={}", caller, callee, site_id);
+            println!(
+                "    caller={} -> callee={} via site={}",
+                caller, callee, site_id
+            );
         }
     }
 
     if !cga.points_to_table.is_empty() {
-        println!("\n  Points-To Table ({} entries):", cga.points_to_table.len());
+        println!(
+            "\n  Points-To Table ({} entries):",
+            cga.points_to_table.len()
+        );
         for pt in &cga.points_to_table {
-            println!("    SSA v{} -> AllocType Sym #{}", pt.ssa_id, pt.alloc_type_sym_id);
+            println!(
+                "    SSA v{} -> AllocType Sym #{}",
+                pt.ssa_id, pt.alloc_type_sym_id
+            );
         }
     }
 
     println!("\n  Callee CSR (outgoing calls):");
-    println!("    offsets[{}]: {:?}", cga.callee_csr.offsets.len(), cga.callee_csr.offsets);
-    println!("    adj[{}]: {:?}", cga.callee_csr.adj.len(), cga.callee_csr.adj);
-    println!("    edge_types[{}]: {:?}", cga.callee_csr.edge_types.len(), cga.callee_csr.edge_types);
+    println!(
+        "    offsets[{}]: {:?}",
+        cga.callee_csr.offsets.len(),
+        cga.callee_csr.offsets
+    );
+    println!(
+        "    adj[{}]: {:?}",
+        cga.callee_csr.adj.len(),
+        cga.callee_csr.adj
+    );
+    println!(
+        "    edge_types[{}]: {:?}",
+        cga.callee_csr.edge_types.len(),
+        cga.callee_csr.edge_types
+    );
 
     println!("\n  Caller CSR (incoming calls):");
-    println!("    offsets[{}]: {:?}", cga.caller_csr.offsets.len(), cga.caller_csr.offsets);
-    println!("    adj[{}]: {:?}", cga.caller_csr.adj.len(), cga.caller_csr.adj);
+    println!(
+        "    offsets[{}]: {:?}",
+        cga.caller_csr.offsets.len(),
+        cga.caller_csr.offsets
+    );
+    println!(
+        "    adj[{}]: {:?}",
+        cga.caller_csr.adj.len(),
+        cga.caller_csr.adj
+    );
 
     println!("\n  All {} SCCs:", cga.sccs.len());
     for scc in &cga.sccs {
@@ -473,30 +573,55 @@ public class Dog extends Animal {
     println!("========================================================================");
 
     for site in &cga.call_sites {
-        assert!((site.caller_sym as usize) < sta.symbol_records.len(),
-            "CS #{} caller_sym={} >= symbol_count={}", site.call_site_id, site.caller_sym, sta.symbol_count);
+        assert!(
+            (site.caller_sym as usize) < sta.symbol_records.len(),
+            "CS #{} caller_sym={} >= symbol_count={}",
+            site.call_site_id,
+            site.caller_sym,
+            sta.symbol_count
+        );
     }
     println!("  [PASS] All call site caller_sym values are valid STA symbol IDs");
 
     for site in &cga.call_sites {
-        assert!(site.call_node < bpa.node_count,
-            "CS #{} call_node={} >= node_count={}", site.call_site_id, site.call_node, bpa.node_count);
+        assert!(
+            site.call_node < bpa.node_count,
+            "CS #{} call_node={} >= node_count={}",
+            site.call_site_id,
+            site.call_node,
+            bpa.node_count
+        );
     }
     println!("  [PASS] All call site call_node values are valid AST pre-order indices");
 
     let scc_total: usize = cga.sccs.iter().map(|s| s.member_count as usize).sum();
     assert_eq!(scc_total, cga.method_count as usize);
-    println!("  [PASS] SCC total members ({}) == method_count ({})", scc_total, cga.method_count);
+    println!(
+        "  [PASS] SCC total members ({}) == method_count ({})",
+        scc_total, cga.method_count
+    );
 
     assert_eq!(cga.callee_csr.offsets.len(), cga.method_count as usize + 1);
-    println!("  [PASS] Callee CSR offsets.len ({}) == method_count+1 ({})", cga.callee_csr.offsets.len(), cga.method_count + 1);
+    println!(
+        "  [PASS] Callee CSR offsets.len ({}) == method_count+1 ({})",
+        cga.callee_csr.offsets.len(),
+        cga.method_count + 1
+    );
 
     assert_eq!(cga.caller_csr.offsets.len(), cga.method_count as usize + 1);
-    println!("  [PASS] Caller CSR offsets.len ({}) == method_count+1 ({})", cga.caller_csr.offsets.len(), cga.method_count + 1);
+    println!(
+        "  [PASS] Caller CSR offsets.len ({}) == method_count+1 ({})",
+        cga.caller_csr.offsets.len(),
+        cga.method_count + 1
+    );
 
     for &callee in &cga.callee_csr.adj {
-        assert!((callee as usize) < sta.symbol_records.len(),
-            "Callee CSR adj {} >= symbol_count {}", callee, sta.symbol_count);
+        assert!(
+            (callee as usize) < sta.symbol_records.len(),
+            "Callee CSR adj {} >= symbol_count {}",
+            callee,
+            sta.symbol_count
+        );
     }
     println!("  [PASS] All callee CSR adjacency entries are valid STA symbol IDs");
 
@@ -506,22 +631,57 @@ public class Dog extends Animal {
     println!("\n========================================================================");
     println!("  AGGREGATE SURGICAL SUMMARY");
     println!("========================================================================");
-    println!("  Phase 1 (.tca): {:6} bytes | {:4} tokens | {:2} files | {:4} strings",
-        tca_bytes.len(), tca.token_records.len(), tca.file_records.len(), tca.interner.count());
-    println!("  Phase 2 (.bpa): {:6} bytes | {:4} AST nodes | {:4} bits BP",
-        bpa_bytes.len(), bpa.node_count, bpa.node_count * 2);
-    println!("  Phase 3 (.sta): {:6} bytes | {:4} symbols | {:3} scopes | {:2} TH edges",
-        sta_bytes.len(), sta.symbol_count, sta.scope_records.len(), sta.th_edges.len());
-    println!("  Phase 4 (.cfa): {:6} bytes | {:4} functions | {:3} blocks | {:3} edges",
-        cfa_bytes.len(), cfa.functions.len(), total_blocks, total_edges);
-    println!("  Phase 5 (.ssa): {:6} bytes | {:4} SSA vars | {:3} phi-funcs",
-        ssa_bytes.len(), total_ssa_vars, total_phi_funcs);
+    println!(
+        "  Phase 1 (.tca): {:6} bytes | {:4} tokens | {:2} files | {:4} strings",
+        tca_bytes.len(),
+        tca.token_records.len(),
+        tca.file_records.len(),
+        tca.interner.count()
+    );
+    println!(
+        "  Phase 2 (.bpa): {:6} bytes | {:4} AST nodes | {:4} bits BP",
+        bpa_bytes.len(),
+        bpa.node_count,
+        bpa.node_count * 2
+    );
+    println!(
+        "  Phase 3 (.sta): {:6} bytes | {:4} symbols | {:3} scopes | {:2} TH edges",
+        sta_bytes.len(),
+        sta.symbol_count,
+        sta.scope_records.len(),
+        sta.th_edges.len()
+    );
+    println!(
+        "  Phase 4 (.cfa): {:6} bytes | {:4} functions | {:3} blocks | {:3} edges",
+        cfa_bytes.len(),
+        cfa.functions.len(),
+        total_blocks,
+        total_edges
+    );
+    println!(
+        "  Phase 5 (.ssa): {:6} bytes | {:4} SSA vars | {:3} phi-funcs",
+        ssa_bytes.len(),
+        total_ssa_vars,
+        total_phi_funcs
+    );
     println!("  Phase 6 (.cga): {:6} bytes | {:4} call sites | {:3} call edges | {:3} SCCs | {:3} pts entries",
         cga_bytes.len(), cga.call_site_count, cga.call_edge_count, cga.sccs.len(), cga.points_to_table.len());
-    println!("  Phase 7 (.tra): {:6} bytes | {:4} UMLLinks | {:3} Symbol Spans",
-        tra_bytes.len(), tra.uml_links.len(), tra.sym_span.len());
-    println!("\n  TOTAL PIPELINE OUTPUT: {} bytes across 7 binary artifacts",
-        tca_bytes.len() + bpa_bytes.len() + sta_bytes.len() + cfa_bytes.len() + ssa_bytes.len() + cga_bytes.len() + tra_bytes.len());
+    println!(
+        "  Phase 7 (.tra): {:6} bytes | {:4} UMLLinks | {:3} Symbol Spans",
+        tra_bytes.len(),
+        tra.uml_links.len(),
+        tra.sym_span.len()
+    );
+    println!(
+        "\n  TOTAL PIPELINE OUTPUT: {} bytes across 7 binary artifacts",
+        tca_bytes.len()
+            + bpa_bytes.len()
+            + sta_bytes.len()
+            + cfa_bytes.len()
+            + ssa_bytes.len()
+            + cga_bytes.len()
+            + tra_bytes.len()
+    );
 
     println!("\n  ALL SURGICAL INSPECTIONS PASSED.");
 }

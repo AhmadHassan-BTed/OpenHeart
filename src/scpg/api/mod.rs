@@ -71,7 +71,12 @@ impl OpenHeartEngine {
         }
     }
 
-    pub fn export_mermaid(&self, uma: &UMLMetadataArtifact, sta: &crate::symbol::SymbolTableArtifact, tca: &crate::ingestion::TokenCorpusArtifact) -> String {
+    pub fn export_mermaid(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &crate::symbol::SymbolTableArtifact,
+        tca: &crate::ingestion::TokenCorpusArtifact,
+    ) -> String {
         crate::scpg::diagram::export::mermaid::MermaidExporter::export_class_diagram(uma, sta, tca)
     }
 

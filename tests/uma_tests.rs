@@ -102,7 +102,10 @@ public class UmlMetadataTest {
     // Verify .uma binary output file creation
     assert!(uma_path.exists(), "metadata.uma file must exist");
     assert!(!uma.classes.is_empty(), "UMA must extract class records");
-    assert!(!uma.activities.is_empty(), "UMA must extract activity records");
+    assert!(
+        !uma.activities.is_empty(),
+        "UMA must extract activity records"
+    );
 
     // Deserialization check
     let loaded_uma = UMASerializer::read(&uma_path).expect("UMA deserialization must succeed");
@@ -121,7 +124,10 @@ public class UmlMetadataTest {
     // ── Invariant 2 (Activity Completeness): Methods with CFG have ActivityRecords ──
     for func_cfg in &cfa.functions {
         if !func_cfg.blocks.is_empty() {
-            let has_activity = uma.activities.iter().any(|a| a.function_sym_id == func_cfg.sym_id);
+            let has_activity = uma
+                .activities
+                .iter()
+                .any(|a| a.function_sym_id == func_cfg.sym_id);
             assert!(
                 has_activity,
                 "Invariant 2 failure: Method sym_id={} has CFG body but no ActivityRecord",
@@ -147,10 +153,10 @@ public class UmlMetadataTest {
     }
 
     // Singleton pattern detection check on UmlMetadataTest
-    let has_singleton = uma
-        .design_patterns
-        .iter()
-        .any(|p| p.class_sym == target_sym_id && p.pattern_kind == (openheart::uma::types::PATTERN_SINGLETON as u16));
+    let has_singleton = uma.design_patterns.iter().any(|p| {
+        p.class_sym == target_sym_id
+            && p.pattern_kind == (openheart::uma::types::PATTERN_SINGLETON as u16)
+    });
     assert!(
         has_singleton,
         "Design pattern query failed: UmlMetadataTest must be detected as Singleton"

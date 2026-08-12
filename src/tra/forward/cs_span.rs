@@ -16,7 +16,9 @@ impl CallSiteSpanIndex {
         let mut records = Vec::with_capacity(cga.call_site_count as usize);
 
         for (cs_idx, entry) in bi_cs.iter().enumerate() {
-            if entry.call_token == u32::MAX || (entry.call_token as usize) >= tca.token_records.len() {
+            if entry.call_token == u32::MAX
+                || (entry.call_token as usize) >= tca.token_records.len()
+            {
                 continue;
             }
 
@@ -41,7 +43,8 @@ impl CallSiteSpanIndex {
         file_id: u16,
         records: &[CallSiteSpanRecord],
     ) -> Vec<u32> {
-        let upper = records.partition_point(|r| (r.file_id, r.first_token_id) <= (file_id, token_id));
+        let upper =
+            records.partition_point(|r| (r.file_id, r.first_token_id) <= (file_id, token_id));
 
         let mut results = Vec::new();
         let mut i = upper;

@@ -91,6 +91,10 @@ public class TraceabilityTest {
 
     // Forward query check
     let first_sym = &tra.sym_span[0];
-    let query_res = SymbolSpanIndex::forward_sym_query(first_sym.first_token_id, first_sym.file_id, &tra.sym_span);
+    let query_res = SymbolSpanIndex::forward_sym_query(
+        first_sym.first_token_id,
+        first_sym.file_id,
+        &tra.sym_span,
+    );
     assert!(query_res.contains(&first_sym.sym_id));
 }
