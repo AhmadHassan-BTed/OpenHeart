@@ -21,6 +21,7 @@ struct PkgNode {
     children: Vec<PkgNode>,
     child_index: HashMap<String, usize>,
     edges: Vec<(String, &'static str, String)>,
+    class_blocks: Vec<String>,
 }
 
 impl PkgNode {
@@ -31,6 +32,25 @@ impl PkgNode {
             children: Vec::new(),
             child_index: HashMap::new(),
             edges: Vec::new(),
+            class_blocks: Vec::new(),
+        }
+    }
+
+    fn navigate_to_path(&mut self, parts: &[&str]) -> &mut PkgNode {
+        if parts.is_empty() {
+            return self;
+        }
+        let head = parts[0];
+        let child_full = if self.full_name.is_empty() {
+            head.to_string()
+        } else {
+            format!("{}.{}", self.full_name, head)
+        };
+        let child = self.ensure_child(head, child_full);
+        if parts.len() > 1 && parts[1] != head {
+            child.navigate_to_path(&parts[1..])
+        } else {
+            child
         }
     }
 
@@ -234,6 +254,81 @@ impl PkgNode {
             out.push_str(&format!("{spaces}{}[\"{}\"]\n", node_id, display_name));
         }
     }
+
+    fn render_class_diagram(
+        &self,
+        out: &mut String,
+        indent: usize,
+        duplicate_names: &HashSet<String>,
+    ) {
+        let spaces = " ".repeat(indent);
+        let is_root = self.name.is_empty();
+
+        if is_root {
+            for block in &self.class_blocks {
+                for line in block.lines() {
+                    out.push_str(&format!("    {}\n", line));
+                }
+            }
+            for child in &self.children {
+                child.render_class_diagram(out, indent, duplicate_names);
+            }
+            if !self.edges.is_empty() {
+                out.push('\n');
+                for (src, relation, dst) in &self.edges {
+                    out.push_str(&format!("    {} {} {}\n", src, relation, dst));
+                }
+            }
+            return;
+        }
+
+        let node_id = if duplicate_names.contains(&self.name) {
+            let root_pkg = self.full_name.split('.').next().unwrap_or("");
+            let suffix = if root_pkg.to_lowercase().contains("frontend") {
+                "F".to_string()
+            } else if root_pkg.to_lowercase().contains("backend") {
+                "B".to_string()
+            } else {
+                root_pkg
+                    .chars()
+                    .next()
+                    .unwrap_or('A')
+                    .to_uppercase()
+                    .to_string()
+            };
+            format!("{}_{}", self.name, suffix)
+        } else {
+            MermaidExporter::sanitize(&self.name)
+        };
+
+        let display_name = &self.name;
+        let has_content = !self.children.is_empty() || !self.class_blocks.is_empty();
+
+        if has_content {
+            out.push_str(&format!(
+                "{spaces}subgraph {}[\"{}\"]\n",
+                node_id, display_name
+            ));
+
+            for block in &self.class_blocks {
+                for line in block.lines() {
+                    out.push_str(&format!("{spaces}    {}\n", line));
+                }
+            }
+
+            for child in &self.children {
+                child.render_class_diagram(out, indent + 4, duplicate_names);
+            }
+
+            if !self.edges.is_empty() {
+                for (src, relation, dst) in &self.edges {
+                    out.push_str(&format!("{spaces}    {} {} {}\n", src, relation, dst));
+                }
+            }
+
+            out.push_str(&format!("{spaces}end\n"));
+        }
+    }
 }
 
 pub struct MermaidExporter;
@@ -270,6 +365,12 @@ impl MermaidExporter {
             if let Some(custom_pkg) = sta.custom_package_names.get(&current_sym) {
                 return Some(custom_pkg.clone());
             }
+            if sym.kind == SymbolKind::SK_PACKAGE as u8 {
+                let name = Self::resolve_name(sta, tca, current_sym);
+                if !name.is_empty() && name != "Unknown" {
+                    return Some(name.to_string());
+                }
+            }
             if sym.parent_sym == u32::MAX {
                 break;
             }
@@ -297,6 +398,12 @@ impl MermaidExporter {
                         }
                     }
                 }
+
+                if let Some(file_rec) = tca.file_records.iter().find(|f| f.file_id == target_fid) {
+                    if let Some(pkg) = sta.file_package_names.get(&file_rec.file_id) {
+                        return Some(pkg.clone());
+                    }
+                }
             }
         }
         None
@@ -319,15 +426,17 @@ impl MermaidExporter {
         if sym_id == EXTERNAL_ACTOR_ID {
             return "ExternalActor";
         }
+        if let Some(s) = sta.symbol(sym_id) {
+            let bytes = tca.interner.lookup_text(s.name_id);
+            let text = std::str::from_utf8(bytes).unwrap_or("Unknown");
+            if !text.is_empty() && text != "Unknown" {
+                return text;
+            }
+        }
         if let Some(custom) = sta.custom_package_names.get(&sym_id) {
             return Box::leak(custom.clone().into_boxed_str());
         }
-        sta.symbol(sym_id)
-            .map(|s| {
-                let bytes = tca.interner.lookup_text(s.name_id);
-                std::str::from_utf8(bytes).unwrap_or("Unknown")
-            })
-            .unwrap_or("Unknown")
+        "Unknown"
     }
 
     fn resolve_pkg_name(
@@ -393,14 +502,49 @@ impl MermaidExporter {
         Self::resolve_leaf_node_id(full_pkg, duplicate_names)
     }
 
-    // ── 1. CLASS DIAGRAM (100% Dynamic with Complete UML Relationships) ──────
+    // ── 1. CLASS DIAGRAM (100% Dynamic with Complete Package Subgraphs & UML Relationships) ──────
     pub fn export_class_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("classDiagram\n");
-        let mut seen = HashSet::new();
+        let mut package_tree = PkgNode::new(String::new(), String::new());
+
+        let mut class_package_by_sym: HashMap<u32, String> = HashMap::new();
+        let mut package_path_by_sym: HashMap<u32, String> = HashMap::new();
+        let mut file_packages: HashSet<String> = HashSet::new();
+
+        for class_rec in &uma.classes {
+            let sym_id = class_rec.sym_id;
+            let pkg = Self::resolve_sym_package(
+                sta,
+                tca,
+                sym_id,
+                &class_package_by_sym,
+                &package_path_by_sym,
+            )
+            .unwrap_or_default();
+
+            if !pkg.is_empty() {
+                file_packages.insert(pkg.clone());
+                class_package_by_sym.insert(sym_id, pkg);
+            }
+        }
+
+        for pkg_name in &file_packages {
+            let parts: Vec<&str> = pkg_name.split('.').filter(|s| !s.is_empty()).collect();
+            package_tree.insert_package_path(&parts);
+        }
+
+        let mut name_counts = HashMap::new();
+        package_tree.collect_name_counts(&mut name_counts);
+        let duplicate_names: HashSet<String> = name_counts
+            .into_iter()
+            .filter(|(_, count)| *count > 1)
+            .map(|(name, _)| name)
+            .collect();
+
         let primitives = [
             "void",
             "boolean",
@@ -417,13 +561,37 @@ impl MermaidExporter {
             "SystemNode",
         ];
 
+        let mut seen_syms = HashSet::new();
+        let mut class_package_map: HashMap<String, String> = HashMap::new();
+        let mut relationships: Vec<(String, &'static str, String)> = Vec::new();
+
         for class_rec in &uma.classes {
+            if !seen_syms.insert(class_rec.sym_id) {
+                continue;
+            }
+
             let name = Self::resolve_name(sta, tca, class_rec.sym_id);
             let safe_name = Self::sanitize(name);
 
-            if primitives.contains(&safe_name.as_str()) || !seen.insert(safe_name.clone()) {
+            if safe_name == "SystemNode" || primitives.contains(&safe_name.as_str()) {
                 continue;
             }
+
+            let pkg_name = class_package_by_sym
+                .get(&class_rec.sym_id)
+                .cloned()
+                .unwrap_or_else(|| {
+                    Self::resolve_sym_package(
+                        sta,
+                        tca,
+                        class_rec.sym_id,
+                        &class_package_by_sym,
+                        &package_path_by_sym,
+                    )
+                    .unwrap_or_default()
+                });
+            let pkg_id = Self::resolve_container_pkg_id(&pkg_name, &duplicate_names);
+            class_package_map.insert(safe_name.clone(), pkg_id);
 
             let stereotype_label = match class_rec.stereotype {
                 STEREOTYPE_INTERFACE => "<<interface>> ",
@@ -443,12 +611,13 @@ impl MermaidExporter {
                 _ => "",
             };
 
-            out.push_str(&format!("    class {} {{\n", safe_name));
+            let mut class_code = String::new();
+            class_code.push_str(&format!("class {} {{\n", safe_name));
             if !stereotype_label.is_empty() {
-                out.push_str(&format!("        {}\n", stereotype_label));
+                class_code.push_str(&format!("    {}\n", stereotype_label));
             }
             if !pattern_label.is_empty() {
-                out.push_str(&format!("        {}\n", pattern_label));
+                class_code.push_str(&format!("    {}\n", pattern_label));
             }
 
             for field in &class_rec.fields {
@@ -470,7 +639,7 @@ impl MermaidExporter {
                     3 => "#",
                     _ => "~",
                 };
-                out.push_str(&format!("        {}{}{}\n", vis, safe_field, type_str));
+                class_code.push_str(&format!("    {}{}{}\n", vis, safe_field, type_str));
             }
 
             for method in &class_rec.methods {
@@ -495,25 +664,29 @@ impl MermaidExporter {
                     3 => "#",
                     _ => "~",
                 };
-                out.push_str(&format!("        {}{}(){}\n", vis, safe_method, ret_str));
+                class_code.push_str(&format!("    {}{}(){}\n", vis, safe_method, ret_str));
             }
-            out.push_str("    }\n");
+            class_code.push_str("}\n");
 
-            // 1. Inheritance (<|--)
+            let parts: Vec<&str> = pkg_name.split('.').filter(|s| !s.is_empty()).collect();
+            let target_node = package_tree.navigate_to_path(&parts);
+            target_node.class_blocks.push(class_code);
+
+            // 1. Inheritance (--|>)
             if class_rec.extends_sym != u32::MAX {
                 let parent_name = Self::resolve_name(sta, tca, class_rec.extends_sym);
                 let parent_safe = Self::sanitize(parent_name);
                 if parent_safe != safe_name && !primitives.contains(&parent_safe.as_str()) {
-                    out.push_str(&format!("    {} <|-- {}\n", parent_safe, safe_name));
+                    relationships.push((safe_name.clone(), "--|>", parent_safe));
                 }
             }
 
-            // 2. Interface Realization / Implementation (<|..)
+            // 2. Interface Realization / Implementation (..|>)
             for &imp_sym in &class_rec.implements_syms {
                 let imp_name = Self::resolve_name(sta, tca, imp_sym);
                 let imp_safe = Self::sanitize(imp_name);
                 if imp_safe != safe_name && !primitives.contains(&imp_safe.as_str()) {
-                    out.push_str(&format!("    {} <|.. {}\n", imp_safe, safe_name));
+                    relationships.push((safe_name.clone(), "..|>", imp_safe));
                 }
             }
 
@@ -522,7 +695,7 @@ impl MermaidExporter {
                 let assoc_name = Self::resolve_name(sta, tca, assoc_sym);
                 let assoc_safe = Self::sanitize(assoc_name);
                 if assoc_safe != safe_name && !primitives.contains(&assoc_safe.as_str()) {
-                    out.push_str(&format!("    {} --> {}\n", safe_name, assoc_safe));
+                    relationships.push((safe_name.clone(), "-->", assoc_safe));
                 }
             }
 
@@ -531,10 +704,32 @@ impl MermaidExporter {
                 let inner_name = Self::resolve_name(sta, tca, inner_sym);
                 let inner_safe = Self::sanitize(inner_name);
                 if inner_safe != safe_name && !primitives.contains(&inner_safe.as_str()) {
-                    out.push_str(&format!("    {} *-- {}\n", safe_name, inner_safe));
+                    relationships.push((safe_name.clone(), "*--", inner_safe));
                 }
             }
         }
+
+        for (src_safe, relation, dst_safe) in relationships {
+            let src_pkg = class_package_map
+                .get(&src_safe)
+                .cloned()
+                .unwrap_or_default();
+            let dst_pkg = class_package_map
+                .get(&dst_safe)
+                .cloned()
+                .unwrap_or_default();
+
+            let mut src_path = Vec::new();
+            package_tree.find_node_path(&src_pkg, &mut src_path, &duplicate_names);
+
+            let mut dst_path = Vec::new();
+            package_tree.find_node_path(&dst_pkg, &mut dst_path, &duplicate_names);
+
+            package_tree.add_scoped_edge(&src_path, &dst_path, src_safe, relation, dst_safe);
+        }
+
+        package_tree.children.sort_by(|a, b| a.name.cmp(&b.name));
+        package_tree.render_class_diagram(&mut out, 4, &duplicate_names);
         out
     }
 

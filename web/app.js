@@ -176,23 +176,27 @@ function animate() {
    ========================================================================== */
 
 const UML_TEMPLATES = {
-  class: `graph TD
-    classDef cls fill:#0a0a0a,stroke:#ffffff,stroke-width:2px,color:#ffffff;
-    classDef trait fill:#0a0a0a,stroke:#a3a3a3,stroke-width:2px,color:#ffffff;
-    
-    C1["TokenCorpusBuilder<br/>+token_records: Vec&lt;TokenRecord&gt;<br/>+build(): TokenCorpusArtifact"]:::cls
-    C2["StringInterner<br/>+table: Vec&lt;u64&gt;<br/>+intern(bytes): u32"]:::cls
-    T1["&lt;&lt;LanguageAdapter&gt;&gt;<br/>+map_node_type(kind): TokenType"]:::trait
-    
-    C1 ..|> T1 : implements
-    C1 --> C2 : contains interner`,
+  class: `classDiagram
+    class TokenCorpusBuilder {
+        +token_records
+        +build()
+    }
+    class StringInterner {
+        +table
+        +intern()
+    }
+    class LanguageAdapter {
+        +map_node_type()
+    }
+    TokenCorpusBuilder ..|> LanguageAdapter
+    TokenCorpusBuilder --> StringInterner`,
 
-  object: `graph TD
-    obj1["token_id: #1042<br/>sort_key: 0x0001000C0004<br/>text_id: 42<br/>type: Identifier"]
-    obj2["file_id: #1<br/>path: 'src/main.java'<br/>sha256: 0xa4f..."]
+  object: `flowchart TD
+    obj1["token_id: 1042<br/>sort_key: 0x0001000C0004<br/>text_id: 42<br/>type: Identifier"]
+    obj2["file_id: 1<br/>path: 'src/main.java'<br/>sha256: 0xa4f..."]
     obj1 -->|SourceFileRecord| obj2`,
 
-  component: `graph TD
+  component: `flowchart TD
     subgraph SCPG_Core["OpenHeart Core Engine"]
         P1["Phase 1: Lexical Ingestion"]
         P2["Phase 2: BP AST Encoder"]
@@ -207,12 +211,13 @@ const UML_TEMPLATES = {
     end
     P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9 --> P10`,
 
-  deployment: `graph LR
+  deployment: `flowchart LR
     Node1["Developer Workstation"] -->|HTTPS / Git| Node2["OpenHeart Portal"]
     Node2 -->|Process| Node3["Target .tca Binary Engine"]`,
 
-  package: `graph TD
+  package: `flowchart TD
     subgraph crate_openheart["crate::openheart"]
+        direction TB
         subgraph core_mod["core"]
             io["io"]
             types["types"]
@@ -245,21 +250,21 @@ const UML_TEMPLATES = {
 
   composite: `classDiagram
     class ClassStructure {
-        +Port_1 : IngestionStream
-        +Port_2 : SerializerPipe
-        +InternalBuffer : StringInterner
+        +Port_1
+        +Port_2
+        +InternalBuffer
     }`,
 
-  profile: `graph TD
-    prof["<<Stereotype>> SystemComponent"] --> classNode["TokenCorpusBuilder"]`,
+  profile: `flowchart TD
+    prof["SystemComponent"] --> classNode["TokenCorpusBuilder"]`,
 
-  usecase: `graph LR
-    Developer((Developer)) --> UC1(Fetch Repository)
-    Developer --> UC2(Select UML Diagrams)
-    Developer --> UC3(Export TCA Artifact)
+  usecase: `flowchart LR
+    Developer((Developer)) --> UC1["Fetch Repository"]
+    Developer --> UC2["Select UML Diagrams"]
+    Developer --> UC3["Export TCA Artifact"]
     UC2 --> Engine((SCPG Engine))`,
 
-  activity: `graph TD
+  activity: `flowchart TD
     Start([Start Pipeline]) --> ReadFile[Read Source Bytes]
     ReadFile --> Tokenize[Tree-sitter Scan & Assign token_id]
     Tokenize --> Intern[FNV-1a String Intern]
@@ -270,9 +275,9 @@ const UML_TEMPLATES = {
 
   statemachine: `stateDiagram-v2
     [*] --> Uninitialized
-    Uninitialized --> Scanning : fetch_repo()
-    Scanning --> InvariantCheck : validate_tokens()
-    InvariantCheck --> ArtifactReady : build_tca()
+    Uninitialized --> Scanning : fetch_repo
+    Scanning --> InvariantCheck : validate_tokens
+    InvariantCheck --> ArtifactReady : build_tca
     ArtifactReady --> [*]`,
 
   sequence: `sequenceDiagram
@@ -283,39 +288,28 @@ const UML_TEMPLATES = {
     participant Engine as SCPG Engine
 
     User->>Portal: Input GitHub Repository URL
-    Portal->>Scanner: Fetch & Walk CST Leaves
-    Scanner->>Engine: Monotonic token_ids + TokenRecords
+    Portal->>Scanner: Fetch CST Leaves
+    Scanner->>Engine: Monotonic token_ids
     Engine-->>Portal: 14 Derived UML Views
     Portal-->>User: Interactive Studio Rendering`,
 
-  communication: `graph LR
-    User -->|1: submit_url()| Portal
-    Portal -->|2: walk_cst()| Scanner
-    Scanner -->|3: build_tca()| Engine`,
+  communication: `flowchart LR
+    User -->|1: submit_url| Portal
+    User -->|2: walk_cst| Scanner
+    Scanner -->|3: build_tca| Engine`,
 
-  interaction: `graph TD
+  interaction: `flowchart TD
     subgraph Overview["Interaction Overview"]
         Init["Init Repository"] --> Seq1["Sequence: Scanner Handshake"]
         Seq1 --> Seq2["Sequence: UML Derivation"]
     end`,
 
-  timing: `gantt
-    title SCPG Ingestion Phase Timing Bounds
-    dateFormat  SS
-    axisFormat %S s
-    section Phase 1
-    Lexical Scanning     :a1, 00, 02s
-    String Interning     :a2, after a1, 01s
-    section Phase 2
-    BP AST Construction  :b1, after a2, 02s
-    section Phase 7
-    Traceability Index   :c1, after b1, 02s
-    section Phase 8
-    ROBDD Path Summaries :c2, after c1, 03s
-    section Phase 9
-    UML Metadata Extract :c3, after c2, 01s
-    section Phase 10
-    Unified SCPG & API   :c4, after c3, 01s`
+  timing: `flowchart LR
+    subgraph TimingBounds["SCPG Ingestion Phase Timing Bounds"]
+        T1["Phase 1: Lexical Scanning (2s)"] --> T2["Phase 2: BP AST Construction (2s)"]
+        T2 --> T3["Phase 7: Traceability Index (2s)"]
+        T3 --> T4["Phase 8: ROBDD Path Summaries (3s)"]
+    end`
 };
 
 let selectedDiagrams = new Set(['class', 'object', 'component', 'package', 'activity', 'sequence']);

@@ -48,35 +48,6 @@ body.brutalist-theme {
   pointer-events: auto;
 }
 
-/* System Notice Banner */
-.system-notice-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 24px;
-  background-color: var(--accent-yellow);
-  color: #000000;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  z-index: 100;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-}
-
-.banner-pulse {
-  width: 6px;
-  height: 6px;
-  background-color: #000000;
-  border-radius: 50%;
-  animation: pulse 1s infinite alternate;
-}
-
 /* Corner Status Overlays (Brutalist HUD) */
 .corner-brand {
   position: absolute;
