@@ -305,10 +305,7 @@ impl PkgNode {
         let has_content = !self.children.is_empty() || !self.class_blocks.is_empty();
 
         if has_content {
-            out.push_str(&format!(
-                "{spaces}subgraph {}[\"{}\"]\n",
-                node_id, display_name
-            ));
+            out.push_str(&format!("{spaces}namespace {} {{\n", node_id));
 
             for block in &self.class_blocks {
                 for line in block.lines() {
@@ -326,7 +323,7 @@ impl PkgNode {
                 }
             }
 
-            out.push_str(&format!("{spaces}end\n"));
+            out.push_str(&format!("{spaces}}}\n"));
         }
     }
 }

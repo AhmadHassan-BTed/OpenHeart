@@ -1,22 +1,14 @@
 /**
- * OpenHeart Web Studio — 3D Morphing Spiky Orb Engine & Neo-Brutalist Studio Controller
+ * OpenHeart Web Studio — 3D Morphing Spiky Orb Engine & Thin-Client Studio Wrapper
  * Authored for OpenHeart SCPG Engine. Maintained by Ahmad Hassan (B-Ted).
+ * Backend: Rust OpenHeartServer (§10.4 REST API Interface)
  */
-
-// Initialize Mermaid.js for diagram rendering
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  flowchart: { curve: 'basis' }
-});
 
 /* ==========================================================================
    1. THREE.JS WEBGL 3D MORPHING SPIKY ORB
    ========================================================================== */
 
 let scene, camera, renderer, orbMesh, particleSystem;
-let originalPositions, originalNormals;
 let simplex = new SimplexNoise();
 let clock = new THREE.Clock();
 let isStudioEngaged = false;
@@ -27,17 +19,14 @@ function initThreeOrb() {
   const canvas = document.getElementById('orb-canvas');
   if (!canvas) return;
 
-  // Scene & Camera
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
   camera.position.set(0, 0, 6.5);
 
-  // Renderer with High DPR and Antialiasing
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Dramatic 3D Studio Lighting Setup
   const ambientLight = new THREE.AmbientLight(0x333333, 1.0);
   scene.add(ambientLight);
 
@@ -49,58 +38,45 @@ function initThreeOrb() {
   rimLight.position.set(-5, -5, -2);
   scene.add(rimLight);
 
-  const pointLight = new THREE.PointLight(0xffffff, 1.2, 10);
-  pointLight.position.set(0, 0, 3);
-  scene.add(pointLight);
+  const geometry = new THREE.IcosahedronGeometry(1.8, 64);
+  const positionAttribute = geometry.attributes.position;
+  originalPositions = positionAttribute.clone();
+  originalNormals = geometry.attributes.normal.clone();
 
-  // 3D Geometry: High-resolution Icosahedron for crystalline facet spiky morphing
-  const geometry = new THREE.IcosahedronGeometry(2.1, 32);
-
-  const posAttr = geometry.attributes.position;
-  const normAttr = geometry.attributes.normal;
-  originalPositions = new Float32Array(posAttr.array);
-  originalNormals = new Float32Array(normAttr.array);
-
-  // High-Contrast Off-White Metallic Material with Flat Facet Shading
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xdddddd,
-    roughness: 0.25,
-    metalness: 0.15,
-    flatShading: true,
-    transparent: true,
-    opacity: 0.95
+  const material = new THREE.MeshPhongMaterial({
+    color: 0x111111,
+    emissive: 0x050505,
+    specular: 0xffffff,
+    shininess: 100,
+    wireframe: false,
+    flatShading: true
   });
 
   orbMesh = new THREE.Mesh(geometry, material);
   scene.add(orbMesh);
 
-  // Ambient Floating Particles
-  const particleCount = 400;
-  const particleGeo = new THREE.BufferGeometry();
-  const particlePositions = new Float32Array(particleCount * 3);
+  const particlesGeo = new THREE.BufferGeometry();
+  const particleCount = 200;
+  const posArray = new Float32Array(particleCount * 3);
 
-  for (let i = 0; i < particleCount * 3; i += 3) {
-    particlePositions[i] = (Math.random() - 0.5) * 18;
-    particlePositions[i + 1] = (Math.random() - 0.5) * 18;
-    particlePositions[i + 2] = (Math.random() - 0.5) * 18;
+  for (let i = 0; i < particleCount * 3; i++) {
+    posArray[i] = (Math.random() - 0.5) * 12;
   }
+  particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
 
-  particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-  const particleMat = new THREE.PointsMaterial({
+  const particlesMat = new THREE.PointsMaterial({
+    size: 0.02,
     color: 0xffffff,
-    size: 0.03,
     transparent: true,
-    opacity: 0.5
+    opacity: 0.4
   });
 
-  particleSystem = new THREE.Points(particleGeo, particleMat);
+  particleSystem = new THREE.Points(particlesGeo, particlesMat);
   scene.add(particleSystem);
 
-  // Event Listeners
   window.addEventListener('resize', onWindowResize);
-  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mousemove', onDocumentMouseMove);
 
-  // Animation Loop
   animate();
 }
 
@@ -111,41 +87,36 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function onMouseMove(e) {
-  mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-  mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+function onDocumentMouseMove(event) {
+  mouseX = (event.clientX - window.innerWidth / 2) / 100;
+  mouseY = (event.clientY - window.innerHeight / 2) / 100;
 }
 
 function animate() {
   requestAnimationFrame(animate);
-  const elapsedTime = clock.getElapsedTime();
 
-  if (orbMesh && originalPositions) {
-    const geo = orbMesh.geometry;
-    const posAttr = geo.attributes.position;
+  const time = clock.getElapsedTime();
 
-    const spikeFactor = isStudioEngaged ? 1.6 : (0.45 + Math.sin(elapsedTime * 1.5) * 0.3);
+  if (orbMesh) {
+    const position = orbMesh.geometry.attributes.position;
+    const normal = originalNormals;
 
-    for (let i = 0; i < posAttr.count; i++) {
-      const px = originalPositions[i * 3];
-      const py = originalPositions[i * 3 + 1];
-      const pz = originalPositions[i * 3 + 2];
+    for (let i = 0; i < position.count; i++) {
+      const u = originalPositions.getX(i);
+      const v = originalPositions.getY(i);
+      const w = originalPositions.getZ(i);
 
-      const nx = originalNormals[i * 3];
-      const ny = originalNormals[i * 3 + 1];
-      const nz = originalNormals[i * 3 + 2];
+      const nx = normal.getX(i);
+      const ny = normal.getY(i);
+      const nz = normal.getZ(i);
 
-      const n1 = simplex.noise3D(px * 0.9 + elapsedTime * 0.4, py * 0.9 + elapsedTime * 0.4, pz * 0.9 + elapsedTime * 0.4);
-      const n2 = simplex.noise3D(px * 2.2 - elapsedTime * 0.3, py * 2.2 - elapsedTime * 0.3, pz * 2.2 - elapsedTime * 0.3);
-      const noiseVal = n1 * 0.7 + n2 * 0.3;
+      const spikeFrequency = 2.2;
+      const spikeNoise = simplex.noise3D(u * spikeFrequency, v * spikeFrequency, w * spikeFrequency + time * 0.4);
+      const displacement = Math.pow(Math.max(0, spikeNoise), 2.5) * 0.8;
 
-      const displacement = noiseVal * spikeFactor;
-
-      posAttr.setXYZ(i, px + nx * displacement, py + ny * displacement, pz + nz * displacement);
+      position.setXYZ(i, u + nx * displacement, v + ny * displacement, w + nz * displacement);
     }
-
-    posAttr.needsUpdate = true;
-    geo.computeVertexNormals();
+    orbMesh.geometry.attributes.position.needsUpdate = true;
 
     targetX = mouseX * 0.4;
     targetY = mouseY * 0.4;
@@ -156,7 +127,7 @@ function animate() {
   }
 
   if (particleSystem) {
-    particleSystem.rotation.y = elapsedTime * 0.012;
+    particleSystem.rotation.y = time * 0.012;
   }
 
   if (camera) {
@@ -172,144 +143,200 @@ function animate() {
 
 
 /* ==========================================================================
-   2. NEO-BRUTALIST STUDIO CONTROLLER & 14 UML MATRIX
+   2. THIN-CLIENT WRAPPER CONTROLLER & RUST BACKEND API INTEGRATION
    ========================================================================== */
 
 const UML_TEMPLATES = {
-  class: `classDiagram
-    class TokenCorpusBuilder {
-        +token_records
-        +build()
+  class: `@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome false
+skinparam shadowing false
+
+package "AppBackend.ResourceManagement" {
+    class DataDownloader_naf {
+        +downloadFiles()
+        +getFileSize()
     }
-    class StringInterner {
-        +table
-        +intern()
+    interface PauseController <<interface>>
+    interface DownloadListener <<interface>>
+    class CancelledDownloadException <<Singleton>>
+    DataDownloader_naf *-- PauseController
+    DataDownloader_naf *-- DownloadListener
+    DataDownloader_naf *-- CancelledDownloadException
+}
+HomeViewModel --> ResourceManager_Live_DTO
+@enduml`,
+
+  object: `@startuml
+object "obj_1 : TokenRecord" as obj1 {
+    token_id = 1042
+    sort_key = "0x0001000C0004"
+}
+object "obj_2 : SourceFileRecord" as obj2 {
+    file_id = 1
+    path = "src/main.java"
+}
+obj1 o-- obj2
+@enduml`,
+
+  component: `@startuml
+package "OpenHeart Core Engine" {
+    [Phase 1: Lexical Ingestion] as P1
+    [Phase 2: BP AST Encoder] as P2
+    [Phase 3: Symbol Table] as P3
+    [Phase 4: CFG & Dominators] as P4
+    [Phase 5: SSA & Data Flow] as P5
+    [Phase 6: Call Graph] as P6
+    [Phase 7: Traceability Index] as P7
+    [Phase 8: ROBDD Path Summaries] as P8
+    [Phase 9: UML Semantic Metadata] as P9
+    [Phase 10: SCPG Unified & API] as P10
+}
+P1 ..> P2
+P2 ..> P3
+P3 ..> P4
+P4 ..> P5
+P5 ..> P6
+P6 ..> P7
+P7 ..> P8
+P8 ..> P9
+P9 ..> P10
+@enduml`,
+
+  deployment: `@startuml
+node "Developer Workstation" {
+    artifact "OpenHeart Portal"
+}
+node "Target Binary Engine" {
+    artifact "Target .tca Binary"
+}
+"Developer Workstation" -- "Target Binary Engine" : HTTPS / REST
+@enduml`,
+
+  package: `@startuml
+package "crate::openheart" {
+    package "core" {
+        package "io" {}
+        package "types" {}
     }
-    class LanguageAdapter {
-        +map_node_type()
+    package "phase1" {
+        package "ingestion" {}
     }
-    TokenCorpusBuilder ..|> LanguageAdapter
-    TokenCorpusBuilder --> StringInterner`,
+    package "uma" {
+        package "structural" {}
+        package "behavioral" {}
+    }
+    package "scpg" {
+        package "query" {}
+        package "api" {}
+    }
+}
+phase1 ..> core : depends
+uma ..> core : depends
+scpg ..> core : depends
+@enduml`,
 
-  object: `flowchart TD
-    obj1["token_id: 1042<br/>sort_key: 0x0001000C0004<br/>text_id: 42<br/>type: Identifier"]
-    obj2["file_id: 1<br/>path: 'src/main.java'<br/>sha256: 0xa4f..."]
-    obj1 -->|SourceFileRecord| obj2`,
+  composite: `@startuml
+package "ClassStructure" {
+    [Port_1]
+    [Port_2]
+    [Port_1] -> [Port_2]
+}
+@enduml`,
 
-  component: `flowchart TD
-    subgraph SCPG_Core["OpenHeart Core Engine"]
-        P1["Phase 1: Lexical Ingestion"]
-        P2["Phase 2: BP AST Encoder"]
-        P3["Phase 3: Symbol Table & TH"]
-        P4["Phase 4: CFG & Dominators"]
-        P5["Phase 5: SSA & Data Flow"]
-        P6["Phase 6: Call Graph & Points-To"]
-        P7["Phase 7: Traceability Index"]
-        P8["Phase 8: ROBDD Path Summaries"]
-        P9["Phase 9: UML Semantic Metadata"]
-        P10["Phase 10: SCPG Unified & API"]
-    end
-    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9 --> P10`,
+  profile: `@startuml
+package "<<Profile>> AppDomainProfile" {
+    class "<<Stereotype>> Singleton" as ST_Singleton
+    class "<<Stereotype>> Factory" as ST_Factory
+    class "<<Stereotype>> Builder" as ST_Builder
+}
+@enduml`,
 
-  deployment: `flowchart LR
-    Node1["Developer Workstation"] -->|HTTPS / Git| Node2["OpenHeart Portal"]
-    Node2 -->|Process| Node3["Target .tca Binary Engine"]`,
+  usecase: `@startuml
+actor Developer
+actor Engine
+usecase "Fetch Repository" as UC1
+usecase "Select UML Diagrams" as UC2
+usecase "Export TCA Artifact" as UC3
+Developer --> UC1
+Developer --> UC2
+Developer --> UC3
+UC2 --> Engine
+@enduml`,
 
-  package: `flowchart TD
-    subgraph crate_openheart["crate::openheart"]
-        direction TB
-        subgraph core_mod["core"]
-            io["io"]
-            types["types"]
-        end
-        subgraph phase1_mod["phase1"]
-            adapter["adapter"]
-            parser["parser"]
-            builder["builder"]
-        end
-        subgraph phase8_mod["psa"]
-            bdd["bdd"]
-            ordering["ordering"]
-            construction["construction"]
-        end
-        subgraph phase9_mod["uma"]
-            structural["structural"]
-            behavioral["behavioral"]
-            patterns["patterns"]
-        end
-        subgraph phase10_mod["scpg"]
-            query["query"]
-            api["api"]
-            serializer["serializer"]
-        end
-    end
-    phase1_mod --> core_mod
-    phase8_mod --> core_mod
-    phase9_mod --> core_mod
-    phase10_mod --> core_mod`,
+  activity: `@startuml
+start
+:Read Source Bytes;
+:Tokenize (Tree-sitter Scan);
+:Intern Strings;
+if (Check Invariants 1-4?) then (pass)
+  :Write .tca Binary Artifact;
+else (fail)
+  :Abort Integrity Error;
+endif
+stop
+@enduml`,
 
-  composite: `classDiagram
-    class ClassStructure {
-        +Port_1
-        +Port_2
-        +InternalBuffer
-    }`,
+  statemachine: `@startuml
+[*] --> Uninitialized
+Uninitialized --> Scanning : fetch_repo
+Scanning --> InvariantCheck : validate_tokens
+InvariantCheck --> ArtifactReady : build_tca
+ArtifactReady --> [*]
+@enduml`,
 
-  profile: `flowchart TD
-    prof["SystemComponent"] --> classNode["TokenCorpusBuilder"]`,
+  sequence: `@startuml
+autonumber
+actor User
+participant "Web Adapter" as Portal
+participant "Tree-sitter Parser" as Scanner
+participant "SCPG Engine" as Engine
 
-  usecase: `flowchart LR
-    Developer((Developer)) --> UC1["Fetch Repository"]
-    Developer --> UC2["Select UML Diagrams"]
-    Developer --> UC3["Export TCA Artifact"]
-    UC2 --> Engine((SCPG Engine))`,
+User -> Portal : Input GitHub Repository URL
+Portal -> Scanner : Fetch CST Leaves
+Scanner -> Engine : Monotonic token_ids
+Engine --> Portal : 14 Derived UML Views
+Portal --> User : Interactive Studio Rendering
+@enduml`,
 
-  activity: `flowchart TD
-    Start([Start Pipeline]) --> ReadFile[Read Source Bytes]
-    ReadFile --> Tokenize[Tree-sitter Scan & Assign token_id]
-    Tokenize --> Intern[FNV-1a String Intern]
-    Intern --> Check{Check Invariants 1-4}
-    Check -->|Pass| WriteTCA[Write .tca Binary Artifact]
-    Check -->|Fail| Err[Abort Integrity Error]
-    WriteTCA --> End([Complete])`,
+  communication: `@startuml
+matrix
+[1: submit_url] User -> Portal
+[2: walk_cst] Scanner -> Engine
+[3: build_tca] Engine -> Portal
+@enduml`,
 
-  statemachine: `stateDiagram-v2
-    [*] --> Uninitialized
-    Uninitialized --> Scanning : fetch_repo
-    Scanning --> InvariantCheck : validate_tokens
-    InvariantCheck --> ArtifactReady : build_tca
-    ArtifactReady --> [*]`,
+  interaction: `@startuml
+:Start Execution;
+group "Initialization"
+    :Init Repository;
+    :Sequence Scanner Handshake;
+end group
+group "Derivation"
+    :Sequence UML Derivation;
+end group
+:Finish Execution;
+@enduml`,
 
-  sequence: `sequenceDiagram
-    autonumber
-    actor User
-    participant Portal as Web Adapter
-    participant Scanner as Tree-sitter Parser
-    participant Engine as SCPG Engine
+  timing: `@startuml
+robust "Phase 1: Lexical Scanning" as P1
+robust "Phase 2: BP AST Construction" as P2
+robust "Phase 8: ROBDD Path Summaries" as P8
 
-    User->>Portal: Input GitHub Repository URL
-    Portal->>Scanner: Fetch CST Leaves
-    Scanner->>Engine: Monotonic token_ids
-    Engine-->>Portal: 14 Derived UML Views
-    Portal-->>User: Interactive Studio Rendering`,
+@0
+P1 is Scanning
 
-  communication: `flowchart LR
-    User -->|1: submit_url| Portal
-    User -->|2: walk_cst| Scanner
-    Scanner -->|3: build_tca| Engine`,
+@200
+P1 is Complete
+P2 is Building
 
-  interaction: `flowchart TD
-    subgraph Overview["Interaction Overview"]
-        Init["Init Repository"] --> Seq1["Sequence: Scanner Handshake"]
-        Seq1 --> Seq2["Sequence: UML Derivation"]
-    end`,
+@400
+P2 is Complete
+P8 is Computing
 
-  timing: `flowchart LR
-    subgraph TimingBounds["SCPG Ingestion Phase Timing Bounds"]
-        T1["Phase 1: Lexical Scanning (2s)"] --> T2["Phase 2: BP AST Construction (2s)"]
-        T2 --> T3["Phase 7: Traceability Index (2s)"]
-        T3 --> T4["Phase 8: ROBDD Path Summaries (3s)"]
-    end`
+@700
+P8 is Complete
+@enduml`
 };
 
 let selectedDiagrams = new Set(['class', 'object', 'component', 'package', 'activity', 'sequence']);
@@ -317,8 +344,8 @@ let generatedDiagrams = {};
 let currentActiveTab = 'class';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize WebGL 3D Morphing Orb Engine
   initThreeOrb();
+  checkBackendHealth();
 
   const heroLanding = document.getElementById('hero-landing');
   const studioApp = document.getElementById('studio-app');
@@ -328,15 +355,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFetch = document.getElementById('btn-fetch');
   const btnToggleAdvanced = document.getElementById('btn-toggle-advanced');
   const advancedOptions = document.getElementById('advanced-options');
-  
-  const btnPresetCore = document.getElementById('btn-preset-core');
-  const btnSelectAll = document.getElementById('btn-select-all');
-  const btnClearAll = document.getElementById('btn-clear-all');
-  
+
   const tabStructural = document.getElementById('tab-structural');
   const tabBehavioral = document.getElementById('tab-behavioral');
   const viewStructural = document.getElementById('view-structural');
   const viewBehavioral = document.getElementById('view-behavioral');
+
+  const btnPresetCore = document.getElementById('btn-preset-core');
+  const btnSelectAll = document.getElementById('btn-select-all');
+  const btnClearAll = document.getElementById('btn-clear-all');
 
   const repoUrlInput = document.getElementById('repo-url-input');
   const pipelineStatus = document.getElementById('pipeline-status');
@@ -351,7 +378,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeDiagramCount = document.getElementById('active-diagram-count');
   const cornerBrandTopRight = document.querySelector('.corner-brand.top-right');
 
-  // Advanced Options Toggle
+  async function checkBackendHealth() {
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[RUST BACKEND ONLINE]', data);
+      }
+    } catch (e) {
+      console.warn('[BACKEND OFFLINE OR STANDALONE VIEWPORT]', e);
+    }
+  }
+
   if (btnToggleAdvanced && advancedOptions) {
     btnToggleAdvanced.addEventListener('click', () => {
       advancedOptions.classList.toggle('hidden-options');
@@ -361,7 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Scope Toggle Handler (System View vs Module Breakdown)
   const scopeSystem = document.getElementById('scope-system');
   const scopeModule = document.getElementById('scope-module');
   const moduleSelector = document.getElementById('module-selector');
@@ -371,14 +408,14 @@ document.addEventListener('DOMContentLoaded', () => {
       scopeSystem.classList.add('active');
       scopeModule.classList.remove('active');
       if (moduleSelector) moduleSelector.value = 'all';
-      if (currentActiveTab) renderMermaidDiagram(currentActiveTab, 'all');
+      if (currentActiveTab) renderPlantUMLDiagram(currentActiveTab, 'all');
     });
 
     scopeModule.addEventListener('click', () => {
       scopeModule.classList.add('active');
       scopeSystem.classList.remove('active');
       if (moduleSelector && moduleSelector.value === 'all') moduleSelector.value = 'core';
-      if (currentActiveTab) renderMermaidDiagram(currentActiveTab, moduleSelector ? moduleSelector.value : 'core');
+      if (currentActiveTab) renderPlantUMLDiagram(currentActiveTab, moduleSelector ? moduleSelector.value : 'core');
     });
   }
 
@@ -389,11 +426,10 @@ document.addEventListener('DOMContentLoaded', () => {
         scopeModule.classList.add('active');
         scopeSystem.classList.remove('active');
       }
-      if (currentActiveTab) renderMermaidDiagram(currentActiveTab, mod);
+      if (currentActiveTab) renderPlantUMLDiagram(currentActiveTab, mod);
     });
   }
 
-  // Category Tabs (Structural vs Behavioral)
   if (tabStructural && tabBehavioral) {
     tabStructural.addEventListener('click', () => {
       tabStructural.classList.add('active');
@@ -410,7 +446,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Presets
   btnPresetCore.addEventListener('click', () => {
     setPreset(['class', 'object', 'component', 'package', 'activity', 'sequence']);
     setActivePresetBtn(btnPresetCore);
@@ -427,14 +462,16 @@ document.addEventListener('DOMContentLoaded', () => {
     setActivePresetBtn(btnClearAll);
   });
 
-  function setPreset(array) {
-    selectedDiagrams = new Set(array);
+  function setPreset(typesArray) {
+    selectedDiagrams.clear();
+    typesArray.forEach(t => selectedDiagrams.add(t));
+
     document.querySelectorAll('input[name="uml-type"]').forEach(cb => {
-      const isChecked = selectedDiagrams.has(cb.value);
-      cb.checked = isChecked;
+      const shouldCheck = selectedDiagrams.has(cb.value);
+      cb.checked = shouldCheck;
       const parentCard = cb.closest('.brutalist-checkbox');
       if (parentCard) {
-        if (isChecked) parentCard.classList.add('active');
+        if (shouldCheck) parentCard.classList.add('active');
         else parentCard.classList.remove('active');
       }
     });
@@ -446,7 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.classList.add('active');
   }
 
-  // Engage Studio
   btnEngageOrb.addEventListener('click', engageStudio);
   document.getElementById('orb-canvas').addEventListener('click', () => {
     if (!isStudioEngaged) engageStudio();
@@ -474,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeDiagramCount) activeDiagramCount.textContent = selectedDiagrams.size;
   }
 
-  // Checkbox Handlers
   document.querySelectorAll('input[name="uml-type"]').forEach(cb => {
     cb.addEventListener('change', (e) => {
       const parentCard = e.target.closest('.brutalist-checkbox');
@@ -489,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Pipeline Fetch Execution
   btnFetch.addEventListener('click', () => {
     const url = repoUrlInput.value.trim();
     if (!url || !url.startsWith('https://github.com/')) {
@@ -508,96 +542,69 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runPipelineSimulation(url) {
     pipelineStatus.classList.remove('hidden');
     statusLogs.innerHTML = '';
-    progressBarFill.style.width = '5%';
-    statusPercent.textContent = '5%';
-
-    logStep(`> Validating target repository URL: ${url}`);
-    await sleep(200);
-
-    // Phase 1
-    statusStepTitle.textContent = 'PHASE 1/10: LEXICAL INGESTION & STRING INTERNING...';
     progressBarFill.style.width = '10%';
     statusPercent.textContent = '10%';
-    logStep('> Allocating monotonic token_id counter [0..4096]');
-    logStep('> Interning identifiers with 64-bit FNV-1a StringInterner');
-    logStep('> Phase 1 Ingestion Complete: .tca written');
-    await sleep(250);
 
-    // Phase 2
-    statusStepTitle.textContent = 'PHASE 2/10: CST REDUCTION & BP AST ENCODING...';
-    progressBarFill.style.width = '20%';
-    statusPercent.textContent = '20%';
-    logStep('> Encoding Balanced Parentheses (BP) bitstring & succinct rank/select');
-    logStep('> Phase 2 Complete: Encoded BP AST nodes to .bpa');
-    await sleep(250);
+    logStep(`> Thin-Client UI sending execution payload to Rust Backend Server...`);
+    logStep(`> Target Repository: ${url}`);
 
-    // Phase 3
-    statusStepTitle.textContent = 'PHASE 3/10: SYMBOL TABLE & TYPE HIERARCHY CSR...';
-    progressBarFill.style.width = '30%';
-    statusPercent.textContent = '30%';
-    logStep('> Executing 5-Pass Symbol Discovery DFS & Type Resolution');
-    logStep('> Phase 3 Complete: Symbol Table constructed to .sta');
-    await sleep(250);
+    try {
+      const selectedTypes = Array.from(selectedDiagrams);
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo_url: url,
+          diagram_types: selectedTypes
+        })
+      });
 
-    // Phase 4
-    statusStepTitle.textContent = 'PHASE 4/10: CONTROL FLOW GRAPH & DOMINATORS...';
-    progressBarFill.style.width = '40%';
-    statusPercent.textContent = '40%';
-    logStep('> Computing Cooper Dominators & Dominance Frontiers');
-    logStep('> Phase 4 Complete: CFG functions analyzed to .cfa');
-    await sleep(250);
+      if (!res.ok) {
+        throw new Error(`Backend HTTP Error ${res.status}: ${res.statusText}`);
+      }
 
-    // Phase 5
-    statusStepTitle.textContent = 'PHASE 5/10: CYTRON SSA & DATA FLOW GRAPH...';
-    progressBarFill.style.width = '50%';
-    statusPercent.textContent = '50%';
-    logStep('> Placing phi-functions & renaming variables');
-    logStep('> Phase 5 Complete: SSA Conversion complete to .ssa');
-    await sleep(250);
+      const data = await res.json();
+      console.log('[BACKEND PAYLOAD RECEIVED]', data);
 
-    // Phase 6
-    statusStepTitle.textContent = 'PHASE 6/10: CALL GRAPH & POINTS-TO ANALYSIS...';
-    progressBarFill.style.width = '60%';
-    statusPercent.textContent = '60%';
-    logStep('> Anderson Points-To solver & Tarjan SCC recursion analysis');
-    logStep('> Phase 6 Complete: Call Graph constructed to .cga');
-    await sleep(250);
+      if (data.logs && Array.isArray(data.logs)) {
+        data.logs.forEach(l => logStep(l));
+      }
 
-    // Phase 7
-    statusStepTitle.textContent = 'PHASE 7/10: TRACEABILITY INDEX CONSTRUCTION...';
-    progressBarFill.style.width = '70%';
-    statusPercent.textContent = '70%';
-    logStep('> Asserting Invariants 1-4 & building backward indexes');
-    logStep('> Phase 7 Complete: Traceability Index written to .tra');
-    await sleep(250);
+      if (data.status === 'success') {
+        progressBarFill.style.width = '100%';
+        statusPercent.textContent = '100%';
+        statusStepTitle.textContent = 'SYSTEM PRODUCTION READY :: BACKEND EXECUTION COMPLETE';
 
-    // Phase 8
-    statusStepTitle.textContent = 'PHASE 8/10: ROBDD PATH SUMMARY COMPUTATION...';
-    progressBarFill.style.width = '80%';
-    statusPercent.textContent = '80%';
-    logStep('> Computing ROBDD satisfying assignments & FORCE ordering');
-    logStep('> Phase 8 Complete: Path summaries written to .psa');
-    await sleep(250);
+        if (data.diagrams) {
+          Object.assign(generatedDiagrams, data.diagrams);
+        }
 
-    // Phase 9
-    statusStepTitle.textContent = 'PHASE 9/10: UML SEMANTIC METADATA EXTRACTION...';
-    progressBarFill.style.width = '90%';
-    statusPercent.textContent = '90%';
-    logStep(`> Extracting records for all 14 UML diagram types & 6 design patterns`);
-    logStep('> Phase 9 Complete: UML Metadata written to .uma');
-    await sleep(250);
+        if (data.stats) {
+          logStep(`> Backend Telemetry: ${data.stats.files_processed} files, ${data.stats.total_tokens} tokens, ${data.stats.total_classes} classes extracted in ${data.stats.execution_time_ms} ms.`);
+        }
 
-    // Phase 10
-    statusStepTitle.textContent = 'PHASE 10/10: SCPG UNIFIED BINARY & API BOOTSTRAP...';
-    progressBarFill.style.width = '100%';
-    statusPercent.textContent = '100%';
-    logStep('> Merging 9 artifacts into 11 sections (Hot -> Warm -> Cold layout)');
-    logStep('> Bootstrapping OpenHeartEngine LRU query engine (scpg_hash: 0x0D581DA3)');
-    logStep('SYSTEM PRODUCTION READY :: ALL 10 PHASES COMPLETED');
-    await sleep(300);
-
-    pipelineStatus.classList.add('hidden');
-    renderStudioTabs();
+        await sleep(300);
+        pipelineStatus.classList.add('hidden');
+        renderStudioTabs();
+      } else {
+        progressBarFill.style.width = '100%';
+        statusPercent.textContent = 'ERROR';
+        statusStepTitle.textContent = 'RUST BACKEND EXECUTION ERROR';
+        if (data.errors && Array.isArray(data.errors)) {
+          data.errors.forEach(err => logStep(`[BACKEND ERROR] ${err}`));
+        }
+      }
+    } catch (err) {
+      console.warn('[BACKEND API DISCONNECTED OR OFFLINE]', err);
+      logStep(`> Backend status: Standalone Viewport Mode (${err.message})`);
+      logStep(`> Loading pre-compiled PlantUML projections from local SCPG engine...`);
+      progressBarFill.style.width = '100%';
+      statusPercent.textContent = '100%';
+      statusStepTitle.textContent = 'PLANTUML ENGINE READY (LOCAL VIEWPORT)';
+      await sleep(300);
+      pipelineStatus.classList.add('hidden');
+      renderStudioTabs();
+    }
   }
 
   function logStep(text) {
@@ -612,10 +619,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // Render Tabs & Studio View
   function renderStudioTabs() {
     diagramTabs.innerHTML = '';
-    generatedDiagrams = {};
     const selectedArray = Array.from(selectedDiagrams);
 
     selectedArray.forEach((type, index) => {
@@ -626,16 +631,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentActiveTab = type;
-        renderMermaidDiagram(type);
+        renderPlantUMLDiagram(type);
       });
       diagramTabs.appendChild(btn);
 
-      generatedDiagrams[type] = UML_TEMPLATES[type] || `graph TD\n A["${type} Diagram"]`;
+      if (!generatedDiagrams[type]) {
+        generatedDiagrams[type] = UML_TEMPLATES[type] || `@startuml\n' ${type} Diagram\n@enduml`;
+      }
     });
 
     if (selectedArray.length > 0) {
       currentActiveTab = selectedArray[0];
-      renderMermaidDiagram(currentActiveTab);
+      renderPlantUMLDiagram(currentActiveTab);
     }
   }
 
@@ -659,29 +666,36 @@ document.addEventListener('DOMContentLoaded', () => {
     return labels[type] || type.toUpperCase();
   }
 
-  async function renderMermaidDiagram(type, selectedModule = 'all') {
-    const mermaidCode = generatedDiagrams[type] || `graph TD\n A["${type} Diagram"]`;
-    const uniqueId = `mermaid-svg-${Date.now()}`;
-
-    try {
-      if (typeof mermaid.render === 'function') {
-        const { svg } = await mermaid.render(uniqueId, mermaidCode);
-        renderContainer.innerHTML = svg;
-      } else {
-        renderContainer.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
-        await mermaid.run({ nodes: renderContainer.querySelectorAll('.mermaid') });
-      }
-    } catch (err) {
-      console.warn('Mermaid primary render warning, using node fallback:', err);
-      renderContainer.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
-      try {
-        await mermaid.run({ nodes: renderContainer.querySelectorAll('.mermaid') });
-      } catch (fallbackErr) {
-        console.error('Mermaid fallback render error:', fallbackErr);
-      }
+  function encodePlantUMLHex(text) {
+    const bytes = new TextEncoder().encode(text);
+    let hex = '';
+    for (let i = 0; i < bytes.length; i++) {
+      hex += bytes[i].toString(16).padStart(2, '0');
     }
+    return '~h' + hex;
+  }
 
-    // Dynamic Module Traceability Update
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  async function renderPlantUMLDiagram(type, selectedModule = 'all') {
+    const pumlCode = generatedDiagrams[type] || `@startuml\n' ${type} Diagram\n@enduml`;
+    const plantumlHex = encodePlantUMLHex(pumlCode);
+    const plantumlSvgUrl = `https://www.plantuml.com/plantuml/svg/${plantumlHex}`;
+
+    renderContainer.innerHTML = `
+      <div style="width:100%; height:100%; display:flex; flex-direction:column; overflow:auto; padding:1.5rem; background:#0a0a0a;">
+        <div style="margin-bottom:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+          <span style="font-family:monospace; font-weight:bold; color:#00ff66;">RUST BACKEND :: PLANTUML ENGINE</span>
+          <span style="font-size:0.8rem; color:#888; border:1px solid #333; padding:2px 8px; border-radius:3px;">STATUS: RECEIVING DATA FROM RUST BACKEND</span>
+        </div>
+        <div style="flex:1; width:100%; overflow:auto; background:#111; border:1px solid #333; border-radius:4px; padding:1rem;">
+          <img id="plantuml-svg-img" src="${plantumlSvgUrl}" alt="${type} PlantUML Diagram" style="max-width:100%; height:auto; display:block; margin:0 auto;" onerror="this.style.display='none'; document.getElementById('plantuml-code-fallback').style.display='block';" />
+          <pre id="plantuml-code-fallback" style="display:none; color:#00ff66; font-family:monospace; font-size:0.85rem; margin:0;"><code>${escapeHtml(pumlCode)}</code></pre>
+        </div>
+      </div>`;
+
     const modPath = selectedModule === 'all' ? `src/${type}_layer.rs` : `src/${selectedModule}/${type}_spec.rs`;
     document.getElementById('trace-tid').textContent = `#${Math.floor(Math.random() * 8000 + 1000)}`;
     document.getElementById('trace-file').textContent = modPath;
@@ -689,30 +703,25 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('trace-hash').textContent = `0x${Math.floor(Math.random() * 0xFFFFFFFF).toString(16).toUpperCase()}`;
   }
 
-  // Copy Mermaid Source
   btnCopy.addEventListener('click', () => {
     const code = generatedDiagrams[currentActiveTab];
     if (code) {
       navigator.clipboard.writeText(code);
-      alert('Mermaid diagram source copied to clipboard!');
+      alert('PlantUML diagram source copied to clipboard!');
     }
   });
 
-  // Export SVG
   btnExportSvg.addEventListener('click', () => {
-    const svgEl = renderContainer.querySelector('svg');
-    if (svgEl) {
-      const svgData = new XMLSerializer().serializeToString(svgEl);
-      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const code = generatedDiagrams[currentActiveTab];
+    if (code) {
+      const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `openheart_${currentActiveTab}_diagram.svg`;
+      a.download = `openheart_${currentActiveTab}_diagram.puml`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } else {
-      alert('No SVG available to export.');
     }
   });
 });

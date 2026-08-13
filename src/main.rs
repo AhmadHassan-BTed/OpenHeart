@@ -50,6 +50,9 @@ SUBCOMMANDS:
     inspect <ARTIFACT_PATH>
         Inspects and validates the CRC-64 integrity of a binary artifact (.tca, .bpa, .sta, .cfa, .ssa, .cga).
 
+    server [PORT]
+        Launches the native OpenHeart HTTP backend server (default port: 8080) for real-time web portal processing and PlantUML rendering.
+
     help
         Prints this usage guide.
 
@@ -465,6 +468,14 @@ fn main() {
                 std::process::exit(1);
             }
             cmd_inspect(&args[2])
+        }
+        "server" => {
+            let port = if args.len() >= 3 {
+                args[2].parse::<u16>().unwrap_or(8080)
+            } else {
+                8080
+            };
+            openheart::adapters::OpenHeartServer::new(port).start()
         }
         "help" | "-h" | "--help" => {
             print_usage();

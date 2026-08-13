@@ -84,8 +84,22 @@ impl OpenHeartEngine {
         XMIExporter::export_class_diagram(classes)
     }
 
-    pub fn export_plantuml(&self, classes: &[ClassRecord]) -> String {
-        PlantUMLExporter::export_class_diagram(classes)
+    pub fn export_plantuml(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &crate::symbol::SymbolTableArtifact,
+        tca: &crate::ingestion::TokenCorpusArtifact,
+    ) -> String {
+        PlantUMLExporter::export_class_diagram(uma, sta, tca)
+    }
+
+    pub fn export_diagram_default(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &crate::symbol::SymbolTableArtifact,
+        tca: &crate::ingestion::TokenCorpusArtifact,
+    ) -> String {
+        self.export_plantuml(uma, sta, tca)
     }
 
     pub fn export_json(&self, classes: &[ClassRecord]) -> String {

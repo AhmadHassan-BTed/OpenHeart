@@ -128,10 +128,32 @@ impl ClassDiagramExtractor {
                 }
             }
 
+            let mut extends_sym = u32::MAX;
+
+            for edge in &sta.th_edges {
+                if edge.from_sym == sym_id {
+                    match edge.relation {
+                        crate::core::types::symbol::THRelation::TH_EXTENDS => {
+                            extends_sym = edge.to_sym;
+                        }
+                        crate::core::types::symbol::THRelation::TH_IMPLEMENTS => {
+                            if !implements_syms.contains(&edge.to_sym) {
+                                implements_syms.push(edge.to_sym);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             if sym.parent_sym != u32::MAX {
                 if let Some(parent_sym) = sta.symbol(sym.parent_sym) {
                     if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_INTERFACE {
-                        implements_syms.push(sym.parent_sym);
+                        if !implements_syms.contains(&sym.parent_sym) {
+                            implements_syms.push(sym.parent_sym);
+                        }
+                    } else if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_CLASS && extends_sym == u32::MAX {
+                        extends_sym = sym.parent_sym;
                     }
                 }
             }
@@ -159,7 +181,7 @@ impl ClassDiagramExtractor {
                 stereotype,
                 visibility: sym.visibility,
                 modifiers: sym.modifiers,
-                extends_sym: u32::MAX,
+                extends_sym,
                 field_count: fields.len() as u16,
                 method_count: methods.len() as u16,
                 inner_count: inner_classes.len() as u16,
