@@ -155,7 +155,7 @@ public class SystemCompleteTest {
     let xmi = engine.export_xmi(&uma.classes);
     assert!(xmi.contains("<uml:Model"));
 
-    let puml = engine.export_plantuml(&uma.classes);
+    let puml = engine.export_plantuml(&uma, &sta, &tca);
     assert!(puml.contains("@startuml"));
 
     let json = engine.export_json(&uma.classes);
