@@ -1,3 +1,4 @@
+pub mod generic;
 pub mod java;
 pub mod kotlin;
 pub mod registry;
@@ -10,7 +11,9 @@ pub trait LanguageAdapter: Send + Sync + 'static {
     fn file_extensions(&self) -> &[&str];
     fn ts_language(&self) -> tree_sitter::Language;
     fn map_node_type(&self, ts_node_kind: &str) -> TokenType;
-    fn include_anonymous(&self, ts_node_kind: &str) -> bool;
+    fn include_anonymous(&self, _ts_node_kind: &str) -> bool {
+        false
+    }
 
     fn should_skip(&self, token_type: TokenType, filter: &TokenFilter) -> bool {
         match token_type {

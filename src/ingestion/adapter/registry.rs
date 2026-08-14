@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::core::types::token::LangId;
+use crate::ingestion::adapter::generic::GenericLanguageAdapter;
 use crate::ingestion::adapter::java::JavaLanguageAdapter;
 use crate::ingestion::adapter::kotlin::KotlinLanguageAdapter;
 use crate::ingestion::adapter::LanguageAdapter;
@@ -22,6 +23,21 @@ impl AdapterRegistry {
         };
         reg.register(Arc::new(JavaLanguageAdapter::new()));
         reg.register(Arc::new(KotlinLanguageAdapter::new()));
+        
+        let js_adapter = Arc::new(GenericLanguageAdapter::new(
+            LangId::JavaScript,
+            vec!["js", "jsx", "mjs", "cjs"],
+            tree_sitter_javascript::language(),
+        ));
+        reg.register(js_adapter.clone());
+
+        let unknown_adapter = Arc::new(GenericLanguageAdapter::new(
+            LangId::Unknown,
+            vec!["*"],
+            tree_sitter_javascript::language(),
+        ));
+        reg.register(unknown_adapter);
+
         reg
     }
 
@@ -34,7 +50,7 @@ impl AdapterRegistry {
     }
 
     pub fn get(&self, lang_id: LangId) -> Option<Arc<dyn LanguageAdapter>> {
-        self.adapters.get(&lang_id).cloned()
+        self.adapters.get(&lang_id).cloned().or_else(|| self.adapters.get(&LangId::Unknown).cloned())
     }
 
     pub fn detect(overrides: &HashMap<OsString, LangId>, path: &Path) -> LangId {
@@ -48,6 +64,11 @@ impl AdapterRegistry {
                     "kt" | "kts" => return LangId::Kotlin,
                     "swift" => return LangId::Swift,
                     "py" => return LangId::Python,
+                    "js" | "jsx" | "mjs" | "cjs" => return LangId::JavaScript,
+                    "ts" | "tsx" => return LangId::TypeScript,
+                    "rs" => return LangId::Rust,
+                    "cpp" | "c" | "h" | "hpp" => return LangId::Cpp,
+                    "go" => return LangId::Go,
                     _ => {}
                 }
             }
