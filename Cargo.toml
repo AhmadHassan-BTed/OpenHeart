@@ -8,6 +8,7 @@ description = "High-performance lexical ingestion and token corpus pipeline for 
 [dependencies]
 tree-sitter = "0.20"
 tree-sitter-java = "0.20"
+tree-sitter-javascript = "0.20"
 sha2 = "0.10"
 memmap2 = "0.9"
 thiserror = "1.0"

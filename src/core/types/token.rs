@@ -9,6 +9,11 @@ pub enum LangId {
     Kotlin = 0x02,
     Swift = 0x03,
     Python = 0x04,
+    JavaScript = 0x05,
+    TypeScript = 0x06,
+    Rust = 0x07,
+    Cpp = 0x08,
+    Go = 0x09,
 }
 
 impl From<u8> for LangId {
@@ -18,6 +23,11 @@ impl From<u8> for LangId {
             0x02 => LangId::Kotlin,
             0x03 => LangId::Swift,
             0x04 => LangId::Python,
+            0x05 => LangId::JavaScript,
+            0x06 => LangId::TypeScript,
+            0x07 => LangId::Rust,
+            0x08 => LangId::Cpp,
+            0x09 => LangId::Go,
             _ => LangId::Unknown,
         }
     }
