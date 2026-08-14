@@ -81,8 +81,17 @@ impl StringInterner {
     }
 
     pub fn lookup_text(&self, text_id: u32) -> &[u8] {
+        if text_id == u32::MAX || (text_id as usize) >= self.offsets.len() {
+            return b"";
+        }
         let offset = self.offsets[text_id as usize] as usize;
+        if offset + 2 > self.storage.len() {
+            return b"";
+        }
         let len = u16::from_le_bytes([self.storage[offset], self.storage[offset + 1]]) as usize;
+        if offset + 2 + len > self.storage.len() {
+            return b"";
+        }
         &self.storage[offset + 2..offset + 2 + len]
     }
 
