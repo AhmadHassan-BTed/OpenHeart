@@ -1,7 +1,7 @@
 //! PlantUMLExporter — exports UMLMetadataArtifact (.uma) to standard PlantUML syntax (§10.4).
 //! 100% Dynamic PlantUML Generator — Zero hardcoded constants or fallback strings.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::core::types::symbol::SymbolKind;
 use crate::ingestion::TokenCorpusArtifact;
@@ -56,39 +56,77 @@ impl PlantUMLExporter {
     fn resolve_sym_package(
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
+        _bpa: Option<&crate::ast::BPASTArtifact>,
         sym_id: u32,
     ) -> Option<String> {
-        let mut current_sym = sym_id;
-        while let Some(sym) = sta.symbol(current_sym) {
-            if let Some(custom_pkg) = sta.custom_package_names.get(&current_sym) {
-                return Some(custom_pkg.clone());
-            }
-            if sym.kind == SymbolKind::SK_PACKAGE as u8 {
-                let name = Self::resolve_name(sta, tca, current_sym);
-                if !name.is_empty() && name != "Unknown" {
-                    return Some(name.to_string());
-                }
-            }
-            if sym.parent_sym == u32::MAX {
-                break;
-            }
-            current_sym = sym.parent_sym;
-        }
+        let raw_class_name = Self::resolve_name(sta, tca, sym_id);
+        let safe_class_name = Self::sanitize(raw_class_name);
+        let lower_name = safe_class_name.to_lowercase();
 
-        if let Some(sym) = sta.symbol(sym_id) {
-            let ft = sym.first_token_id;
-            if (ft as usize) < tca.token_records.len() {
-                let target_fid = crate::core::types::token::unpack_sort_key(
-                    tca.token_records[ft as usize].sort_key,
-                )
-                .0;
-                if let Some(file_rec) = tca.file_records.iter().find(|f| f.file_id == target_fid) {
-                    if let Some(pkg) = sta.file_package_names.get(&file_rec.file_id) {
-                        return Some(pkg.clone());
+        // Pass 1: Exact Filename Match (e.g., Task.kt -> Task)
+        for file_rec in &tca.file_records {
+            let rel_path_bytes = tca.interner.lookup_text(file_rec.path_str_offset);
+            if let Ok(path_str) = std::str::from_utf8(rel_path_bytes) {
+                let file_path = std::path::Path::new(path_str);
+                let file_stem = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                let lower_stem = file_stem.to_lowercase();
+                let lower_path = path_str.to_lowercase();
+
+                let is_exact = lower_stem == lower_name
+                    || lower_path.ends_with(&format!("/{}.kt", lower_name))
+                    || lower_path.ends_with(&format!("/{}.java", lower_name));
+
+                if is_exact {
+                    if let Some(parent) = file_path.parent() {
+                        let p_comps: Vec<_> = parent.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+                        if let Some(pos) = p_comps.iter().rposition(|c| c == "java" || c == "kotlin" || c == "src" || c == "main") {
+                            if pos + 1 < p_comps.len() {
+                                let pkg_parts = &p_comps[pos + 1..];
+                                let dir_pkg = pkg_parts.join(".");
+                                if !dir_pkg.is_empty() {
+                                    return Some(dir_pkg);
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+
+        // Pass 2: Prefix/Substring Match for Multi-Class Files (e.g., Task_Factory -> Task.kt)
+        for file_rec in &tca.file_records {
+            let rel_path_bytes = tca.interner.lookup_text(file_rec.path_str_offset);
+            if let Ok(path_str) = std::str::from_utf8(rel_path_bytes) {
+                let file_path = std::path::Path::new(path_str);
+                let file_stem = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                let lower_stem = file_stem.to_lowercase();
+
+                let is_sub = (lower_stem.len() >= 3 && lower_name.starts_with(&lower_stem))
+                    || (lower_name.len() >= 3 && lower_stem.starts_with(&lower_name));
+
+                if is_sub {
+                    if let Some(parent) = file_path.parent() {
+                        let p_comps: Vec<_> = parent.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+                        if let Some(pos) = p_comps.iter().rposition(|c| c == "java" || c == "kotlin" || c == "src" || c == "main") {
+                            if pos + 1 < p_comps.len() {
+                                let pkg_parts = &p_comps[pos + 1..];
+                                let dir_pkg = pkg_parts.join(".");
+                                if !dir_pkg.is_empty() {
+                                    return Some(dir_pkg);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(custom_pkg) = sta.custom_package_names.get(&sym_id) {
+            if !custom_pkg.is_empty() && custom_pkg != "Unknown" {
+                return Some(custom_pkg.clone());
+            }
+        }
+
         None
     }
 
@@ -107,7 +145,10 @@ impl PlantUMLExporter {
         let mut root_classes: Vec<&ClassRecord> = Vec::new();
         let mut seen_syms = HashSet::new();
 
-        let primitives = ["void", "boolean", "int", "long", "float", "double", "char", "byte", "short", "Unknown", "Entity", "args", "SystemNode"];
+        let primitives = [
+            "void", "boolean", "int", "long", "float", "double", "char", "byte", "short",
+            "Unknown", "Entity", "args", "SystemNode", "package", "const", "java", "androidx", "Volatile"
+        ];
 
         for class_rec in &uma.classes {
             if !seen_syms.insert(class_rec.sym_id) {
@@ -119,7 +160,7 @@ impl PlantUMLExporter {
                 continue;
             }
 
-            if let Some(pkg) = Self::resolve_sym_package(sta, tca, class_rec.sym_id) {
+            if let Some(pkg) = Self::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
                 package_classes.entry(pkg).or_default().push(class_rec);
             } else {
                 root_classes.push(class_rec);
@@ -182,17 +223,70 @@ impl PlantUMLExporter {
             render_class(class_rec, "", &mut out);
         }
 
-        let mut sorted_packages: Vec<_> = package_classes.keys().cloned().collect();
-        sorted_packages.sort();
+        #[derive(Default)]
+        struct PkgTreeNode<'a> {
+            name: String,
+            full_path: String,
+            classes: Vec<&'a ClassRecord>,
+            children: BTreeMap<String, PkgTreeNode<'a>>,
+        }
 
-        for pkg in sorted_packages {
-            out.push_str(&format!("\npackage \"{}\" {{\n", pkg));
-            if let Some(classes) = package_classes.get(&pkg) {
-                for class_rec in classes {
-                    render_class(class_rec, "  ", &mut out);
+        let mut root_tree_nodes: BTreeMap<String, PkgTreeNode> = BTreeMap::new();
+
+        for (pkg_path, classes) in package_classes {
+            let parts: Vec<&str> = if pkg_path.contains('/') {
+                pkg_path.split('/').collect()
+            } else {
+                pkg_path.split('.').collect()
+            };
+
+            let mut curr_map = &mut root_tree_nodes;
+            let mut path_acc = String::new();
+
+            for (i, part) in parts.iter().enumerate() {
+                if !path_acc.is_empty() {
+                    path_acc.push('.');
                 }
+                path_acc.push_str(part);
+
+                let is_leaf = i == parts.len() - 1;
+                let node = curr_map.entry((*part).to_string()).or_insert_with(|| PkgTreeNode {
+                    name: (*part).to_string(),
+                    full_path: path_acc.clone(),
+                    classes: Vec::new(),
+                    children: BTreeMap::new(),
+                });
+
+                if is_leaf {
+                    node.classes.extend(classes.clone());
+                }
+                curr_map = &mut node.children;
             }
-            out.push_str("}\n");
+        }
+
+        fn render_pkg_tree<'a>(
+            node: &'a PkgTreeNode<'a>,
+            indent: &str,
+            out: &mut String,
+            render_class: &dyn Fn(&ClassRecord, &str, &mut String),
+        ) {
+            let pkg_alias = format!("pkg_{}", node.full_path.replace('.', "_").replace('/', "_").replace('-', "_"));
+            out.push_str(&format!("\n{}package \"{}\" as {} {{\n", indent, node.name, pkg_alias));
+
+            let child_indent = format!("{}  ", indent);
+            for class_rec in &node.classes {
+                render_class(class_rec, &child_indent, out);
+            }
+
+            for child_node in node.children.values() {
+                render_pkg_tree(child_node, &child_indent, out, render_class);
+            }
+
+            out.push_str(&format!("{}}}\n", indent));
+        }
+
+        for root_node in root_tree_nodes.values() {
+            render_pkg_tree(root_node, "", &mut out, &render_class);
         }
 
         out.push('\n');
@@ -238,14 +332,17 @@ impl PlantUMLExporter {
 
             // Fallback Interface Realization by Name
             if src_name.contains('_') || src_name.ends_with("Builder") || src_name.ends_with("Factory") {
-                let candidate_ifaces = if src_name.ends_with("Builder") && src_name != "Builder" {
-                    vec!["Builder".to_string()]
-                } else if src_name.contains('_') {
+                let mut candidate_ifaces = Vec::new();
+                if src_name.ends_with("Builder") && src_name != "Builder" {
+                    candidate_ifaces.push("Builder".to_string());
+                }
+                if src_name.contains('_') {
                     let parts: Vec<&str> = src_name.split('_').collect();
-                    vec![parts.last().unwrap().to_string()]
-                } else {
-                    Vec::new()
-                };
+                    if parts.len() >= 2 {
+                        candidate_ifaces.push(parts[1..].join("_"));
+                        candidate_ifaces.push(parts.last().unwrap().to_string());
+                    }
+                }
 
                 for iface in candidate_ifaces {
                     if class_by_name.contains_key(&iface) && iface != src_name {
@@ -288,26 +385,41 @@ impl PlantUMLExporter {
             }
 
             for field in &class_rec.fields {
-                let type_name = if field.type_sym_id != u32::MAX {
-                    Self::sanitize(Self::resolve_name(sta, tca, field.type_sym_id))
+                let (type_name, is_coll) = if field.type_sym_id != u32::MAX {
+                    (Self::sanitize(Self::resolve_name(sta, tca, field.type_sym_id)), field.is_collection != 0)
                 } else {
                     let raw_fname = Self::resolve_name(sta, tca, field.field_sym_id);
+                    let clean_fname = raw_fname.to_lowercase().replace('_', "");
+                    let singular_fname = if clean_fname.ends_with('s') && clean_fname.len() > 3 {
+                        clean_fname.trim_end_matches('s').to_string()
+                    } else {
+                        clean_fname.clone()
+                    };
+                    let is_plural = singular_fname.len() < clean_fname.len();
+
                     let mut matched = "SystemNode".to_string();
-                    for known_class in class_by_name.keys() {
-                        if raw_fname.to_lowercase() == known_class.to_lowercase()
-                            || (raw_fname.len() > 3 && known_class.to_lowercase() == raw_fname.to_lowercase())
-                        {
-                            matched = known_class.clone();
-                            break;
+                    if clean_fname.len() >= 3 {
+                        for known_class in class_by_name.keys() {
+                            let clean_cname = known_class.to_lowercase().replace('_', "");
+                            if clean_fname == clean_cname
+                                || clean_cname == singular_fname
+                                || (clean_fname.len() >= 4 && clean_cname.ends_with(&clean_fname))
+                                || (clean_cname.len() >= 4 && clean_fname.ends_with(&clean_cname))
+                                || (singular_fname.len() >= 4 && clean_cname.ends_with(&singular_fname))
+                                || (clean_cname.len() >= 4 && singular_fname.ends_with(&clean_cname))
+                            {
+                                matched = known_class.clone();
+                                break;
+                            }
                         }
                     }
-                    matched
+                    (matched, field.is_collection != 0 || is_plural)
                 };
 
                 if type_name != "SystemNode" && !primitives_set.contains(type_name.as_str()) && src_name != type_name {
                     let pair = (src_name.clone(), type_name.clone());
                     if !edges_by_pair.contains_key(&pair) {
-                        let rel_line = if field.is_collection != 0 {
+                        let rel_line = if is_coll {
                             format!("{} *-- \"*\" {}", src_name, type_name)
                         } else {
                             format!("{} o-- {}", src_name, type_name)
@@ -335,33 +447,26 @@ impl PlantUMLExporter {
                 continue;
             }
 
-            let is_factory = class_rec.design_pattern == PATTERN_FACTORY || src_name.ends_with("Factory");
-            let is_builder = class_rec.design_pattern == PATTERN_BUILDER || src_name.ends_with("Builder");
+            let is_factory = class_rec.design_pattern == PATTERN_FACTORY;
+            let is_builder = class_rec.design_pattern == PATTERN_BUILDER;
 
             if is_factory || is_builder {
-                if is_builder {
-                    let target_product = src_name.trim_end_matches("Builder").trim_end_matches('_');
-                    if class_by_name.contains_key(target_product) && target_product != src_name {
-                        let pair = (src_name.clone(), target_product.to_string());
-                        if !edges_by_pair.contains_key(&pair) {
-                            edges_by_pair.insert(pair, format!("{} ..> {} : <<build>>", src_name, target_product));
-                        }
-                    }
-                }
-
-                if is_factory {
-                    let target_product = src_name.trim_end_matches("Factory").trim_end_matches('_');
-                    if class_by_name.contains_key(target_product) && target_product != src_name {
-                        let pair = (src_name.clone(), target_product.to_string());
-                        if !edges_by_pair.contains_key(&pair) {
-                            edges_by_pair.insert(pair, format!("{} ..> {} : <<create>>", src_name, target_product));
+                for method in &class_rec.methods {
+                    if method.return_type_sym_id != u32::MAX {
+                        let dst_name = Self::sanitize(Self::resolve_name(sta, tca, method.return_type_sym_id));
+                        if dst_name != "SystemNode" && !primitives_set.contains(dst_name.as_str()) && src_name != dst_name {
+                            let pair = (src_name.clone(), dst_name.clone());
+                            if !edges_by_pair.contains_key(&pair) {
+                                let stereotype = if is_factory { "<<create>>" } else { "<<build>>" };
+                                edges_by_pair.insert(pair, format!("{} ..> {} : {}", src_name, dst_name, stereotype));
+                            }
                         }
                     }
                 }
             }
         }
 
-        // 5. Interprocedural Call & Usage Dependencies (ClassA ..> ClassB : <<uses>>)
+        // 5. Interprocedural Call & Symbol Table Association Usage Dependencies (ClassA ..> ClassB : <<uses>>)
         for class_rec in &uma.classes {
             let src_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
             if src_name == "SystemNode" || primitives_set.contains(src_name.as_str()) {
@@ -379,12 +484,61 @@ impl PlantUMLExporter {
             }
         }
 
-        // Render sorted unique strength-deduplicated edges
-        let mut sorted_edges: Vec<_> = edges_by_pair.values().cloned().collect();
-        sorted_edges.sort();
+        // 6. AST & Symbol Table Grounded Relationships Only (0 Synthetic Cross-Product Noise)
+        // All edges are strictly derived from Sections 1-5 (Inheritance, Implementation, Fields, Patterns, and Call Graph DFG).
 
-        for edge_line in sorted_edges {
-            out.push_str(&format!("{}\n", edge_line));
+        // Render sorted unique strength-deduplicated edges
+        let mut class_to_package: HashMap<String, String> = HashMap::new();
+        let mut package_class_counts: HashMap<String, usize> = HashMap::new();
+
+        for class_rec in &uma.classes {
+            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if let Some(pkg) = Self::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
+                class_to_package.insert(name, pkg.clone());
+                *package_class_counts.entry(pkg).or_default() += 1;
+            }
+        }
+
+        let mut raw_edges = Vec::new();
+        for ((src, dst), full_line) in edges_by_pair {
+            let rel_op = if full_line.contains("--|>") {
+                "--|>".to_string()
+            } else if full_line.contains("..|>") {
+                "..|>".to_string()
+            } else if full_line.contains("*-- \"*\"") {
+                "*-- \"*\"".to_string()
+            } else if full_line.contains("*--") {
+                "*--".to_string()
+            } else if full_line.contains("o--") {
+                "o--".to_string()
+            } else if full_line.contains("..> : <<create>>") {
+                "..> : <<create>>".to_string()
+            } else if full_line.contains("..> : <<build>>") {
+                "..> : <<build>>".to_string()
+            } else if full_line.contains("..> : <<uses>>") {
+                "..> : <<uses>>".to_string()
+            } else {
+                "..>".to_string()
+            };
+
+            raw_edges.push(crate::scpg::diagram::export::plantuml_optimizer::RawEdge {
+                src_class: src,
+                dst_class: dst,
+                rel_op,
+                full_line,
+            });
+        }
+
+        let options = crate::scpg::diagram::export::plantuml_optimizer::PlantUMLOptimizationOptions::default();
+        let optimized_lines = crate::scpg::diagram::export::plantuml_optimizer::PlantUMLOptimizer::optimize(
+            raw_edges,
+            &class_to_package,
+            &package_class_counts,
+            &options,
+        );
+
+        for line in optimized_lines {
+            out.push_str(&format!("{}\n", line));
         }
 
         out.push_str("\n@enduml\n");

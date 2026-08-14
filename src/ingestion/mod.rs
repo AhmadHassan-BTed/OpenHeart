@@ -134,6 +134,9 @@ impl IngestionStage {
 
             {
                 let mut intern = interner.lock().unwrap();
+                let path_str = path.to_string_lossy();
+                record.path_str_offset = intern.intern(path_str.as_bytes());
+
                 let mut prev_base_key = 0u64;
                 let mut dup_count = 0u8;
                 for rt in &raw_tokens {
