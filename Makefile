@@ -31,10 +31,13 @@ docs:
 ci:
 	./scripts/ci_check.sh
 
+## Launch Native OpenHeart Web Server (with auto-cleanup)
+server:
+	./restart_server.sh 8080
+
 ## Launch Web Portal Adapter Studio
 serve:
-	@echo "Starting OpenHeart Web Portal Studio at http://localhost:8080..."
-	python3 -m http.server 8080 --directory web
+	./restart_server.sh 8080
 
 ## Clean build target directory
 clean:

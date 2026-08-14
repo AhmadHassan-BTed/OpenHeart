@@ -45,7 +45,9 @@ body.brutalist-theme {
   left: 0;
   width: 100vw;
   height: 100vh;
-  pointer-events: auto;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
 }
 
 /* Corner Status Overlays (Brutalist HUD) */
@@ -139,6 +141,79 @@ body.brutalist-theme {
   color: #ffffff;
 }
 
+/* PlantUML Canvas & Scrollable Viewer Styles */
+.plantuml-canvas {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 280px);
+  min-height: 450px;
+  overflow: hidden;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+}
+
+.plantuml-code-editor {
+  width: 100%;
+  height: 100%;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  background: #0d0d0d;
+  color: #00ff66;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  border: none;
+  white-space: pre;
+}
+
+.plantuml-code-editor::-webkit-scrollbar,
+.plantuml-canvas::-webkit-scrollbar,
+.plantuml-visual-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.plantuml-code-editor::-webkit-scrollbar-track,
+.plantuml-canvas::-webkit-scrollbar-track,
+.plantuml-visual-viewport::-webkit-scrollbar-track {
+  background: #111111;
+}
+
+.plantuml-code-editor::-webkit-scrollbar-thumb,
+.plantuml-canvas::-webkit-scrollbar-thumb,
+.plantuml-visual-viewport::-webkit-scrollbar-thumb {
+  background: #333333;
+  border: 1px solid #00ff66;
+}
+
+.plantuml-visual-viewport {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  box-sizing: border-box;
+  background: #080808;
+  cursor: grab;
+}
+
+.plantuml-visual-viewport:active {
+  cursor: grabbing;
+}
+
+.plantuml-visual-viewport svg {
+  max-width: none;
+  height: auto;
+  transition: transform 0.2s ease;
+  transform-origin: center center;
+}
+
 /* Opening Hero Overlay */
 .hero-overlay {
   position: absolute;
@@ -155,6 +230,8 @@ body.brutalist-theme {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  z-index: 10;
+  mix-blend-mode: difference;
 }
 
 .hero-center-content {
@@ -170,6 +247,7 @@ body.brutalist-theme {
   margin: 0 auto;
   padding: 0 16px;
   box-sizing: border-box;
+  mix-blend-mode: difference;
 }
 
 .hero-eyebrow {
