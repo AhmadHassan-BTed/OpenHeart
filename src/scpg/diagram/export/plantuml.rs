@@ -79,9 +79,22 @@ impl PlantUMLExporter {
                     || lower_path.ends_with(&format!("/{}.java", lower_name));
 
                 if is_exact {
+                    // Skip test source files for package hierarchy derivation
+                    if lower_path.contains("/src/test/") || lower_path.contains("/test/") {
+                        continue;
+                    }
+
                     if let Some(parent) = file_path.parent() {
                         let p_comps: Vec<_> = parent.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
-                        if let Some(pos) = p_comps.iter().rposition(|c| c == "java" || c == "kotlin" || c == "src" || c == "main") {
+                        if let Some(pos) = p_comps.iter().rposition(|c| c == "java" || c == "kotlin") {
+                            if pos + 1 < p_comps.len() {
+                                let pkg_parts = &p_comps[pos + 1..];
+                                let dir_pkg = pkg_parts.join(".");
+                                if !dir_pkg.is_empty() {
+                                    return Some(dir_pkg);
+                                }
+                            }
+                        } else if let Some(pos) = p_comps.iter().rposition(|c| c == "src") {
                             if pos + 1 < p_comps.len() {
                                 let pkg_parts = &p_comps[pos + 1..];
                                 let dir_pkg = pkg_parts.join(".");
@@ -364,7 +377,7 @@ impl PlantUMLExporter {
             render_class: &dyn Fn(&ClassRecord, &str, &mut String),
         ) {
             let pkg_alias = format!("pkg_{}", node.full_path.replace('.', "_").replace('/', "_").replace('-', "_"));
-            out.push_str(&format!("\n{}package \"{}\" as {} {{\n", indent, node.name, pkg_alias));
+            out.push_str(&format!("\n{}package \"{}\" as {} {{\n", indent, node.full_path, pkg_alias));
 
             let child_indent = format!("{}  ", indent);
             for class_rec in &node.classes {
