@@ -18,8 +18,6 @@
   <!-- Three.js & Simplex Noise for 3D Morphing WebGL Orb -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
-  <!-- Mermaid JS for Diagram Rendering -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 <body class="brutalist-theme">
 
@@ -52,7 +50,7 @@
       <p class="hero-sub">HIGH-PERFORMANCE COMPILER THEORY &amp; BIJECTIVE UML GENERATION</p>
       
       <div class="orb-interaction-hint">
-        <button id="btn-engage-orb" class="btn-brutalist-hero">
+        <button id="btn-engage-orb" class="btn-brutalist-hero" onclick="window.engageStudio && window.engageStudio()">
           <span class="btn-text">[ LAUNCH UML STUDIO ]</span>
           <span class="btn-arrow">→</span>
         </button>
@@ -306,13 +304,29 @@
                 <option value="adapters">crate::adapters (Tree-sitter &amp; Web Repo)</option>
               </select>
 
-              <button id="btn-copy-mermaid" class="btn-brutalist-sm">COPY PLANTUML</button>
-              <button id="btn-export-svg" class="btn-brutalist-sm">EXPORT SVG</button>
+              <button id="btn-copy-plantuml" class="btn-brutalist-sm">COPY PLANTUML</button>
+              <button id="btn-export-puml" class="btn-brutalist-sm">EXPORT PUML</button>
+              <button id="btn-export-xmi" class="btn-brutalist-sm">EXPORT XMI</button>
+              <button id="btn-export-json" class="btn-brutalist-sm">EXPORT JSON</button>
             </div>
           </div>
 
-          <!-- Mermaid Canvas -->
-          <div id="mermaid-render-container" class="mermaid-canvas">
+          <!-- View Mode & Zoom Control Bar -->
+          <div class="view-mode-bar flex-between" style="padding: 0.5rem 1rem; background: #111; border-bottom: 1px solid #222;">
+            <div class="mode-toggle-group" style="display:flex; gap:0.25rem;">
+              <button id="view-mode-visual" class="btn-scope active">🎨 VISUAL DIAGRAM</button>
+              <button id="view-mode-code" class="btn-scope">📜 PLANTUML CODE</button>
+              <button id="view-mode-matrix" class="btn-scope">🔍 SYMBOL MATRIX</button>
+            </div>
+            <div class="zoom-controls flex-align" style="gap:0.5rem; display:flex;">
+              <button id="btn-zoom-in" class="btn-brutalist-sm">ZOOM +</button>
+              <button id="btn-zoom-out" class="btn-brutalist-sm">ZOOM -</button>
+              <button id="btn-zoom-reset" class="btn-brutalist-sm">RESET</button>
+            </div>
+          </div>
+
+          <!-- PlantUML Canvas -->
+          <div id="plantuml-render-container" class="plantuml-canvas">
             <div class="empty-state-brutalist">
               <div class="empty-glyph">[ OPENHEART STUDIO ]</div>
               <h3>NO DIAGRAM GENERATED YET</h3>
@@ -350,6 +364,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=2.0.0"></script>
+  <script type="module" src="app.js?v=2.0.0"></script>
 </body>
 </html>

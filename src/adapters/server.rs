@@ -61,21 +61,38 @@ impl OpenHeartServer {
         }
 
         let method = parts[0];
-        let path = parts[1];
+        let raw_path = parts[1];
+        let clean_path = raw_path.split('?').next().unwrap_or(raw_path);
+        let is_get_or_head = method == "GET" || method == "HEAD";
 
-        if method == "GET" && (path == "/" || path == "/index.html") {
+        if is_get_or_head && (clean_path == "/" || clean_path == "/index.html") {
             Self::serve_file(stream, "web/index.html", "text/html");
-        } else if method == "GET" && path == "/style.css" {
-            Self::serve_file(stream, "web/style.css", "text/css");
-        } else if method == "GET" && path == "/app.js" {
-            Self::serve_file(stream, "web/app.js", "application/javascript");
-        } else if method == "GET" && path == "/api/health" {
+        } else if is_get_or_head && clean_path == "/api/health" {
             let json = r#"{"status":"online","engine":"OpenHeart SCPG v0.1.0","plantuml":true}"#;
             Self::respond_json(stream, 200, json);
-        } else if method == "POST" && path == "/api/analyze" {
+        } else if method == "POST" && clean_path == "/api/analyze" {
             let body = Self::extract_body(&request);
             let response_json = Self::process_analyze_request(&body);
             Self::respond_json(stream, 200, &response_json);
+        } else if is_get_or_head && clean_path.starts_with('/') && !clean_path.starts_with("/api/") {
+            let rel_path = clean_path.trim_start_matches('/');
+            let file_path = format!("web/{}", rel_path);
+            let content_type = if rel_path.ends_with(".js") {
+                "application/javascript"
+            } else if rel_path.ends_with(".css") {
+                "text/css"
+            } else if rel_path.ends_with(".svg") {
+                "image/svg+xml"
+            } else if rel_path.ends_with(".html") {
+                "text/html"
+            } else {
+                "application/octet-stream"
+            };
+            if Path::new(&file_path).exists() {
+                Self::serve_file(stream, &file_path, content_type);
+            } else {
+                Self::respond_json(stream, 404, r#"{"error":"File not found"}"#);
+            }
         } else {
             Self::respond_json(stream, 404, r#"{"error":"Not Found"}"#);
         }
@@ -90,16 +107,20 @@ impl OpenHeartServer {
     }
 
     fn serve_file(stream: &mut TcpStream, file_path: &str, content_type: &str) {
-        if let Ok(content) = fs::read(file_path) {
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: {}; charset=utf-8\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
-                content_type,
-                content.len()
-            );
-            let _ = stream.write_all(response.as_bytes());
-            let _ = stream.write_all(&content);
-        } else {
-            Self::respond_json(stream, 404, r#"{"error":"File not found"}"#);
+        match fs::read(file_path) {
+            Ok(content) => {
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {}; charset=utf-8\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
+                    content_type,
+                    content.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.write_all(&content);
+            }
+            Err(e) => {
+                println!("[SERVER ERROR] Failed to read file '{}': {}", file_path, e);
+                Self::respond_json(stream, 404, r#"{"error":"File not found"}"#);
+            }
         }
     }
 
@@ -116,30 +137,84 @@ impl OpenHeartServer {
     }
 
     fn process_analyze_request(body: &str) -> String {
-        let repo_url = if body.contains("\"repo_url\":") {
-            body.split("\"repo_url\":")
-                .nth(1)
-                .and_then(|s| s.split('"').nth(1))
-                .unwrap_or("https://github.com/Fractal-Compute-Orchestrations/FractalAndroid")
-        } else {
-            "https://github.com/Fractal-Compute-Orchestrations/FractalAndroid"
-        };
+        let repo_url = body.split("\"repo_url\":")
+            .nth(1)
+            .and_then(|s| s.split('"').nth(1))
+            .unwrap_or("")
+            .trim();
+
+        if repo_url.is_empty() {
+            return format!(
+                r#"{{"status":"error","session_id":"sess_{}","logs":["No repository URL specified in request payload."],"errors":["Missing repo_url parameter."]}}"#,
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()
+            );
+        }
 
         println!("[SERVER] Backend analyzing repository: {}", repo_url);
 
-        let target_dir = Path::new("./target_repos/FractalAndroid/app/src/main/java");
-        let mut src_files = Vec::new();
-        Self::collect_files(target_dir, &mut src_files);
-        src_files.sort();
-
         let mut logs = Vec::new();
         logs.push(format!("> Backend received request for repository: {}", repo_url));
-        logs.push(format!("> Discovered {} source files in target tree.", src_files.len()));
+
+        // Derive repo directory name dynamically from URL
+        let repo_name = repo_url
+            .trim_end_matches('/')
+            .split('/')
+            .last()
+            .unwrap_or("repo")
+            .trim_end_matches(".git");
+
+        let repo_dir = Path::new("./target_repos").join(repo_name);
+
+        if !repo_dir.exists() {
+            logs.push(format!("> Target repository directory './target_repos/{}' not found locally.", repo_name));
+            logs.push(format!("> Executing dynamic git clone: git clone --depth 1 {} ./target_repos/{}...", repo_url, repo_name));
+            
+            let _ = fs::create_dir_all("./target_repos");
+            let clone_status = std::process::Command::new("git")
+                .args(["clone", "--depth", "1", repo_url, &format!("./target_repos/{}", repo_name)])
+                .output();
+
+            match clone_status {
+                Ok(output) if output.status.success() => {
+                    logs.push(format!("> Git clone completed successfully into './target_repos/{}'.", repo_name));
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    logs.push(format!("> Git clone failed: {}. Searching fallback target_repos...", stderr));
+                }
+                Err(e) => {
+                    logs.push(format!("> Could not execute git command: {}. Using local fallback target_repos...", e));
+                }
+            }
+        } else {
+            logs.push(format!("> Found existing repository directory: './target_repos/{}'.", repo_name));
+        }
+
+        let mut target_dir = repo_dir.clone();
+        if !target_dir.exists() {
+            // Fallback: search for first existing directory inside ./target_repos
+            if let Ok(entries) = fs::read_dir("./target_repos") {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        target_dir = entry.path();
+                        logs.push(format!("> Using fallback local repository path: '{}'", target_dir.display()));
+                        break;
+                    }
+                }
+            }
+        }
+
+        let mut src_files = Vec::new();
+        Self::collect_files(&target_dir, &mut src_files);
+        src_files.sort();
+
+        logs.push(format!("> Discovered {} source files in target tree: '{}'.", src_files.len(), target_dir.display()));
 
         if src_files.is_empty() {
             return format!(
-                r#"{{"status":"error","session_id":"sess_{}","logs":["Target repository source files not found."],"errors":["No source files found in target repository."]}}"#,
-                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()
+                r#"{{"status":"error","session_id":"sess_{}","logs":["Target repository source files not found in '{}'."],"errors":["No source files found in target repository."]}}"#,
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+                target_dir.display()
             );
         }
 
@@ -209,12 +284,21 @@ impl OpenHeartServer {
             &tca, &bpa, &sta, &cfa, &ssa, &cga, &tra, &psa, &tra_bytes, &uma_path,
         );
 
-        logs.push("> Phase 10: Generating PlantUML Exporter Projections...".to_string());
+        logs.push("> Phase 10: Generating All 14 PlantUML Exporter Projections...".to_string());
         let puml_class = PlantUMLExporter::export_class_diagram(&uma, &sta, &tca);
         let puml_object = PlantUMLExporter::export_object_diagram(&uma, &sta, &tca);
-        let puml_package = PlantUMLExporter::export_package_diagram(&uma, &sta, &tca);
         let puml_component = PlantUMLExporter::export_component_diagram(&uma, &sta, &tca);
+        let puml_deployment = PlantUMLExporter::export_deployment_diagram(&uma, &sta, &tca);
+        let puml_package = PlantUMLExporter::export_package_diagram(&uma, &sta, &tca);
+        let puml_composite = PlantUMLExporter::export_composite_structure_diagram(&uma, &sta, &tca);
+        let puml_profile = PlantUMLExporter::export_profile_diagram(&uma, &sta, &tca);
+        let puml_usecase = PlantUMLExporter::export_use_case_diagram(&uma, &sta, &tca);
+        let puml_activity = PlantUMLExporter::export_activity_diagram(&uma, &sta, &tca);
+        let puml_statemachine = PlantUMLExporter::export_state_machine_diagram(&uma, &sta, &tca);
         let puml_sequence = PlantUMLExporter::export_sequence_diagram(&uma, &sta, &tca);
+        let puml_communication = PlantUMLExporter::export_communication_diagram(&uma, &sta, &tca);
+        let puml_interaction = PlantUMLExporter::export_interaction_overview_diagram(&uma, &sta, &tca);
+        let puml_timing = PlantUMLExporter::export_timing_diagram(&uma, &sta, &tca);
 
         let elapsed_ms = start_time.elapsed().as_millis();
         logs.push(format!("> Pipeline complete in {} ms. All 10 phases verified.", elapsed_ms));
@@ -227,8 +311,26 @@ impl OpenHeartServer {
                 .replace('\t', "\\t")
         };
 
+        let mut trace_items = Vec::new();
+        for link in tra.uml_links.iter().take(10) {
+            let file_name = if let Some(file_rec) = tca.file_records.iter().find(|f| f.file_id == link.file_id) {
+                let bytes = tca.interner.lookup_text(file_rec.path_str_offset);
+                String::from_utf8_lossy(bytes).to_string()
+            } else {
+                format!("file_{}.kt", link.file_id)
+            };
+            let span_str = format!("L{}:C{} - L{}:C{}", link.line_start, link.col_start, link.line_end, link.col_end);
+            trace_items.push(format!(
+                r#"{{"tid":{},"file":"{}","span":"{}","hash":"0x{:08X}"}}"#,
+                link.sym_id,
+                escape_json_str(&file_name),
+                escape_json_str(&span_str),
+                link.scpg_hash
+            ));
+        }
+
         format!(
-            r#"{{"status":"success","session_id":"sess_{}","stats":{{"files_processed":{},"total_tokens":{},"total_classes":{},"execution_time_ms":{}}},"diagrams":{{"class":"{}","object":"{}","package":"{}","component":"{}","sequence":"{}"}},"logs":[{}],"errors":[]}}"#,
+            r#"{{"status":"success","session_id":"sess_{}","stats":{{"files_processed":{},"total_tokens":{},"total_classes":{},"execution_time_ms":{}}},"diagrams":{{"class":"{}","object":"{}","component":"{}","deployment":"{}","package":"{}","composite":"{}","profile":"{}","usecase":"{}","activity":"{}","statemachine":"{}","sequence":"{}","communication":"{}","interaction":"{}","timing":"{}"}},"traceability":[{}],"logs":[{}],"errors":[]}}"#,
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
             src_files.len(),
             tca.token_records.len(),
@@ -236,9 +338,19 @@ impl OpenHeartServer {
             elapsed_ms,
             escape_json_str(&puml_class),
             escape_json_str(&puml_object),
-            escape_json_str(&puml_package),
             escape_json_str(&puml_component),
+            escape_json_str(&puml_deployment),
+            escape_json_str(&puml_package),
+            escape_json_str(&puml_composite),
+            escape_json_str(&puml_profile),
+            escape_json_str(&puml_usecase),
+            escape_json_str(&puml_activity),
+            escape_json_str(&puml_statemachine),
             escape_json_str(&puml_sequence),
+            escape_json_str(&puml_communication),
+            escape_json_str(&puml_interaction),
+            escape_json_str(&puml_timing),
+            trace_items.join(","),
             logs.iter().map(|l| format!("\"{}\"", escape_json_str(l))).collect::<Vec<_>>().join(",")
         )
     }
@@ -248,9 +360,18 @@ impl OpenHeartServer {
             if let Ok(entries) = fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
+                    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    if file_name.starts_with('.') || file_name == "target" || file_name == "node_modules" || file_name == "build" {
+                        continue;
+                    }
                     if path.is_dir() {
                         Self::collect_files(&path, files);
-                    } else if path.extension().map_or(false, |ext| ext == "java" || ext == "kt") {
+                    } else if path.extension().map_or(false, |ext| {
+                        matches!(
+                            ext.to_str().unwrap_or(""),
+                            "java" | "kt" | "rs" | "py" | "js" | "ts" | "cpp" | "c" | "h" | "hpp" | "cs" | "go" | "swift"
+                        )
+                    }) {
                         files.push(path);
                     }
                 }

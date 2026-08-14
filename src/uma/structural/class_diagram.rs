@@ -21,6 +21,23 @@ impl ClassDiagramExtractor {
                 Some(s) => s,
                 None => continue,
             };
+            if sym.parent_sym != u32::MAX {
+                if let Some(parent) = sta.symbol(sym.parent_sym) {
+                    let parent_kind = SymbolKind::from(parent.kind);
+                    if parent_kind == SymbolKind::SK_METHOD
+                        || parent_kind == SymbolKind::SK_FIELD
+                        || parent_kind == SymbolKind::SK_PARAM
+                        || parent_kind == SymbolKind::SK_LOCAL_VAR
+                    {
+                        if SymbolKind::from(sym.kind) != SymbolKind::SK_CLASS
+                            && SymbolKind::from(sym.kind) != SymbolKind::SK_LAMBDA
+                        {
+                            continue;
+                        }
+                    }
+                }
+            }
+
             let kind = SymbolKind::from(sym.kind);
 
             let stereotype = match kind {
@@ -28,7 +45,7 @@ impl ClassDiagramExtractor {
                 SymbolKind::SK_ENUM => STEREOTYPE_ENUM,
                 SymbolKind::SK_RECORD => STEREOTYPE_RECORD,
                 SymbolKind::SK_ANNOTATION_TYPE => STEREOTYPE_ANNOTATION,
-                SymbolKind::SK_CLASS => {
+                SymbolKind::SK_CLASS | SymbolKind::SK_LAMBDA => {
                     if (sym.modifiers & SymbolModifiers::ABSTRACT) != 0 {
                         STEREOTYPE_ABSTRACT
                     } else {

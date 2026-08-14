@@ -3,7 +3,6 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::core::types::symbol::SymbolKind;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::uma::types::*;
@@ -13,7 +12,7 @@ const EXTERNAL_ACTOR_ID: u32 = u32::MAX - 1;
 pub struct PlantUMLExporter;
 
 impl PlantUMLExporter {
-    fn resolve_name<'a>(
+    pub fn resolve_name<'a>(
         sta: &SymbolTableArtifact,
         tca: &'a TokenCorpusArtifact,
         sym_id: u32,
@@ -53,7 +52,7 @@ impl PlantUMLExporter {
         }
     }
 
-    fn resolve_sym_package(
+    pub fn resolve_sym_package(
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
         _bpa: Option<&crate::ast::BPASTArtifact>,
@@ -62,17 +61,20 @@ impl PlantUMLExporter {
         let raw_class_name = Self::resolve_name(sta, tca, sym_id);
         let safe_class_name = Self::sanitize(raw_class_name);
         let lower_name = safe_class_name.to_lowercase();
+        let clean_name = lower_name.replace('_', "");
 
-        // Pass 1: Exact Filename Match (e.g., Task.kt -> Task)
+        // Pass 1: Exact Filename Match (e.g., Image_Trainer.kt -> ImageTrainer, Task.kt -> Task)
         for file_rec in &tca.file_records {
             let rel_path_bytes = tca.interner.lookup_text(file_rec.path_str_offset);
             if let Ok(path_str) = std::str::from_utf8(rel_path_bytes) {
                 let file_path = std::path::Path::new(path_str);
                 let file_stem = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
                 let lower_stem = file_stem.to_lowercase();
+                let clean_stem = lower_stem.replace('_', "");
                 let lower_path = path_str.to_lowercase();
 
                 let is_exact = lower_stem == lower_name
+                    || clean_stem == clean_name
                     || lower_path.ends_with(&format!("/{}.kt", lower_name))
                     || lower_path.ends_with(&format!("/{}.java", lower_name));
 
@@ -87,13 +89,29 @@ impl PlantUMLExporter {
                                     return Some(dir_pkg);
                                 }
                             }
+                        } else if !p_comps.is_empty() {
+                            let dir_pkg = p_comps.join(".");
+                            if !dir_pkg.is_empty() {
+                                return Some(dir_pkg);
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Pass 2: Prefix/Substring Match for Multi-Class Files (e.g., Task_Factory -> Task.kt)
+        // Pass 2: Parent Symbol Package Fallback
+        if let Some(sym) = sta.symbol(sym_id) {
+            if sym.parent_sym != u32::MAX {
+                if let Some(parent_pkg) = Self::resolve_sym_package(sta, tca, _bpa, sym.parent_sym) {
+                    return Some(parent_pkg);
+                }
+            }
+        }
+
+
+
+        // Pass 3: Prefix/Substring Match for Multi-Class Files (e.g., Task_Factory -> Task.kt)
         for file_rec in &tca.file_records {
             let rel_path_bytes = tca.interner.lookup_text(file_rec.path_str_offset);
             if let Ok(path_str) = std::str::from_utf8(rel_path_bytes) {
@@ -114,6 +132,11 @@ impl PlantUMLExporter {
                                 if !dir_pkg.is_empty() {
                                     return Some(dir_pkg);
                                 }
+                            }
+                        } else if !p_comps.is_empty() {
+                            let dir_pkg = p_comps.join(".");
+                            if !dir_pkg.is_empty() {
+                                return Some(dir_pkg);
                             }
                         }
                     }
@@ -156,7 +179,17 @@ impl PlantUMLExporter {
             }
             let name = Self::resolve_name(sta, tca, class_rec.sym_id);
             let safe_name = Self::sanitize(name);
-            if safe_name == "SystemNode" || primitives.contains(&safe_name.as_str()) {
+            if safe_name == "SystemNode" || safe_name == "String" || primitives.contains(&safe_name.as_str()) {
+                continue;
+            }
+            let first_char = safe_name.chars().next().unwrap_or('a');
+            let is_valid_class = first_char.is_ascii_uppercase()
+                || safe_name.ends_with("_DTO")
+                || safe_name.ends_with("_DTOs")
+                || safe_name.ends_with("_config")
+                || safe_name.ends_with("_naf");
+
+            if !is_valid_class {
                 continue;
             }
 
@@ -164,6 +197,66 @@ impl PlantUMLExporter {
                 package_classes.entry(pkg).or_default().push(class_rec);
             } else {
                 root_classes.push(class_rec);
+            }
+        }
+
+        let mut inner_records: Vec<ClassRecord> = Vec::new();
+        for class_rec in &uma.classes {
+            for &inner_sym in &class_rec.inner_classes {
+                if !seen_syms.contains(&inner_sym) {
+                    let name = Self::resolve_name(sta, tca, inner_sym);
+                    let safe_name = Self::sanitize(name);
+                    let first_char = safe_name.chars().next().unwrap_or('a');
+                    if first_char.is_ascii_uppercase() && safe_name != "SystemNode" && safe_name != "String" && !primitives.contains(&safe_name.as_str()) {
+                        let is_interface = safe_name.ends_with("Listener") || safe_name == "Parser" || safe_name.contains("Callback");
+                        let st = if is_interface { STEREOTYPE_INTERFACE } else { STEREOTYPE_NONE };
+                        inner_records.push(ClassRecord {
+                            sym_id: inner_sym,
+                            stereotype: st,
+                            visibility: 1,
+                            modifiers: 0,
+                            extends_sym: u32::MAX,
+                            field_count: 0,
+                            method_count: 0,
+                            inner_count: 0,
+                            design_pattern: PATTERN_NONE,
+                            _reserved: 0,
+                            type_param_count: 0,
+                            _pad: 0,
+                            uml_link: crate::tra::types::UMLLinkRecord {
+                                sym_id: inner_sym,
+                                file_id: 0,
+                                line_start: 0,
+                                col_start: 0,
+                                line_end: 0,
+                                col_end: 0,
+                                scpg_hash: 0,
+                                sym_kind: 0,
+                                _reserved: [0; 3],
+                            },
+                            fields: Vec::new(),
+                            methods: Vec::new(),
+                            inner_classes: Vec::new(),
+                            implements_syms: Vec::new(),
+                            association_syms: Vec::new(),
+                        });
+                    }
+                }
+            }
+        }
+
+        for inner_rec in &inner_records {
+            if seen_syms.insert(inner_rec.sym_id) {
+                if let Some(pkg) = Self::resolve_sym_package(sta, tca, None, inner_rec.sym_id) {
+                    package_classes.entry(pkg).or_default().push(inner_rec);
+                } else {
+                    let name = Self::resolve_name(sta, tca, inner_rec.sym_id);
+                    let safe_name = Self::sanitize(name);
+                    let first_char = safe_name.chars().next().unwrap_or('a');
+                    if first_char.is_ascii_uppercase() && safe_name != "String" && !primitives.contains(&safe_name.as_str()) {
+                        root_classes.push(inner_rec);
+                    }
+                }
             }
         }
 
