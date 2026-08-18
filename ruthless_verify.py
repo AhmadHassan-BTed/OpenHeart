@@ -17,94 +17,30 @@ from pathlib import Path
 SERVER_URL = "http://localhost:8080"
 REPOS_DIR = "./target_repos"
 
-# ─── Language-Specific Class Declaration Regex Patterns ───────────────────────
-# Each pattern captures the class/type NAME as group "name"
-LANG_PATTERNS = {
-    # Java / Kotlin
-    ".java": [
-        re.compile(r'^\s*(?:public\s+|private\s+|protected\s+)?(?:static\s+)?(?:abstract\s+|final\s+)?(?:class|interface|enum|record|@interface)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    ".kt": [
-        re.compile(r'^\s*(?:public\s+|private\s+|protected\s+|internal\s+)?(?:abstract\s+|sealed\s+|data\s+|open\s+|inner\s+)?(?:class|interface|enum\s+class|object|annotation\s+class)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    # Python
-    ".py": [
-        re.compile(r'^\s*class\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    # Rust
-    ".rs": [
-        re.compile(r'^\s*(?:pub(?:\(crate\))?\s+)?(?:struct|enum|trait)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    # JavaScript / TypeScript
-    ".js": [
-        re.compile(r'^\s*(?:export\s+)?(?:default\s+)?class\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    ".ts": [
-        re.compile(r'^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface|enum)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    ".jsx": [
-        re.compile(r'^\s*(?:export\s+)?(?:default\s+)?class\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    ".tsx": [
-        re.compile(r'^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface|enum)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    # C++ / C
-    ".cpp": [
-        re.compile(r'^\s*(?:class|struct|enum(?:\s+class)?)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    ".h": [
-        re.compile(r'^\s*(?:class|struct|enum(?:\s+class)?)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    ".hpp": [
-        re.compile(r'^\s*(?:class|struct|enum(?:\s+class)?)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    # C#
-    ".cs": [
-        re.compile(r'^\s*(?:public\s+|private\s+|protected\s+|internal\s+)?(?:static\s+)?(?:abstract\s+|sealed\s+|partial\s+)?(?:class|interface|enum|struct|record)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-    # Go
-    ".go": [
-        re.compile(r'^\s*type\s+(?P<name>\w+)\s+(?:struct|interface)', re.MULTILINE),
-    ],
-    # Swift
-    ".swift": [
-        re.compile(r'^\s*(?:public\s+|private\s+|internal\s+|fileprivate\s+|open\s+)?(?:final\s+)?(?:class|struct|enum|protocol|actor)\s+(?P<name>\w+)', re.MULTILINE),
-    ],
-}
+# ─── Load External Configuration ──────────────────────────────────────────────
+CONFIG_PATH = Path(__file__).parent / "ruthless_config.json"
+if CONFIG_PATH.exists():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        _cfg = json.load(f)
+else:
+    _cfg = {}
 
-# Shared aliases
-for alias_ext, base_ext in [(".kts", ".kt"), (".mjs", ".js"), (".cjs", ".js"),
-                             (".mts", ".ts"), (".cts", ".ts"), (".cc", ".cpp"),
-                             (".cxx", ".cpp"), (".hxx", ".hpp"), (".hh", ".hpp"),
-                             (".c", ".cpp"), (".mm", ".cpp")]:
+LANG_PATTERNS = {}
+for ext, pat_strings in _cfg.get("lang_patterns", {}).items():
+    LANG_PATTERNS[ext] = [re.compile(p, re.MULTILINE) for p in pat_strings]
+
+for alias_ext, base_ext in _cfg.get("shared_aliases", {}).items():
     if base_ext in LANG_PATTERNS:
         LANG_PATTERNS[alias_ext] = LANG_PATTERNS[base_ext]
 
-# ─── Universal Keyword Blocklist ─────────────────────────────────────────────
-KEYWORDS = {
-    "class", "interface", "enum", "object", "struct", "trait", "impl", "mod",
-    "fun", "function", "def", "fn", "val", "var", "let", "const", "static",
-    "public", "private", "protected", "internal", "abstract", "sealed", "open",
-    "data", "inner", "override", "super", "this", "self", "Self", "new",
-    "return", "if", "else", "for", "while", "do", "switch", "case", "break",
-    "continue", "try", "catch", "finally", "throw", "throws", "import", "export",
-    "package", "module", "from", "as", "in", "is", "true", "false", "null",
-    "undefined", "void", "boolean", "int", "long", "float", "double", "char",
-    "byte", "short", "string", "String", "Object", "resolve", "require",
-    "extends", "implements", "with", "yield", "async", "await", "type",
-    "companion", "constructor", "annotation", "record", "final", "native",
-    "volatile", "transient", "synchronized", "default", "goto", "instanceof",
-    "typeof", "delete", "debugger", "eval", "arguments", "prototype",
-    "Unknown", "SystemNode", "Entity", "Node_0", "Node_1", "Node_2",
-    "MB", "args", "NaN", "Get", "Post", "Put", "Delete", "Path", "Body", "Header", "Query", "Param", "Http",
-}
+KEYWORDS = set(_cfg.get("keywords", []))
+TEST_PATH_PATTERNS = _cfg.get("test_path_patterns", [])
+IGNORE_DIRS = set(_cfg.get("ignore_dirs", []))
 
-# ─── Test Path Patterns ──────────────────────────────────────────────────────
-TEST_PATH_PATTERNS = [
-    "/src/test/", "/src/androidTest/", "/src/testDebug/", "/src/testRelease/",
-    "/__tests__/", "/tests/", "/test/", "/spec/", "/specs/",
-    "_test.go", "_test.rs",
-]
+PKG_STMT_PATTERNS = {}
+for ext, pat_str in _cfg.get("package_stmt_patterns", {}).items():
+    PKG_STMT_PATTERNS[ext] = re.compile(pat_str, re.MULTILINE)
+
 
 def is_test_path(filepath: str) -> bool:
     lower = filepath.replace("\\", "/").lower()

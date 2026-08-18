@@ -59,22 +59,12 @@ def main():
     diagrams = res_data.get("diagrams", {})
     saved_count = 0
 
-    diagram_mapping = [
-        ("class", "01_class_diagram.puml"),
-        ("object", "02_object_diagram.puml"),
-        ("component", "03_component_diagram.puml"),
-        ("deployment", "04_deployment_diagram.puml"),
-        ("package", "05_package_diagram.puml"),
-        ("composite", "06_composite_structure_diagram.puml"),
-        ("profile", "07_profile_diagram.puml"),
-        ("usecase", "08_use_case_diagram.puml"),
-        ("activity", "09_activity_diagram.puml"),
-        ("statemachine", "10_state_machine_diagram.puml"),
-        ("sequence", "11_sequence_diagram.puml"),
-        ("communication", "12_communication_diagram.puml"),
-        ("interaction", "13_interaction_overview_diagram.puml"),
-        ("timing", "14_timing_diagram.puml"),
-    ]
+    cfg_path = os.path.join(os.path.dirname(__file__), "ruthless_config.json")
+    if os.path.exists(cfg_path):
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            diagram_mapping = json.load(f).get("diagram_mapping", [])
+    else:
+        diagram_mapping = []
 
     print("==============================================================")
     print("               Generated PlantUML Diagram Files               ")
