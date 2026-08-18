@@ -11,7 +11,7 @@ tree-sitter-java = "0.20"
 tree-sitter-javascript = "0.20"
 sha2 = "0.10"
 memmap2 = "0.9"
-thiserror = "1.0"
+thiserror = "2.0"
 
 [dev-dependencies]
 tempfile = "3.8"
