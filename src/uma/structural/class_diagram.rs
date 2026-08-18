@@ -17,13 +17,20 @@ impl ClassDiagramExtractor {
         tra: &TraceabilityArtifact,
     ) -> Vec<ClassRecord> {
         let mut classes = Vec::new();
-        crate::core::logger::log_info(&format!("[DIAG-CD] sta.symbol_count = {}", sta.symbol_count));
+        crate::core::logger::log_info(&format!(
+            "[DIAG-CD] sta.symbol_count = {}",
+            sta.symbol_count
+        ));
 
-        let mut children_map: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
+        let mut children_map: std::collections::HashMap<u32, Vec<u32>> =
+            std::collections::HashMap::new();
         for child_sym_id in 0..sta.symbol_count as u32 {
             if let Some(child) = sta.symbol(child_sym_id) {
                 if child.parent_sym != u32::MAX {
-                    children_map.entry(child.parent_sym).or_default().push(child_sym_id);
+                    children_map
+                        .entry(child.parent_sym)
+                        .or_default()
+                        .push(child_sym_id);
                 }
             }
         }
@@ -34,9 +41,24 @@ impl ClassDiagramExtractor {
                 None => continue,
             };
             let kind = SymbolKind::from(sym.kind);
-            if matches!(kind, SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM | SymbolKind::SK_RECORD) {
-                let name_bytes = if sym.name_id != u32::MAX { tca.interner.lookup_text(sym.name_id) } else { b"" };
-                crate::core::logger::log_info(&format!("[DIAG-CD] Candidate Class symbol: sym_id={} name={} kind={:?}", sym_id, String::from_utf8_lossy(name_bytes), kind));
+            if matches!(
+                kind,
+                SymbolKind::SK_CLASS
+                    | SymbolKind::SK_INTERFACE
+                    | SymbolKind::SK_ENUM
+                    | SymbolKind::SK_RECORD
+            ) {
+                let name_bytes = if sym.name_id != u32::MAX {
+                    tca.interner.lookup_text(sym.name_id)
+                } else {
+                    b""
+                };
+                crate::core::logger::log_info(&format!(
+                    "[DIAG-CD] Candidate Class symbol: sym_id={} name={} kind={:?}",
+                    sym_id,
+                    String::from_utf8_lossy(name_bytes),
+                    kind
+                ));
             }
 
             let mut parent_kind = SymbolKind::SK_MODULE;
@@ -57,7 +79,13 @@ impl ClassDiagramExtractor {
                 }
             }
 
-            if !matches!(kind, SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM | SymbolKind::SK_RECORD) {
+            if !matches!(
+                kind,
+                SymbolKind::SK_CLASS
+                    | SymbolKind::SK_INTERFACE
+                    | SymbolKind::SK_ENUM
+                    | SymbolKind::SK_RECORD
+            ) {
                 continue;
             }
 
@@ -71,7 +99,9 @@ impl ClassDiagramExtractor {
 
             // Enforce valid identifier syntax (alphanumeric + underscore only)
             let is_valid_ident = !name_str.is_empty()
-                && name_str.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                && name_str
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_');
             if !is_valid_ident {
                 continue;
             }
@@ -94,17 +124,28 @@ impl ClassDiagramExtractor {
 
             let mut is_test_file = false;
             let mut matches_file_stem = false;
-            if sym.first_token_id != u32::MAX && (sym.first_token_id as usize) < tca.token_records.len() {
-                let fid = crate::core::types::token::unpack_sort_key(tca.token_records[sym.first_token_id as usize].sort_key).0;
+            if sym.first_token_id != u32::MAX
+                && (sym.first_token_id as usize) < tca.token_records.len()
+            {
+                let fid = crate::core::types::token::unpack_sort_key(
+                    tca.token_records[sym.first_token_id as usize].sort_key,
+                )
+                .0;
                 if (fid as usize) < tca.file_records.len() {
                     let path_id = tca.file_records[fid as usize].path_str_offset;
                     let path_bytes = tca.interner.lookup_text(path_id);
                     if let Ok(path_str) = std::str::from_utf8(path_bytes) {
                         let p_lower = path_str.to_lowercase();
-                        if p_lower.contains("/src/test/") || p_lower.contains("/src/tests/") || p_lower.contains("/__tests__/") {
+                        if p_lower.contains("/src/test/")
+                            || p_lower.contains("/src/tests/")
+                            || p_lower.contains("/__tests__/")
+                        {
                             is_test_file = true;
                         }
-                        let filename = std::path::Path::new(path_str).file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                        let filename = std::path::Path::new(path_str)
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("");
                         if filename == name_str {
                             matches_file_stem = true;
                         }
@@ -126,8 +167,17 @@ impl ClassDiagramExtractor {
             {
                 continue;
             }
-            if matches!(kind, SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM | SymbolKind::SK_RECORD) {
-                crate::core::logger::log_debug(&format!("[DIAG] ClassCandidate sym_id={} name={} kind={:?} parent={}", sym_id, name_str, kind, sym.parent_sym));
+            if matches!(
+                kind,
+                SymbolKind::SK_CLASS
+                    | SymbolKind::SK_INTERFACE
+                    | SymbolKind::SK_ENUM
+                    | SymbolKind::SK_RECORD
+            ) {
+                crate::core::logger::log_debug(&format!(
+                    "[DIAG] ClassCandidate sym_id={} name={} kind={:?} parent={}",
+                    sym_id, name_str, kind, sym.parent_sym
+                ));
             }
 
             let stereotype = match kind {
@@ -172,7 +222,8 @@ impl ClassDiagramExtractor {
                             });
                         }
                         SymbolKind::SK_METHOD | SymbolKind::SK_CONSTRUCTOR => {
-                            let (cyc, sat) = if let Some(hdr) = psa.function_header(child.symbol_id) {
+                            let (cyc, sat) = if let Some(hdr) = psa.function_header(child.symbol_id)
+                            {
                                 (hdr.cyclomatic, hdr.sat_count)
                             } else {
                                 (1, 1)
@@ -250,7 +301,9 @@ impl ClassDiagramExtractor {
                 if let Some(parent_sym) = sta.symbol(sym.parent_sym) {
                     if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_INTERFACE {
                         implements_set.insert(sym.parent_sym);
-                    } else if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_CLASS && extends_sym == u32::MAX {
+                    } else if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_CLASS
+                        && extends_sym == u32::MAX
+                    {
                         extends_sym = sym.parent_sym;
                     }
                 }

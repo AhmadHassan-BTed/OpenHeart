@@ -13,11 +13,11 @@ pub use object_diagram::ObjectDiagramExtractor;
 pub use package_diagram::PackageDiagramExtractor;
 
 use crate::core::types::cg::CallGraphArtifact;
+use crate::ingestion::TokenCorpusArtifact;
 use crate::psa::types::PathSummaryArtifact;
 use crate::ssa::serializer::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::tra::types::TraceabilityArtifact;
-use crate::ingestion::TokenCorpusArtifact;
 use crate::uma::types::*;
 
 pub struct StructuralExtractor;

@@ -31,19 +31,75 @@ impl Pass1Discovery {
             .create_scope(u32::MAX, u32::MAX, ScopeKind::File);
 
         let blocklist_raw = [
-            "class", "interface", "object", "enum", "fun", "val", "var", "public",
-            "private", "protected", "internal", "data", "sealed", "open", "abstract",
-            "companion", "constructor", "package", "import", "override", "struct", "trait", "impl",
-            "let", "const", "def", "fn", "new", "this", "super", "null", "true", "false",
-            "void", "return", "if", "else", "for", "while", "do", "switch", "case",
-            "break", "continue", "try", "catch", "finally", "throw", "by", "as", "in", "is",
-            "default", "export", "declare", "async", "yield", "await", "function",
+            "class",
+            "interface",
+            "object",
+            "enum",
+            "fun",
+            "val",
+            "var",
+            "public",
+            "private",
+            "protected",
+            "internal",
+            "data",
+            "sealed",
+            "open",
+            "abstract",
+            "companion",
+            "constructor",
+            "package",
+            "import",
+            "override",
+            "struct",
+            "trait",
+            "impl",
+            "let",
+            "const",
+            "def",
+            "fn",
+            "new",
+            "this",
+            "super",
+            "null",
+            "true",
+            "false",
+            "void",
+            "return",
+            "if",
+            "else",
+            "for",
+            "while",
+            "do",
+            "switch",
+            "case",
+            "break",
+            "continue",
+            "try",
+            "catch",
+            "finally",
+            "throw",
+            "by",
+            "as",
+            "in",
+            "is",
+            "default",
+            "export",
+            "declare",
+            "async",
+            "yield",
+            "await",
+            "function",
         ];
         let blocklist_ids: std::collections::HashSet<u32> = blocklist_raw
             .iter()
             .filter_map(|s| {
                 let id = tca.interner.find_id(s.as_bytes());
-                if id != u32::MAX { Some(id) } else { None }
+                if id != u32::MAX {
+                    Some(id)
+                } else {
+                    None
+                }
             })
             .collect();
 
@@ -54,17 +110,26 @@ impl Pass1Discovery {
             let node_type = bpa.node_type(pre_idx);
             let parent_node = bpa.parent(pre_idx);
 
-            let (parent_scope, parent_sym) = if parent_node != u32::MAX && (parent_node as usize) < (bpa.node_count as usize) {
-                (scope_id_by_node[parent_node as usize], sym_id_by_node[parent_node as usize])
-            } else {
-                (root_scope, u32::MAX)
-            };
+            let (parent_scope, parent_sym) =
+                if parent_node != u32::MAX && (parent_node as usize) < (bpa.node_count as usize) {
+                    (
+                        scope_id_by_node[parent_node as usize],
+                        sym_id_by_node[parent_node as usize],
+                    )
+                } else {
+                    (root_scope, u32::MAX)
+                };
 
             let mut current_scope = parent_scope;
             let mut current_parent = parent_sym;
 
             if pre_idx < 100 {
-                crate::core::logger::log_debug(&format!("[DIAG-PASS1] pre_idx={} node_type={:?} is_decl={}", pre_idx, node_type, adapter.is_declaration(node_type)));
+                crate::core::logger::log_debug(&format!(
+                    "[DIAG-PASS1] pre_idx={} node_type={:?} is_decl={}",
+                    pre_idx,
+                    node_type,
+                    adapter.is_declaration(node_type)
+                ));
             }
             if adapter.is_declaration(node_type) {
                 let name_id = Self::extract_name_token(pre_idx, bpa, tca, adapter, &blocklist_ids);
@@ -73,9 +138,23 @@ impl Pass1Discovery {
                 let kind = adapter.symbol_kind(node_type);
                 let (ft, lt) = bpa.token_range(pre_idx);
 
-                if kind == SymbolKind::SK_CLASS || kind == SymbolKind::SK_INTERFACE || kind == SymbolKind::SK_ENUM || kind == SymbolKind::SK_RECORD {
-                    let name_bytes = if name_id != u32::MAX { tca.interner.lookup_text(name_id) } else { b"" };
-                    crate::core::logger::log_info(&format!("[DIAG-PASS1] Class Discovered: pre_idx={} name_id={} name={} kind={:?}", pre_idx, name_id, String::from_utf8_lossy(name_bytes), kind));
+                if kind == SymbolKind::SK_CLASS
+                    || kind == SymbolKind::SK_INTERFACE
+                    || kind == SymbolKind::SK_ENUM
+                    || kind == SymbolKind::SK_RECORD
+                {
+                    let name_bytes = if name_id != u32::MAX {
+                        tca.interner.lookup_text(name_id)
+                    } else {
+                        b""
+                    };
+                    crate::core::logger::log_info(&format!(
+                        "[DIAG-PASS1] Class Discovered: pre_idx={} name_id={} name={} kind={:?}",
+                        pre_idx,
+                        name_id,
+                        String::from_utf8_lossy(name_bytes),
+                        kind
+                    ));
                 }
 
                 let sym_id = builder.create_symbol(SymbolRecord {
@@ -113,17 +192,30 @@ impl Pass1Discovery {
             sym_id_by_node[pre_idx as usize] = current_parent;
             scope_id_by_node[pre_idx as usize] = current_scope;
         }
-        crate::core::logger::log_info(&format!("[PASS1] Primary loop done in {:?}", pass1_start.elapsed()));
+        crate::core::logger::log_info(&format!(
+            "[PASS1] Primary loop done in {:?}",
+            pass1_start.elapsed()
+        ));
 
         // ── Secondary Token-Level Discovery Sweep for Kotlin & Multi-Lang Declarations ──
         let mut registered_name_ids: std::collections::HashSet<(u16, u32)> = builder
             .symbols
             .iter()
             .filter_map(|s| {
-                if s.name_id != u32::MAX && s.first_token_id != u32::MAX && (s.first_token_id as usize) < tca.token_records.len() {
-                    let fid = unpack_sort_key(tca.token_records[s.first_token_id as usize].sort_key).0;
+                if s.name_id != u32::MAX
+                    && s.first_token_id != u32::MAX
+                    && (s.first_token_id as usize) < tca.token_records.len()
+                {
+                    let fid =
+                        unpack_sort_key(tca.token_records[s.first_token_id as usize].sort_key).0;
                     let kind = SymbolKind::from(s.kind);
-                    if matches!(kind, SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM | SymbolKind::SK_RECORD) {
+                    if matches!(
+                        kind,
+                        SymbolKind::SK_CLASS
+                            | SymbolKind::SK_INTERFACE
+                            | SymbolKind::SK_ENUM
+                            | SymbolKind::SK_RECORD
+                    ) {
                         Some((fid, s.name_id))
                     } else {
                         None
@@ -178,28 +270,28 @@ impl Pass1Discovery {
             let cur_fid = unpack_sort_key(rec.sort_key).0;
             let tid = rec.text_id;
 
-        let kw_class = tca.interner.find_id(b"class");
-        let kw_interface = tca.interner.find_id(b"interface");
-        let kw_object = tca.interner.find_id(b"object");
-        let kw_enum = tca.interner.find_id(b"enum");
-        let kw_record = tca.interner.find_id(b"record");
-        let kw_struct = tca.interner.find_id(b"struct");
-        let kw_trait = tca.interner.find_id(b"trait");
-        let kw_fun = tca.interner.find_id(b"fun");
-        let kw_val = tca.interner.find_id(b"val");
-        let kw_var = tca.interner.find_id(b"var");
+            let kw_class = tca.interner.find_id(b"class");
+            let kw_interface = tca.interner.find_id(b"interface");
+            let kw_object = tca.interner.find_id(b"object");
+            let kw_enum = tca.interner.find_id(b"enum");
+            let kw_record = tca.interner.find_id(b"record");
+            let kw_struct = tca.interner.find_id(b"struct");
+            let kw_trait = tca.interner.find_id(b"trait");
+            let kw_fun = tca.interner.find_id(b"fun");
+            let kw_val = tca.interner.find_id(b"val");
+            let kw_var = tca.interner.find_id(b"var");
 
-        let sym_kind = if tid == kw_class || tid == kw_object || tid == kw_struct {
-            Some(crate::core::types::symbol::SymbolKind::SK_CLASS)
-        } else if tid == kw_interface || tid == kw_trait {
-            Some(crate::core::types::symbol::SymbolKind::SK_INTERFACE)
-        } else if tid == kw_enum {
-            Some(crate::core::types::symbol::SymbolKind::SK_ENUM)
-        } else if tid == kw_record {
-            Some(crate::core::types::symbol::SymbolKind::SK_RECORD)
-        } else {
-            None
-        };
+            let sym_kind = if tid == kw_class || tid == kw_object || tid == kw_struct {
+                Some(crate::core::types::symbol::SymbolKind::SK_CLASS)
+            } else if tid == kw_interface || tid == kw_trait {
+                Some(crate::core::types::symbol::SymbolKind::SK_INTERFACE)
+            } else if tid == kw_enum {
+                Some(crate::core::types::symbol::SymbolKind::SK_ENUM)
+            } else if tid == kw_record {
+                Some(crate::core::types::symbol::SymbolKind::SK_RECORD)
+            } else {
+                None
+            };
 
             if let Some(kind) = sym_kind {
                 let mut lookahead = tok_idx + 1;
@@ -208,10 +300,14 @@ impl Pass1Discovery {
                     if unpack_sort_key(next_rec.sort_key).0 != cur_fid {
                         break;
                     }
-                    if next_rec.token_type == crate::core::types::token::TokenType::StringLiteral as u8
-                        || next_rec.token_type == crate::core::types::token::TokenType::CommentLine as u8
-                        || next_rec.token_type == crate::core::types::token::TokenType::CommentBlock as u8
-                        || next_rec.token_type == crate::core::types::token::TokenType::CommentDoc as u8
+                    if next_rec.token_type
+                        == crate::core::types::token::TokenType::StringLiteral as u8
+                        || next_rec.token_type
+                            == crate::core::types::token::TokenType::CommentLine as u8
+                        || next_rec.token_type
+                            == crate::core::types::token::TokenType::CommentBlock as u8
+                        || next_rec.token_type
+                            == crate::core::types::token::TokenType::CommentDoc as u8
                     {
                         break;
                     }
@@ -241,7 +337,17 @@ impl Pass1Discovery {
                         }
                     }
                     let next_bytes = tca.interner.lookup_text(ntid);
-                    if matches!(next_bytes, b"default" | b"abstract" | b"export" | b"public" | b"private" | b"protected" | b"internal" | b"pub") {
+                    if matches!(
+                        next_bytes,
+                        b"default"
+                            | b"abstract"
+                            | b"export"
+                            | b"public"
+                            | b"private"
+                            | b"protected"
+                            | b"internal"
+                            | b"pub"
+                    ) {
                         lookahead += 1;
                         continue;
                     }
@@ -270,21 +376,29 @@ impl Pass1Discovery {
                                 )
                             {
                                 if registered_name_ids.contains(&(cur_fid, ntid)) {
-                                     if let Some(pos) = builder.symbols.iter().position(|s| {
-                                         s.name_id == ntid
-                                             && s.first_token_id != u32::MAX
-                                             && (s.first_token_id as usize) < tca.token_records.len()
-                                             && unpack_sort_key(tca.token_records[s.first_token_id as usize].sort_key).0 == cur_fid
-                                     }) {
-                                         let ex_kind = SymbolKind::from(builder.symbols[pos].kind);
-                                         if ex_kind == SymbolKind::SK_METHOD {
-                                             break;
-                                         }
-                                         if ex_kind != SymbolKind::SK_CLASS && ex_kind != SymbolKind::SK_INTERFACE && ex_kind != SymbolKind::SK_ENUM && ex_kind != SymbolKind::SK_RECORD {
-                                             builder.symbols[pos].kind = kind as u8;
-                                         }
-                                         current_class_sym = pos as u32;
-                                     }
+                                    if let Some(pos) = builder.symbols.iter().position(|s| {
+                                        s.name_id == ntid
+                                            && s.first_token_id != u32::MAX
+                                            && (s.first_token_id as usize) < tca.token_records.len()
+                                            && unpack_sort_key(
+                                                tca.token_records[s.first_token_id as usize]
+                                                    .sort_key,
+                                            )
+                                            .0 == cur_fid
+                                    }) {
+                                        let ex_kind = SymbolKind::from(builder.symbols[pos].kind);
+                                        if ex_kind == SymbolKind::SK_METHOD {
+                                            break;
+                                        }
+                                        if ex_kind != SymbolKind::SK_CLASS
+                                            && ex_kind != SymbolKind::SK_INTERFACE
+                                            && ex_kind != SymbolKind::SK_ENUM
+                                            && ex_kind != SymbolKind::SK_RECORD
+                                        {
+                                            builder.symbols[pos].kind = kind as u8;
+                                        }
+                                        current_class_sym = pos as u32;
+                                    }
                                 } else if registered_name_ids.insert((cur_fid, ntid)) {
                                     let mut sym_rec = SymbolRecord::UNINIT;
                                     sym_rec.name_id = ntid;
@@ -319,7 +433,9 @@ impl Pass1Discovery {
                     let ntid = next_rec.text_id;
                     if !blocklist_ids.contains(&ntid) {
                         let next_bytes = tca.interner.lookup_text(ntid);
-                        if !next_bytes.is_empty() && (next_bytes[0].is_ascii_alphabetic() || next_bytes[0] == b'_') {
+                        if !next_bytes.is_empty()
+                            && (next_bytes[0].is_ascii_alphabetic() || next_bytes[0] == b'_')
+                        {
                             if registered_name_ids.insert((cur_fid, ntid)) {
                                 let target_parent = if current_class_sym != u32::MAX {
                                     current_class_sym
@@ -329,7 +445,8 @@ impl Pass1Discovery {
                                 let mut sym_rec = SymbolRecord::UNINIT;
                                 sym_rec.name_id = ntid;
                                 sym_rec.kind = kind as u8;
-                                sym_rec.visibility = crate::core::types::symbol::SymbolVisibility::Public as u8;
+                                sym_rec.visibility =
+                                    crate::core::types::symbol::SymbolVisibility::Public as u8;
                                 sym_rec.scope_id = root_scope;
                                 sym_rec.parent_sym = target_parent;
                                 let sym_id = builder.create_symbol(sym_rec);
@@ -343,7 +460,10 @@ impl Pass1Discovery {
             }
             tok_idx += 1;
         }
-        crate::core::logger::log_info(&format!("[PASS1] Secondary sweep done in {:?}", pass1_start.elapsed()));
+        crate::core::logger::log_info(&format!(
+            "[PASS1] Secondary sweep done in {:?}",
+            pass1_start.elapsed()
+        ));
 
         // ── Link class symbols to their file package symbols ──
         let mut file_pkg_map: HashMap<u16, u32> = HashMap::new();
@@ -356,112 +476,120 @@ impl Pass1Discovery {
         while tok_idx < tca.token_records.len() {
             let rec = &tca.token_records[tok_idx];
             let rec_fid = unpack_sort_key(rec.sort_key).0;
-            if rec.text_id == kw_package && kw_package != u32::MAX && visited_pkg_files.insert(rec_fid) {
-                    let mut lookahead = tok_idx + 1;
-                    let mut pkg_parts: Vec<(u32, String)> = Vec::new();
-                    let pkg_line = unpack_sort_key(rec.sort_key).1;
-                    let mut expecting_ident = true;
+            if rec.text_id == kw_package
+                && kw_package != u32::MAX
+                && visited_pkg_files.insert(rec_fid)
+            {
+                let mut lookahead = tok_idx + 1;
+                let mut pkg_parts: Vec<(u32, String)> = Vec::new();
+                let pkg_line = unpack_sort_key(rec.sort_key).1;
+                let mut expecting_ident = true;
 
-                    while lookahead < tca.token_records.len() && lookahead < tok_idx + 40 {
-                        let next_rec = &tca.token_records[lookahead];
-                        let (next_fid, next_line, _) = unpack_sort_key(next_rec.sort_key);
-                        if next_fid != rec_fid || next_line != pkg_line {
+                while lookahead < tca.token_records.len() && lookahead < tok_idx + 40 {
+                    let next_rec = &tca.token_records[lookahead];
+                    let (next_fid, next_line, _) = unpack_sort_key(next_rec.sort_key);
+                    if next_fid != rec_fid || next_line != pkg_line {
+                        break;
+                    }
+                    let next_bytes = tca.interner.lookup_text(next_rec.text_id);
+                    if let Ok(next_text) = std::str::from_utf8(next_bytes) {
+                        if next_text == ";" || next_text == "\n" {
                             break;
                         }
-                        let next_bytes = tca.interner.lookup_text(next_rec.text_id);
-                        if let Ok(next_text) = std::str::from_utf8(next_bytes) {
-                            if next_text == ";" || next_text == "\n" {
-                                break;
-                            }
-                            if expecting_ident {
-                                let is_ident = !next_text.is_empty()
-                                    && next_text.chars().all(|c| c.is_alphanumeric() || c == '_')
-                                    && ![
-                                        "package",
-                                        "import",
-                                        "class",
-                                        "interface",
-                                        "fun",
-                                        "val",
-                                        "var",
-                                        "public",
-                                        "private",
-                                        "object",
-                                        "enum",
-                                        "data",
-                                        "sealed",
-                                        "open",
-                                        "abstract",
-                                    ]
-                                    .contains(&next_text);
-                                if is_ident {
-                                    pkg_parts.push((next_rec.text_id, next_text.to_string()));
-                                    expecting_ident = false;
-                                } else {
-                                    break;
-                                }
-                            } else if next_text == "." {
-                                expecting_ident = true;
+                        if expecting_ident {
+                            let is_ident = !next_text.is_empty()
+                                && next_text.chars().all(|c| c.is_alphanumeric() || c == '_')
+                                && ![
+                                    "package",
+                                    "import",
+                                    "class",
+                                    "interface",
+                                    "fun",
+                                    "val",
+                                    "var",
+                                    "public",
+                                    "private",
+                                    "object",
+                                    "enum",
+                                    "data",
+                                    "sealed",
+                                    "open",
+                                    "abstract",
+                                ]
+                                .contains(&next_text);
+                            if is_ident {
+                                pkg_parts.push((next_rec.text_id, next_text.to_string()));
+                                expecting_ident = false;
                             } else {
                                 break;
                             }
+                        } else if next_text == "." {
+                            expecting_ident = true;
+                        } else {
+                            break;
                         }
-                        lookahead += 1;
                     }
+                    lookahead += 1;
+                }
 
-                    if !pkg_parts.is_empty() {
-                        let mut current_pkg_sym = u32::MAX;
-                        let mut current_path = String::new();
-                        for (name_id, part) in pkg_parts {
-                            current_path = if current_path.is_empty() {
-                                part.clone()
-                            } else {
-                                format!("{}.{}", current_path, part)
-                            };
+                if !pkg_parts.is_empty() {
+                    let mut current_pkg_sym = u32::MAX;
+                    let mut current_path = String::new();
+                    for (name_id, part) in pkg_parts {
+                        current_path = if current_path.is_empty() {
+                            part.clone()
+                        } else {
+                            format!("{}.{}", current_path, part)
+                        };
 
-                            let pkg_sym_id =
-                                if let Some(existing) = package_path_ids.get(&current_path) {
-                                    *existing
-                                } else {
-                                    let mut sym_rec = SymbolRecord::UNINIT;
-                                    sym_rec.name_id = name_id;
-                                    sym_rec.kind =
-                                        crate::core::types::symbol::SymbolKind::SK_PACKAGE as u8;
-                                    sym_rec.visibility =
-                                        crate::core::types::symbol::SymbolVisibility::Public as u8;
-                                    sym_rec.scope_id = root_scope;
-                                    sym_rec.parent_sym = current_pkg_sym;
-                                    let pkg_sym_id = builder.create_symbol(sym_rec);
-                                    if current_pkg_sym != u32::MAX {
-                                        builder.append_child(current_pkg_sym, pkg_sym_id);
-                                    }
-                                    builder
-                                        .custom_package_names
-                                        .insert(pkg_sym_id, current_path.clone());
-                                    package_path_ids.insert(current_path.clone(), pkg_sym_id);
-                                    pkg_sym_id
-                                };
-
-                            current_pkg_sym = pkg_sym_id;
-                        }
-
-                        if current_pkg_sym != u32::MAX {
-                            file_pkg_map.insert(rec_fid, current_pkg_sym);
+                        let pkg_sym_id = if let Some(existing) = package_path_ids.get(&current_path)
+                        {
+                            *existing
+                        } else {
+                            let mut sym_rec = SymbolRecord::UNINIT;
+                            sym_rec.name_id = name_id;
+                            sym_rec.kind = crate::core::types::symbol::SymbolKind::SK_PACKAGE as u8;
+                            sym_rec.visibility =
+                                crate::core::types::symbol::SymbolVisibility::Public as u8;
+                            sym_rec.scope_id = root_scope;
+                            sym_rec.parent_sym = current_pkg_sym;
+                            let pkg_sym_id = builder.create_symbol(sym_rec);
+                            if current_pkg_sym != u32::MAX {
+                                builder.append_child(current_pkg_sym, pkg_sym_id);
+                            }
                             builder
-                                .file_package_names
-                                .insert(rec_fid, current_path.clone());
-                        }
+                                .custom_package_names
+                                .insert(pkg_sym_id, current_path.clone());
+                            package_path_ids.insert(current_path.clone(), pkg_sym_id);
+                            pkg_sym_id
+                        };
+
+                        current_pkg_sym = pkg_sym_id;
                     }
+
+                    if current_pkg_sym != u32::MAX {
+                        file_pkg_map.insert(rec_fid, current_pkg_sym);
+                        builder
+                            .file_package_names
+                            .insert(rec_fid, current_path.clone());
+                    }
+                }
             }
             tok_idx += 1;
         }
-        crate::core::logger::log_info(&format!("[PASS1] Package statement parse done in {:?}", pass1_start.elapsed()));
+        crate::core::logger::log_info(&format!(
+            "[PASS1] Package statement parse done in {:?}",
+            pass1_start.elapsed()
+        ));
 
         for sym_idx in 0..builder.symbols.len() {
             let kind = SymbolKind::from(builder.symbols[sym_idx].kind);
             if matches!(
                 kind,
-                SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM | SymbolKind::SK_RECORD
+                SymbolKind::SK_CLASS
+                    | SymbolKind::SK_INTERFACE
+                    | SymbolKind::SK_ENUM
+                    | SymbolKind::SK_RECORD
             ) {
                 let decl_node = builder.symbols[sym_idx].decl_node;
                 let ft = if builder.symbols[sym_idx].first_token_id != u32::MAX {
@@ -482,8 +610,12 @@ impl Pass1Discovery {
                         let parent_is_module = builder.symbols[sym_idx].parent_sym == u32::MAX
                             || builder.symbols[sym_idx].parent_sym == 0
                             || builder.symbols[sym_idx].parent_sym == default_file_class
-                            || ((builder.symbols[sym_idx].parent_sym as usize) < builder.symbols.len()
-                                && SymbolKind::from(builder.symbols[builder.symbols[sym_idx].parent_sym as usize].kind) == SymbolKind::SK_MODULE);
+                            || ((builder.symbols[sym_idx].parent_sym as usize)
+                                < builder.symbols.len()
+                                && SymbolKind::from(
+                                    builder.symbols[builder.symbols[sym_idx].parent_sym as usize]
+                                        .kind,
+                                ) == SymbolKind::SK_MODULE);
                         if parent_is_module {
                             builder.symbols[sym_idx].parent_sym = pkg_sym_id;
                             builder.append_child(pkg_sym_id, sym_idx as u32);
@@ -500,7 +632,10 @@ impl Pass1Discovery {
                 builder.append_child(0, i as u32);
             }
         }
-        crate::core::logger::log_info(&format!("[PASS1] Total Pass 1 done in {:?}", pass1_start.elapsed()));
+        crate::core::logger::log_info(&format!(
+            "[PASS1] Total Pass 1 done in {:?}",
+            pass1_start.elapsed()
+        ));
     }
 
     fn extract_name_token(
@@ -518,14 +653,20 @@ impl Pass1Discovery {
             // For class/interface/enum declarations, locate the keyword and pick the identifier immediately after it
             if matches!(
                 ntype,
-                ASTNodeType::NN_CLASS_DECL | ASTNodeType::NN_INTERFACE_DECL | ASTNodeType::NN_ENUM_DECL | ASTNodeType::NN_RECORD_DECL
+                ASTNodeType::NN_CLASS_DECL
+                    | ASTNodeType::NN_INTERFACE_DECL
+                    | ASTNodeType::NN_ENUM_DECL
+                    | ASTNodeType::NN_RECORD_DECL
             ) {
                 let mut kw_pos = u32::MAX;
                 for tok_idx in ft..=end_tok {
                     let rec = &tca.token_records[tok_idx as usize];
                     let tid = rec.text_id;
                     let bytes = tca.interner.lookup_text(tid);
-                    if matches!(bytes, b"class" | b"interface" | b"enum" | b"struct" | b"trait" | b"record") {
+                    if matches!(
+                        bytes,
+                        b"class" | b"interface" | b"enum" | b"struct" | b"trait" | b"record"
+                    ) {
                         kw_pos = tok_idx;
                         break;
                     }
@@ -535,11 +676,22 @@ impl Pass1Discovery {
                         let rec = &tca.token_records[tok_idx as usize];
                         let tid = rec.text_id;
                         let bytes = tca.interner.lookup_text(tid);
-                        if matches!(bytes, b"default" | b"export" | b"abstract" | b"public" | b"private" | b"protected" | b"internal") {
+                        if matches!(
+                            bytes,
+                            b"default"
+                                | b"export"
+                                | b"abstract"
+                                | b"public"
+                                | b"private"
+                                | b"protected"
+                                | b"internal"
+                        ) {
                             continue;
                         }
                         if !blocklist_ids.contains(&tid) {
-                            if !bytes.is_empty() && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_') {
+                            if !bytes.is_empty()
+                                && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+                            {
                                 return tid;
                             }
                         }
@@ -558,7 +710,8 @@ impl Pass1Discovery {
                     let tid = rec.text_id;
                     if !blocklist_ids.contains(&tid) {
                         let bytes = tca.interner.lookup_text(tid);
-                        if !bytes.is_empty() && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_') {
+                        if !bytes.is_empty() && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+                        {
                             candidate = tid;
                         }
                     }
@@ -603,18 +756,63 @@ impl Pass1Discovery {
                                 | "import"
                                 | "override"
                                 | "struct"
-                                | "trait" | "impl" | "let" | "const" | "def" | "fn" | "new"
-                                | "this" | "super" | "null" | "true" | "false" | "void"
-                                | "return" | "if" | "else" | "for" | "while" | "do" | "switch"
-                                | "case" | "break" | "continue" | "try" | "catch" | "finally"
-                                | "throw" | "by" | "as" | "in" | "is" | "default" | "export"
-                                | "declare" | "async" | "yield" | "await" | "function"
-                                | "AllArgsConstructor" | "NoArgsConstructor"
-                                | "RequiredArgsConstructor" | "Autowired" | "EnableCaching"
-                                | "EnableJpaRepositories" | "SpringBootApplication"
-                                | "Service" | "Repository" | "Component" | "RestController"
-                                | "RequestMapping" | "Controller" | "Getter" | "Setter"
-                                | "Slf4j" | "Value" | "Builder" | "Data"
+                                | "trait"
+                                | "impl"
+                                | "let"
+                                | "const"
+                                | "def"
+                                | "fn"
+                                | "new"
+                                | "this"
+                                | "super"
+                                | "null"
+                                | "true"
+                                | "false"
+                                | "void"
+                                | "return"
+                                | "if"
+                                | "else"
+                                | "for"
+                                | "while"
+                                | "do"
+                                | "switch"
+                                | "case"
+                                | "break"
+                                | "continue"
+                                | "try"
+                                | "catch"
+                                | "finally"
+                                | "throw"
+                                | "by"
+                                | "as"
+                                | "in"
+                                | "is"
+                                | "default"
+                                | "export"
+                                | "declare"
+                                | "async"
+                                | "yield"
+                                | "await"
+                                | "function"
+                                | "AllArgsConstructor"
+                                | "NoArgsConstructor"
+                                | "RequiredArgsConstructor"
+                                | "Autowired"
+                                | "EnableCaching"
+                                | "EnableJpaRepositories"
+                                | "SpringBootApplication"
+                                | "Service"
+                                | "Repository"
+                                | "Component"
+                                | "RestController"
+                                | "RequestMapping"
+                                | "Controller"
+                                | "Getter"
+                                | "Setter"
+                                | "Slf4j"
+                                | "Value"
+                                | "Builder"
+                                | "Data"
                         ) {
                             return tid;
                         }

@@ -86,7 +86,10 @@ impl SequenceDiagramExtractor {
         // Pre-index CGA call sites and site edges for O(1) lookup
         let mut site_edges: HashMap<(u32, u32), Vec<u32>> = HashMap::new();
         for &(clr, callee_sym, site_id) in &cga.site_to_edge_map {
-            site_edges.entry((clr, site_id)).or_default().push(callee_sym);
+            site_edges
+                .entry((clr, site_id))
+                .or_default()
+                .push(callee_sym);
         }
 
         // Trace call sites from entry_sym

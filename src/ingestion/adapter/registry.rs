@@ -23,7 +23,7 @@ impl AdapterRegistry {
         };
         reg.register(Arc::new(JavaLanguageAdapter::new()));
         reg.register(Arc::new(KotlinLanguageAdapter::new()));
-        
+
         let js_adapter = Arc::new(GenericLanguageAdapter::new(
             LangId::JavaScript,
             vec!["js", "jsx", "mjs", "cjs"],
@@ -50,7 +50,10 @@ impl AdapterRegistry {
     }
 
     pub fn get(&self, lang_id: LangId) -> Option<Arc<dyn LanguageAdapter>> {
-        self.adapters.get(&lang_id).cloned().or_else(|| self.adapters.get(&LangId::Unknown).cloned())
+        self.adapters
+            .get(&lang_id)
+            .cloned()
+            .or_else(|| self.adapters.get(&LangId::Unknown).cloned())
     }
 
     pub fn detect(overrides: &HashMap<OsString, LangId>, path: &Path) -> LangId {
@@ -67,7 +70,9 @@ impl AdapterRegistry {
                     "js" | "jsx" | "mjs" | "cjs" => return LangId::JavaScript,
                     "ts" | "tsx" | "mts" | "cts" => return LangId::TypeScript,
                     "rs" => return LangId::Rust,
-                    "cpp" | "c" | "h" | "hpp" | "cc" | "cxx" | "hh" | "hxx" | "c++" | "h++" => return LangId::Cpp,
+                    "cpp" | "c" | "h" | "hpp" | "cc" | "cxx" | "hh" | "hxx" | "c++" | "h++" => {
+                        return LangId::Cpp
+                    }
                     "go" => return LangId::Go,
                     "cs" => return LangId::Generic,
                     _ => {}

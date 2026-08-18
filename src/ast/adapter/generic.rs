@@ -30,16 +30,38 @@ impl ASTReductionAdapter for GenericASTReductionAdapter {
         match kind {
             // Declarations
             "program" | "module" | "translation_unit" | "source_file" => Keep(NN_MODULE),
-            "class_declaration" | "class_definition" | "class" | "class_specifier" | "object_declaration"
-            | "struct_item" | "struct_specifier" | "union_item" | "type_alias_declaration" => Keep(NN_CLASS_DECL),
-            "interface_declaration" | "interface" | "trait_item" | "protocol_declaration" => Keep(NN_INTERFACE_DECL),
+            "class_declaration"
+            | "class_definition"
+            | "class"
+            | "class_specifier"
+            | "object_declaration"
+            | "struct_item"
+            | "struct_specifier"
+            | "union_item"
+            | "type_alias_declaration" => Keep(NN_CLASS_DECL),
+            "interface_declaration" | "interface" | "trait_item" | "protocol_declaration" => {
+                Keep(NN_INTERFACE_DECL)
+            }
             "enum_declaration" | "enum_specifier" | "enum_item" => Keep(NN_ENUM_DECL),
-            "method_declaration" | "method_definition" | "function_declaration" | "function_definition" 
-            | "function" | "arrow_function" | "function_item" | "function_component" => Keep(NN_METHOD_DECL),
+            "method_declaration"
+            | "method_definition"
+            | "function_declaration"
+            | "function_definition"
+            | "function"
+            | "arrow_function"
+            | "function_item"
+            | "function_component" => Keep(NN_METHOD_DECL),
             "constructor_declaration" | "constructor" => Keep(NN_CONSTRUCTOR_DECL),
-            "field_declaration" | "field_definition" | "property_definition" | "public_field_definition" => Keep(NN_FIELD_DECL),
+            "field_declaration"
+            | "field_definition"
+            | "property_definition"
+            | "public_field_definition" => Keep(NN_FIELD_DECL),
             "formal_parameter" | "parameter" | "required_parameter" => Keep(NN_PARAM_DECL),
-            "local_variable_declaration" | "lexical_declaration" | "variable_declaration" | "variable_declarator" | "let_declaration" => Keep(NN_LOCAL_VAR_DECL),
+            "local_variable_declaration"
+            | "lexical_declaration"
+            | "variable_declaration"
+            | "variable_declarator"
+            | "let_declaration" => Keep(NN_LOCAL_VAR_DECL),
 
             // Statements
             "statement_block" | "block" | "compound_statement" => Keep(NN_BLOCK),
@@ -69,8 +91,16 @@ impl ASTReductionAdapter for GenericASTReductionAdapter {
             "subscript_expression" | "array_access" => Keep(NN_ARRAY_ACCESS),
 
             // Terminals & Literals
-            "number" | "integer" | "decimal_integer_literal" | "string" | "string_literal" | "template_string"
-            | "true" | "false" | "null" | "undefined" => Keep(NN_LITERAL),
+            "number"
+            | "integer"
+            | "decimal_integer_literal"
+            | "string"
+            | "string_literal"
+            | "template_string"
+            | "true"
+            | "false"
+            | "null"
+            | "undefined" => Keep(NN_LITERAL),
             "this" | "super" => Keep(NN_THIS_EXPR),
 
             _ => {
