@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
 
+## [1.1.0] - 2026-08-14
+
+### Added
+- **Universal Multi-Language Engine Support**: Dynamic generic language adapters for ingesting JavaScript, TypeScript, Python, C++, Rust, Go, Swift, PHP, Ruby, and extensionless scripts across all 10 compilation pipeline phases without hardcoded dependencies.
+- **Autonomous PlantUML Diagram Generator CLI (`generate_diagrams.py`)**: Standalone tool that ingests any GitHub repository and outputs all 14 PlantUML `.puml` diagram files directly into `./output_diagrams/<repo_name>/`.
+- **Client-Side Vector SVG Fallback Engine**: Pure client-side SVG vector diagram renderer in Web Studio so vector diagrams remain 100% online even during Kroki endpoint outages.
+- **Strict Code-File Ingestion Filter**: Excludes non-code Markdown and text documentation files from symbol ingestion.
+
 ## [1.0.0] - 2026-08-13
 
 ### Added

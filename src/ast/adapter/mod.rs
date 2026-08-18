@@ -3,6 +3,7 @@
 use crate::core::types::ast::ASTNodeType;
 use tree_sitter::Node;
 
+pub mod generic;
 pub mod java;
 pub mod registry;
 

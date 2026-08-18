@@ -30,7 +30,9 @@ impl Pass5Hierarchy {
                 // Superclass extends clause
                 if let Some(super_ref_node) = Self::find_superclass_ref(decl_node, bpa) {
                     if let Some(super_sym_id) = builder.get_type_ref_resolution(super_ref_node) {
-                        builder.add_th_edge(sym_id, super_sym_id, THRelation::TH_EXTENDS);
+                        if super_sym_id != sym_id {
+                            builder.add_th_edge(sym_id, super_sym_id, THRelation::TH_EXTENDS);
+                        }
                     }
                 }
 

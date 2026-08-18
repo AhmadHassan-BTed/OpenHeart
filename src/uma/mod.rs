@@ -58,7 +58,7 @@ impl Phase9Stage {
 
         // ── Step 1: Extract Structural Diagram Records ──────────────────────
         let (mut classes, objects, packages, components) =
-            StructuralExtractor::extract_all(sta, psa, tra, ssa, cga);
+            StructuralExtractor::extract_all(sta, tca, psa, tra, ssa, cga);
 
         // ── Step 2: Extract Behavioral Diagram Records ──────────────────────
         let (activities, state_machines, sequences) =

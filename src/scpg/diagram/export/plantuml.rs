@@ -13,7 +13,7 @@ pub struct PlantUMLExporter;
 
 impl PlantUMLExporter {
     pub fn resolve_name<'a>(
-        sta: &SymbolTableArtifact,
+        sta: &'a SymbolTableArtifact,
         tca: &'a TokenCorpusArtifact,
         sym_id: u32,
     ) -> &'a str {
@@ -26,9 +26,33 @@ impl PlantUMLExporter {
             if !text.is_empty() && text != "Unknown" {
                 return text;
             }
+            // Fallback: Scan tokens around s.first_token_id for valid non-keyword name
+            if s.first_token_id != u32::MAX && (s.first_token_id as usize) < tca.token_records.len() {
+                let start = s.first_token_id as usize;
+                let end = (start + 20).min(tca.token_records.len());
+                let keywords = [
+                    "package", "import", "public", "private", "protected", "static",
+                    "final", "abstract", "class", "interface", "enum", "record",
+                    "extends", "implements", "fun", "val", "var", "object",
+                    "companion", "data", "sealed", "open", "override", "internal",
+                    "void", "synchronized", "transient", "volatile", "default",
+                ];
+                for idx in start..end {
+                    let rec = &tca.token_records[idx];
+                    let t_bytes = tca.interner.lookup_text(rec.text_id);
+                    if let Ok(t_str) = std::str::from_utf8(t_bytes) {
+                        if !t_str.is_empty()
+                            && (t_str.chars().next().unwrap_or('\0').is_alphabetic() || t_str.starts_with('_'))
+                            && !keywords.contains(&t_str)
+                        {
+                            return t_str;
+                        }
+                    }
+                }
+            }
         }
         if let Some(custom) = sta.custom_package_names.get(&sym_id) {
-            return Box::leak(custom.clone().into_boxed_str());
+            return custom.as_str();
         }
         "Unknown"
     }
@@ -183,7 +207,10 @@ impl PlantUMLExporter {
 
         let primitives = [
             "void", "boolean", "int", "long", "float", "double", "char", "byte", "short",
-            "Unknown", "Entity", "args", "SystemNode", "package", "const", "java", "androidx", "Volatile"
+            "Unknown", "Entity", "args", "SystemNode", "package", "const", "java", "androidx", "Volatile",
+            "null", "true", "false", "this", "super", "undefined", "NaN", "0", "1", "2", "3", "4", "5",
+            "Node_0", "Node_1", "Node_2", "Node_3", "Node_4", "Node_5", "Node_100", "let", "var",
+            "function", "return", "if", "else", "for", "while", "do", "switch", "case", "break", "continue", "try", "catch", "MB"
         ];
 
         for class_rec in &uma.classes {
@@ -192,17 +219,7 @@ impl PlantUMLExporter {
             }
             let name = Self::resolve_name(sta, tca, class_rec.sym_id);
             let safe_name = Self::sanitize(name);
-            if safe_name == "SystemNode" || safe_name == "String" || primitives.contains(&safe_name.as_str()) {
-                continue;
-            }
-            let first_char = safe_name.chars().next().unwrap_or('a');
-            let is_valid_class = first_char.is_ascii_uppercase()
-                || safe_name.ends_with("_DTO")
-                || safe_name.ends_with("_DTOs")
-                || safe_name.ends_with("_config")
-                || safe_name.ends_with("_naf");
-
-            if !is_valid_class {
+            if safe_name == "SystemNode" || safe_name.is_empty() || primitives.contains(&safe_name.as_str()) {
                 continue;
             }
 
@@ -219,8 +236,8 @@ impl PlantUMLExporter {
                 if !seen_syms.contains(&inner_sym) {
                     let name = Self::resolve_name(sta, tca, inner_sym);
                     let safe_name = Self::sanitize(name);
-                    let first_char = safe_name.chars().next().unwrap_or('a');
-                    if first_char.is_ascii_uppercase() && safe_name != "SystemNode" && safe_name != "String" && !primitives.contains(&safe_name.as_str()) {
+                    let is_all_caps = safe_name.len() >= 3 && safe_name.chars().all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
+                    if safe_name != "SystemNode" && !safe_name.is_empty() && !primitives.contains(&safe_name.as_str()) && !is_all_caps {
                         let is_interface = safe_name.ends_with("Listener") || safe_name == "Parser" || safe_name.contains("Callback");
                         let st = if is_interface { STEREOTYPE_INTERFACE } else { STEREOTYPE_NONE };
                         inner_records.push(ClassRecord {
@@ -265,8 +282,7 @@ impl PlantUMLExporter {
                 } else {
                     let name = Self::resolve_name(sta, tca, inner_rec.sym_id);
                     let safe_name = Self::sanitize(name);
-                    let first_char = safe_name.chars().next().unwrap_or('a');
-                    if first_char.is_ascii_uppercase() && safe_name != "String" && !primitives.contains(&safe_name.as_str()) {
+                    if !safe_name.is_empty() && !primitives.contains(&safe_name.as_str()) {
                         root_classes.push(inner_rec);
                     }
                 }
@@ -709,15 +725,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Deployment Diagram Projection\n\n");
-        out.push_str("node \"Application Execution Host\" {\n");
-        out.push_str("  artifact \"Application.apk\"\n");
-        out.push_str("  artifact \"NativeEngine.so\"\n");
-        out.push_str("}\n\n");
-        out.push_str("node \"Remote Compute Server\" {\n");
-        out.push_str("  artifact \"Server_DAO.api\"\n");
-        out.push_str("}\n\n");
-        out.push_str("\"Application Execution Host\" -- \"Remote Compute Server\" : HTTPS / REST\n");
+        out.push_str("' PlantUML Deployment Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }
@@ -731,16 +739,123 @@ impl PlantUMLExporter {
         let mut out = String::from("@startuml\n");
         out.push_str("' PlantUML Package Diagram Projection\n\n");
 
-        let mut pkgs = HashSet::new();
+        #[derive(Default)]
+        struct PkgTreeNode {
+            name: String,
+            full_path: String,
+            children: BTreeMap<String, PkgTreeNode>,
+        }
+
+        let mut root_tree_nodes: BTreeMap<String, PkgTreeNode> = BTreeMap::new();
+
+        // Collect all package paths from UMA + STA symbols
+        let mut all_pkg_paths: HashSet<String> = HashSet::new();
+
         for pkg in &uma.packages {
             let pname = Self::resolve_name(sta, tca, pkg.package_sym_id);
             if !pname.is_empty() && pname != "Unknown" {
-                pkgs.insert(pname);
+                all_pkg_paths.insert(pname.to_string());
             }
         }
 
-        for pkg in pkgs {
-            out.push_str(&format!("package \"{}\" {{\n}}\n", pkg));
+        for class_rec in &uma.classes {
+            if let Some(pkg) = Self::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
+                if !pkg.is_empty() {
+                    all_pkg_paths.insert(pkg);
+                }
+            }
+        }
+
+        for pkg_path in all_pkg_paths {
+            let parts: Vec<&str> = if pkg_path.contains('/') {
+                pkg_path.split('/').collect()
+            } else {
+                pkg_path.split('.').collect()
+            };
+
+            let mut curr_map = &mut root_tree_nodes;
+            let mut path_acc = String::new();
+
+            for part in parts {
+                if part.is_empty() {
+                    continue;
+                }
+                if !path_acc.is_empty() {
+                    path_acc.push('.');
+                }
+                path_acc.push_str(part);
+
+                let node = curr_map.entry(part.to_string()).or_insert_with(|| PkgTreeNode {
+                    name: part.to_string(),
+                    full_path: path_acc.clone(),
+                    children: BTreeMap::new(),
+                });
+
+                curr_map = &mut node.children;
+            }
+        }
+
+        fn render_pkg_tree(
+            node: &PkgTreeNode,
+            indent: &str,
+            out: &mut String,
+        ) {
+            let pkg_alias = format!("pkg_{}", node.full_path.replace('.', "_").replace('/', "_").replace('-', "_"));
+            out.push_str(&format!("{}package \"{}\" as {} {{\n", indent, node.full_path, pkg_alias));
+
+            let child_indent = format!("{}  ", indent);
+            for child_node in node.children.values() {
+                render_pkg_tree(child_node, &child_indent, out);
+            }
+
+            out.push_str(&format!("{}}}\n", indent));
+        }
+
+        for root_node in root_tree_nodes.values() {
+            render_pkg_tree(root_node, "", &mut out);
+        }
+
+        // Render Package-to-Package Import/Dependency Arrows (pkg_A ..> pkg_B : <<imports>>)
+        let mut pkg_deps: HashSet<(String, String)> = HashSet::new();
+
+        for class_rec in &uma.classes {
+            let src_pkg = match Self::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
+                Some(p) if !p.is_empty() => p,
+                _ => continue,
+            };
+
+            // Check field types
+            for field in &class_rec.fields {
+                if field.type_sym_id != u32::MAX {
+                    if let Some(dst_pkg) = Self::resolve_sym_package(sta, tca, None, field.type_sym_id) {
+                        if !dst_pkg.is_empty() && src_pkg != dst_pkg {
+                            pkg_deps.insert((src_pkg.clone(), dst_pkg));
+                        }
+                    }
+                }
+            }
+
+            // Check method parameter/return types
+            for method in &class_rec.methods {
+                if method.return_type_sym_id != u32::MAX {
+                    if let Some(dst_pkg) = Self::resolve_sym_package(sta, tca, None, method.return_type_sym_id) {
+                        if !dst_pkg.is_empty() && src_pkg != dst_pkg {
+                            pkg_deps.insert((src_pkg.clone(), dst_pkg));
+                        }
+                    }
+                }
+            }
+        }
+
+        if !pkg_deps.is_empty() {
+            out.push_str("\n' Package Dependencies\n");
+            let mut sorted_deps: Vec<_> = pkg_deps.into_iter().collect();
+            sorted_deps.sort();
+            for (src_pkg, dst_pkg) in sorted_deps {
+                let src_alias = format!("pkg_{}", src_pkg.replace('.', "_").replace('/', "_").replace('-', "_"));
+                let dst_alias = format!("pkg_{}", dst_pkg.replace('.', "_").replace('/', "_").replace('-', "_"));
+                out.push_str(&format!("{} ..> {} : <<imports>>\n", src_alias, dst_alias));
+            }
         }
 
         out.push_str("\n@enduml\n");
@@ -749,25 +864,13 @@ impl PlantUMLExporter {
 
     // ── 6. COMPOSITE STRUCTURE DIAGRAM ───────────────────────────────────────
     pub fn export_composite_structure_diagram(
-        uma: &UMLMetadataArtifact,
-        sta: &SymbolTableArtifact,
-        tca: &TokenCorpusArtifact,
+        _uma: &UMLMetadataArtifact,
+        _sta: &SymbolTableArtifact,
+        _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Composite Structure Diagram Projection\n\n");
-
-        for class_rec in uma.classes.iter().take(5) {
-            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if name != "SystemNode" {
-                out.push_str(&format!("package \"{}\" {{\n", name));
-                out.push_str("  [Port_In]\n");
-                out.push_str("  [Port_Out]\n");
-                out.push_str("  [Port_In] -> [Port_Out]\n");
-                out.push_str("}\n");
-            }
-        }
-
-        out.push_str("\n@enduml\n");
+        out.push_str("' PlantUML Composite Structure Diagram Projection\n");
+        out.push_str("@enduml\n");
         out
     }
 
@@ -778,12 +881,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Profile Diagram Projection\n\n");
-        out.push_str("package \"<<Profile>> DomainProfile\" {\n");
-        out.push_str("  class \"<<Stereotype>> Singleton\" as ST_Singleton\n");
-        out.push_str("  class \"<<Stereotype>> Factory\" as ST_Factory\n");
-        out.push_str("  class \"<<Stereotype>> Builder\" as ST_Builder\n");
-        out.push_str("}\n");
+        out.push_str("' PlantUML Profile Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }
@@ -795,16 +893,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Use Case Diagram Projection\n\n");
-        out.push_str("actor User\n");
-        out.push_str("actor ServerSystem\n\n");
-        out.push_str("usecase \"Download Training Data\" as UC1\n");
-        out.push_str("usecase \"Execute Local Training\" as UC2\n");
-        out.push_str("usecase \"Transmit Weights\" as UC3\n\n");
-        out.push_str("User --> UC1\n");
-        out.push_str("User --> UC2\n");
-        out.push_str("UC2 --> UC3\n");
-        out.push_str("UC3 --> ServerSystem\n");
+        out.push_str("' PlantUML Use Case Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }
@@ -821,7 +910,7 @@ impl PlantUMLExporter {
 
         for act in uma.activities.iter().take(10) {
             let name = Self::sanitize(Self::resolve_name(sta, tca, act.function_sym_id));
-            if name != "SystemNode" {
+            if name != "SystemNode" && !name.is_empty() {
                 out.push_str(&format!(":{};\n", name));
             }
         }
@@ -842,7 +931,7 @@ impl PlantUMLExporter {
 
         for class_rec in uma.classes.iter().take(5) {
             let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if name != "SystemNode" {
+            if name != "SystemNode" && !name.is_empty() {
                 out.push_str(&format!("participant \"{}\"\n", name));
             }
         }
@@ -858,12 +947,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML State Machine Diagram Projection\n\n");
-        out.push_str("[*] --> Uninitialized\n");
-        out.push_str("Uninitialized --> Downloading : startDownload\n");
-        out.push_str("Downloading --> Training : downloadComplete\n");
-        out.push_str("Training --> Uploading : trainingComplete\n");
-        out.push_str("Uploading --> [*] : uploadSuccess\n");
+        out.push_str("' PlantUML State Machine Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }
@@ -875,19 +959,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Timing Diagram Projection\n\n");
-        out.push_str("robust \"Training Engine\" as TE\n");
-        out.push_str("concise \"Data Transceiver\" as DT\n\n");
-        out.push_str("@0\n");
-        out.push_str("TE is Idle\n");
-        out.push_str("DT is Idle\n\n");
-        out.push_str("@100\n");
-        out.push_str("DT is Downloading\n\n");
-        out.push_str("@300\n");
-        out.push_str("DT is Idle\n");
-        out.push_str("TE is Training\n\n");
-        out.push_str("@700\n");
-        out.push_str("TE is Idle\n");
+        out.push_str("' PlantUML Timing Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }
@@ -899,15 +971,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Interaction Overview Diagram Projection\n\n");
-        out.push_str(":Start Execution;\n");
-        out.push_str("group Initialization\n");
-        out.push_str("  :Load Config;\n");
-        out.push_str("end group\n");
-        out.push_str("group Training Execution\n");
-        out.push_str("  :Run Model Training;\n");
-        out.push_str("end group\n");
-        out.push_str(":Finish Execution;\n");
+        out.push_str("' PlantUML Interaction Overview Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }
@@ -919,11 +983,7 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Communication Diagram Projection\n\n");
-        out.push_str("matrix\n");
-        out.push_str("[1: startTraining()] User -> HomeViewModel\n");
-        out.push_str("[2: downloadFiles()] HomeViewModel -> DataDownloader\n");
-        out.push_str("[3: onDownloadFinished()] DataDownloader -> HomeViewModel\n");
+        out.push_str("' PlantUML Communication Diagram Projection\n");
         out.push_str("@enduml\n");
         out
     }

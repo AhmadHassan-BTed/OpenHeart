@@ -71,6 +71,27 @@ impl StringInterner {
         }
     }
 
+    pub fn find_id(&self, text: &[u8]) -> u32 {
+        if self.count == 0 {
+            return u32::MAX;
+        }
+        let mut hash = fnv1a_64(text);
+        if hash == 0 {
+            hash = 1;
+        }
+        let mut slot = (hash as usize) & self.table_mask;
+        loop {
+            let (h, id) = self.table[slot];
+            if h == 0 {
+                return u32::MAX;
+            }
+            if h == hash && self.lookup_text(id) == text {
+                return id;
+            }
+            slot = (slot + 1) & self.table_mask;
+        }
+    }
+
     fn store_string(&mut self, text: &[u8]) {
         let offset = self.storage.len() as u32;
         self.offsets.push(offset);

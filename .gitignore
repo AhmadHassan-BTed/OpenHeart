@@ -5,6 +5,7 @@ out_test/
 openheart_output/
 fractal_android_output/
 fractal_android_output_answer/
+output_diagrams/
 target_repos/
 sample_project/
 
@@ -25,6 +26,10 @@ sample_project/
 *.txt
 *.bin.png.txt
 *.png.txt
+
+# Media & Scratch Files
+.tempmediaStorage/
+scratch/
 
 # Environment & Editor Files
 .env

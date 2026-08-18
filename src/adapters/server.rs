@@ -42,6 +42,7 @@ impl OpenHeartServer {
     }
 
     fn handle_connection(stream: &mut TcpStream) {
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
         let mut buffer = [0u8; 8192];
         let bytes_read = match stream.read(&mut buffer) {
             Ok(n) if n > 0 => n,
@@ -71,12 +72,36 @@ impl OpenHeartServer {
             let json = r#"{"status":"online","engine":"OpenHeart SCPG v0.1.0","plantuml":true}"#;
             Self::respond_json(stream, 200, json);
         } else if method == "POST" && clean_path == "/api/analyze" {
-            let body = Self::extract_body(&request);
-            let response_json = Self::process_analyze_request(&body);
+            let mut full_request = request.to_string();
+            if !full_request.contains("\"repo_url\"") {
+                let mut extra_buf = [0u8; 4096];
+                if let Ok(n) = stream.read(&mut extra_buf) {
+                    if n > 0 {
+                        full_request.push_str(&String::from_utf8_lossy(&extra_buf[..n]));
+                    }
+                }
+            }
+            let response_json = Self::process_analyze_request(&full_request);
             Self::respond_json(stream, 200, &response_json);
         } else if is_get_or_head && clean_path.starts_with('/') && !clean_path.starts_with("/api/") {
             let rel_path = clean_path.trim_start_matches('/');
-            let file_path = format!("web/{}", rel_path);
+            let requested_path = Path::new("web").join(rel_path);
+            let canonical_web = match fs::canonicalize("web") {
+                Ok(p) => p,
+                Err(_) => {
+                    Self::respond_json(stream, 404, r#"{"error":"File not found"}"#);
+                    return;
+                }
+            };
+
+            let safe_file_path = match fs::canonicalize(&requested_path) {
+                Ok(p) if p.starts_with(&canonical_web) => p,
+                _ => {
+                    Self::respond_json(stream, 404, r#"{"error":"File not found"}"#);
+                    return;
+                }
+            };
+
             let content_type = if rel_path.ends_with(".js") {
                 "application/javascript"
             } else if rel_path.ends_with(".css") {
@@ -88,11 +113,8 @@ impl OpenHeartServer {
             } else {
                 "application/octet-stream"
             };
-            if Path::new(&file_path).exists() {
-                Self::serve_file(stream, &file_path, content_type);
-            } else {
-                Self::respond_json(stream, 404, r#"{"error":"File not found"}"#);
-            }
+
+            Self::serve_file(stream, safe_file_path.to_str().unwrap_or(""), content_type);
         } else {
             Self::respond_json(stream, 404, r#"{"error":"Not Found"}"#);
         }
@@ -101,8 +123,10 @@ impl OpenHeartServer {
     fn extract_body(request: &str) -> String {
         if let Some(pos) = request.find("\r\n\r\n") {
             request[pos + 4..].to_string()
+        } else if let Some(pos) = request.find("\n\n") {
+            request[pos + 2..].to_string()
         } else {
-            String::new()
+            request.to_string()
         }
     }
 
@@ -137,11 +161,15 @@ impl OpenHeartServer {
     }
 
     fn process_analyze_request(body: &str) -> String {
-        let repo_url = body.split("\"repo_url\":")
-            .nth(1)
-            .and_then(|s| s.split('"').nth(1))
-            .unwrap_or("")
-            .trim();
+        let repo_url = if let Some(idx) = body.find("\"repo_url\"") {
+            let slice = &body[idx..];
+            slice.split('"')
+                .nth(3)
+                .unwrap_or("")
+                .trim()
+        } else {
+            ""
+        };
 
         if repo_url.is_empty() {
             return format!(
@@ -253,24 +281,39 @@ impl OpenHeartServer {
                 Err(e) => return format!(r#"{{"status":"error","errors":["MMap Failure: {}"]}}"#, e),
             },
         };
-        let bpa = ASTStage::run(&stage_input, &bpa_path).unwrap();
+        let bpa = match ASTStage::run(&stage_input, &bpa_path) {
+            Ok(b) => b,
+            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 2 Failure: {}"]}}"#, e),
+        };
         let bpa_bytes = fs::read(&bpa_path).unwrap_or_default();
 
         logs.push("> Phase 3: Building Symbol Table & Scope Graph...".to_string());
-        let sta = Phase3Stage::run(&tca, &bpa, &tca_bytes, &bpa_bytes).unwrap();
+        let sta = match Phase3Stage::run(&tca, &bpa, &tca_bytes, &bpa_bytes) {
+            Ok(s) => s,
+            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 3 Failure: {}"]}}"#, e),
+        };
         let sta_bytes = sta.serialize();
         fs::write(&sta_path, &sta_bytes).unwrap_or_default();
 
         logs.push("> Phase 4: Constructing Control Flow Graph...".to_string());
-        let cfa = Phase4Stage::run(&bpa, &sta, &sta_bytes, &bpa_bytes, &cfa_path).unwrap();
+        let cfa = match Phase4Stage::run(&bpa, &sta, &sta_bytes, &bpa_bytes, &cfa_path) {
+            Ok(c) => c,
+            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 4 Failure: {}"]}}"#, e),
+        };
         let cfa_bytes = fs::read(&cfa_path).unwrap_or_default();
 
         logs.push("> Phase 5: Converting to SSA Data Flow Graph...".to_string());
-        let ssa = Phase5Stage::run(&bpa, &sta, &cfa, &cfa_bytes, &ssa_path).unwrap();
+        let ssa = match Phase5Stage::run(&bpa, &sta, &cfa, &cfa_bytes, &ssa_path) {
+            Ok(s) => s,
+            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 5 Failure: {}"]}}"#, e),
+        };
         let ssa_bytes = fs::read(&ssa_path).unwrap_or_default();
 
         logs.push("> Phase 6: Call Graph & Points-To Analysis...".to_string());
-        let cga = Phase6Stage::run(&bpa, &sta, &cfa, &ssa, &ssa_bytes, &sta_bytes, &cga_path).unwrap();
+        let cga = match Phase6Stage::run(&bpa, &sta, &cfa, &ssa, &ssa_bytes, &sta_bytes, &cga_path) {
+            Ok(c) => c,
+            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 6 Failure: {}"]}}"#, e),
+        };
 
         logs.push("> Phase 7: Traceability Index Construction...".to_string());
         let tra = Phase7Stage::run(&tca, &bpa, &sta, &cfa, &ssa, &cga, &tra_path);
@@ -299,6 +342,8 @@ impl OpenHeartServer {
         let puml_communication = PlantUMLExporter::export_communication_diagram(&uma, &sta, &tca);
         let puml_interaction = PlantUMLExporter::export_interaction_overview_diagram(&uma, &sta, &tca);
         let puml_timing = PlantUMLExporter::export_timing_diagram(&uma, &sta, &tca);
+
+        let _ = fs::remove_dir_all(&tmp_path);
 
         let elapsed_ms = start_time.elapsed().as_millis();
         logs.push(format!("> Pipeline complete in {} ms. All 10 phases verified.", elapsed_ms));
@@ -365,14 +410,54 @@ impl OpenHeartServer {
                         continue;
                     }
                     if path.is_dir() {
+                        let lower_name = file_name.to_lowercase();
+                        if lower_name == "node_modules" || lower_name == "target" || lower_name == "build"
+                            || lower_name == "dist" || lower_name == "out" || lower_name == "vendor"
+                            || lower_name == "venv" || lower_name == ".git" {
+                            continue;
+                        }
+                        // Skip test directories
+                        let dir_path_str = path.to_string_lossy().replace('\\', "/").to_lowercase();
+                        if dir_path_str.ends_with("/src/test")
+                            || dir_path_str.ends_with("/src/androidtest")
+                            || dir_path_str.ends_with("/src/testdebug")
+                            || dir_path_str.ends_with("/src/testrelease")
+                            || dir_path_str.ends_with("/__tests__")
+                            || dir_path_str.ends_with("/tests")
+                            || dir_path_str.ends_with("/test")
+                            || dir_path_str.ends_with("/spec")
+                            || dir_path_str.ends_with("/specs")
+                        {
+                            continue;
+                        }
                         Self::collect_files(&path, files);
-                    } else if path.extension().map_or(false, |ext| {
-                        matches!(
-                            ext.to_str().unwrap_or(""),
-                            "java" | "kt" | "rs" | "py" | "js" | "ts" | "cpp" | "c" | "h" | "hpp" | "cs" | "go" | "swift"
-                        )
-                    }) {
-                        files.push(path);
+                    } else if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                        let lower_ext = ext.to_lowercase();
+                        let is_code_file = matches!(
+                            lower_ext.as_str(),
+                            "java" | "kt" | "kts" | "rs" | "py" | "pyw" | "pyx" | "js" | "jsx" | "mjs" | "cjs"
+                            | "ts" | "tsx" | "mts" | "cts" | "cpp" | "c" | "h" | "hpp" | "cc" | "cxx" | "hh" | "hxx"
+                            | "c++" | "h++" | "cs" | "go" | "swift" | "rb" | "php" | "scala" | "groovy" | "lua"
+                            | "sh" | "bash" | "zsh" | "pl" | "pm" | "r" | "m" | "mm" | "dart" | "zig" | "nim"
+                            | "elm" | "erl" | "hrl" | "ex" | "exs" | "clj" | "cljs" | "hs" | "v" | "sv" | "vhdl" | "asm" | "s" | "sql"
+                        );
+                        if is_code_file {
+                            // Skip test files by name pattern
+                            let lower_stem = path.file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("")
+                                .to_lowercase();
+                            let is_test_file = lower_stem.ends_with("test")
+                                || lower_stem.ends_with("tests")
+                                || lower_stem.ends_with("_test")
+                                || lower_stem.ends_with("_tests")
+                                || lower_stem.ends_with("_spec")
+                                || lower_stem.starts_with("test_")
+                                || lower_stem == "test";
+                            if !is_test_file {
+                                files.push(path);
+                            }
+                        }
                     }
                 }
             }

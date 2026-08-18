@@ -17,6 +17,7 @@ use crate::psa::types::PathSummaryArtifact;
 use crate::ssa::serializer::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::tra::types::TraceabilityArtifact;
+use crate::ingestion::TokenCorpusArtifact;
 use crate::uma::types::*;
 
 pub struct StructuralExtractor;
@@ -24,6 +25,7 @@ pub struct StructuralExtractor;
 impl StructuralExtractor {
     pub fn extract_all(
         sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
         psa: &PathSummaryArtifact,
         tra: &TraceabilityArtifact,
         ssa: &SSAArtifact,
@@ -34,7 +36,7 @@ impl StructuralExtractor {
         Vec<PackageRecord>,
         Vec<ComponentRecord>,
     ) {
-        let classes = ClassDiagramExtractor::extract(sta, psa, tra);
+        let classes = ClassDiagramExtractor::extract(sta, tca, psa, tra);
         let objects = ObjectDiagramExtractor::extract(sta, ssa);
         let packages = PackageDiagramExtractor::extract(sta);
         let components = ComponentDiagramExtractor::extract(sta, cga);
