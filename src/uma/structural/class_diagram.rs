@@ -297,17 +297,8 @@ impl ClassDiagramExtractor {
                 }
             }
 
-            if sym.parent_sym != u32::MAX {
-                if let Some(parent_sym) = sta.symbol(sym.parent_sym) {
-                    if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_INTERFACE {
-                        implements_set.insert(sym.parent_sym);
-                    } else if SymbolKind::from(parent_sym.kind) == SymbolKind::SK_CLASS
-                        && extends_sym == u32::MAX
-                    {
-                        extends_sym = sym.parent_sym;
-                    }
-                }
-            }
+            // NOTE: sym.parent_sym is the AST containment parent (enclosing class/module),
+            // NOT the superclass. Inheritance is handled exclusively through sta.th_edges above.
 
             let association_syms = association_set.into_iter().collect();
             let implements_syms = implements_set.into_iter().collect();

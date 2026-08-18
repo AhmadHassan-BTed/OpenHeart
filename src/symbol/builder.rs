@@ -173,8 +173,7 @@ impl SymbolTableBuilder {
             }
         }
 
-        // Invariant 3: Type Hierarchy Acyclicity (disabled to allow multi-package inheritance topologies)
-        // self.verify_th_acyclicity()?;
+        // Invariant 3: Type Hierarchy Acyclicity (Kahn's topological sort over TH_EXTENDS)
 
         // Invariant 5: Token range seed
         for sym in &self.symbols {
@@ -200,8 +199,11 @@ impl SymbolTableBuilder {
         for edge in &self.th_edges {
             if edge.relation == THRelation::TH_EXTENDS || edge.relation == THRelation::TH_IMPLEMENTS
             {
-                *in_degree.entry(edge.to_sym).or_insert(0) += 0;
+                // from_sym extends/implements to_sym => edge: from_sym → to_sym
+                // In-degree: from_sym has a dependency, so it receives an in-degree count
+                in_degree.entry(edge.to_sym).or_insert(0);
                 *in_degree.entry(edge.from_sym).or_insert(0) += 1;
+                // Adjacency: when we "visit" to_sym (a root), we can decrement from_sym's in-degree
                 adj.entry(edge.to_sym).or_default().push(edge.from_sym);
             }
         }

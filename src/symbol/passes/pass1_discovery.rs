@@ -270,13 +270,7 @@ impl Pass1Discovery {
             let cur_fid = unpack_sort_key(rec.sort_key).0;
             let tid = rec.text_id;
 
-            let kw_class = tca.interner.find_id(b"class");
-            let kw_interface = tca.interner.find_id(b"interface");
-            let kw_object = tca.interner.find_id(b"object");
-            let kw_enum = tca.interner.find_id(b"enum");
-            let kw_record = tca.interner.find_id(b"record");
-            let kw_struct = tca.interner.find_id(b"struct");
-            let kw_trait = tca.interner.find_id(b"trait");
+            // kw_* variables already computed before loop (lines 249-255)
             let kw_fun = tca.interner.find_id(b"fun");
             let kw_val = tca.interner.find_id(b"val");
             let kw_var = tca.interner.find_id(b"var");
