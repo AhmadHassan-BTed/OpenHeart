@@ -1,0 +1,123 @@
+{
+  "lang_patterns": {
+    ".java": [
+      "^\\s*(?:public\\s+|private\\s+|protected\\s+)?(?:static\\s+)?(?:abstract\\s+|final\\s+)?(?:class|interface|enum|record|@interface)\\s+(?P<name>\\w+)"
+    ],
+    ".kt": [
+      "^\\s*(?:public\\s+|private\\s+|protected\\s+|internal\\s+)?(?:abstract\\s+|sealed\\s+|data\\s+|open\\s+|inner\\s+)?(?:class|interface|enum\\s+class|object|annotation\\s+class)\\s+(?P<name>\\w+)"
+    ],
+    ".py": [
+      "^\\s*class\\s+(?P<name>\\w+)"
+    ],
+    ".rs": [
+      "^\\s*(?:pub(?:\\(crate\\))?\\s+)?(?:struct|enum|trait)\\s+(?P<name>\\w+)"
+    ],
+    ".js": [
+      "^\\s*(?:export\\s+)?(?:default\\s+)?class\\s+(?P<name>\\w+)"
+    ],
+    ".ts": [
+      "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface|enum)\\s+(?P<name>\\w+)"
+    ],
+    ".jsx": [
+      "^\\s*(?:export\\s+)?(?:default\\s+)?class\\s+(?P<name>\\w+)"
+    ],
+    ".tsx": [
+      "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface|enum)\\s+(?P<name>\\w+)"
+    ],
+    ".cpp": [
+      "^\\s*(?:class|struct|enum(?:\\s+class)?)\\s+(?P<name>\\w+)"
+    ],
+    ".h": [
+      "^\\s*(?:class|struct|enum(?:\\s+class)?)\\s+(?P<name>\\w+)"
+    ],
+    ".hpp": [
+      "^\\s*(?:class|struct|enum(?:\\s+class)?)\\s+(?P<name>\\w+)"
+    ],
+    ".cs": [
+      "^\\s*(?:public\\s+|private\\s+|protected\\s+|internal\\s+)?(?:static\\s+)?(?:abstract\\s+|sealed\\s+|partial\\s+)?(?:class|interface|enum|struct|record)\\s+(?P<name>\\w+)"
+    ],
+    ".go": [
+      "^\\s*type\\s+(?P<name>\\w+)\\s+(?:struct|interface)"
+    ],
+    ".swift": [
+      "^\\s*(?:public\\s+|private\\s+|internal\\s+|fileprivate\\s+|open\\s+)?(?:final\\s+)?(?:class|struct|enum|protocol|actor)\\s+(?P<name>\\w+)"
+    ]
+  },
+  "shared_aliases": {
+    ".kts": ".kt",
+    ".mjs": ".js",
+    ".cjs": ".js",
+    ".mts": ".ts",
+    ".cts": ".ts",
+    ".cc": ".cpp",
+    ".cxx": ".cpp",
+    ".hxx": ".hpp",
+    ".hh": ".hpp",
+    ".c": ".cpp",
+    ".mm": ".cpp"
+  },
+  "keywords": [
+    "class", "interface", "enum", "object", "struct", "trait", "impl", "mod",
+    "fun", "function", "def", "fn", "val", "var", "let", "const", "static",
+    "public", "private", "protected", "internal", "abstract", "sealed", "open",
+    "data", "inner", "override", "super", "this", "self", "Self", "new",
+    "return", "if", "else", "for", "while", "do", "switch", "case", "break",
+    "continue", "try", "catch", "finally", "throw", "throws", "import", "export",
+    "package", "module", "from", "as", "in", "is", "true", "false", "null",
+    "undefined", "void", "boolean", "int", "long", "float", "double", "char",
+    "byte", "short", "string", "String", "Object", "resolve", "require",
+    "extends", "implements", "with", "yield", "async", "await", "type",
+    "companion", "constructor", "annotation", "record", "final", "native",
+    "volatile", "transient", "synchronized", "default", "goto", "instanceof",
+    "typeof", "delete", "debugger", "eval", "arguments", "prototype",
+    "Unknown", "SystemNode", "Entity", "Node_0", "Node_1", "Node_2",
+    "MB", "args", "NaN", "Get", "Post", "Put", "Delete", "Path", "Body", "Header", "Query", "Param", "Http",
+    "Composable", "Deprecated", "OptIn", "Suppress", "Retention", "MustBeDocumented", "Repeatable",
+    "JvmStatic", "JvmOverloads", "JvmField", "JvmName", "Inject", "Singleton", "Provides", "Binds",
+    "HiltViewModel", "PrimaryKey", "ColumnInfo", "Insert", "Update", "SerializedName",
+    "JsonProperty", "AllArgsConstructor", "NoArgsConstructor", "RequiredArgsConstructor", "Autowired",
+    "EnableCaching", "EnableJpaRepositories", "SpringBootApplication", "RestController", "RequestMapping",
+    "Getter", "Setter", "Slf4j", "Value", "EqualsAndHashCode", "ToString", "SneakyThrows",
+    "With", "AccessLevel", "DiscriminatorValue", "EnableDiscoveryClient", "EnableEurekaServer",
+    "BroadcastReceiver", "Choreographer", "ContextCompat", "Int", "Intent", "Log",
+    "Runnable", "SeekBar", "TAG", "ViewModelProvider", "ViewPager2", "Arrays", "BlockingQueue",
+    "CHANNEL_ID", "NOTIFICATION_ID", "Some", "None", "Ok", "Err", "OpenHeart", "CLASS", "Configuration",
+    "Double", "Float", "Integer", "Long", "Boolean", "Byte", "Short", "HashSet", "HashMap", "ArrayList",
+    "Optional", "Objects", "Collections", "StringBuilder", "StringBuffer", "Math", "System",
+    "Thread", "Class", "Exception", "RuntimeException", "Throwable", "Error", "DOMContentLoaded",
+    "EnableScheduling", "EntityScan", "FeignClient", "FunctionalInterface", "HomeScreen", "INVESTOR",
+    "JFrame", "LOGGER", "Logger", "Override", "Root", "KafkaListener", "MappedSuperclass",
+    "JsonProcessingException", "SQLException", "SpringBootConfiguration", "SuppressWarnings",
+    "Table", "Transactional", "Scanner"
+  ],
+  "test_path_patterns": [
+    "/src/test/", "/src/androidTest/", "/src/testDebug/", "/src/testRelease/",
+    "/__tests__/", "/tests/", "/test/", "/spec/", "/specs/",
+    "_test.go", "_test.rs"
+  ],
+  "ignore_dirs": [
+    "node_modules", "target", "build", "dist", "out", "vendor", "target_repos",
+    "venv", ".git", "__pycache__", ".gradle", ".idea", "fractal_android_output"
+  ],
+  "package_stmt_patterns": {
+    ".java": "^\\s*package\\s+([\\w.]+)\\s*;",
+    ".kt": "^\\s*package\\s+([\\w.]+)",
+    ".kts": "^\\s*package\\s+([\\w.]+)"
+  },
+  "diagram_mapping": [
+    ["class", "01_class_diagram.puml"],
+    ["object", "02_object_diagram.puml"],
+    ["component", "03_component_diagram.puml"],
+    ["deployment", "04_deployment_diagram.puml"],
+    ["package", "05_package_diagram.puml"],
+    ["composite", "06_composite_structure_diagram.puml"],
+    ["profile", "07_profile_diagram.puml"],
+    ["usecase", "08_use_case_diagram.puml"],
+    ["activity", "09_activity_diagram.puml"],
+    ["statemachine", "10_state_machine_diagram.puml"],
+    ["sequence", "11_sequence_diagram.puml"],
+    ["communication", "12_communication_diagram.puml"],
+    ["interaction", "13_interaction_overview_diagram.puml"],
+    ["timing", "14_timing_diagram.puml"]
+  ]
+}

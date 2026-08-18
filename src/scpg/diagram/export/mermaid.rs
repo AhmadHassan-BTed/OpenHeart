@@ -472,6 +472,27 @@ impl MermaidExporter {
         }
     }
 
+    fn is_primitive_or_system(name: &str) -> bool {
+        matches!(
+            name,
+            "SystemNode"
+                | "Unknown"
+                | "Entity"
+                | "void"
+                | "boolean"
+                | "int"
+                | "long"
+                | "float"
+                | "double"
+                | "char"
+                | "byte"
+                | "short"
+                | "String"
+                | "Object"
+                | "args"
+        )
+    }
+
     fn resolve_leaf_node_id(full_pkg: &str, duplicate_names: &HashSet<String>) -> String {
         let parts: Vec<&str> = full_pkg.split('.').filter(|s| !s.is_empty()).collect();
         let leaf = parts.last().cloned().unwrap_or(full_pkg);
@@ -541,23 +562,6 @@ impl MermaidExporter {
             .filter(|(_, count)| *count > 1)
             .map(|(name, _)| name)
             .collect();
-
-        let primitives = [
-            "void",
-            "boolean",
-            "int",
-            "long",
-            "float",
-            "double",
-            "char",
-            "byte",
-            "short",
-            "Unknown",
-            "Entity",
-            "args",
-            "SystemNode",
-        ];
-
         let mut seen_syms = HashSet::new();
         let mut class_package_map: HashMap<String, String> = HashMap::new();
         let mut relationships: Vec<(String, &'static str, String)> = Vec::new();
@@ -569,8 +573,7 @@ impl MermaidExporter {
 
             let name = Self::resolve_name(sta, tca, class_rec.sym_id);
             let safe_name = Self::sanitize(name);
-
-            if safe_name == "SystemNode" || primitives.contains(&safe_name.as_str()) {
+            if safe_name.is_empty() || Self::is_primitive_or_system(&safe_name) {
                 continue;
             }
 
@@ -673,7 +676,7 @@ impl MermaidExporter {
             if class_rec.extends_sym != u32::MAX {
                 let parent_name = Self::resolve_name(sta, tca, class_rec.extends_sym);
                 let parent_safe = Self::sanitize(parent_name);
-                if parent_safe != safe_name && !primitives.contains(&parent_safe.as_str()) {
+                if parent_safe != safe_name && !Self::is_primitive_or_system(&parent_safe) {
                     relationships.push((safe_name.clone(), "--|>", parent_safe));
                 }
             }
@@ -682,7 +685,7 @@ impl MermaidExporter {
             for &imp_sym in &class_rec.implements_syms {
                 let imp_name = Self::resolve_name(sta, tca, imp_sym);
                 let imp_safe = Self::sanitize(imp_name);
-                if imp_safe != safe_name && !primitives.contains(&imp_safe.as_str()) {
+                if imp_safe != safe_name && !Self::is_primitive_or_system(&imp_safe) {
                     relationships.push((safe_name.clone(), "..|>", imp_safe));
                 }
             }
@@ -691,7 +694,7 @@ impl MermaidExporter {
             for &assoc_sym in &class_rec.association_syms {
                 let assoc_name = Self::resolve_name(sta, tca, assoc_sym);
                 let assoc_safe = Self::sanitize(assoc_name);
-                if assoc_safe != safe_name && !primitives.contains(&assoc_safe.as_str()) {
+                if assoc_safe != safe_name && !Self::is_primitive_or_system(&assoc_safe) {
                     relationships.push((safe_name.clone(), "-->", assoc_safe));
                 }
             }
@@ -700,7 +703,7 @@ impl MermaidExporter {
             for &inner_sym in &class_rec.inner_classes {
                 let inner_name = Self::resolve_name(sta, tca, inner_sym);
                 let inner_safe = Self::sanitize(inner_name);
-                if inner_safe != safe_name && !primitives.contains(&inner_safe.as_str()) {
+                if inner_safe != safe_name && !Self::is_primitive_or_system(&inner_safe) {
                     relationships.push((safe_name.clone(), "*--", inner_safe));
                 }
             }

@@ -178,17 +178,28 @@ impl Pass1Discovery {
             let cur_fid = unpack_sort_key(rec.sort_key).0;
             let tid = rec.text_id;
 
-            let sym_kind = if tid == kw_class || tid == kw_object || tid == kw_struct {
-                Some(crate::core::types::symbol::SymbolKind::SK_CLASS)
-            } else if tid == kw_interface || tid == kw_trait {
-                Some(crate::core::types::symbol::SymbolKind::SK_INTERFACE)
-            } else if tid == kw_enum {
-                Some(crate::core::types::symbol::SymbolKind::SK_ENUM)
-            } else if tid == kw_record {
-                Some(crate::core::types::symbol::SymbolKind::SK_RECORD)
-            } else {
-                None
-            };
+        let kw_class = tca.interner.find_id(b"class");
+        let kw_interface = tca.interner.find_id(b"interface");
+        let kw_object = tca.interner.find_id(b"object");
+        let kw_enum = tca.interner.find_id(b"enum");
+        let kw_record = tca.interner.find_id(b"record");
+        let kw_struct = tca.interner.find_id(b"struct");
+        let kw_trait = tca.interner.find_id(b"trait");
+        let kw_fun = tca.interner.find_id(b"fun");
+        let kw_val = tca.interner.find_id(b"val");
+        let kw_var = tca.interner.find_id(b"var");
+
+        let sym_kind = if tid == kw_class || tid == kw_object || tid == kw_struct {
+            Some(crate::core::types::symbol::SymbolKind::SK_CLASS)
+        } else if tid == kw_interface || tid == kw_trait {
+            Some(crate::core::types::symbol::SymbolKind::SK_INTERFACE)
+        } else if tid == kw_enum {
+            Some(crate::core::types::symbol::SymbolKind::SK_ENUM)
+        } else if tid == kw_record {
+            Some(crate::core::types::symbol::SymbolKind::SK_RECORD)
+        } else {
+            None
+        };
 
             if let Some(kind) = sym_kind {
                 let mut lookahead = tok_idx + 1;

@@ -83,6 +83,12 @@ impl SequenceDiagramExtractor {
         });
         ordinal += 1;
 
+        // Pre-index CGA call sites and site edges for O(1) lookup
+        let mut site_edges: HashMap<(u32, u32), Vec<u32>> = HashMap::new();
+        for &(clr, callee_sym, site_id) in &cga.site_to_edge_map {
+            site_edges.entry((clr, site_id)).or_default().push(callee_sym);
+        }
+
         // Trace call sites from entry_sym
         let mut visited = HashSet::new();
         let mut stack = vec![entry_sym];
@@ -99,8 +105,8 @@ impl SequenceDiagramExtractor {
 
             for site in &cga.call_sites {
                 if site.caller_sym == caller_sym {
-                    for &(clr, callee_sym, site_id) in &cga.site_to_edge_map {
-                        if clr == caller_sym && site_id == site.call_site_id {
+                    if let Some(callees) = site_edges.get(&(caller_sym, site.call_site_id)) {
+                        for &callee_sym in callees {
                             let callee_class = sta
                                 .symbol(callee_sym)
                                 .map(|s| s.parent_sym)

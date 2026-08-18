@@ -30,20 +30,17 @@ impl PlantUMLExporter {
             if s.first_token_id != u32::MAX && (s.first_token_id as usize) < tca.token_records.len() {
                 let start = s.first_token_id as usize;
                 let end = (start + 20).min(tca.token_records.len());
-                let keywords = [
-                    "package", "import", "public", "private", "protected", "static",
-                    "final", "abstract", "class", "interface", "enum", "record",
-                    "extends", "implements", "fun", "val", "var", "object",
-                    "companion", "data", "sealed", "open", "override", "internal",
-                    "void", "synchronized", "transient", "volatile", "default",
-                ];
                 for idx in start..end {
                     let rec = &tca.token_records[idx];
+                    if rec.token_type == crate::core::types::token::TokenType::Keyword as u8
+                        || rec.token_type == crate::core::types::token::TokenType::Annotation as u8
+                    {
+                        continue;
+                    }
                     let t_bytes = tca.interner.lookup_text(rec.text_id);
                     if let Ok(t_str) = std::str::from_utf8(t_bytes) {
                         if !t_str.is_empty()
                             && (t_str.chars().next().unwrap_or('\0').is_alphabetic() || t_str.starts_with('_'))
-                            && !keywords.contains(&t_str)
                         {
                             return t_str;
                         }
@@ -74,6 +71,68 @@ impl PlantUMLExporter {
         } else {
             clean
         }
+    }
+
+    fn is_primitive_or_system(name: &str) -> bool {
+        matches!(
+            name,
+            "SystemNode"
+                | "Unknown"
+                | "Entity"
+                | "void"
+                | "boolean"
+                | "int"
+                | "long"
+                | "float"
+                | "double"
+                | "char"
+                | "byte"
+                | "short"
+                | "String"
+                | "Object"
+                | "args"
+                | "package"
+                | "const"
+                | "java"
+                | "androidx"
+                | "Volatile"
+                | "null"
+                | "true"
+                | "false"
+                | "this"
+                | "super"
+                | "undefined"
+                | "NaN"
+                | "0"
+                | "1"
+                | "2"
+                | "3"
+                | "4"
+                | "5"
+                | "Node_0"
+                | "Node_1"
+                | "Node_2"
+                | "Node_3"
+                | "Node_4"
+                | "Node_5"
+                | "Node_100"
+                | "let"
+                | "var"
+                | "function"
+                | "return"
+                | "if"
+                | "else"
+                | "for"
+                | "while"
+                | "do"
+                | "switch"
+                | "case"
+                | "break"
+                | "continue"
+                | "try"
+                | "catch"
+                | "MB"
+        )
     }
 
     pub fn resolve_sym_package(
@@ -205,21 +264,13 @@ impl PlantUMLExporter {
         let mut root_classes: Vec<&ClassRecord> = Vec::new();
         let mut seen_syms = HashSet::new();
 
-        let primitives = [
-            "void", "boolean", "int", "long", "float", "double", "char", "byte", "short",
-            "Unknown", "Entity", "args", "SystemNode", "package", "const", "java", "androidx", "Volatile",
-            "null", "true", "false", "this", "super", "undefined", "NaN", "0", "1", "2", "3", "4", "5",
-            "Node_0", "Node_1", "Node_2", "Node_3", "Node_4", "Node_5", "Node_100", "let", "var",
-            "function", "return", "if", "else", "for", "while", "do", "switch", "case", "break", "continue", "try", "catch", "MB"
-        ];
-
         for class_rec in &uma.classes {
             if !seen_syms.insert(class_rec.sym_id) {
                 continue;
             }
             let name = Self::resolve_name(sta, tca, class_rec.sym_id);
             let safe_name = Self::sanitize(name);
-            if safe_name == "SystemNode" || safe_name.is_empty() || primitives.contains(&safe_name.as_str()) {
+            if safe_name.is_empty() || Self::is_primitive_or_system(&safe_name) {
                 continue;
             }
 
@@ -237,7 +288,7 @@ impl PlantUMLExporter {
                     let name = Self::resolve_name(sta, tca, inner_sym);
                     let safe_name = Self::sanitize(name);
                     let is_all_caps = safe_name.len() >= 3 && safe_name.chars().all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
-                    if safe_name != "SystemNode" && !safe_name.is_empty() && !primitives.contains(&safe_name.as_str()) && !is_all_caps {
+                    if !safe_name.is_empty() && !Self::is_primitive_or_system(&safe_name) && !is_all_caps {
                         let is_interface = safe_name.ends_with("Listener") || safe_name == "Parser" || safe_name.contains("Callback");
                         let st = if is_interface { STEREOTYPE_INTERFACE } else { STEREOTYPE_NONE };
                         inner_records.push(ClassRecord {
@@ -282,7 +333,7 @@ impl PlantUMLExporter {
                 } else {
                     let name = Self::resolve_name(sta, tca, inner_rec.sym_id);
                     let safe_name = Self::sanitize(name);
-                    if !safe_name.is_empty() && !primitives.contains(&safe_name.as_str()) {
+                    if !safe_name.is_empty() && !Self::is_primitive_or_system(&safe_name) {
                         root_classes.push(inner_rec);
                     }
                 }
@@ -413,15 +464,10 @@ impl PlantUMLExporter {
 
         out.push('\n');
 
-        let primitives_set: HashSet<&str> = [
-            "void", "boolean", "int", "long", "float", "double", "char", "byte", "short",
-            "String", "Object", "Unknown", "Entity", "args", "SystemNode", "package", "const"
-        ].into_iter().collect();
-
         let mut class_by_name: HashMap<String, u32> = HashMap::new();
         for class_rec in &uma.classes {
             let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if name != "SystemNode" && !primitives_set.contains(name.as_str()) {
+            if !Self::is_primitive_or_system(&name) {
                 class_by_name.insert(name, class_rec.sym_id);
             }
         }
@@ -431,47 +477,22 @@ impl PlantUMLExporter {
         // 1. Inheritance (--|>) & Realization (..|>) from ClassRecord
         for class_rec in &uma.classes {
             let src_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if src_name == "SystemNode" || primitives_set.contains(src_name.as_str()) {
+            if Self::is_primitive_or_system(&src_name) {
                 continue;
             }
 
             if class_rec.extends_sym != u32::MAX {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.extends_sym));
-                if dst_name != "SystemNode" && !primitives_set.contains(dst_name.as_str()) && src_name != dst_name {
+                if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     edges_by_pair.insert((src_name.clone(), dst_name.clone()), format!("{} --|> {}", src_name, dst_name));
                 }
             }
 
             for &imp_sym in &class_rec.implements_syms {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, imp_sym));
-                if dst_name != "SystemNode" && !primitives_set.contains(dst_name.as_str()) && src_name != dst_name {
+                if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
                     if !edges_by_pair.contains_key(&pair) {
-                        edges_by_pair.insert(pair, format!("{} ..|> {}", src_name, dst_name));
-                    }
-                }
-            }
-
-            // Fallback Interface Realization by Name
-            if src_name.contains('_') || src_name.ends_with("Builder") || src_name.ends_with("Factory") {
-                let mut candidate_ifaces = Vec::new();
-                if src_name.ends_with("Builder") && src_name != "Builder" {
-                    candidate_ifaces.push("Builder".to_string());
-                }
-                if src_name.contains('_') {
-                    let parts: Vec<&str> = src_name.split('_').collect();
-                    if parts.len() >= 2 {
-                        candidate_ifaces.push(parts[1..].join("_"));
-                        candidate_ifaces.push(parts.last().unwrap().to_string());
-                    }
-                }
-
-                for iface in candidate_ifaces {
-                    if class_by_name.contains_key(&iface) && iface != src_name {
-                        let pair = (src_name.clone(), iface.clone());
-                        if !edges_by_pair.contains_key(&pair) {
-                            edges_by_pair.insert(pair, format!("{} ..|> {}", src_name, iface));
-                        }
                     }
                 }
             }
@@ -481,10 +502,8 @@ impl PlantUMLExporter {
         for edge in &sta.th_edges {
             let src_name = Self::sanitize(Self::resolve_name(sta, tca, edge.from_sym));
             let dst_name = Self::sanitize(Self::resolve_name(sta, tca, edge.to_sym));
-            if src_name != "SystemNode"
-                && dst_name != "SystemNode"
-                && !primitives_set.contains(src_name.as_str())
-                && !primitives_set.contains(dst_name.as_str())
+            if !Self::is_primitive_or_system(&src_name)
+                && !Self::is_primitive_or_system(&dst_name)
                 && src_name != dst_name
             {
                 let pair = (src_name.clone(), dst_name.clone());
@@ -502,7 +521,7 @@ impl PlantUMLExporter {
         // 3. Composition (*--) & Aggregation (o--) from Fields with Collection Multiplicity ("*")
         for class_rec in &uma.classes {
             let src_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if src_name == "SystemNode" || primitives_set.contains(src_name.as_str()) {
+            if Self::is_primitive_or_system(&src_name) {
                 continue;
             }
 
@@ -538,7 +557,7 @@ impl PlantUMLExporter {
                     (matched, field.is_collection != 0 || is_plural)
                 };
 
-                if type_name != "SystemNode" && !primitives_set.contains(type_name.as_str()) && src_name != type_name {
+                if !Self::is_primitive_or_system(&type_name) && src_name != type_name {
                     let pair = (src_name.clone(), type_name.clone());
                     if !edges_by_pair.contains_key(&pair) {
                         let rel_line = if is_coll {
@@ -553,7 +572,7 @@ impl PlantUMLExporter {
 
             for &inner_sym in &class_rec.inner_classes {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, inner_sym));
-                if dst_name != "SystemNode" && !primitives_set.contains(dst_name.as_str()) && src_name != dst_name {
+                if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
                     if !edges_by_pair.contains_key(&pair) {
                         edges_by_pair.insert(pair, format!("{} *-- {}", src_name, dst_name));
@@ -565,7 +584,7 @@ impl PlantUMLExporter {
         // 4. Grounded Design Pattern Creation Dependencies (Factory <<create>> & Builder <<build>>)
         for class_rec in &uma.classes {
             let src_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if src_name == "SystemNode" || primitives_set.contains(src_name.as_str()) {
+            if Self::is_primitive_or_system(&src_name) {
                 continue;
             }
 
@@ -576,7 +595,7 @@ impl PlantUMLExporter {
                 for method in &class_rec.methods {
                     if method.return_type_sym_id != u32::MAX {
                         let dst_name = Self::sanitize(Self::resolve_name(sta, tca, method.return_type_sym_id));
-                        if dst_name != "SystemNode" && !primitives_set.contains(dst_name.as_str()) && src_name != dst_name {
+                        if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                             let pair = (src_name.clone(), dst_name.clone());
                             if !edges_by_pair.contains_key(&pair) {
                                 let stereotype = if is_factory { "<<create>>" } else { "<<build>>" };
@@ -591,13 +610,13 @@ impl PlantUMLExporter {
         // 5. Interprocedural Call & Symbol Table Association Usage Dependencies (ClassA ..> ClassB : <<uses>>)
         for class_rec in &uma.classes {
             let src_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if src_name == "SystemNode" || primitives_set.contains(src_name.as_str()) {
+            if Self::is_primitive_or_system(&src_name) {
                 continue;
             }
 
             for &assoc_sym in &class_rec.association_syms {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, assoc_sym));
-                if dst_name != "SystemNode" && !primitives_set.contains(dst_name.as_str()) && src_name != dst_name {
+                if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
                     if !edges_by_pair.contains_key(&pair) {
                         edges_by_pair.insert(pair, format!("{} ..> {} : <<uses>>", src_name, dst_name));

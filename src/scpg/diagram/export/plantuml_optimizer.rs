@@ -45,15 +45,18 @@ impl PlantUMLOptimizer {
         let mut edges_by_pkg_pair: HashMap<(String, String), Vec<RawEdge>> = HashMap::new();
         let mut unbundled_edges: Vec<RawEdge> = Vec::new();
 
-        // 1. Group edges by cross-package or class-level
+        // 1. Group edges by cross-package or class-level (preserving inheritance/realization)
         for edge in raw_edges {
+            let is_inheritance = edge.rel_op.contains("|>") || edge.full_line.contains("|>");
             let src_pkg = class_to_package.get(&edge.src_class).cloned();
             let dst_pkg = class_to_package.get(&edge.dst_class).cloned();
 
-            if let (Some(sp), Some(dp)) = (src_pkg, dst_pkg) {
-                if sp != dp {
-                    edges_by_pkg_pair.entry((sp, dp)).or_default().push(edge);
-                    continue;
+            if !is_inheritance {
+                if let (Some(sp), Some(dp)) = (src_pkg, dst_pkg) {
+                    if sp != dp {
+                        edges_by_pkg_pair.entry((sp, dp)).or_default().push(edge);
+                        continue;
+                    }
                 }
             }
             unbundled_edges.push(edge);
@@ -61,7 +64,7 @@ impl PlantUMLOptimizer {
 
         let mut suppressed_edges = HashSet::new();
 
-        // 2. Rule 6.3: Package-to-Package Reduction (Collapse ALL cross-package class edges into package import arrows)
+        // 2. Rule 6.3: Package-to-Package Reduction (Collapse usage dependencies into package import arrows)
         for ((sp, dp), p_edges) in edges_by_pkg_pair {
             if !p_edges.is_empty() {
                 final_lines.push(format!("{} ..> {} : <<imports>>", Self::pkg_alias(&sp), Self::pkg_alias(&dp)));
