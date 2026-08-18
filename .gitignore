@@ -2,12 +2,25 @@
 /target/
 tmp/
 out_test/
+home/
 openheart_output/
-fractal_android_output/
-fractal_android_output_answer/
+*_output/
+*_output_answer/
 output_diagrams/
 target_repos/
 sample_project/
+
+# Python & Virtual Environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+.pytest_cache/
 
 # SCPG Phase 1-10 Binary Artifact Files
 *.tca
@@ -33,7 +46,12 @@ scratch/
 
 # Environment & Editor Files
 .env
+.env.*
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*.swo
+.zed/
+.fleet/
