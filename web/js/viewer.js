@@ -10,6 +10,7 @@ import { APIClient } from './api.js';
 export class DiagramViewerModule {
   constructor() {
     this.renderContainer = null;
+    this.panState = { isPanning: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 };
   }
 
   init(containerId = 'plantuml-render-container') {
@@ -34,7 +35,58 @@ export class DiagramViewerModule {
     const svg = this.renderContainer.querySelector('svg');
     if (svg) {
       svg.style.transform = `scale(${zoomLevel})`;
+      svg.style.transformOrigin = 'center center';
+      svg.style.transition = 'transform 0.15s ease-out';
     }
+  }
+
+  setupInteractivePanAndZoom(viewport) {
+    if (!viewport) return;
+    viewport.style.cursor = 'grab';
+    viewport.style.overflow = 'auto';
+
+    viewport.addEventListener('mousedown', (e) => {
+      this.panState.isPanning = true;
+      viewport.style.cursor = 'grabbing';
+      this.panState.startX = e.pageX - viewport.offsetLeft;
+      this.panState.startY = e.pageY - viewport.offsetTop;
+      this.panState.scrollLeft = viewport.scrollLeft;
+      this.panState.scrollTop = viewport.scrollTop;
+    });
+
+    viewport.addEventListener('mouseleave', () => {
+      this.panState.isPanning = false;
+      viewport.style.cursor = 'grab';
+    });
+
+    viewport.addEventListener('mouseup', () => {
+      this.panState.isPanning = false;
+      viewport.style.cursor = 'grab';
+    });
+
+    viewport.addEventListener('mousemove', (e) => {
+      if (!this.panState.isPanning) return;
+      e.preventDefault();
+      const x = e.pageX - viewport.offsetLeft;
+      const y = e.pageY - viewport.offsetTop;
+      const walkX = (x - this.panState.startX) * 1.5;
+      const walkY = (y - this.panState.startY) * 1.5;
+      viewport.scrollLeft = this.panState.scrollLeft - walkX;
+      viewport.scrollTop = this.panState.scrollTop - walkY;
+    });
+
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        let current = StudioState.currentZoom || 1.0;
+        if (e.deltaY < 0) {
+          current = Math.min(2.5, current + 0.1);
+        } else {
+          current = Math.max(0.4, current - 0.1);
+        }
+        StudioState.setZoom(current);
+      }
+    }, { passive: false });
   }
 
   async renderCurrentDiagram() {
@@ -48,13 +100,13 @@ export class DiagramViewerModule {
 
     if (mode === 'code') {
       this.renderContainer.innerHTML = `
-        <div class="plantuml-canvas">
+        <div class="plantuml-canvas" style="height:100%; overflow:auto;">
           <pre class="plantuml-code-editor"><code>${this.escapeHtml(pumlCode)}</code></pre>
         </div>`;
     } else if (mode === 'matrix') {
       const traceItems = StudioState.activeTraceabilityList || [];
       this.renderContainer.innerHTML = `
-        <div class="plantuml-canvas" style="padding: 1.5rem; overflow: auto; background: #0d0d0d;">
+        <div class="plantuml-canvas" style="padding: 1.5rem; overflow: auto; background: #0d0d0d; height:100%;">
           <h4 style="color: #00ff66; margin-top:0; font-family: monospace;">UML SYMBOL & SPAN MATRIX (${type.toUpperCase()})</h4>
           <table style="width: 100%; border-collapse: collapse; color: #ccc; font-family: monospace; font-size: 0.85rem;">
             <thead>
@@ -82,11 +134,11 @@ export class DiagramViewerModule {
     } else {
       // 'visual' Vector SVG mode via Kroki
       this.renderContainer.innerHTML = `
-        <div class="plantuml-canvas">
+        <div class="plantuml-canvas" style="height:100%; display:flex; flex-direction:column; overflow:hidden;">
           <div id="visual-loading" style="padding: 2rem; color: #00ff66; font-family: monospace;">
             > RENDERING INTERACTIVE VECTOR SVG DIAGRAM VIA KROKI ENGINE...
           </div>
-          <div id="visual-viewport" class="plantuml-visual-viewport" style="display:none;"></div>
+          <div id="visual-viewport" class="plantuml-visual-viewport" style="display:none; flex:1; overflow:auto; padding:2rem; justify-content:center; align-items:center;"></div>
         </div>`;
 
       try {
@@ -97,12 +149,24 @@ export class DiagramViewerModule {
           loading.style.display = "none";
           viewport.style.display = "flex";
           viewport.innerHTML = svgText;
+
+          const svg = viewport.querySelector('svg');
+          if (svg) {
+            svg.removeAttribute('height');
+            svg.style.maxWidth = '100%';
+            svg.style.height = 'auto';
+            svg.style.display = 'block';
+            svg.style.margin = 'auto';
+            svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+          }
+
           this.applyZoom(StudioState.currentZoom);
+          this.setupInteractivePanAndZoom(viewport);
         }
       } catch (err) {
         Logger.warn(`[KROKI FALLBACK] ${err.message}. Rendering scrollable PlantUML code.`);
         this.renderContainer.innerHTML = `
-          <div class="plantuml-canvas">
+          <div class="plantuml-canvas" style="height:100%; overflow:auto;">
             <div style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #ffaa00; font-family: monospace; font-size: 0.8rem; border-bottom: 1px solid #333;">
               ⚠️ VECTOR SVG GENERATOR OFFLINE. DISPLAYING 100% SCROLLABLE PLANTUML SOURCE CODE.
             </div>

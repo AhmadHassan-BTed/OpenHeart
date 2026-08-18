@@ -14,6 +14,7 @@ pub enum LangId {
     Rust = 0x07,
     Cpp = 0x08,
     Go = 0x09,
+    Generic = 0x0A,
 }
 
 impl From<u8> for LangId {
@@ -28,6 +29,7 @@ impl From<u8> for LangId {
             0x07 => LangId::Rust,
             0x08 => LangId::Cpp,
             0x09 => LangId::Go,
+            0x0A => LangId::Generic,
             _ => LangId::Unknown,
         }
     }

@@ -52,16 +52,16 @@ pub fn reduce_and_encode(
             let mut first_tok = u32::MAX;
             let mut last_tok = 0u32;
 
-            if node.child_count() == 0 {
-                let start = node.start_position();
-                let col = (start.column.min(u16::MAX as usize)) as u16;
-                let sort_key = build_sort_key(file_id, (start.row + 1) as u32, col);
-                let token_id = tok_table_lookup(tok_table, sort_key);
-                if token_id != u32::MAX {
-                    first_tok = token_id;
-                    last_tok = token_id;
-                }
-            } else {
+            let start = node.start_position();
+            let col = (start.column.min(u16::MAX as usize)) as u16;
+            let sort_key = build_sort_key(file_id, (start.row + 1) as u32, col);
+            let token_id = tok_table_lookup(tok_table, sort_key);
+            if token_id != u32::MAX {
+                first_tok = token_id;
+                last_tok = token_id;
+            }
+
+            if node.child_count() > 0 {
                 let mut cursor = node.walk();
                 cursor.goto_first_child();
                 loop {
@@ -95,6 +95,23 @@ pub fn reduce_and_encode(
 fn tok_table_lookup(table: &[TokenRecord], sort_key: u64) -> u32 {
     match table.binary_search_by_key(&sort_key, |r| r.sort_key) {
         Ok(idx) => idx as u32,
-        Err(_) => u32::MAX,
+        Err(idx) => {
+            let (file_id, line, _col) = crate::core::types::token::unpack_sort_key(sort_key);
+            if idx < table.len() {
+                let (rec_file, rec_line, _rec_col) =
+                    crate::core::types::token::unpack_sort_key(table[idx].sort_key);
+                if rec_file == file_id && rec_line == line {
+                    return idx as u32;
+                }
+            }
+            if idx > 0 {
+                let (rec_file, rec_line, _rec_col) =
+                    crate::core::types::token::unpack_sort_key(table[idx - 1].sort_key);
+                if rec_file == file_id && rec_line == line {
+                    return (idx - 1) as u32;
+                }
+            }
+            u32::MAX
+        }
     }
 }

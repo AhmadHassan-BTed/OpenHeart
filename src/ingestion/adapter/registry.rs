@@ -63,12 +63,13 @@ impl AdapterRegistry {
                     "java" => return LangId::Java,
                     "kt" | "kts" => return LangId::Kotlin,
                     "swift" => return LangId::Swift,
-                    "py" => return LangId::Python,
+                    "py" | "pyw" | "pyx" => return LangId::Python,
                     "js" | "jsx" | "mjs" | "cjs" => return LangId::JavaScript,
-                    "ts" | "tsx" => return LangId::TypeScript,
+                    "ts" | "tsx" | "mts" | "cts" => return LangId::TypeScript,
                     "rs" => return LangId::Rust,
-                    "cpp" | "c" | "h" | "hpp" => return LangId::Cpp,
+                    "cpp" | "c" | "h" | "hpp" | "cc" | "cxx" | "hh" | "hxx" | "c++" | "h++" => return LangId::Cpp,
                     "go" => return LangId::Go,
+                    "cs" => return LangId::Generic,
                     _ => {}
                 }
             }

@@ -291,6 +291,18 @@ OpenHeart provides an interactive Web Portal Studio hosted on GitHub Pages:
 
 Paste any public GitHub repository link (`https://github.com/owner/repo`) to select from all 14 UML diagram types and generate live interactive Mermaid diagrams.
 
+### Autonomous PlantUML Diagram Generator CLI
+
+Generate all 14 PlantUML `.puml` diagram files directly into a designated local directory for any GitHub repository or source codebase:
+
+```bash
+# Analyze any GitHub repo and save 14 PlantUML diagrams into ./output_diagrams/<repo_name>/
+./generate_diagrams.py https://github.com/AhmadHassan-BTed/SilentSniffer
+
+# Or run interactively:
+./generate_diagrams.py
+```
+
 ### Developer Commands
 
 ```bash

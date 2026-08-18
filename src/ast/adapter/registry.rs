@@ -1,5 +1,6 @@
 //! Registry for AST Reduction Adapters mapped by LangId.
 
+use super::generic::GenericASTReductionAdapter;
 use super::java::JavaASTReductionAdapter;
 use super::ASTReductionAdapter;
 use crate::core::types::token::LangId;
@@ -16,6 +17,14 @@ impl ASTAdapterRegistry {
             adapters: HashMap::new(),
         };
         registry.register(LangId::Java, Arc::new(JavaASTReductionAdapter::new()));
+        
+        let generic_js = Arc::new(GenericASTReductionAdapter::new(tree_sitter_javascript::language()));
+        registry.register(LangId::JavaScript, generic_js.clone());
+        registry.register(LangId::TypeScript, generic_js.clone());
+        registry.register(LangId::Rust, generic_js.clone());
+        registry.register(LangId::Generic, generic_js.clone());
+        registry.register(LangId::Unknown, generic_js);
+        
         registry
     }
 
@@ -24,7 +33,7 @@ impl ASTAdapterRegistry {
     }
 
     pub fn get(&self, lang: LangId) -> Option<Arc<dyn ASTReductionAdapter>> {
-        self.adapters.get(&lang).cloned()
+        self.adapters.get(&lang).cloned().or_else(|| self.adapters.get(&LangId::Unknown).cloned())
     }
 }
 
