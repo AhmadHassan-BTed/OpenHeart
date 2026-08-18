@@ -27,7 +27,8 @@ impl PlantUMLExporter {
                 return text;
             }
             // Fallback: Scan tokens around s.first_token_id for valid non-keyword name
-            if s.first_token_id != u32::MAX && (s.first_token_id as usize) < tca.token_records.len() {
+            if s.first_token_id != u32::MAX && (s.first_token_id as usize) < tca.token_records.len()
+            {
                 let start = s.first_token_id as usize;
                 let end = (start + 20).min(tca.token_records.len());
                 for idx in start..end {
@@ -40,7 +41,8 @@ impl PlantUMLExporter {
                     let t_bytes = tca.interner.lookup_text(rec.text_id);
                     if let Ok(t_str) = std::str::from_utf8(t_bytes) {
                         if !t_str.is_empty()
-                            && (t_str.chars().next().unwrap_or('\0').is_alphabetic() || t_str.starts_with('_'))
+                            && (t_str.chars().next().unwrap_or('\0').is_alphabetic()
+                                || t_str.starts_with('_'))
                         {
                             return t_str;
                         }
@@ -57,7 +59,13 @@ impl PlantUMLExporter {
     fn sanitize(name: &str) -> String {
         let clean: String = name
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         if clean.is_empty()
             || clean == "Unknown"
@@ -168,8 +176,13 @@ impl PlantUMLExporter {
                     }
 
                     if let Some(parent) = file_path.parent() {
-                        let p_comps: Vec<_> = parent.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
-                        if let Some(pos) = p_comps.iter().rposition(|c| c == "java" || c == "kotlin") {
+                        let p_comps: Vec<_> = parent
+                            .components()
+                            .map(|c| c.as_os_str().to_string_lossy().to_string())
+                            .collect();
+                        if let Some(pos) =
+                            p_comps.iter().rposition(|c| c == "java" || c == "kotlin")
+                        {
                             if pos + 1 < p_comps.len() {
                                 let pkg_parts = &p_comps[pos + 1..];
                                 let dir_pkg = pkg_parts.join(".");
@@ -199,13 +212,12 @@ impl PlantUMLExporter {
         // Pass 2: Parent Symbol Package Fallback
         if let Some(sym) = sta.symbol(sym_id) {
             if sym.parent_sym != u32::MAX {
-                if let Some(parent_pkg) = Self::resolve_sym_package(sta, tca, _bpa, sym.parent_sym) {
+                if let Some(parent_pkg) = Self::resolve_sym_package(sta, tca, _bpa, sym.parent_sym)
+                {
                     return Some(parent_pkg);
                 }
             }
         }
-
-
 
         // Pass 3: Prefix/Substring Match for Multi-Class Files (e.g., Task_Factory -> Task.kt)
         for file_rec in &tca.file_records {
@@ -220,8 +232,13 @@ impl PlantUMLExporter {
 
                 if is_sub {
                     if let Some(parent) = file_path.parent() {
-                        let p_comps: Vec<_> = parent.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
-                        if let Some(pos) = p_comps.iter().rposition(|c| c == "java" || c == "kotlin" || c == "src" || c == "main") {
+                        let p_comps: Vec<_> = parent
+                            .components()
+                            .map(|c| c.as_os_str().to_string_lossy().to_string())
+                            .collect();
+                        if let Some(pos) = p_comps.iter().rposition(|c| {
+                            c == "java" || c == "kotlin" || c == "src" || c == "main"
+                        }) {
                             if pos + 1 < p_comps.len() {
                                 let pkg_parts = &p_comps[pos + 1..];
                                 let dir_pkg = pkg_parts.join(".");
@@ -287,10 +304,22 @@ impl PlantUMLExporter {
                 if !seen_syms.contains(&inner_sym) {
                     let name = Self::resolve_name(sta, tca, inner_sym);
                     let safe_name = Self::sanitize(name);
-                    let is_all_caps = safe_name.len() >= 3 && safe_name.chars().all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
-                    if !safe_name.is_empty() && !Self::is_primitive_or_system(&safe_name) && !is_all_caps {
-                        let is_interface = safe_name.ends_with("Listener") || safe_name == "Parser" || safe_name.contains("Callback");
-                        let st = if is_interface { STEREOTYPE_INTERFACE } else { STEREOTYPE_NONE };
+                    let is_all_caps = safe_name.len() >= 3
+                        && safe_name
+                            .chars()
+                            .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit());
+                    if !safe_name.is_empty()
+                        && !Self::is_primitive_or_system(&safe_name)
+                        && !is_all_caps
+                    {
+                        let is_interface = safe_name.ends_with("Listener")
+                            || safe_name == "Parser"
+                            || safe_name.contains("Callback");
+                        let st = if is_interface {
+                            STEREOTYPE_INTERFACE
+                        } else {
+                            STEREOTYPE_NONE
+                        };
                         inner_records.push(ClassRecord {
                             sym_id: inner_sym,
                             stereotype: st,
@@ -359,7 +388,10 @@ impl PlantUMLExporter {
                 _ => "",
             };
 
-            out.push_str(&format!("{}{} {}{} {{\n", indent, stereotype, safe_name, pattern_stereotype));
+            out.push_str(&format!(
+                "{}{} {}{} {{\n",
+                indent, stereotype, safe_name, pattern_stereotype
+            ));
 
             for field in &class_rec.fields {
                 let fname = Self::resolve_name(sta, tca, field.field_sym_id);
@@ -423,12 +455,14 @@ impl PlantUMLExporter {
                 path_acc.push_str(part);
 
                 let is_leaf = i == parts.len() - 1;
-                let node = curr_map.entry((*part).to_string()).or_insert_with(|| PkgTreeNode {
-                    name: (*part).to_string(),
-                    full_path: path_acc.clone(),
-                    classes: Vec::new(),
-                    children: BTreeMap::new(),
-                });
+                let node = curr_map
+                    .entry((*part).to_string())
+                    .or_insert_with(|| PkgTreeNode {
+                        name: (*part).to_string(),
+                        full_path: path_acc.clone(),
+                        classes: Vec::new(),
+                        children: BTreeMap::new(),
+                    });
 
                 if is_leaf {
                     node.classes.extend(classes.clone());
@@ -443,8 +477,17 @@ impl PlantUMLExporter {
             out: &mut String,
             render_class: &dyn Fn(&ClassRecord, &str, &mut String),
         ) {
-            let pkg_alias = format!("pkg_{}", node.full_path.replace('.', "_").replace('/', "_").replace('-', "_"));
-            out.push_str(&format!("\n{}package \"{}\" as {} {{\n", indent, node.full_path, pkg_alias));
+            let pkg_alias = format!(
+                "pkg_{}",
+                node.full_path
+                    .replace('.', "_")
+                    .replace('/', "_")
+                    .replace('-', "_")
+            );
+            out.push_str(&format!(
+                "\n{}package \"{}\" as {} {{\n",
+                indent, node.full_path, pkg_alias
+            ));
 
             let child_indent = format!("{}  ", indent);
             for class_rec in &node.classes {
@@ -484,7 +527,10 @@ impl PlantUMLExporter {
             if class_rec.extends_sym != u32::MAX {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.extends_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
-                    edges_by_pair.insert((src_name.clone(), dst_name.clone()), format!("{} --|> {}", src_name, dst_name));
+                    edges_by_pair.insert(
+                        (src_name.clone(), dst_name.clone()),
+                        format!("{} --|> {}", src_name, dst_name),
+                    );
                 }
             }
 
@@ -492,8 +538,7 @@ impl PlantUMLExporter {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, imp_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
-                    if !edges_by_pair.contains_key(&pair) {
-                    }
+                    if !edges_by_pair.contains_key(&pair) {}
                 }
             }
         }
@@ -508,8 +553,12 @@ impl PlantUMLExporter {
             {
                 let pair = (src_name.clone(), dst_name.clone());
                 let rel_line = match edge.relation {
-                    crate::core::types::symbol::THRelation::TH_EXTENDS => format!("{} --|> {}", src_name, dst_name),
-                    crate::core::types::symbol::THRelation::TH_IMPLEMENTS => format!("{} ..|> {}", src_name, dst_name),
+                    crate::core::types::symbol::THRelation::TH_EXTENDS => {
+                        format!("{} --|> {}", src_name, dst_name)
+                    }
+                    crate::core::types::symbol::THRelation::TH_IMPLEMENTS => {
+                        format!("{} ..|> {}", src_name, dst_name)
+                    }
                     _ => continue,
                 };
                 if !edges_by_pair.contains_key(&pair) {
@@ -527,7 +576,10 @@ impl PlantUMLExporter {
 
             for field in &class_rec.fields {
                 let (type_name, is_coll) = if field.type_sym_id != u32::MAX {
-                    (Self::sanitize(Self::resolve_name(sta, tca, field.type_sym_id)), field.is_collection != 0)
+                    (
+                        Self::sanitize(Self::resolve_name(sta, tca, field.type_sym_id)),
+                        field.is_collection != 0,
+                    )
                 } else {
                     let raw_fname = Self::resolve_name(sta, tca, field.field_sym_id);
                     let clean_fname = raw_fname.to_lowercase().replace('_', "");
@@ -546,8 +598,10 @@ impl PlantUMLExporter {
                                 || clean_cname == singular_fname
                                 || (clean_fname.len() >= 4 && clean_cname.ends_with(&clean_fname))
                                 || (clean_cname.len() >= 4 && clean_fname.ends_with(&clean_cname))
-                                || (singular_fname.len() >= 4 && clean_cname.ends_with(&singular_fname))
-                                || (clean_cname.len() >= 4 && singular_fname.ends_with(&clean_cname))
+                                || (singular_fname.len() >= 4
+                                    && clean_cname.ends_with(&singular_fname))
+                                || (clean_cname.len() >= 4
+                                    && singular_fname.ends_with(&clean_cname))
                             {
                                 matched = known_class.clone();
                                 break;
@@ -594,12 +648,20 @@ impl PlantUMLExporter {
             if is_factory || is_builder {
                 for method in &class_rec.methods {
                     if method.return_type_sym_id != u32::MAX {
-                        let dst_name = Self::sanitize(Self::resolve_name(sta, tca, method.return_type_sym_id));
+                        let dst_name =
+                            Self::sanitize(Self::resolve_name(sta, tca, method.return_type_sym_id));
                         if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                             let pair = (src_name.clone(), dst_name.clone());
                             if !edges_by_pair.contains_key(&pair) {
-                                let stereotype = if is_factory { "<<create>>" } else { "<<build>>" };
-                                edges_by_pair.insert(pair, format!("{} ..> {} : {}", src_name, dst_name, stereotype));
+                                let stereotype = if is_factory {
+                                    "<<create>>"
+                                } else {
+                                    "<<build>>"
+                                };
+                                edges_by_pair.insert(
+                                    pair,
+                                    format!("{} ..> {} : {}", src_name, dst_name, stereotype),
+                                );
                             }
                         }
                     }
@@ -619,7 +681,8 @@ impl PlantUMLExporter {
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
                     if !edges_by_pair.contains_key(&pair) {
-                        edges_by_pair.insert(pair, format!("{} ..> {} : <<uses>>", src_name, dst_name));
+                        edges_by_pair
+                            .insert(pair, format!("{} ..> {} : <<uses>>", src_name, dst_name));
                     }
                 }
             }
@@ -670,13 +733,16 @@ impl PlantUMLExporter {
             });
         }
 
-        let options = crate::scpg::diagram::export::plantuml_optimizer::PlantUMLOptimizationOptions::default();
-        let optimized_lines = crate::scpg::diagram::export::plantuml_optimizer::PlantUMLOptimizer::optimize(
-            raw_edges,
-            &class_to_package,
-            &package_class_counts,
-            &options,
-        );
+        let options =
+            crate::scpg::diagram::export::plantuml_optimizer::PlantUMLOptimizationOptions::default(
+            );
+        let optimized_lines =
+            crate::scpg::diagram::export::plantuml_optimizer::PlantUMLOptimizer::optimize(
+                raw_edges,
+                &class_to_package,
+                &package_class_counts,
+                &options,
+            );
 
         for line in optimized_lines {
             out.push_str(&format!("{}\n", line));
@@ -703,7 +769,10 @@ impl PlantUMLExporter {
                 continue;
             }
 
-            out.push_str(&format!("object \"obj_{} : {}\" as obj_{} {{\n", safe_name, safe_name, safe_name));
+            out.push_str(&format!(
+                "object \"obj_{} : {}\" as obj_{} {{\n",
+                safe_name, safe_name, safe_name
+            ));
             for field in &class_rec.fields {
                 let fname = Self::sanitize(Self::resolve_name(sta, tca, field.field_sym_id));
                 if fname != "SystemNode" {
@@ -804,23 +873,30 @@ impl PlantUMLExporter {
                 }
                 path_acc.push_str(part);
 
-                let node = curr_map.entry(part.to_string()).or_insert_with(|| PkgTreeNode {
-                    name: part.to_string(),
-                    full_path: path_acc.clone(),
-                    children: BTreeMap::new(),
-                });
+                let node = curr_map
+                    .entry(part.to_string())
+                    .or_insert_with(|| PkgTreeNode {
+                        name: part.to_string(),
+                        full_path: path_acc.clone(),
+                        children: BTreeMap::new(),
+                    });
 
                 curr_map = &mut node.children;
             }
         }
 
-        fn render_pkg_tree(
-            node: &PkgTreeNode,
-            indent: &str,
-            out: &mut String,
-        ) {
-            let pkg_alias = format!("pkg_{}", node.full_path.replace('.', "_").replace('/', "_").replace('-', "_"));
-            out.push_str(&format!("{}package \"{}\" as {} {{\n", indent, node.full_path, pkg_alias));
+        fn render_pkg_tree(node: &PkgTreeNode, indent: &str, out: &mut String) {
+            let pkg_alias = format!(
+                "pkg_{}",
+                node.full_path
+                    .replace('.', "_")
+                    .replace('/', "_")
+                    .replace('-', "_")
+            );
+            out.push_str(&format!(
+                "{}package \"{}\" as {} {{\n",
+                indent, node.full_path, pkg_alias
+            ));
 
             let child_indent = format!("{}  ", indent);
             for child_node in node.children.values() {
@@ -846,7 +922,9 @@ impl PlantUMLExporter {
             // Check field types
             for field in &class_rec.fields {
                 if field.type_sym_id != u32::MAX {
-                    if let Some(dst_pkg) = Self::resolve_sym_package(sta, tca, None, field.type_sym_id) {
+                    if let Some(dst_pkg) =
+                        Self::resolve_sym_package(sta, tca, None, field.type_sym_id)
+                    {
                         if !dst_pkg.is_empty() && src_pkg != dst_pkg {
                             pkg_deps.insert((src_pkg.clone(), dst_pkg));
                         }
@@ -857,7 +935,9 @@ impl PlantUMLExporter {
             // Check method parameter/return types
             for method in &class_rec.methods {
                 if method.return_type_sym_id != u32::MAX {
-                    if let Some(dst_pkg) = Self::resolve_sym_package(sta, tca, None, method.return_type_sym_id) {
+                    if let Some(dst_pkg) =
+                        Self::resolve_sym_package(sta, tca, None, method.return_type_sym_id)
+                    {
                         if !dst_pkg.is_empty() && src_pkg != dst_pkg {
                             pkg_deps.insert((src_pkg.clone(), dst_pkg));
                         }
@@ -871,8 +951,20 @@ impl PlantUMLExporter {
             let mut sorted_deps: Vec<_> = pkg_deps.into_iter().collect();
             sorted_deps.sort();
             for (src_pkg, dst_pkg) in sorted_deps {
-                let src_alias = format!("pkg_{}", src_pkg.replace('.', "_").replace('/', "_").replace('-', "_"));
-                let dst_alias = format!("pkg_{}", dst_pkg.replace('.', "_").replace('/', "_").replace('-', "_"));
+                let src_alias = format!(
+                    "pkg_{}",
+                    src_pkg
+                        .replace('.', "_")
+                        .replace('/', "_")
+                        .replace('-', "_")
+                );
+                let dst_alias = format!(
+                    "pkg_{}",
+                    dst_pkg
+                        .replace('.', "_")
+                        .replace('/', "_")
+                        .replace('-', "_")
+                );
                 out.push_str(&format!("{} ..> {} : <<imports>>\n", src_alias, dst_alias));
             }
         }

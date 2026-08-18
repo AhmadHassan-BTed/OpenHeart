@@ -32,7 +32,10 @@ pub struct PlantUMLOptimizer;
 
 impl PlantUMLOptimizer {
     fn pkg_alias(pkg: &str) -> String {
-        format!("pkg_{}", pkg.replace('.', "_").replace('/', "_").replace('-', "_"))
+        format!(
+            "pkg_{}",
+            pkg.replace('.', "_").replace('/', "_").replace('-', "_")
+        )
     }
 
     pub fn optimize(
@@ -67,7 +70,11 @@ impl PlantUMLOptimizer {
         // 2. Rule 6.3: Package-to-Package Reduction (Collapse usage dependencies into package import arrows)
         for ((sp, dp), p_edges) in edges_by_pkg_pair {
             if !p_edges.is_empty() {
-                final_lines.push(format!("{} ..> {} : <<imports>>", Self::pkg_alias(&sp), Self::pkg_alias(&dp)));
+                final_lines.push(format!(
+                    "{} ..> {} : <<imports>>",
+                    Self::pkg_alias(&sp),
+                    Self::pkg_alias(&dp)
+                ));
                 for e in &p_edges {
                     suppressed_edges.insert((e.src_class.clone(), e.dst_class.clone()));
                 }

@@ -188,6 +188,8 @@ impl SymbolTableBuilder {
             }
         }
 
+        self.verify_th_acyclicity()?;
+
         Ok(())
     }
 
@@ -228,7 +230,10 @@ impl SymbolTableBuilder {
         }
 
         if visited_count < total_nodes {
-            println!("[WARN] Cycle detected in TH_EXTENDS graph ({} / {} nodes visited)", visited_count, total_nodes);
+            return Err(format!(
+                "Invariant 4 Violated: Cycle detected in TH_EXTENDS graph ({} / {} nodes visited)",
+                visited_count, total_nodes
+            ));
         }
 
         Ok(())

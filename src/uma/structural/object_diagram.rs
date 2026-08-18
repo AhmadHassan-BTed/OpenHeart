@@ -15,7 +15,13 @@ impl ObjectDiagramExtractor {
                 if !ssa_rec.is_phi() && ssa_rec.orig_sym_id != u32::MAX {
                     if let Some(target_sym) = sta.symbol(ssa_rec.orig_sym_id) {
                         let kind = SymbolKind::from(target_sym.kind);
-                        if matches!(kind, SymbolKind::SK_CLASS | SymbolKind::SK_INTERFACE | SymbolKind::SK_ENUM | SymbolKind::SK_RECORD) {
+                        if matches!(
+                            kind,
+                            SymbolKind::SK_CLASS
+                                | SymbolKind::SK_INTERFACE
+                                | SymbolKind::SK_ENUM
+                                | SymbolKind::SK_RECORD
+                        ) {
                             objects.push(ObjectRecord {
                                 alloc_ssa_id: ssa_rec.ssa_id,
                                 type_sym_id: ssa_rec.orig_sym_id,

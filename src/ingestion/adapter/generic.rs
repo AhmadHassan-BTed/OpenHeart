@@ -34,9 +34,10 @@ impl LanguageAdapter for GenericLanguageAdapter {
 
     fn map_node_type(&self, kind: &str) -> TokenType {
         match kind {
-            "identifier" | "property_identifier" | "shorthand_property_identifier" | "type_identifier" => {
-                TokenType::Identifier
-            }
+            "identifier"
+            | "property_identifier"
+            | "shorthand_property_identifier"
+            | "type_identifier" => TokenType::Identifier,
             "number" | "integer" | "decimal_integer_literal" => TokenType::IntegerLiteral,
             "float" | "decimal_floating_point_literal" => TokenType::FloatLiteral,
             "string" | "string_literal" | "template_string" => TokenType::StringLiteral,
@@ -44,10 +45,9 @@ impl LanguageAdapter for GenericLanguageAdapter {
             "null" | "undefined" => TokenType::NullLiteral,
             "comment" | "line_comment" => TokenType::CommentLine,
             "block_comment" => TokenType::CommentBlock,
-            "+" | "-" | "*" | "/" | "%" | "==" | "===" | "!=" | "!==" | "<" | ">" | "<=" | ">=" | "&&" | "||"
-            | "!" | "&" | "|" | "^" | "++" | "--" | "~" | "<<" | ">>" | "=" | "+=" | "-=" | "*=" | "/=" | "=>" => {
-                TokenType::Operator
-            }
+            "+" | "-" | "*" | "/" | "%" | "==" | "===" | "!=" | "!==" | "<" | ">" | "<=" | ">="
+            | "&&" | "||" | "!" | "&" | "|" | "^" | "++" | "--" | "~" | "<<" | ">>" | "="
+            | "+=" | "-=" | "*=" | "/=" | "=>" => TokenType::Operator,
             ";" | "," | "." | "(" | ")" | "[" | "]" | "{" | "}" | ":" => TokenType::Punctuation,
             _ => {
                 if kind.chars().all(|c| c.is_alphabetic() || c == '_') && kind.len() > 1 {

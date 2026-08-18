@@ -30,8 +30,12 @@ impl OpenHeartServer {
 
     pub fn start(&self) -> Result<(), String> {
         let addr = format!("0.0.0.0:{}", self.port);
-        let listener = TcpListener::bind(&addr).map_err(|e| format!("Failed to bind server to {}: {}", addr, e))?;
-        println!("[SERVER] OpenHeart Backend Engine listening on http://{}", addr);
+        let listener = TcpListener::bind(&addr)
+            .map_err(|e| format!("Failed to bind server to {}: {}", addr, e))?;
+        println!(
+            "[SERVER] OpenHeart Backend Engine listening on http://{}",
+            addr
+        );
 
         for stream in listener.incoming() {
             if let Ok(mut stream) = stream {
@@ -83,7 +87,8 @@ impl OpenHeartServer {
             }
             let response_json = Self::process_analyze_request(&full_request);
             Self::respond_json(stream, 200, &response_json);
-        } else if is_get_or_head && clean_path.starts_with('/') && !clean_path.starts_with("/api/") {
+        } else if is_get_or_head && clean_path.starts_with('/') && !clean_path.starts_with("/api/")
+        {
             let rel_path = clean_path.trim_start_matches('/');
             let requested_path = Path::new("web").join(rel_path);
             let canonical_web = match fs::canonicalize("web") {
@@ -149,7 +154,11 @@ impl OpenHeartServer {
     }
 
     fn respond_json(stream: &mut TcpStream, status_code: u16, json: &str) {
-        let status_text = if status_code == 200 { "OK" } else { "Not Found" };
+        let status_text = if status_code == 200 {
+            "OK"
+        } else {
+            "Not Found"
+        };
         let response = format!(
             "HTTP/1.1 {} {}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: *\r\n\r\n{}",
             status_code,
@@ -163,10 +172,7 @@ impl OpenHeartServer {
     fn process_analyze_request(body: &str) -> String {
         let repo_url = if let Some(idx) = body.find("\"repo_url\"") {
             let slice = &body[idx..];
-            slice.split('"')
-                .nth(3)
-                .unwrap_or("")
-                .trim()
+            slice.split('"').nth(3).unwrap_or("").trim()
         } else {
             ""
         };
@@ -174,14 +180,20 @@ impl OpenHeartServer {
         if repo_url.is_empty() {
             return format!(
                 r#"{{"status":"error","session_id":"sess_{}","logs":["No repository URL specified in request payload."],"errors":["Missing repo_url parameter."]}}"#,
-                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
             );
         }
 
         println!("[SERVER] Backend analyzing repository: {}", repo_url);
 
         let mut logs = Vec::new();
-        logs.push(format!("> Backend received request for repository: {}", repo_url));
+        logs.push(format!(
+            "> Backend received request for repository: {}",
+            repo_url
+        ));
 
         // Derive repo directory name dynamically from URL
         let repo_name = repo_url
@@ -194,28 +206,52 @@ impl OpenHeartServer {
         let repo_dir = Path::new("./target_repos").join(repo_name);
 
         if !repo_dir.exists() {
-            logs.push(format!("> Target repository directory './target_repos/{}' not found locally.", repo_name));
-            logs.push(format!("> Executing dynamic git clone: git clone --depth 1 {} ./target_repos/{}...", repo_url, repo_name));
-            
+            logs.push(format!(
+                "> Target repository directory './target_repos/{}' not found locally.",
+                repo_name
+            ));
+            logs.push(format!(
+                "> Executing dynamic git clone: git clone --depth 1 {} ./target_repos/{}...",
+                repo_url, repo_name
+            ));
+
             let _ = fs::create_dir_all("./target_repos");
             let clone_status = std::process::Command::new("git")
-                .args(["clone", "--depth", "1", repo_url, &format!("./target_repos/{}", repo_name)])
+                .args([
+                    "clone",
+                    "--depth",
+                    "1",
+                    repo_url,
+                    &format!("./target_repos/{}", repo_name),
+                ])
                 .output();
 
             match clone_status {
                 Ok(output) if output.status.success() => {
-                    logs.push(format!("> Git clone completed successfully into './target_repos/{}'.", repo_name));
+                    logs.push(format!(
+                        "> Git clone completed successfully into './target_repos/{}'.",
+                        repo_name
+                    ));
                 }
                 Ok(output) => {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    logs.push(format!("> Git clone failed: {}. Searching fallback target_repos...", stderr));
+                    logs.push(format!(
+                        "> Git clone failed: {}. Searching fallback target_repos...",
+                        stderr
+                    ));
                 }
                 Err(e) => {
-                    logs.push(format!("> Could not execute git command: {}. Using local fallback target_repos...", e));
+                    logs.push(format!(
+                        "> Could not execute git command: {}. Using local fallback target_repos...",
+                        e
+                    ));
                 }
             }
         } else {
-            logs.push(format!("> Found existing repository directory: './target_repos/{}'.", repo_name));
+            logs.push(format!(
+                "> Found existing repository directory: './target_repos/{}'.",
+                repo_name
+            ));
         }
 
         let mut target_dir = repo_dir.clone();
@@ -225,7 +261,10 @@ impl OpenHeartServer {
                 for entry in entries.flatten() {
                     if entry.path().is_dir() {
                         target_dir = entry.path();
-                        logs.push(format!("> Using fallback local repository path: '{}'", target_dir.display()));
+                        logs.push(format!(
+                            "> Using fallback local repository path: '{}'",
+                            target_dir.display()
+                        ));
                         break;
                     }
                 }
@@ -236,12 +275,19 @@ impl OpenHeartServer {
         Self::collect_files(&target_dir, &mut src_files);
         src_files.sort();
 
-        logs.push(format!("> Discovered {} source files in target tree: '{}'.", src_files.len(), target_dir.display()));
+        logs.push(format!(
+            "> Discovered {} source files in target tree: '{}'.",
+            src_files.len(),
+            target_dir.display()
+        ));
 
         if src_files.is_empty() {
             return format!(
                 r#"{{"status":"error","session_id":"sess_{}","logs":["Target repository source files not found in '{}'."],"errors":["No source files found in target repository."]}}"#,
-                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
                 target_dir.display()
             );
         }
@@ -270,7 +316,12 @@ impl OpenHeartServer {
         logs.push("> Phase 1: Ingesting source files into SourceManifest...".to_string());
         let tca = match IngestionStage::run(manifest, &tca_path) {
             Ok(t) => t,
-            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 1 Failure: {}"]}}"#, e),
+            Err(e) => {
+                return format!(
+                    r#"{{"status":"error","errors":["Phase 1 Failure: {}"]}}"#,
+                    e
+                )
+            }
         };
         let tca_bytes = fs::read(&tca_path).unwrap_or_default();
 
@@ -278,19 +329,31 @@ impl OpenHeartServer {
         let stage_input = ASTStageInput {
             tca: match MemoryMappedFile::open(&tca_path) {
                 Ok(m) => m,
-                Err(e) => return format!(r#"{{"status":"error","errors":["MMap Failure: {}"]}}"#, e),
+                Err(e) => {
+                    return format!(r#"{{"status":"error","errors":["MMap Failure: {}"]}}"#, e)
+                }
             },
         };
         let bpa = match ASTStage::run(&stage_input, &bpa_path) {
             Ok(b) => b,
-            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 2 Failure: {}"]}}"#, e),
+            Err(e) => {
+                return format!(
+                    r#"{{"status":"error","errors":["Phase 2 Failure: {}"]}}"#,
+                    e
+                )
+            }
         };
         let bpa_bytes = fs::read(&bpa_path).unwrap_or_default();
 
         logs.push("> Phase 3: Building Symbol Table & Scope Graph...".to_string());
         let sta = match Phase3Stage::run(&tca, &bpa, &tca_bytes, &bpa_bytes) {
             Ok(s) => s,
-            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 3 Failure: {}"]}}"#, e),
+            Err(e) => {
+                return format!(
+                    r#"{{"status":"error","errors":["Phase 3 Failure: {}"]}}"#,
+                    e
+                )
+            }
         };
         let sta_bytes = sta.serialize();
         fs::write(&sta_path, &sta_bytes).unwrap_or_default();
@@ -298,21 +361,37 @@ impl OpenHeartServer {
         logs.push("> Phase 4: Constructing Control Flow Graph...".to_string());
         let cfa = match Phase4Stage::run(&bpa, &sta, &sta_bytes, &bpa_bytes, &cfa_path) {
             Ok(c) => c,
-            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 4 Failure: {}"]}}"#, e),
+            Err(e) => {
+                return format!(
+                    r#"{{"status":"error","errors":["Phase 4 Failure: {}"]}}"#,
+                    e
+                )
+            }
         };
         let cfa_bytes = fs::read(&cfa_path).unwrap_or_default();
 
         logs.push("> Phase 5: Converting to SSA Data Flow Graph...".to_string());
         let ssa = match Phase5Stage::run(&bpa, &sta, &cfa, &cfa_bytes, &ssa_path) {
             Ok(s) => s,
-            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 5 Failure: {}"]}}"#, e),
+            Err(e) => {
+                return format!(
+                    r#"{{"status":"error","errors":["Phase 5 Failure: {}"]}}"#,
+                    e
+                )
+            }
         };
         let ssa_bytes = fs::read(&ssa_path).unwrap_or_default();
 
         logs.push("> Phase 6: Call Graph & Points-To Analysis...".to_string());
-        let cga = match Phase6Stage::run(&bpa, &sta, &cfa, &ssa, &ssa_bytes, &sta_bytes, &cga_path) {
+        let cga = match Phase6Stage::run(&bpa, &sta, &cfa, &ssa, &ssa_bytes, &sta_bytes, &cga_path)
+        {
             Ok(c) => c,
-            Err(e) => return format!(r#"{{"status":"error","errors":["Phase 6 Failure: {}"]}}"#, e),
+            Err(e) => {
+                return format!(
+                    r#"{{"status":"error","errors":["Phase 6 Failure: {}"]}}"#,
+                    e
+                )
+            }
         };
 
         logs.push("> Phase 7: Traceability Index Construction...".to_string());
@@ -340,13 +419,17 @@ impl OpenHeartServer {
         let puml_statemachine = PlantUMLExporter::export_state_machine_diagram(&uma, &sta, &tca);
         let puml_sequence = PlantUMLExporter::export_sequence_diagram(&uma, &sta, &tca);
         let puml_communication = PlantUMLExporter::export_communication_diagram(&uma, &sta, &tca);
-        let puml_interaction = PlantUMLExporter::export_interaction_overview_diagram(&uma, &sta, &tca);
+        let puml_interaction =
+            PlantUMLExporter::export_interaction_overview_diagram(&uma, &sta, &tca);
         let puml_timing = PlantUMLExporter::export_timing_diagram(&uma, &sta, &tca);
 
         let _ = fs::remove_dir_all(&tmp_path);
 
         let elapsed_ms = start_time.elapsed().as_millis();
-        logs.push(format!("> Pipeline complete in {} ms. All 10 phases verified.", elapsed_ms));
+        logs.push(format!(
+            "> Pipeline complete in {} ms. All 10 phases verified.",
+            elapsed_ms
+        ));
 
         let escape_json_str = |s: &str| -> String {
             s.replace('\\', "\\\\")
@@ -358,13 +441,18 @@ impl OpenHeartServer {
 
         let mut trace_items = Vec::new();
         for link in tra.uml_links.iter().take(10) {
-            let file_name = if let Some(file_rec) = tca.file_records.iter().find(|f| f.file_id == link.file_id) {
+            let file_name = if let Some(file_rec) =
+                tca.file_records.iter().find(|f| f.file_id == link.file_id)
+            {
                 let bytes = tca.interner.lookup_text(file_rec.path_str_offset);
                 String::from_utf8_lossy(bytes).to_string()
             } else {
                 format!("file_{}.kt", link.file_id)
             };
-            let span_str = format!("L{}:C{} - L{}:C{}", link.line_start, link.col_start, link.line_end, link.col_end);
+            let span_str = format!(
+                "L{}:C{} - L{}:C{}",
+                link.line_start, link.col_start, link.line_end, link.col_end
+            );
             trace_items.push(format!(
                 r#"{{"tid":{},"file":"{}","span":"{}","hash":"0x{:08X}"}}"#,
                 link.sym_id,
@@ -376,7 +464,10 @@ impl OpenHeartServer {
 
         format!(
             r#"{{"status":"success","session_id":"sess_{}","stats":{{"files_processed":{},"total_tokens":{},"total_classes":{},"execution_time_ms":{}}},"diagrams":{{"class":"{}","object":"{}","component":"{}","deployment":"{}","package":"{}","composite":"{}","profile":"{}","usecase":"{}","activity":"{}","statemachine":"{}","sequence":"{}","communication":"{}","interaction":"{}","timing":"{}"}},"traceability":[{}],"logs":[{}],"errors":[]}}"#,
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
             src_files.len(),
             tca.token_records.len(),
             uma.classes.len(),
@@ -396,7 +487,10 @@ impl OpenHeartServer {
             escape_json_str(&puml_interaction),
             escape_json_str(&puml_timing),
             trace_items.join(","),
-            logs.iter().map(|l| format!("\"{}\"", escape_json_str(l))).collect::<Vec<_>>().join(",")
+            logs.iter()
+                .map(|l| format!("\"{}\"", escape_json_str(l)))
+                .collect::<Vec<_>>()
+                .join(",")
         )
     }
 
@@ -406,14 +500,24 @@ impl OpenHeartServer {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                    if file_name.starts_with('.') || file_name == "target" || file_name == "node_modules" || file_name == "build" {
+                    if file_name.starts_with('.')
+                        || file_name == "target"
+                        || file_name == "node_modules"
+                        || file_name == "build"
+                    {
                         continue;
                     }
                     if path.is_dir() {
                         let lower_name = file_name.to_lowercase();
-                        if lower_name == "node_modules" || lower_name == "target" || lower_name == "build"
-                            || lower_name == "dist" || lower_name == "out" || lower_name == "vendor"
-                            || lower_name == "venv" || lower_name == ".git" {
+                        if lower_name == "node_modules"
+                            || lower_name == "target"
+                            || lower_name == "build"
+                            || lower_name == "dist"
+                            || lower_name == "out"
+                            || lower_name == "vendor"
+                            || lower_name == "venv"
+                            || lower_name == ".git"
+                        {
                             continue;
                         }
                         // Skip test directories
@@ -435,15 +539,69 @@ impl OpenHeartServer {
                         let lower_ext = ext.to_lowercase();
                         let is_code_file = matches!(
                             lower_ext.as_str(),
-                            "java" | "kt" | "kts" | "rs" | "py" | "pyw" | "pyx" | "js" | "jsx" | "mjs" | "cjs"
-                            | "ts" | "tsx" | "mts" | "cts" | "cpp" | "c" | "h" | "hpp" | "cc" | "cxx" | "hh" | "hxx"
-                            | "c++" | "h++" | "cs" | "go" | "swift" | "rb" | "php" | "scala" | "groovy" | "lua"
-                            | "sh" | "bash" | "zsh" | "pl" | "pm" | "r" | "m" | "mm" | "dart" | "zig" | "nim"
-                            | "elm" | "erl" | "hrl" | "ex" | "exs" | "clj" | "cljs" | "hs" | "v" | "sv" | "vhdl" | "asm" | "s" | "sql"
+                            "java"
+                                | "kt"
+                                | "kts"
+                                | "rs"
+                                | "py"
+                                | "pyw"
+                                | "pyx"
+                                | "js"
+                                | "jsx"
+                                | "mjs"
+                                | "cjs"
+                                | "ts"
+                                | "tsx"
+                                | "mts"
+                                | "cts"
+                                | "cpp"
+                                | "c"
+                                | "h"
+                                | "hpp"
+                                | "cc"
+                                | "cxx"
+                                | "hh"
+                                | "hxx"
+                                | "c++"
+                                | "h++"
+                                | "cs"
+                                | "go"
+                                | "swift"
+                                | "rb"
+                                | "php"
+                                | "scala"
+                                | "groovy"
+                                | "lua"
+                                | "sh"
+                                | "bash"
+                                | "zsh"
+                                | "pl"
+                                | "pm"
+                                | "r"
+                                | "m"
+                                | "mm"
+                                | "dart"
+                                | "zig"
+                                | "nim"
+                                | "elm"
+                                | "erl"
+                                | "hrl"
+                                | "ex"
+                                | "exs"
+                                | "clj"
+                                | "cljs"
+                                | "hs"
+                                | "v"
+                                | "sv"
+                                | "vhdl"
+                                | "asm"
+                                | "s"
+                                | "sql"
                         );
                         if is_code_file {
                             // Skip test files by name pattern
-                            let lower_stem = path.file_stem()
+                            let lower_stem = path
+                                .file_stem()
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("")
                                 .to_lowercase();
