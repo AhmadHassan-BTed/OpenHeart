@@ -33,11 +33,11 @@ ci:
 
 ## Launch Native OpenHeart Web Server (with auto-cleanup)
 server:
-	./restart_server.sh 8080
+	./scripts/restart_server.sh 8080
 
 ## Launch Web Portal Adapter Studio
 serve:
-	./restart_server.sh 8080
+	./scripts/restart_server.sh 8080
 
 ## Clean build target directory
 clean:
