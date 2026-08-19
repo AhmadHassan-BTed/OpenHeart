@@ -2,7 +2,7 @@
 
 ## 1. System Philosophy & Architectural Vision
 
-The **Succinct Compositional Program Graph (SCPG)** is an advanced static program analysis graph and bidirectional UML generation engine created and maintained by **Ahmad Hassan (B-Ted)**.
+The **Succinct Compositional Program Graph (SCPG)** is an advanced static program analysis graph and bidirectional UML generation engine designed, created, and maintained solely by **Ahmad Hassan (B-Ted)**.
 
 👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**
 
@@ -10,14 +10,16 @@ Existing static analysis frameworks (e.g., Joern Code Property Graph, LLVM IR, W
 
 ```mermaid
 graph TD
-    A[Raw Source Bytes] -->|Phase 1: Lexical Ingestion| B[Token Corpus .tca & Monotonic token_id Anchors]
+    A[Raw Source Code Bytes] -->|Phase 1: Lexical Ingestion| B[Token Corpus .tca & Monotonic token_id Anchors]
     B -->|Phase 2: BP AST Encoding| C[Layer 1: BP AST Sequence & Rank/Select LCA]
     C -->|Phase 3: Symbol Table & TH| D[Symbol Table .sta & Type Hierarchy DAG]
     D -->|Phase 4: CFG & Dominators| E[Layer 2: CSR CFG & Cooper Dominator Tree]
     E -->|Phase 5: SSA & IFDS Engine| F[Layer 3: SSA Form, CDG & IFDS Solvers]
-    F -->|Phase 6-8: Call Graph & ROBDD| G[Layer 4: Call Graph & ROBDD Path Summaries]
-    G -->|Phase 9-10: UML & Query Engine| H[Layer 5: 14 Native UML Visualizations & SCPG Binary]
-    H -->|Bijective UMLLink| B
+    F -->|Phase 6: Call Graph| G[Call Graph .cga & Points-To Analysis]
+    G -->|Phase 7: Traceability Index| H[Universal Traceability Index .tra & UMLLinks]
+    H -->|Phase 8: ROBDD Summaries| I[Layer 4: ROBDD Path Summaries .psa & Feasibility]
+    I -->|Phase 9: UML Extraction| J[UML Metadata Artifact .uma & Pattern Detection]
+    J -->|Phase 10: SCPG Binary| K[Layer 5: Unified SCPG Binary & QueryEngine]
 ```
 
 ---
@@ -55,16 +57,9 @@ This subsumption lattice guarantees $O(1)$ bidirectional projection across graph
 
 ### 2.2 Typed Edge Alphabet ($\Sigma_E$)
 
-The edge set $E \subseteq V \times V \times \Sigma_E$ encompasses six specialized sub-graphs:
+The edge set $E \subseteq V \times V \times \Sigma_E$ encompasses specialized sub-graphs:
 
 $$\Sigma_E = \{ \text{AST\_CHILD}, \text{CFG\_TRUE}, \text{CFG\_FALSE}, \text{CFG\_UNCOND}, \text{DFG\_DEF}, \text{DFG\_USE}, \text{CDG\_TRUE}, \text{CDG\_FALSE}, \text{CG\_CALL}, \text{CG\_RETURN}, \text{TH\_EXTENDS}, \text{TH\_IMPLEMENTS}, \text{TH\_USES} \}$$
-
-- $E^{\text{AST}}$: Abstract Syntax Tree child parent edges.
-- $E^{\text{CFG}}$: Intraprocedural Control Flow edges.
-- $E^{\text{DFG}}$: Data Flow def-use dependency edges.
-- $E^{\text{CDG}}$: Control Dependence edges derived from dominator trees.
-- $E^{\text{CG}}$: Interprocedural Call Graph call/return edges.
-- $E^{\text{TH}}$: Type Hierarchy extension, implementation, and usage edges.
 
 ---
 
@@ -113,7 +108,7 @@ classDiagram
 
 ### 3.2 Layer 2 & 3 — CFG via Compressed Sparse Row (CSR) & Wavelet Trees
 - Stores control flow adjacencies in packed arrays `offsets[0..n_bb]` and `adj[0..m_cfg]`.
-- Edge types $\Sigma_E$ are encoded in a Wavelet Tree, enabling $O(\log \sigma)$ type-filtered edge enumeration (e.g., retrieving only `CFG_TRUE` branches without scanning unrelated incident edges).
+- Edge types $\Sigma_E$ are encoded in a Wavelet Tree, enabling $O(\log \sigma)$ type-filtered edge enumeration.
 
 ### 3.3 Layer 4 — SSA Form and DFG Encoding
 - Static Single-Assignment (SSA) conversion using iterated dominance frontiers ($\phi$-functions).
@@ -141,48 +136,23 @@ graph TD
     Link --> Diagram["UML Diagram Element"]
 ```
 
-- **Forward Index ($O(\log n)$)**: Sorted array mapping packed $u48$ key `(file_id, line, col)` to `token_id`.
-- **Backward Index ($O(1)$)**: Direct array lookup `BI[token_id]` returning `(file_id, line, col, len)`.
-- **UML Element Link**: Embeds `UMLLink` record (`node_id`, `file_id`, `line_start`, `col_start`, `line_end`, `col_end`, `scpg_hash`) into every generated diagram element for $O(1)$ stale link detection upon source edits.
-
 ---
 
 ## 5. 14 UML Diagrams Native Generation Matrix
 
-| UML Diagram | Category | SCPG Graph Layer Source | Derivation Engine |
-|---|---|---|---|
-| **[1] Class Diagram** | Structural | $E^{\text{TH}}$ (Type Hierarchy) + $V_{\text{sym}}$ | Scope Graphs & Visibility Filters |
-| **[2] Object Diagram** | Structural | $E^{\text{TH}}$ + SSA Value Instances | Concrete Instance Evaluation |
-| **[3] Component Diagram** | Structural | $V_{\text{sym}}$ Package/Module Symbols | Dependency Bundling |
-| **[4] Deployment Diagram** | Structural | $V_{\text{sym}}$ + Artifact Metadata | Deployment Node Mapping |
-| **[5] Package Diagram** | Structural | $V_{\text{sym}}$ Namespace Nodes | Package Containment Resolution |
-| **[6] Composite Structure** | Structural | Internal Class Field Symbols | Port & Connector Mapping |
-| **[7] Profile Diagram** | Structural | Stereotype Metadata Records | Profile Stereotype Injection |
-| **[8] Use Case Diagram** | Behavioral | API Public Surface + Actor Metadata | Boundary & Goal Classification |
-| **[9] Activity Diagram** | Behavioral | $E^{\text{CFG}}$ + CDG Dominator Trees | Structured Control Flow Translation |
-| **[10] State Machine** | Behavioral | $E^{\text{CFG}}$ + Abstract Interpretation | Octagon / Finite Automaton State Lattices |
-| **[11] Sequence Diagram** | Interaction | $E^{\text{CG}}$ (Call Graph) + ROBDD Paths | Message Lifeline Tracing |
-| **[12] Communication** | Interaction | $E^{\text{CG}}$ + Message Order | Lifeline Edge Enumeration |
-| **[13] Interaction Overview**| Interaction | High-Level Control Flow + Calls | CFG-to-Sequence Composite Mapping |
-| **[14] Timing Diagram** | Interaction | State Transitions + Time Bounds | Temporal Trace Constraint Engine |
-
----
-
-## 6. Phase Specifications & Reference Models
-
-Each pipeline stage is defined in detail by its technical specification and interactive model:
-
-- **Phase 1: Lexical Ingestion & Token Corpus (.tca)**
-  - Technical Specification: [docs/plans/phase1_ingestion_spec.md](plans/phase1_ingestion_spec.md)
-  - Interactive Spec Model: [docs/ingestion/phase1_architecture_and_bit_layout.html](ingestion/phase1_architecture_and_bit_layout.html)
-
-- **Phase 2: CST Reduction & BP AST Encoding (.bpa)**
-  - Technical Specification: [docs/plans/phase2_ast_reduction_spec.md](plans/phase2_ast_reduction_spec.md)
-  - Interactive Spec Model: [docs/ast/phase2_bp_architecture.html](ast/phase2_bp_architecture.html)
-
-- **Complete SCPG 10-Phase Pipeline Architecture**
-  - Interactive Pipeline Model: [docs/pipeline/openheart_10_phase_pipeline.html](file:///home/leech/Projects/OpenHeart/docs/pipeline/openheart_10_phase_pipeline.html)
-
-- **SCPG 5-Layer System Architecture**
-  - Interactive Architecture Model: [docs/architecture/scpg_architecture_diagram.html](file:///home/leech/Projects/OpenHeart/docs/architecture/scpg_architecture_diagram.html)
-
+| # | UML Diagram | Category | SCPG Engine Source Layer | Extractor Module |
+|---|---|---|---|---|
+| 1 | **Class Diagram** | Structural | $E^{\text{TH}}$ (Type Hierarchy) + $V_{\text{sym}}$ | `uma/structural/class_diagram.rs` |
+| 2 | **Object Diagram** | Structural | $E^{\text{TH}}$ + SSA Variable Instances | `uma/structural/object_diagram.rs` |
+| 3 | **Component Diagram** | Structural | $V_{\text{sym}}$ Package / Interface Bounds | `uma/structural/component_diagram.rs` |
+| 4 | **Deployment Diagram** | Structural | $V_{\text{sym}}$ Artifact Metadata | `scpg/diagram/export/plantuml.rs` |
+| 5 | **Package Diagram** | Structural | $V_{\text{sym}}$ Package Tree & Imports | `uma/structural/package_diagram.rs` |
+| 6 | **Composite Structure** | Structural | Internal Field Symbols & Ports | `uma/structural/composite_diagram.rs` |
+| 7 | **Profile Diagram** | Structural | Stereotype Metadata Records | `scpg/diagram/export/plantuml.rs` |
+| 8 | **Use Case Diagram** | Behavioral | Public Surface APIs & Actors | `uma/actor_identification.rs` |
+| 9 | **Activity Diagram** | Behavioral | $E^{\text{CFG}}$ + CDG Dominator Trees | `uma/behavioral/activity_diagram.rs` |
+| 10 | **State Machine** | Behavioral | $E^{\text{CFG}}$ + Abstract Interpretation | `uma/behavioral/state_machine.rs` |
+| 11 | **Sequence Diagram** | Interaction | $E^{\text{CG}}$ (Call Graph) + Lifelines | `uma/behavioral/sequence_diagram.rs` |
+| 12 | **Communication** | Interaction | $E^{\text{CG}}$ + Message Order Ordinals | `uma/behavioral/communication_diagram.rs` |
+| 13 | **Interaction Overview**| Interaction | High-Level Control Flow + Calls | `uma/behavioral/interaction_overview.rs` |
+| 14 | **Timing Diagram** | Interaction | State Transitions + Time Bounds | `uma/behavioral/timing_diagram.rs` |

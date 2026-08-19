@@ -9,6 +9,11 @@ openheart_output/
 output_diagrams/
 target_repos/
 sample_project/
+big_project_output/
+huge_output/
+scpg_output/
+fractal_android_output/
+fractal_android_output_answer/
 
 # Python & Virtual Environments
 __pycache__/
@@ -55,3 +60,4 @@ Thumbs.db
 *.swo
 .zed/
 .fleet/
+
