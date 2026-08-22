@@ -1,17 +1,27 @@
-//! PatternDetector — coordinates all 6 design pattern structural queries (§9.2.5, §9.3).
+//! PatternDetector — coordinates all 11 design pattern structural queries (§9.2.5, §9.3).
 
+pub mod adapter;
 pub mod builder;
+pub mod composite;
+pub mod decorator;
+pub mod facade;
 pub mod factory;
 pub mod observer;
 pub mod singleton;
 pub mod state;
+pub mod strategy;
 pub mod template_method;
 
+pub use adapter::is_adapter;
 pub use builder::is_builder;
+pub use composite::is_composite;
+pub use decorator::is_decorator;
+pub use facade::is_facade;
 pub use factory::is_factory;
 pub use observer::is_observer_subject;
 pub use singleton::is_singleton;
 pub use state::is_state;
+pub use strategy::is_strategy;
 pub use template_method::is_template_method;
 
 use crate::core::types::cg::CallGraphArtifact;
@@ -104,6 +114,71 @@ impl PatternDetector {
                 records.push(DesignPatternRecord {
                     class_sym: sym_id,
                     pattern_kind: PATTERN_TEMPLATE_METHOD as u16,
+                    confidence: conf,
+                    _reserved: 0,
+                });
+            }
+
+            // Decorator
+            if let (true, conf) = is_decorator(sym_id, sta, tca) {
+                if class_rec.design_pattern == PATTERN_NONE {
+                    class_rec.design_pattern = PATTERN_DECORATOR;
+                }
+                records.push(DesignPatternRecord {
+                    class_sym: sym_id,
+                    pattern_kind: PATTERN_DECORATOR as u16,
+                    confidence: conf,
+                    _reserved: 0,
+                });
+            }
+
+            // Strategy
+            if let (true, conf) = is_strategy(sym_id, sta, tca) {
+                if class_rec.design_pattern == PATTERN_NONE {
+                    class_rec.design_pattern = PATTERN_STRATEGY;
+                }
+                records.push(DesignPatternRecord {
+                    class_sym: sym_id,
+                    pattern_kind: PATTERN_STRATEGY as u16,
+                    confidence: conf,
+                    _reserved: 0,
+                });
+            }
+
+            // Adapter
+            if let (true, conf) = is_adapter(sym_id, sta, tca) {
+                if class_rec.design_pattern == PATTERN_NONE {
+                    class_rec.design_pattern = PATTERN_ADAPTER;
+                }
+                records.push(DesignPatternRecord {
+                    class_sym: sym_id,
+                    pattern_kind: PATTERN_ADAPTER as u16,
+                    confidence: conf,
+                    _reserved: 0,
+                });
+            }
+
+            // Facade
+            if let (true, conf) = is_facade(sym_id, sta, tca) {
+                if class_rec.design_pattern == PATTERN_NONE {
+                    class_rec.design_pattern = PATTERN_FACADE;
+                }
+                records.push(DesignPatternRecord {
+                    class_sym: sym_id,
+                    pattern_kind: PATTERN_FACADE as u16,
+                    confidence: conf,
+                    _reserved: 0,
+                });
+            }
+
+            // Composite
+            if let (true, conf) = is_composite(sym_id, sta, tca) {
+                if class_rec.design_pattern == PATTERN_NONE {
+                    class_rec.design_pattern = PATTERN_COMPOSITE;
+                }
+                records.push(DesignPatternRecord {
+                    class_sym: sym_id,
+                    pattern_kind: PATTERN_COMPOSITE as u16,
                     confidence: conf,
                     _reserved: 0,
                 });

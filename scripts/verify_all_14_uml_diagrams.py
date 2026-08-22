@@ -109,7 +109,7 @@ def validate_diagram_syntax(diag_type, puml_text):
         if not any("participant " in l or "->" in l for l in lines):
             errors.append("No sequence participants/messages found")
     elif diag_type == "communication":
-        if not any("object " in l or "dispatchMessage" in l or "request" in l for l in lines):
+        if not any("object " in l or "obj_" in l or "--" in l for l in lines):
             errors.append("No communication links found")
     elif diag_type == "interaction":
         if not any("partition " in l or "Flow" in l or "Phase" in l for l in lines):

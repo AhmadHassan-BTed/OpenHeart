@@ -27,6 +27,11 @@ pub const PATTERN_FACTORY: u8 = 3;
 pub const PATTERN_BUILDER: u8 = 4;
 pub const PATTERN_STATE: u8 = 5;
 pub const PATTERN_TEMPLATE_METHOD: u8 = 6;
+pub const PATTERN_DECORATOR: u8 = 7;
+pub const PATTERN_STRATEGY: u8 = 8;
+pub const PATTERN_ADAPTER: u8 = 9;
+pub const PATTERN_FACADE: u8 = 10;
+pub const PATTERN_COMPOSITE: u8 = 11;
 
 // ── Activity Node Kinds (§9.2.2) ─────────────────────────────────────────────
 pub const NODE_KIND_INITIAL: u8 = 0;

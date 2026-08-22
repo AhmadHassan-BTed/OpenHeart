@@ -4,8 +4,8 @@ pub mod export;
 pub mod renderers;
 
 pub use export::json::JSONExporter;
-pub use export::mermaid::MermaidExporter;
-pub use export::plantuml::PlantUMLExporter;
+pub use export::mermaid::{MermaidDiagramStrategy, MermaidExporter};
+pub use export::plantuml::{PlantUMLDiagramStrategy, PlantUMLExporter};
 pub use export::xmi::XMIExporter;
 pub use renderers::DiagramRenderers;
 
