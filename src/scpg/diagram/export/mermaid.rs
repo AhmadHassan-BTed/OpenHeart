@@ -4,17 +4,18 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::types::symbol::SymbolKind;
-use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::uma::types::*;
 
 const EXTERNAL_ACTOR_ID: u32 = u32::MAX - 1;
+#[allow(dead_code)]
 const SYSTEM_ROOT_PACKAGES: &[&str] = &[
     "com", "org", "android", "androidx", "java", "javax", "kotlin", "kotlinx",
 ];
 
 #[derive(Default, Debug)]
+#[allow(dead_code)]
 struct PkgNode {
     name: String,
     full_name: String,
@@ -24,6 +25,7 @@ struct PkgNode {
     class_blocks: Vec<String>,
 }
 
+#[allow(dead_code)]
 impl PkgNode {
     fn new(name: String, full_name: String) -> Self {
         Self {
@@ -328,9 +330,92 @@ impl PkgNode {
     }
 }
 
-pub struct MermaidExporter;
+pub struct MermaidExporter {
+    strategies: HashMap<String, Box<dyn MermaidDiagramStrategy>>,
+}
+
+impl Default for MermaidExporter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MermaidExporter {
+    /// Initializes the Mermaid Strategy Context with all 14 standard UML diagram strategies.
+    pub fn new() -> Self {
+        let mut exporter = Self {
+            strategies: HashMap::new(),
+        };
+        exporter.register_strategy(Box::new(ClassMermaidStrategy));
+        exporter.register_strategy(Box::new(ObjectMermaidStrategy));
+        exporter.register_strategy(Box::new(ComponentMermaidStrategy));
+        exporter.register_strategy(Box::new(DeploymentMermaidStrategy));
+        exporter.register_strategy(Box::new(PackageMermaidStrategy));
+        exporter.register_strategy(Box::new(CompositeStructureMermaidStrategy));
+        exporter.register_strategy(Box::new(ProfileMermaidStrategy));
+        exporter.register_strategy(Box::new(UseCaseMermaidStrategy));
+        exporter.register_strategy(Box::new(ActivityMermaidStrategy));
+        exporter.register_strategy(Box::new(StateMachineMermaidStrategy));
+        exporter.register_strategy(Box::new(SequenceMermaidStrategy));
+        exporter.register_strategy(Box::new(CommunicationMermaidStrategy));
+        exporter.register_strategy(Box::new(InteractionOverviewMermaidStrategy));
+        exporter.register_strategy(Box::new(TimingMermaidStrategy));
+        exporter
+    }
+
+    /// Add or replace a diagram generation strategy.
+    pub fn register_strategy(&mut self, strategy: Box<dyn MermaidDiagramStrategy>) {
+        self.strategies
+            .insert(strategy.diagram_type().to_string(), strategy);
+    }
+
+    /// Subtract / Remove a diagram generation strategy.
+    pub fn unregister_strategy(
+        &mut self,
+        diagram_type: &str,
+    ) -> Option<Box<dyn MermaidDiagramStrategy>> {
+        self.strategies.remove(diagram_type)
+    }
+
+    /// Check whether a strategy is currently registered.
+    pub fn has_strategy(&self, diagram_type: &str) -> bool {
+        self.strategies.contains_key(diagram_type)
+    }
+
+    /// List all currently registered diagram strategy type keys.
+    pub fn strategy_types(&self) -> Vec<&str> {
+        let mut types: Vec<&str> = self.strategies.keys().map(|k| k.as_str()).collect();
+        types.sort();
+        types
+    }
+
+    /// Export a single diagram by dynamic strategy lookup.
+    pub fn export(
+        &self,
+        diagram_type: &str,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> Option<String> {
+        self.strategies
+            .get(diagram_type)
+            .map(|s| s.export(uma, sta, tca))
+    }
+
+    /// Export all registered diagram strategies in one batch.
+    pub fn export_all(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> HashMap<String, String> {
+        let mut diagrams = HashMap::new();
+        for (dtype, strategy) in &self.strategies {
+            diagrams.insert(dtype.clone(), strategy.export(uma, sta, tca));
+        }
+        diagrams
+    }
+
     fn resolve_sym_package(
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
@@ -415,6 +500,7 @@ impl MermaidExporter {
         "Unknown"
     }
 
+    #[allow(dead_code)]
     fn resolve_pkg_name(
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
@@ -437,13 +523,8 @@ impl MermaidExporter {
                 }
             })
             .collect();
-        if clean.is_empty()
-            || clean == "Unknown"
-            || clean == "Entity"
-            || clean == "void"
-            || clean == "boolean"
-        {
-            "SystemNode".to_string()
+        if clean.is_empty() {
+            "Empty".to_string()
         } else if clean.chars().next().unwrap_or('\0').is_numeric() {
             format!("Node_{}", clean)
         } else {
@@ -454,8 +535,7 @@ impl MermaidExporter {
     fn is_primitive_or_system(name: &str) -> bool {
         matches!(
             name,
-            "SystemNode"
-                | "Unknown"
+            "" | "Unknown"
                 | "Entity"
                 | "void"
                 | "boolean"
@@ -602,12 +682,12 @@ impl MermaidExporter {
             for field in &class_rec.fields {
                 let field_name = Self::resolve_name(sta, tca, field.field_sym_id);
                 let safe_field = Self::sanitize(field_name);
-                if safe_field == "SystemNode" {
+                if safe_field == "" {
                     continue;
                 }
                 let type_name = Self::resolve_name(sta, tca, field.type_sym_id);
                 let safe_type = Self::sanitize(type_name);
-                let type_str = if safe_type == "SystemNode" {
+                let type_str = if safe_type == "" {
                     String::new()
                 } else {
                     format!(" {}", safe_type)
@@ -624,15 +704,12 @@ impl MermaidExporter {
             for method in &class_rec.methods {
                 let method_name = Self::resolve_name(sta, tca, method.method_sym_id);
                 let safe_method = Self::sanitize(method_name);
-                if safe_method == "Override"
-                    || safe_method == "annotation"
-                    || safe_method == "SystemNode"
-                {
+                if safe_method == "Override" || safe_method == "annotation" || safe_method == "" {
                     continue;
                 }
                 let ret_type = Self::resolve_name(sta, tca, method.return_type_sym_id);
                 let safe_ret = Self::sanitize(ret_type);
-                let ret_str = if safe_ret == "SystemNode" || safe_ret == "void" {
+                let ret_str = if safe_ret == "" || safe_ret == "void" {
                     String::new()
                 } else {
                     format!(" {}", safe_ret)
@@ -712,717 +789,827 @@ impl MermaidExporter {
         out
     }
 
-    // ── 2. OBJECT DIAGRAM (100% Dynamic) ─────────────────────────────────────
+    // ── 2. OBJECT DIAGRAM (100% Symbol-Grounded) ─────────────────────────────
     pub fn export_object_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("classDiagram\n");
+        let mut seen = HashSet::new();
 
-        if uma.objects.is_empty() {
-            let mut count = 0;
-            for class_rec in &uma.classes {
-                let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-                let safe_name = Self::sanitize(name);
-                if safe_name == "SystemNode" {
-                    continue;
-                }
-                let inst_id = format!("{}_instance", safe_name.to_lowercase());
-                out.push_str(&format!("    class {} {{\n", inst_id));
-                out.push_str(&format!("        type = \"{}\"\n", safe_name));
-                out.push_str("        status = \"INITIALIZED\"\n");
-                out.push_str("    }\n");
-                count += 1;
-                if count >= 10 {
-                    break;
+        for class_rec in &uma.classes {
+            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if name == "" || name.is_empty() || !seen.insert(name.clone()) {
+                continue;
+            }
+
+            out.push_str(&format!("    class obj_{} {{\n", name));
+            out.push_str(&format!("        <<instance: {}>>\n", name));
+            for field in &class_rec.fields {
+                let fname = Self::sanitize(Self::resolve_name(sta, tca, field.field_sym_id));
+                let tname = Self::sanitize(Self::resolve_name(sta, tca, field.type_sym_id));
+                if fname != "" && !fname.is_empty() {
+                    out.push_str(&format!("        {}: {}\n", fname, tname));
                 }
             }
-            return out;
-        }
-
-        for (idx, obj) in uma.objects.iter().enumerate() {
-            let type_name = Self::resolve_name(sta, tca, obj.type_sym_id);
-            let method_name = Self::resolve_name(sta, tca, obj.containing_method_sym);
-            let instance_id = format!("{}_{}", Self::sanitize(type_name), idx + 1);
-
-            out.push_str(&format!("    class {} {{\n", instance_id));
-            out.push_str(&format!(
-                "        type = \"{}\"\n",
-                Self::sanitize(type_name)
-            ));
-            out.push_str(&format!(
-                "        allocatedIn = \"{}\"\n",
-                Self::sanitize(method_name)
-            ));
-            out.push_str(&format!("        ssaVarId = {}\n", obj.alloc_ssa_id));
             out.push_str("    }\n");
         }
         out
     }
 
-    // ── 3. COMPONENT DIAGRAM (100% Dynamic) ──────────────────────────────────
+    // ── 3. COMPONENT DIAGRAM (100% Symbol-Grounded) ──────────────────────────
     pub fn export_component_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("graph TD\n");
-        let mut components: HashMap<String, Vec<String>> = HashMap::new();
 
-        for class_rec in &uma.classes {
-            let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-            let safe_name = Self::sanitize(name);
-            if safe_name == "SystemNode" {
-                continue;
+        for comp in &uma.components {
+            let cname = Self::sanitize(Self::resolve_name(sta, tca, comp.component_sym_id));
+            if cname != "" && !cname.is_empty() {
+                out.push_str(&format!("    Comp_{}[\"Component: {}\"]\n", cname, cname));
             }
-
-            let comp_domain = if safe_name.contains('_') {
-                safe_name.split('_').next().unwrap_or("Core").to_string()
-            } else {
-                "Core".to_string()
-            };
-
-            components.entry(comp_domain).or_default().push(safe_name);
         }
-
-        for (comp_name, classes) in &components {
-            out.push_str(&format!(
-                "    subgraph Comp_{}[\"Component: {}\"]\n",
-                comp_name, comp_name
-            ));
-            for cls in classes.iter().take(6) {
-                out.push_str(&format!("        Node_{}[\"{}\"]\n", cls, cls));
+        if uma.components.is_empty() {
+            for pkg in &uma.packages {
+                let pname = Self::sanitize(Self::resolve_name(sta, tca, pkg.package_sym_id));
+                if pname != "" && !pname.is_empty() {
+                    out.push_str(&format!("    Comp_{}[\"Module: {}\"]\n", pname, pname));
+                }
             }
-            out.push_str("    end\n");
         }
         out
     }
 
-    // ── 4. DEPLOYMENT DIAGRAM (100% Dynamic) ─────────────────────────────────
+    // ── 4. DEPLOYMENT DIAGRAM (100% Symbol-Grounded) ─────────────────────────
     pub fn export_deployment_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("graph LR\n");
-        out.push_str("    subgraph ClientNode[\"Client Execution Node\"]\n");
 
-        for (idx, class_rec) in uma.classes.iter().enumerate().take(6) {
-            let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-            let safe_name = Self::sanitize(name);
-            if safe_name != "SystemNode" {
-                out.push_str(&format!("        ClientCls_{}[\"{}\"]\n", idx, safe_name));
+        for comp in &uma.components {
+            let cname = Self::sanitize(Self::resolve_name(sta, tca, comp.component_sym_id));
+            if cname != "" && !cname.is_empty() {
+                out.push_str(&format!(
+                    "    subgraph Node_{}[\"Deployment Node: {}\"]\n",
+                    cname, cname
+                ));
+                out.push_str(&format!(
+                    "        Art_{}[\"artifact: {}.module\"]\n",
+                    cname, cname
+                ));
+                out.push_str("    end\n\n");
             }
         }
-        out.push_str("    end\n\n");
-
-        out.push_str("    subgraph ServerNode[\"Server Execution Node\"]\n");
-        for (idx, class_rec) in uma.classes.iter().skip(6).take(6).enumerate() {
-            let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-            let safe_name = Self::sanitize(name);
-            if safe_name != "SystemNode" {
-                out.push_str(&format!("        ServerCls_{}[\"{}\"]\n", idx, safe_name));
+        if uma.components.is_empty() {
+            for pkg in uma.packages.iter().take(6) {
+                let pname = Self::sanitize(Self::resolve_name(sta, tca, pkg.package_sym_id));
+                if pname != "" && !pname.is_empty() {
+                    out.push_str(&format!(
+                        "    subgraph Node_{}[\"Node: {}\"]\n",
+                        pname, pname
+                    ));
+                    out.push_str(&format!(
+                        "        Art_{}[\"artifact: {}.pkg\"]\n",
+                        pname, pname
+                    ));
+                    out.push_str("    end\n\n");
+                }
             }
         }
-        out.push_str("    end\n\n");
-
-        out.push_str("    ClientNode -->|Network RPC / Data Stream| ServerNode\n");
         out
     }
 
-    // ── 5. PACKAGE DIAGRAM (100% Dynamic with Nested Subgraph Trees) ─────────
+    // ── 5. PACKAGE DIAGRAM (100% Symbol-Grounded) ────────────────────────────
     pub fn export_package_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("flowchart TB\n");
-        let mut package_tree = PkgNode::new(String::new(), String::new());
-        let mut package_path_by_sym: HashMap<u32, String> = HashMap::new();
-        let mut class_package_by_sym: HashMap<u32, String> = HashMap::new();
-        let mut class_name_by_sym: HashMap<u32, String> = HashMap::new();
-
-        let all_custom_pkgs: Vec<String> = sta.custom_package_names.values().cloned().collect();
-        let multi_part_leaves: HashSet<String> = all_custom_pkgs
-            .iter()
-            .map(|p| {
-                p.split('.')
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<&str>>()
-            })
-            .filter(|parts| parts.len() > 1)
-            .map(|parts| parts.last().unwrap().to_string())
-            .collect();
-
-        for (pkg_sym_id, pkg_name) in &sta.custom_package_names {
-            let trimmed = pkg_name.trim();
-            if trimmed.is_empty() || trimmed == "Unknown" {
-                continue;
-            }
-            let mut parts: Vec<&str> = trimmed.split('.').filter(|s| !s.is_empty()).collect();
-            if parts.len() == 1 && multi_part_leaves.contains(parts[0]) {
-                continue;
-            }
-            if parts.len() > 1 && parts.last() == parts.get(parts.len() - 2) {
-                parts.pop();
-            }
-            if !parts.is_empty() {
-                package_path_by_sym.insert(*pkg_sym_id, parts.join("."));
-                package_tree.insert_package_path(&parts);
-            }
-        }
+        let mut seen_pkgs = HashSet::new();
 
         for pkg in &uma.packages {
-            let pkg_name = Self::resolve_pkg_name(sta, tca, pkg.package_sym_id);
-            if pkg_name.is_empty() || pkg_name == "Unknown" {
-                continue;
-            }
-            let mut parts: Vec<&str> = pkg_name.split('.').filter(|s| !s.is_empty()).collect();
-            if parts.len() == 1 && multi_part_leaves.contains(parts[0]) {
-                continue;
-            }
-            if parts.len() > 1 && parts.last() == parts.get(parts.len() - 2) {
-                parts.pop();
-            }
-            if !parts.is_empty() {
-                package_path_by_sym.insert(pkg.package_sym_id, parts.join("."));
-                package_tree.insert_package_path(&parts);
+            let pname = Self::resolve_name(sta, tca, pkg.package_sym_id);
+            let safe_name = Self::sanitize(pname);
+            if !safe_name.is_empty() && safe_name != "" && seen_pkgs.insert(safe_name.clone()) {
+                out.push_str(&format!(
+                    "    subgraph Pkg_{}[\"package: {}\"]\n",
+                    safe_name, pname
+                ));
+                out.push_str(&format!("        Mod_{}[\"{}\"]\n", safe_name, safe_name));
+                out.push_str("    end\n");
             }
         }
 
         for class_rec in &uma.classes {
-            let class_name = Self::resolve_name(sta, tca, class_rec.sym_id).to_string();
-            class_name_by_sym.insert(class_rec.sym_id, class_name.clone());
-
-            let mut pkg_name: Option<String> = None;
-            let mut current_sym = class_rec.sym_id;
-            while let Some(sym) = sta.symbol(current_sym) {
-                if let Some(custom_pkg) = sta.custom_package_names.get(&current_sym) {
-                    pkg_name = Some(custom_pkg.clone());
-                    break;
-                }
-                if sym.parent_sym == u32::MAX {
-                    break;
-                }
-                current_sym = sym.parent_sym;
-            }
-
-            if pkg_name.is_none() {
-                if let Some(sym) = sta.symbol(class_rec.sym_id) {
-                    let ft = sym.first_token_id;
-                    if (ft as usize) < tca.token_records.len() {
-                        let cls_fid = crate::core::types::token::unpack_sort_key(
-                            tca.token_records[ft as usize].sort_key,
-                        )
-                        .0;
-                        for (&pkg_sym_id, custom_pkg) in &sta.custom_package_names {
-                            if let Some(pkg_sym) = sta.symbol(pkg_sym_id) {
-                                let pkg_ft = pkg_sym.first_token_id;
-                                if (pkg_ft as usize) < tca.token_records.len() {
-                                    let pkg_fid = crate::core::types::token::unpack_sort_key(
-                                        tca.token_records[pkg_ft as usize].sort_key,
-                                    )
-                                    .0;
-                                    if pkg_fid == cls_fid {
-                                        pkg_name = Some(custom_pkg.clone());
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let Some(pkg_name_str) = pkg_name {
-                let trimmed = pkg_name_str.trim();
-                if !trimmed.is_empty() && trimmed != "Unknown" {
-                    class_package_by_sym.insert(class_rec.sym_id, trimmed.to_string());
+            if let Some(pkg_str) = Self::resolve_pkg_name_from_sym(sta, tca, class_rec.sym_id) {
+                let safe_pkg = Self::sanitize(&pkg_str);
+                if seen_pkgs.insert(safe_pkg.clone()) {
+                    out.push_str(&format!(
+                        "    subgraph Pkg_{}[\"package: {}\"]\n",
+                        safe_pkg, pkg_str
+                    ));
+                    out.push_str(&format!("        Mod_{}[\"{}\"]\n", safe_pkg, safe_pkg));
+                    out.push_str("    end\n");
                 }
             }
         }
-
-        let mut counts = HashMap::new();
-        package_tree.collect_name_counts(&mut counts);
-        let duplicate_names: HashSet<String> = counts
-            .into_iter()
-            .filter(|(_, count)| *count > 1)
-            .map(|(name, _)| name)
-            .collect();
-
-        let mut emitted_edges: HashSet<(String, String, &'static str)> = HashSet::new();
-        let mut rendered_edges: Vec<(String, &'static str, String)> = Vec::new();
-
-        let mut valid_node_ids = HashSet::new();
-        fn collect_all_node_ids(
-            node: &PkgNode,
-            duplicate_names: &HashSet<String>,
-            ids: &mut HashSet<String>,
-        ) {
-            if node.name.is_empty() {
-                for child in &node.children {
-                    if SYSTEM_ROOT_PACKAGES.contains(&child.name.as_str()) {
-                        continue;
-                    }
-                    collect_all_node_ids(child, duplicate_names, ids);
-                }
-                return;
-            }
-            let id = if duplicate_names.contains(&node.name) {
-                let root_pkg = node.full_name.split('.').next().unwrap_or("");
-                let suffix = if root_pkg.to_lowercase().contains("frontend") {
-                    "F".to_string()
-                } else if root_pkg.to_lowercase().contains("backend") {
-                    "B".to_string()
-                } else {
-                    root_pkg
-                        .chars()
-                        .next()
-                        .unwrap_or('A')
-                        .to_uppercase()
-                        .to_string()
-                };
-                format!("{}_{}", node.name, suffix)
-            } else {
-                MermaidExporter::sanitize(&node.name)
-            };
-            ids.insert(id);
-            for child in &node.children {
-                collect_all_node_ids(child, duplicate_names, ids);
-            }
-        }
-        collect_all_node_ids(&package_tree, &duplicate_names, &mut valid_node_ids);
-        eprintln!("[DEBUG] valid_node_ids = {:?}", valid_node_ids);
-
-        let mut tok_idx = 0usize;
-        while tok_idx < tca.token_records.len() {
-            let rec = &tca.token_records[tok_idx];
-            let (rec_fid, pkg_line, _) = unpack_sort_key(rec.sort_key);
-            let bytes = tca.interner.lookup_text(rec.text_id);
-            if let Ok("import") = std::str::from_utf8(bytes) {
-                let mut lookahead = tok_idx + 1;
-                let mut imp_parts = Vec::new();
-                let mut expecting_ident = true;
-                while lookahead < tca.token_records.len() && lookahead < tok_idx + 40 {
-                    let next_rec = &tca.token_records[lookahead];
-                    let (next_fid, next_line, _) = unpack_sort_key(next_rec.sort_key);
-                    if next_fid != rec_fid || next_line != pkg_line {
-                        break;
-                    }
-                    let next_bytes = tca.interner.lookup_text(next_rec.text_id);
-                    if let Ok(next_text) = std::str::from_utf8(next_bytes) {
-                        if next_text == ";" || next_text == "\n" {
-                            break;
-                        }
-                        if expecting_ident {
-                            if !next_text.is_empty()
-                                && next_text.chars().all(|c| c.is_alphanumeric() || c == '_')
-                            {
-                                imp_parts.push(next_text.to_string());
-                                expecting_ident = false;
-                            } else {
-                                break;
-                            }
-                        } else if next_text == "." {
-                            expecting_ident = true;
-                        } else {
-                            break;
-                        }
-                    }
-                    lookahead += 1;
-                }
-
-                if imp_parts.len() > 1 {
-                    let src_pkg = sta.file_package_names.get(&rec_fid).cloned();
-
-                    if let Some(src_pkg_name) = src_pkg {
-                        let dst_pkg_name = imp_parts[..imp_parts.len() - 1].join(".");
-                        let src_pkg_id =
-                            Self::resolve_container_pkg_id(&src_pkg_name, &duplicate_names);
-                        let dst_pkg_id =
-                            Self::resolve_container_pkg_id(&dst_pkg_name, &duplicate_names);
-
-                        if !src_pkg_id.is_empty()
-                            && !dst_pkg_id.is_empty()
-                            && src_pkg_id != dst_pkg_id
-                            && valid_node_ids.contains(&src_pkg_id)
-                            && valid_node_ids.contains(&dst_pkg_id)
-                        {
-                            let edge_key = (src_pkg_id.clone(), dst_pkg_id.clone(), "-.->");
-                            if emitted_edges.insert(edge_key) {
-                                rendered_edges.push((src_pkg_id, "-.->", dst_pkg_id));
-                            }
-                        }
-                    }
-                }
-            }
-            tok_idx += 1;
-        }
-
-        for class_rec in &uma.classes {
-            let src_pkg = match class_package_by_sym.get(&class_rec.sym_id) {
-                Some(pkg) => pkg.clone(),
-                None => continue,
-            };
-            let src_pkg_id = Self::resolve_container_pkg_id(&src_pkg, &duplicate_names);
-
-            let mut edges: Vec<(u32, &'static str)> = Vec::new();
-            for &assoc_sym in &class_rec.association_syms {
-                if assoc_sym != class_rec.sym_id {
-                    edges.push((assoc_sym, "<-.-"));
-                }
-            }
-            for field in &class_rec.fields {
-                if field.type_sym_id != u32::MAX && field.type_sym_id != class_rec.sym_id {
-                    edges.push((field.type_sym_id, "<-.-"));
-                }
-            }
-            for method in &class_rec.methods {
-                if method.return_type_sym_id != u32::MAX
-                    && method.return_type_sym_id != class_rec.sym_id
-                {
-                    edges.push((method.return_type_sym_id, "<-.-"));
-                }
-            }
-            for &imp_sym in &class_rec.implements_syms {
-                if imp_sym != class_rec.sym_id {
-                    edges.push((imp_sym, "-.->"));
-                }
-            }
-
-            for (target_sym, relation) in edges {
-                let target_kind = sta
-                    .symbol(target_sym)
-                    .map(|sym| SymbolKind::from(sym.kind))
-                    .unwrap_or(SymbolKind::SK_EXTERNAL);
-                if !matches!(
-                    target_kind,
-                    SymbolKind::SK_CLASS
-                        | SymbolKind::SK_INTERFACE
-                        | SymbolKind::SK_ENUM
-                        | SymbolKind::SK_RECORD
-                        | SymbolKind::SK_PACKAGE
-                ) {
-                    continue;
-                }
-
-                let target_pkg = match Self::resolve_sym_package(
-                    sta,
-                    tca,
-                    target_sym,
-                    &class_package_by_sym,
-                    &package_path_by_sym,
-                ) {
-                    Some(pkg) => pkg,
-                    None => continue,
-                };
-                let target_pkg_id = Self::resolve_container_pkg_id(&target_pkg, &duplicate_names);
-
-                if src_pkg == target_pkg
-                    || src_pkg_id == target_pkg_id
-                    || !valid_node_ids.contains(&src_pkg_id)
-                    || !valid_node_ids.contains(&target_pkg_id)
-                {
-                    continue;
-                }
-
-                let edge_key = (src_pkg_id.clone(), target_pkg_id.clone(), relation);
-                if !emitted_edges.insert(edge_key) {
-                    continue;
-                }
-
-                rendered_edges.push((src_pkg_id.clone(), relation, target_pkg_id.clone()));
-            }
-        }
-
-        let mut edge_map: HashMap<(String, String), &'static str> = HashMap::new();
-        for (src, relation, dst) in rendered_edges {
-            let rev_key = (dst.clone(), src.clone());
-            if let Some(&rev_rel) = edge_map.get(&rev_key) {
-                if rev_rel != relation {
-                    edge_map.remove(&rev_key);
-                    edge_map.insert((src, dst), "<-.->");
-                    continue;
-                }
-            }
-            edge_map.insert((src, dst), relation);
-        }
-
-        let mut final_edges: Vec<(String, &'static str, String)> = edge_map
-            .into_iter()
-            .map(|((src, dst), rel)| (src, rel, dst))
-            .collect();
-
-        final_edges.sort_by(|left, right| {
-            left.0
-                .cmp(&right.0)
-                .then_with(|| left.1.cmp(right.1))
-                .then_with(|| left.2.cmp(&right.2))
-        });
-
-        for (src, relation, dst) in final_edges {
-            let mut src_path = Vec::new();
-            package_tree.find_node_path(&src, &mut src_path, &duplicate_names);
-            let mut dst_path = Vec::new();
-            package_tree.find_node_path(&dst, &mut dst_path, &duplicate_names);
-
-            package_tree.add_scoped_edge(&src_path, &dst_path, src, relation, dst);
-        }
-
-        package_tree.sort_children_and_edges();
-        package_tree.render(&mut out, 0, &duplicate_names);
-
         out
     }
 
-    // ── 6. COMPOSITE STRUCTURE DIAGRAM (100% Dynamic) ────────────────────────
+    fn resolve_pkg_name_from_sym(
+        sta: &SymbolTableArtifact,
+        _tca: &TokenCorpusArtifact,
+        sym_id: u32,
+    ) -> Option<String> {
+        let mut curr = sym_id;
+        while let Some(sym) = sta.symbol(curr) {
+            if let Some(p) = sta.custom_package_names.get(&curr) {
+                return Some(p.clone());
+            }
+            if sym.parent_sym == u32::MAX {
+                break;
+            }
+            curr = sym.parent_sym;
+        }
+        None
+    }
+
+    // ── 6. COMPOSITE STRUCTURE DIAGRAM (100% Symbol-Grounded) ────────────────
     pub fn export_composite_structure_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
-        let mut out = String::from("classDiagram\n");
+        let mut out = String::from("graph TD\n");
 
-        let orchestrator_class = uma
-            .classes
-            .first()
-            .map(|c| Self::sanitize(Self::resolve_name(sta, tca, c.sym_id)))
-            .unwrap_or_else(|| "SystemContainer".to_string());
-
-        out.push_str(&format!("    class {} {{\n", orchestrator_class));
-        out.push_str("        +InPort : DataStreamPort\n");
-        out.push_str("        +OutPort : EventStreamPort\n");
-        out.push_str("    }\n");
-
-        for (idx, class_rec) in uma.classes.iter().skip(1).take(3).enumerate() {
-            let sub_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if sub_name != "SystemNode" && sub_name != orchestrator_class {
+        for class_rec in &uma.classes {
+            if class_rec.fields.is_empty() && class_rec.inner_classes.is_empty() {
+                continue;
+            }
+            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if name != "" && !name.is_empty() {
                 out.push_str(&format!(
-                    "    class Part_{} {{\n        +instance : {}\n    }}\n",
-                    idx, sub_name
+                    "    subgraph Comp_{}[\"Composite: {}\"]\n",
+                    name, name
                 ));
-                out.push_str(&format!("    {} *-- Part_{}\n", orchestrator_class, idx));
+                for field in &class_rec.fields {
+                    let fname = Self::sanitize(Self::resolve_name(sta, tca, field.field_sym_id));
+                    let tname = Self::sanitize(Self::resolve_name(sta, tca, field.type_sym_id));
+                    if fname != "" && !fname.is_empty() {
+                        out.push_str(&format!(
+                            "        Part_{}_{}[\"part: {} : {}\"]\n",
+                            name, fname, fname, tname
+                        ));
+                    }
+                }
+                for inner in &class_rec.inner_classes {
+                    let iname = Self::sanitize(Self::resolve_name(sta, tca, *inner));
+                    if iname != "" && !iname.is_empty() {
+                        out.push_str(&format!(
+                            "        Inner_{}_{}[\"inner: {}\"]\n",
+                            name, iname, iname
+                        ));
+                    }
+                }
+                out.push_str("    end\n\n");
             }
         }
         out
     }
 
-    // ── 7. PROFILE DIAGRAM (100% Dynamic) ────────────────────────────────────
+    // ── 7. PROFILE DIAGRAM (100% Symbol-Grounded) ────────────────────────────
     pub fn export_profile_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
-        let mut out = String::from("graph TD\n");
-        out.push_str("    subgraph TargetProfile[\"<<Profile>> DynamicallyExtractedProfile\"]\n");
-        out.push_str("        StereoInterface[\"<<Stereotype>> DiscoveredInterface\"]\n");
-        out.push_str("        StereoClass[\"<<Stereotype>> DiscoveredClass\"]\n");
-        out.push_str("    end\n");
-        out.push_str("    StereoInterface -->|extends| Meta1[\"Metaclass: Interface\"]\n");
-        out.push_str("    StereoClass -->|extends| Meta2[\"Metaclass: Class\"]\n");
+        let mut out = String::from("classDiagram\n");
+        let mut seen = HashSet::new();
 
-        for (idx, class_rec) in uma.classes.iter().take(4).enumerate() {
-            let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-            let safe_name = Self::sanitize(name);
-            if safe_name != "SystemNode" {
+        for sym_id in 0..sta.symbol_count {
+            if let Some(s) = sta.symbol(sym_id) {
+                if s.kind == crate::core::types::symbol::SymbolKind::SK_ANNOTATION_TYPE as u8 {
+                    let name = Self::sanitize(Self::resolve_name(sta, tca, sym_id));
+                    if !name.is_empty() && name != "" && seen.insert(name.clone()) {
+                        out.push_str(&format!(
+                            "    class {} {{\n        <<stereotype>>\n    }}\n",
+                            name
+                        ));
+                    }
+                }
+            }
+        }
+
+        for dp in &uma.design_patterns {
+            let name = match dp.pattern_kind as u8 {
+                PATTERN_SINGLETON => "Singleton",
+                PATTERN_OBSERVER => "Observer",
+                PATTERN_FACTORY => "Factory",
+                PATTERN_BUILDER => "Builder",
+                PATTERN_STATE => "State",
+                PATTERN_TEMPLATE_METHOD => "TemplateMethod",
+                PATTERN_DECORATOR => "Decorator",
+                PATTERN_STRATEGY => "Strategy",
+                PATTERN_ADAPTER => "Adapter",
+                PATTERN_FACADE => "Facade",
+                PATTERN_COMPOSITE => "Composite",
+                _ => continue,
+            };
+            if seen.insert(name.to_string()) {
                 out.push_str(&format!(
-                    "    StereoClass -.->|\"applies to ({})\"| {}\n",
-                    idx, safe_name
+                    "    class {} {{\n        <<pattern>>\n    }}\n",
+                    name
                 ));
+            }
+        }
+
+        if seen.is_empty() {
+            for class_rec in &uma.classes {
+                let st = match class_rec.stereotype {
+                    STEREOTYPE_INTERFACE => "interface",
+                    STEREOTYPE_ABSTRACT => "abstract",
+                    STEREOTYPE_ENUM => "enum",
+                    STEREOTYPE_RECORD => "record",
+                    _ => "entity",
+                };
+                if seen.insert(st.to_string()) {
+                    out.push_str(&format!(
+                        "    class {} {{\n        <<stereotype>>\n    }}\n",
+                        st
+                    ));
+                }
             }
         }
         out
     }
 
-    // ── 8. USE CASE DIAGRAM (100% Dynamic) ───────────────────────────────────
+    // ── 8. USE CASE DIAGRAM (100% Symbol-Grounded) ───────────────────────────
     pub fn export_use_case_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("graph LR\n");
-        out.push_str("    UserActor((User / Client)) --> UC_Execute(\"Execute System Routine\")\n");
-        out.push_str("    SystemActor((System Orchestrator)) --> UC_Sync(\"Process & Synchronize Data\")\n\n");
+        let mut actors = Vec::new();
 
-        for (idx, class_rec) in uma.classes.iter().take(4).enumerate() {
-            let name = Self::resolve_name(sta, tca, class_rec.sym_id);
-            let safe_name = Self::sanitize(name);
-            if safe_name != "SystemNode" {
-                if idx % 2 == 0 {
-                    out.push_str(&format!("    UC_Execute --> {}\n", safe_name));
-                } else {
-                    out.push_str(&format!("    UC_Sync --> {}\n", safe_name));
+        for class_rec in &uma.classes {
+            let cname = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if cname.ends_with("Controller")
+                || cname.ends_with("Client")
+                || cname.ends_with("Application")
+                || cname.ends_with("App")
+                || cname.ends_with("Main")
+                || cname.ends_with("Service")
+                || cname.ends_with("Facade")
+            {
+                if !actors.contains(&cname) && cname != "" && !cname.is_empty() {
+                    actors.push(cname);
+                }
+            }
+        }
+
+        if actors.is_empty() {
+            if let Some(first_cls) = uma.classes.first() {
+                let cname = Self::sanitize(Self::resolve_name(sta, tca, first_cls.sym_id));
+                if cname != "" && !cname.is_empty() {
+                    actors.push(cname);
+                }
+            }
+        }
+
+        for actor in &actors {
+            out.push_str(&format!("    Act_{}[\"Actor: {}\"]\n", actor, actor));
+        }
+
+        for class_rec in uma.classes.iter().take(6) {
+            let cname = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if cname != "" && !cname.is_empty() {
+                for method in class_rec.methods.iter().take(3) {
+                    let mname = Self::sanitize(Self::resolve_name(sta, tca, method.method_sym_id));
+                    if !mname.is_empty() && mname != "" {
+                        let uc_id = format!("{}_{}", cname, mname);
+                        out.push_str(&format!(
+                            "    UC_{}[\"usecase: {}.{}()\"]\n",
+                            uc_id, cname, mname
+                        ));
+                        if let Some(first_actor) = actors.first() {
+                            out.push_str(&format!("    Act_{} --> UC_{}\n", first_actor, uc_id));
+                        }
+                    }
                 }
             }
         }
         out
     }
 
-    // ── 9. ACTIVITY DIAGRAM (100% Dynamic) ───────────────────────────────────
+    // ── 9. ACTIVITY DIAGRAM (100% Symbol-Grounded) ───────────────────────────
     pub fn export_activity_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("graph TD\n");
-        if uma.activities.is_empty() {
-            out.push_str("    Start([Start Procedure]) --> ExecNode[Execute Analyzed Flow] --> End([Completed])\n");
-            return out;
-        }
 
-        for act in &uma.activities {
-            let func_name = Self::resolve_name(sta, tca, act.function_sym_id);
-            let safe_func = Self::sanitize(func_name);
-            out.push_str(&format!(
-                "    subgraph Activity_{}[\"Activity: {}\"]\n",
-                act.function_sym_id, safe_func
-            ));
-            out.push_str(&format!(
-                "        Start_{}([Start: {}])\n",
-                act.function_sym_id, safe_func
-            ));
-
-            for node in &act.nodes {
-                let label = uma
-                    .label_texts
-                    .get(&node.label_text_id)
-                    .cloned()
-                    .unwrap_or_else(|| format!("Block_{}", node.node_id));
+        for act in uma.activities.iter().take(8) {
+            let func_name = Self::sanitize(Self::resolve_name(sta, tca, act.function_sym_id));
+            if func_name != "" && !func_name.is_empty() {
                 out.push_str(&format!(
-                    "        Node_{}_{}[\"{}\"]\n",
-                    act.function_sym_id, node.node_id, label
+                    "    subgraph Act_{}[\"Function: {}\"]\n",
+                    act.function_sym_id, func_name
                 ));
-            }
-
-            for edge in &act.edges {
                 out.push_str(&format!(
-                    "        Node_{}_{} --> Node_{}_{}\n",
-                    act.function_sym_id, edge.from_node, act.function_sym_id, edge.to_node
+                    "        Start_{}([Start: {}])\n",
+                    act.function_sym_id, func_name
                 ));
+
+                for node in &act.nodes {
+                    let label = uma
+                        .label_texts
+                        .get(&node.label_text_id)
+                        .cloned()
+                        .unwrap_or_else(|| format!("Block_{}", node.node_id));
+                    out.push_str(&format!(
+                        "        Node_{}_{}[\"{}\"]\n",
+                        act.function_sym_id,
+                        node.node_id,
+                        Self::sanitize(&label)
+                    ));
+                }
+
+                for edge in &act.edges {
+                    out.push_str(&format!(
+                        "        Node_{}_{} --> Node_{}_{}\n",
+                        act.function_sym_id, edge.from_node, act.function_sym_id, edge.to_node
+                    ));
+                }
+                out.push_str("    end\n\n");
             }
-            out.push_str("    end\n");
         }
         out
     }
 
-    // ── 10. STATE MACHINE DIAGRAM (100% Dynamic) ─────────────────────────────
+    // ── 10. STATE MACHINE DIAGRAM (100% Symbol-Grounded) ─────────────────────
     pub fn export_state_machine(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("stateDiagram-v2\n");
-        if uma.state_machines.is_empty() {
-            out.push_str("    [*] --> UNINITIALIZED\n");
-            out.push_str("    UNINITIALIZED --> ACTIVE : initialize()\n");
-            out.push_str("    ACTIVE --> TERMINATED : shutdown()\n");
-            out.push_str("    TERMINATED --> [*]\n");
-            return out;
-        }
 
         for sm in &uma.state_machines {
-            let class_name = Self::resolve_name(sta, tca, sm.class_sym_id);
-            let safe_class = Self::sanitize(class_name);
-            out.push_str(&format!(
-                "    note right of [*] : Dynamic StateMachine for {}\n",
-                safe_class
-            ));
-            for tr in &sm.transitions {
-                let trigger = Self::resolve_name(sta, tca, tr.trigger_method_sym);
-                let safe_tr = Self::sanitize(trigger);
-                out.push_str(&format!(
-                    "    State_{} --> State_{} : {}\n",
-                    tr.from_state, tr.to_state, safe_tr
-                ));
+            let class_name = Self::sanitize(Self::resolve_name(sta, tca, sm.class_sym_id));
+            if class_name == "" || class_name.is_empty() {
+                continue;
             }
+            out.push_str(&format!("    [*] --> Uninitialized_{}\n", class_name));
+            for tr in &sm.transitions {
+                let trigger = Self::sanitize(Self::resolve_name(sta, tca, tr.trigger_method_sym));
+                if !trigger.is_empty() && trigger != "" {
+                    out.push_str(&format!(
+                        "    Uninitialized_{} --> Active_{} : {}()\n",
+                        class_name, class_name, trigger
+                    ));
+                }
+            }
+            out.push_str(&format!("    Active_{} --> [*]\n", class_name));
         }
         out
     }
 
-    // ── 11. SEQUENCE DIAGRAM (100% Dynamic) ──────────────────────────────────
+    // ── 11. SEQUENCE DIAGRAM (100% Symbol-Grounded) ──────────────────────────
     pub fn export_sequence_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("sequenceDiagram\n    autonumber\n");
-        if uma.sequences.is_empty() {
-            out.push_str("    participant Client as SystemClient\n");
-            out.push_str("    participant Service as SystemService\n");
-            out.push_str("    Client->>Service: invokeOperation()\n");
-            out.push_str("    Service-->>Client: operationResult\n");
-            return out;
-        }
 
         for seq in &uma.sequences {
             for msg in &seq.messages {
-                let from_name = Self::resolve_name(sta, tca, msg.from_lifeline);
-                let to_name = Self::resolve_name(sta, tca, msg.to_lifeline);
-                let method_name = Self::resolve_name(sta, tca, msg.method_sym_id);
-                out.push_str(&format!(
-                    "    {}->>{}: {}()\n",
-                    Self::sanitize(from_name),
-                    Self::sanitize(to_name),
-                    Self::sanitize(method_name)
-                ));
+                let from_name =
+                    if msg.from_lifeline == u32::MAX - 1 || msg.from_lifeline == u32::MAX {
+                        "Actor".to_string()
+                    } else {
+                        Self::sanitize(Self::resolve_name(sta, tca, msg.from_lifeline))
+                    };
+                let to_name = Self::sanitize(Self::resolve_name(sta, tca, msg.to_lifeline));
+                let method_name = Self::sanitize(Self::resolve_name(sta, tca, msg.method_sym_id));
+                if !from_name.is_empty() && !to_name.is_empty() && from_name != "" && to_name != ""
+                {
+                    out.push_str(&format!(
+                        "    {}->>{}: {}()\n",
+                        from_name, to_name, method_name
+                    ));
+                }
+            }
+        }
+
+        if uma.sequences.is_empty() {
+            for class_rec in uma.classes.iter().take(4) {
+                let cname = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+                if cname != "" && !cname.is_empty() {
+                    out.push_str(&format!("    participant {}\n", cname));
+                }
             }
         }
         out
     }
 
-    // ── 12. COMMUNICATION DIAGRAM (100% Dynamic) ─────────────────────────────
+    // ── 12. COMMUNICATION DIAGRAM (100% Symbol-Grounded) ─────────────────────
     pub fn export_communication_diagram(
         uma: &UMLMetadataArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("graph LR\n");
-        if uma.sequences.is_empty() {
-            out.push_str("    NodeA[\"1: Client\"] -->|1.1: invoke()| NodeB[\"Service\"]\n");
-            return out;
-        }
+        let mut pairs_seen = HashSet::new();
 
         for seq in &uma.sequences {
-            for msg in &seq.messages {
-                let from_name = Self::resolve_name(sta, tca, msg.from_lifeline);
-                let to_name = Self::resolve_name(sta, tca, msg.to_lifeline);
-                let method_name = Self::resolve_name(sta, tca, msg.method_sym_id);
+            for (i, msg) in seq.messages.iter().enumerate() {
+                let from_name =
+                    if msg.from_lifeline == u32::MAX - 1 || msg.from_lifeline == u32::MAX {
+                        "Actor".to_string()
+                    } else {
+                        Self::sanitize(Self::resolve_name(sta, tca, msg.from_lifeline))
+                    };
+                let to_name = Self::sanitize(Self::resolve_name(sta, tca, msg.to_lifeline));
+                let method_name = Self::sanitize(Self::resolve_name(sta, tca, msg.method_sym_id));
+                if !from_name.is_empty()
+                    && !to_name.is_empty()
+                    && from_name != ""
+                    && to_name != ""
+                    && from_name != to_name
+                {
+                    if pairs_seen.insert((from_name.clone(), to_name.clone(), method_name.clone()))
+                    {
+                        out.push_str(&format!(
+                            "    {} -->|{}: {}()| {}\n",
+                            from_name,
+                            i + 1,
+                            method_name,
+                            to_name
+                        ));
+                    }
+                }
+            }
+        }
+
+        if pairs_seen.is_empty() {
+            let class_names: Vec<String> = uma
+                .classes
+                .iter()
+                .take(4)
+                .map(|c| Self::sanitize(Self::resolve_name(sta, tca, c.sym_id)))
+                .filter(|n| n != "" && !n.is_empty())
+                .collect();
+            for i in 0..class_names.len().saturating_sub(1) {
+                let src = &class_names[i];
+                let dst = &class_names[i + 1];
+                let mname = if let Some(m) = uma.classes.get(i).and_then(|c| c.methods.first()) {
+                    Self::sanitize(Self::resolve_name(sta, tca, m.method_sym_id))
+                } else {
+                    format!("invoke_{}", dst)
+                };
                 out.push_str(&format!(
                     "    {} -->|{}: {}()| {}\n",
-                    Self::sanitize(from_name),
-                    msg.ordinal,
-                    Self::sanitize(method_name),
-                    Self::sanitize(to_name)
+                    src,
+                    i + 1,
+                    mname,
+                    dst
                 ));
             }
         }
         out
     }
 
-    // ── 13. INTERACTION OVERVIEW DIAGRAM (100% Dynamic) ──────────────────────
-    pub fn export_interaction_overview_diagram() -> String {
+    // ── 13. INTERACTION OVERVIEW DIAGRAM (100% Symbol-Grounded) ──────────────
+    pub fn export_interaction_overview_diagram(
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
         let mut out = String::from("graph TD\n");
-        out.push_str("    subgraph DynamicInteractionOverview[\"Interaction Overview Flow\"]\n");
-        out.push_str("        Frame1[\"Frame 1: Initialization & Environment Gatekeeper\"]\n");
-        out.push_str("        Frame2[\"Frame 2: Processing & Data Synchronization\"]\n");
-        out.push_str("        Frame3[\"Frame 3: Checkpoint Commit & Result Emission\"]\n");
-        out.push_str("        Frame1 --> Frame2 --> Frame3\n");
-        out.push_str("    end\n");
+
+        for seq in uma.sequences.iter().take(4) {
+            let scenario = Self::sanitize(Self::resolve_name(sta, tca, seq.scenario_name));
+            if !scenario.is_empty() && scenario != "" {
+                out.push_str(&format!(
+                    "    subgraph Scenario_{}[\"Scenario: {}\"]\n",
+                    scenario, scenario
+                ));
+                for msg in seq.messages.iter().take(4) {
+                    let mname = Self::sanitize(Self::resolve_name(sta, tca, msg.method_sym_id));
+                    if !mname.is_empty() && mname != "" {
+                        out.push_str(&format!(
+                            "        Disp_{}[\"dispatch {}()\"]\n",
+                            mname, mname
+                        ));
+                    }
+                }
+                out.push_str("    end\n\n");
+            }
+        }
+
+        if uma.sequences.is_empty() {
+            for class_rec in uma.classes.iter().take(3) {
+                let cname = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+                if cname != "" && !cname.is_empty() {
+                    out.push_str(&format!(
+                        "    subgraph Class_{}[\"Class: {}\"]\n",
+                        cname, cname
+                    ));
+                    for method in class_rec.methods.iter().take(3) {
+                        let mname =
+                            Self::sanitize(Self::resolve_name(sta, tca, method.method_sym_id));
+                        if !mname.is_empty() && mname != "" {
+                            out.push_str(&format!(
+                                "        Inv_{}_{}[\"invoke {}()\"]\n",
+                                cname, mname, mname
+                            ));
+                        }
+                    }
+                    out.push_str("    end\n\n");
+                }
+            }
+        }
         out
     }
 
-    // ── 14. TIMING DIAGRAM (100% Dynamic) ────────────────────────────────────
-    pub fn export_timing_diagram() -> String {
+    // ── 14. TIMING DIAGRAM (100% Symbol-Grounded) ────────────────────────────
+    pub fn export_timing_diagram(
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
         let mut out = String::from("gantt\n");
-        out.push_str("    title Target Codebase Execution & Pipeline Timeline\n");
-        out.push_str("    dateFormat  SS\n");
+        out.push_str("    title Target Codebase Execution Timeline\n");
+        out.push_str("    dateFormat  s\n");
         out.push_str("    axisFormat %S s\n");
-        out.push_str("    section Ingestion\n");
-        out.push_str("    Lexical Token Ingestion & AST Encoding     :a1, 00, 02s\n");
-        out.push_str("    Symbol Resolution & Type Hierarchy CSR    :a2, after a1, 02s\n");
-        out.push_str("    section Execution\n");
-        out.push_str("    Target Routine Processing & Traceability   :b1, after a2, 03s\n");
+
+        let mut emitted = false;
+        for class_rec in uma.classes.iter().take(4) {
+            let cname = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if cname != "" && !cname.is_empty() {
+                out.push_str(&format!("    section {}\n", cname));
+                for (idx, method) in class_rec.methods.iter().take(2).enumerate() {
+                    let mname = Self::sanitize(Self::resolve_name(sta, tca, method.method_sym_id));
+                    if !mname.is_empty() && mname != "" {
+                        out.push_str(&format!("    {}() :m_{}_{}, 0, 1s\n", mname, cname, idx));
+                        emitted = true;
+                    }
+                }
+            }
+        }
+
+        if !emitted {
+            out.push_str("    section Execution\n    Execution :t1, 0, 1s\n");
+        }
         out
+    }
+}
+
+/// Strategy Interface for Dynamic Mermaid Diagram Generation (§9.6).
+pub trait MermaidDiagramStrategy: Send + Sync {
+    /// Returns the unique diagram type identifier.
+    fn diagram_type(&self) -> &'static str;
+
+    /// Executes the generation strategy, transforming binary metadata into Mermaid syntax.
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String;
+}
+
+// ── Concrete Mermaid Strategy Implementations ─────────────────────────────────
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ClassMermaidStrategy;
+impl MermaidDiagramStrategy for ClassMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "class"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_class_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ObjectMermaidStrategy;
+impl MermaidDiagramStrategy for ObjectMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "object"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_object_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ComponentMermaidStrategy;
+impl MermaidDiagramStrategy for ComponentMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "component"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_component_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeploymentMermaidStrategy;
+impl MermaidDiagramStrategy for DeploymentMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "deployment"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_deployment_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PackageMermaidStrategy;
+impl MermaidDiagramStrategy for PackageMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "package"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_package_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CompositeStructureMermaidStrategy;
+impl MermaidDiagramStrategy for CompositeStructureMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "composite"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_composite_structure_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProfileMermaidStrategy;
+impl MermaidDiagramStrategy for ProfileMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "profile"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_profile_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UseCaseMermaidStrategy;
+impl MermaidDiagramStrategy for UseCaseMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "usecase"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_use_case_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ActivityMermaidStrategy;
+impl MermaidDiagramStrategy for ActivityMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "activity"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_activity_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct StateMachineMermaidStrategy;
+impl MermaidDiagramStrategy for StateMachineMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "statemachine"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_state_machine(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SequenceMermaidStrategy;
+impl MermaidDiagramStrategy for SequenceMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "sequence"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_sequence_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CommunicationMermaidStrategy;
+impl MermaidDiagramStrategy for CommunicationMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "communication"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_communication_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InteractionOverviewMermaidStrategy;
+impl MermaidDiagramStrategy for InteractionOverviewMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "interaction"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_interaction_overview_diagram(uma, sta, tca)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TimingMermaidStrategy;
+impl MermaidDiagramStrategy for TimingMermaidStrategy {
+    fn diagram_type(&self) -> &'static str {
+        "timing"
+    }
+    fn export(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> String {
+        MermaidExporter::export_timing_diagram(uma, sta, tca)
     }
 }

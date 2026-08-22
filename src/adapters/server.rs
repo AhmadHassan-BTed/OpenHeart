@@ -79,6 +79,19 @@ impl OpenHeartServer {
         } else if is_get_or_head && clean_path == "/api/health" {
             let json = r#"{"status":"online","engine":"OpenHeart SCPG v0.1.0","plantuml":true}"#;
             Self::respond_json(stream, 200, json);
+        } else if is_get_or_head && clean_path == "/api/supported-languages" {
+            let json =
+                r#"{"languages":["java","python","typescript","javascript","cpp","rust","go"]}"#;
+            Self::respond_json(stream, 200, json);
+        } else if is_get_or_head && clean_path == "/api/supported-diagrams" {
+            let json = r#"{"diagrams":["class","object","component","deployment","package","composite","profile","usecase","activity","statemachine","sequence","communication","interaction","timing"]}"#;
+            Self::respond_json(stream, 200, json);
+        } else if is_get_or_head && clean_path == "/api/patterns" {
+            let json = r#"{"patterns":["Singleton","Observer","Factory","Builder","State","TemplateMethod","Decorator","Strategy","Adapter","Facade","Composite"]}"#;
+            Self::respond_json(stream, 200, json);
+        } else if is_get_or_head && clean_path == "/api/version" {
+            let json = r#"{"version":"0.1.0","build":"production","release_date":"2026-08-22"}"#;
+            Self::respond_json(stream, 200, json);
         } else if method == "POST" && clean_path == "/api/analyze" {
             let mut full_request = request.to_string();
             if !full_request.contains("\"repo_url\"") {

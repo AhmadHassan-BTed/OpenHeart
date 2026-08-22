@@ -413,7 +413,6 @@ impl ClassDiagramExtractor {
                 | "false"
                 | "resolve"
                 | "Unknown"
-                | "SystemNode"
                 | "OBJECT"
                 | "CLASS"
                 | "Entity"
