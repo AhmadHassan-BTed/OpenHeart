@@ -51,7 +51,7 @@ class BaseService {
     let tca_bytes = fs::read(&tca_path).unwrap();
 
     assert!(
-        tca_artifact.token_records.len() > 0,
+        !tca_artifact.token_records.is_empty(),
         "Phase 1 must produce tokens"
     );
 

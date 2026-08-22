@@ -183,15 +183,13 @@ pub fn resolve_method_target(
 ) -> Option<u32> {
     // 1. Direct def/decl node match
     for sym in &sta.symbol_records {
-        if sym.kind == SymbolKind::SK_METHOD as u8
+        if (sym.kind == SymbolKind::SK_METHOD as u8
             || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
             || sym.kind == SymbolKind::SK_STATIC_INIT as u8
-            || sym.kind == SymbolKind::SK_LAMBDA as u8
-        {
-            if sym.def_node == call_node || sym.decl_node == call_node {
+            || sym.kind == SymbolKind::SK_LAMBDA as u8)
+            && (sym.def_node == call_node || sym.decl_node == call_node) {
                 return Some(sym.symbol_id);
             }
-        }
     }
 
     // 2. Find method identifier token or first token of call node
@@ -222,11 +220,10 @@ pub fn resolve_method_target(
 
     // 4. Token range enclosing match
     for sym in &sta.symbol_records {
-        if sym.kind == SymbolKind::SK_METHOD as u8 || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8 {
-            if tok_id >= sym.first_token_id && tok_id <= sym.last_token_id {
+        if (sym.kind == SymbolKind::SK_METHOD as u8 || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8)
+            && tok_id >= sym.first_token_id && tok_id <= sym.last_token_id {
                 return Some(sym.symbol_id);
             }
-        }
     }
 
     None

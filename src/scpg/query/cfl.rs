@@ -25,11 +25,10 @@ impl CFLReachability {
 
             // Iterate call site successors from u
             for &(clr, callee, _site_id) in &cga.site_to_edge_map {
-                if clr == u {
-                    if summary.insert((s, callee)) {
+                if clr == u
+                    && summary.insert((s, callee)) {
                         work.push_back((s, callee));
                     }
-                }
             }
         }
 

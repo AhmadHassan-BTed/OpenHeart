@@ -6,6 +6,12 @@ use tree_sitter::Node;
 
 pub struct JavaASTReductionAdapter;
 
+impl Default for JavaASTReductionAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JavaASTReductionAdapter {
     pub fn new() -> Self {
         Self
@@ -14,7 +20,7 @@ impl JavaASTReductionAdapter {
 
 impl ASTReductionAdapter for JavaASTReductionAdapter {
     fn ts_language(&self) -> tree_sitter::Language {
-        tree_sitter_java::language().into()
+        tree_sitter_java::language()
     }
 
     fn classify(&self, kind: &str, _node: &Node, _depth: usize) -> ReductionDecision {

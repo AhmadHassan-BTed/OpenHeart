@@ -160,14 +160,13 @@ impl Phase5Stage {
 
         // ── Invariant 4: SSA->TCA Traceability Seed ──
         for ssa in &ssa_data.ssa_records {
-            if !ssa.is_phi() && ssa.def_stmt != u32::MAX {
-                if ssa.def_stmt >= bpa.node_count as u32 {
+            if !ssa.is_phi() && ssa.def_stmt != u32::MAX
+                && ssa.def_stmt >= bpa.node_count {
                     return Err(format!(
                         "Invariant 4 Violation (Traceability Seed): SSA v{} def_stmt {} is out of BPA node range {}",
                         ssa.ssa_id, ssa.def_stmt, bpa.node_count
                     ));
                 }
-            }
         }
 
         Ok(())

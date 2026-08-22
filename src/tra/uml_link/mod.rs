@@ -45,7 +45,7 @@ impl UMLLinkRegistry {
                         [entry.decl_last_tok.min(tca.token_records.len() as u32 - 1) as usize];
                     let (fid, ls, cs) = unpack_sort_key(start_tok.sort_key);
                     let (_, le, ce) = unpack_sort_key(end_tok.sort_key);
-                    (fid, ls, cs, le, ce + end_tok.len as u16)
+                    (fid, ls, cs, le, ce + end_tok.len)
                 } else {
                     (0, 0, 0, 0, 0)
                 };

@@ -54,7 +54,7 @@ impl ASTStage {
         let _phase1_registry = Phase1Registry::new();
         let ast_registry = ASTAdapterRegistry::new();
         let mut parser = TreeSitterParser::new()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         let token_count = u32::from_le_bytes(tca_bytes[12..16].try_into().unwrap()) as usize;
         let file_count = u16::from_le_bytes(tca_bytes[16..18].try_into().unwrap()) as usize;

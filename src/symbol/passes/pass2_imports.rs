@@ -30,8 +30,7 @@ impl Pass2Imports {
                                     .trim_start_matches("import ")
                                     .trim_end_matches(';')
                                     .trim();
-                                if import_text.ends_with(".*") {
-                                    let pkg = &import_text[..import_text.len() - 2];
+                                if let Some(pkg) = import_text.strip_suffix(".*") {
                                     builder.scope_graph.add_import_edge(file_scope, pkg);
                                 } else {
                                     let simple_name =

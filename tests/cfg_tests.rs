@@ -87,7 +87,7 @@ public class Calculator {
     println!("calc_func edges len: {}", calc_func.edges.len());
     println!("calc_func cyclomatic: {}", calc_func.cyclomatic);
 
-    assert!(calc_func.blocks.len() > 0);
+    assert!(!calc_func.blocks.is_empty());
     assert_eq!(calc_func.idom[0], 0, "ENTRY block dominates itself");
 
     // Verify binary format roundtrip

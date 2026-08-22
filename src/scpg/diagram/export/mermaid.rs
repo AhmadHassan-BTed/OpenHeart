@@ -178,7 +178,7 @@ impl PkgNode {
         self.edges.sort_by(|left, right| {
             left.0
                 .cmp(&right.0)
-                .then_with(|| left.1.cmp(&right.1))
+                .then_with(|| left.1.cmp(right.1))
                 .then_with(|| left.2.cmp(&right.2))
         });
     }
@@ -301,7 +301,7 @@ impl PkgNode {
             MermaidExporter::sanitize(&self.name)
         };
 
-        let display_name = &self.name;
+        let _display_name = &self.name;
         let has_content = !self.children.is_empty() || !self.class_blocks.is_empty();
 
         if has_content {
@@ -530,7 +530,7 @@ impl MermaidExporter {
         let mut package_tree = PkgNode::new(String::new(), String::new());
 
         let mut class_package_by_sym: HashMap<u32, String> = HashMap::new();
-        let mut package_path_by_sym: HashMap<u32, String> = HashMap::new();
+        let package_path_by_sym: HashMap<u32, String> = HashMap::new();
         let mut file_packages: HashSet<String> = HashSet::new();
 
         for class_rec in &uma.classes {
@@ -1178,7 +1178,7 @@ impl MermaidExporter {
         final_edges.sort_by(|left, right| {
             left.0
                 .cmp(&right.0)
-                .then_with(|| left.1.cmp(&right.1))
+                .then_with(|| left.1.cmp(right.1))
                 .then_with(|| left.2.cmp(&right.2))
         });
 

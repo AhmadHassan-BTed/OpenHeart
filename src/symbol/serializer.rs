@@ -50,7 +50,7 @@ impl SymbolTableArtifact {
 
         name_index.sort_by_key(|&(nid, _)| nid);
 
-        let mut artifact = Self {
+        let artifact = Self {
             magic: STA_MAGIC,
             format_version: STA_FORMAT_VERSION,
             symbol_count: builder.symbols.len() as u32,

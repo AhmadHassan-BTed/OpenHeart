@@ -34,15 +34,15 @@ impl PlantUMLOptimizer {
     fn pkg_alias(pkg: &str) -> String {
         format!(
             "pkg_{}",
-            pkg.replace('.', "_").replace('/', "_").replace('-', "_")
+            pkg.replace(['.', '/', '-'], "_")
         )
     }
 
     pub fn optimize(
         raw_edges: Vec<RawEdge>,
         class_to_package: &HashMap<String, String>,
-        package_class_counts: &HashMap<String, usize>,
-        options: &PlantUMLOptimizationOptions,
+        _package_class_counts: &HashMap<String, usize>,
+        _options: &PlantUMLOptimizationOptions,
     ) -> Vec<String> {
         let mut final_lines = Vec::new();
         let mut edges_by_pkg_pair: HashMap<(String, String), Vec<RawEdge>> = HashMap::new();
@@ -101,7 +101,7 @@ impl PlantUMLOptimizer {
         }
 
         for ((sp, dst, op), b_edges) in bundle_groups {
-            if b_edges.len() >= 1 {
+            if !b_edges.is_empty() {
                 final_lines.push(format!("{} {} {}", Self::pkg_alias(&sp), op, dst));
             } else {
                 for e in b_edges {

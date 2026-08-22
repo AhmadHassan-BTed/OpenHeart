@@ -72,7 +72,7 @@ fn collect_source_files(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Resul
     if path.is_file() {
         if path
             .extension()
-            .map_or(false, |ext| ext == "java" || ext == "kt" || ext == "kts")
+            .is_some_and(|ext| ext == "java" || ext == "kt" || ext == "kts")
         {
             files.push(path.to_path_buf());
         }
@@ -84,7 +84,7 @@ fn collect_source_files(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Resul
                 collect_source_files(&p, files)?;
             } else if p
                 .extension()
-                .map_or(false, |ext| ext == "java" || ext == "kt" || ext == "kts")
+                .is_some_and(|ext| ext == "java" || ext == "kt" || ext == "kts")
             {
                 files.push(p);
             }

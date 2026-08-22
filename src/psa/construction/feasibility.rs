@@ -115,9 +115,7 @@ impl FeasibilityFilter {
         let block_id_u8 = (block_id & 0xFF) as u8;
         let cond_ssa = ssa
             .ssa_records
-            .iter()
-            .filter(|r| !r.is_phi() && r.def_block == block_id_u8)
-            .last()?;
+            .iter().rfind(|r| !r.is_phi() && r.def_block == block_id_u8)?;
 
         // Use the SSA variable ID as a fresh BDD variable index (capped at 14 bits).
         let bdd_var = (cond_ssa.ssa_id & 0x3FFF) as u16;

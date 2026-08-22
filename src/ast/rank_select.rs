@@ -21,7 +21,7 @@ impl RankSelectIndex {
         }
 
         let n_bits = bp.bit_count;
-        let n_sb = (n_bits + S1 - 1) / S1;
+        let n_sb = n_bits.div_ceil(S1);
         let n_blk_per_sb = S1 / S2; // 64 blocks per superblock
 
         let mut superblocks = Vec::with_capacity(n_sb + 1);
@@ -39,11 +39,10 @@ impl RankSelectIndex {
                 if bit_start < n_bits {
                     let mut byte: u8 = 0;
                     for bit_i in 0..8 {
-                        if bit_start + bit_i < n_bits {
-                            if bp.get_bit(bit_start + bit_i) == 1 {
+                        if bit_start + bit_i < n_bits
+                            && bp.get_bit(bit_start + bit_i) == 1 {
                                 byte |= 1 << (7 - bit_i);
                             }
-                        }
                     }
                     let count = lookup[byte as usize] as u32;
                     within_sb += count;
@@ -76,11 +75,10 @@ impl RankSelectIndex {
         let byte_start = (pos / 8) * 8;
         let mut partial_byte: u8 = 0;
         for bit_i in 0..=(pos % 8) {
-            if byte_start + bit_i < bp.bit_count {
-                if bp.get_bit(byte_start + bit_i) == 1 {
+            if byte_start + bit_i < bp.bit_count
+                && bp.get_bit(byte_start + bit_i) == 1 {
                     partial_byte |= 1 << (7 - bit_i);
                 }
-            }
         }
 
         sb_base + blk_base + partial_byte.count_ones()

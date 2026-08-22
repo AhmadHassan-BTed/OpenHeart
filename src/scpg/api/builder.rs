@@ -8,6 +8,12 @@ pub struct EngineBuilder {
     pub enable_mmap: bool,
 }
 
+impl Default for EngineBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EngineBuilder {
     pub fn new() -> Self {
         Self {

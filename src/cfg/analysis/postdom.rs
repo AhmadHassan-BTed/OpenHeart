@@ -40,5 +40,5 @@ pub fn compute_post_idom(n: usize, succs: &[Vec<u32>], exit_block: u32) -> Vec<u
         return vec![UNDEFINED_IDOM; n];
     }
 
-    compute_idom_cooper(n, &succs, &postorder)
+    compute_idom_cooper(n, succs, &postorder)
 }

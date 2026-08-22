@@ -21,7 +21,7 @@ impl ActorIdentifier {
             }
         }
 
-        for sym_id in 0..sta.symbol_count as u32 {
+        for sym_id in 0..sta.symbol_count {
             if let Some(sym) = sta.symbol(sym_id) {
                 // SK_METHOD (6) or SK_CONSTRUCTOR (7), public (0 or 1)
                 if (sym.kind == 6 || sym.kind == 7) && (sym.visibility == 0 || sym.visibility == 1)
