@@ -15,8 +15,7 @@ impl StateMachineExtractor {
                 Some(s) => s,
                 None => continue,
             };
-            if sym.kind == 1 {
-                // SK_CLASS
+            if sym.kind == crate::core::types::symbol::SymbolKind::SK_CLASS as u8 {
                 let mut states = Vec::new();
                 let mut transitions = Vec::new();
 
@@ -38,8 +37,7 @@ impl StateMachineExtractor {
                 let mut child_id = sym.first_child;
                 while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
                     let child = &sta.symbol_records[child_id as usize];
-                    if child.kind == 6 {
-                        // SK_METHOD
+                    if child.kind == crate::core::types::symbol::SymbolKind::SK_METHOD as u8 {
                         transitions.push(TransitionRecord {
                             from_state: 0,
                             to_state: 1,

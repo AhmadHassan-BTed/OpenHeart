@@ -61,19 +61,18 @@ impl ClassDiagramExtractor {
                 ));
             }
 
-            let mut parent_kind = SymbolKind::SK_MODULE;
             if sym.parent_sym != u32::MAX {
                 if let Some(parent) = sta.symbol(sym.parent_sym) {
-                    parent_kind = SymbolKind::from(parent.kind);
+                    let parent_kind = SymbolKind::from(parent.kind);
                     if (parent_kind == SymbolKind::SK_METHOD
                         || parent_kind == SymbolKind::SK_FIELD
                         || parent_kind == SymbolKind::SK_PARAM
                         || parent_kind == SymbolKind::SK_LOCAL_VAR)
                         && SymbolKind::from(sym.kind) != SymbolKind::SK_CLASS
-                            && SymbolKind::from(sym.kind) != SymbolKind::SK_LAMBDA
-                        {
-                            continue;
-                        }
+                        && SymbolKind::from(sym.kind) != SymbolKind::SK_LAMBDA
+                    {
+                        continue;
+                    }
                 }
             }
 

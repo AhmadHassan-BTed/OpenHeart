@@ -68,6 +68,12 @@ impl OpenHeartServer {
         let clean_path = raw_path.split('?').next().unwrap_or(raw_path);
         let is_get_or_head = method == "GET" || method == "HEAD";
 
+        if method == "OPTIONS" {
+            let response = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS, HEAD\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nContent-Length: 0\r\n\r\n";
+            let _ = stream.write_all(response.as_bytes());
+            return;
+        }
+
         if is_get_or_head && (clean_path == "/" || clean_path == "/index.html") {
             Self::serve_file(stream, "web/index.html", "text/html");
         } else if is_get_or_head && clean_path == "/api/health" {
@@ -83,7 +89,8 @@ impl OpenHeartServer {
                     }
                 }
             }
-            let response_json = Self::process_analyze_request(&full_request);
+            let body = Self::extract_body(&full_request);
+            let response_json = Self::process_analyze_request(&body);
             Self::respond_json(stream, 200, &response_json);
         } else if is_get_or_head && clean_path.starts_with('/') && !clean_path.starts_with("/api/")
         {
@@ -200,8 +207,24 @@ impl OpenHeartServer {
             .next_back()
             .unwrap_or("repo")
             .trim_end_matches(".git");
+        let mut repo_dir = Path::new("./target_repos").join(repo_name);
 
-        let repo_dir = Path::new("./target_repos").join(repo_name);
+        if !repo_dir.exists() {
+            let clean_url = repo_url
+                .trim_start_matches("https://github.com/")
+                .trim_start_matches("http://github.com/")
+                .trim_end_matches('/')
+                .trim_end_matches(".git");
+            let parts: Vec<&str> = clean_url.split('/').collect();
+            if parts.len() >= 3 {
+                let parent_repo = parts[1];
+                let sub_path = parts[2..].join("/");
+                let sub_dir = Path::new("./target_repos").join(parent_repo).join(sub_path);
+                if sub_dir.exists() {
+                    repo_dir = sub_dir;
+                }
+            }
+        }
 
         if !repo_dir.exists() {
             logs.push(format!(

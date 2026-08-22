@@ -23,9 +23,15 @@ impl ActorIdentifier {
 
         for sym_id in 0..sta.symbol_count {
             if let Some(sym) = sta.symbol(sym_id) {
-                // SK_METHOD (6) or SK_CONSTRUCTOR (7), public (0 or 1)
-                if (sym.kind == 6 || sym.kind == 7) && (sym.visibility == 0 || sym.visibility == 1)
-                {
+                let is_callable = sym.kind
+                    == crate::core::types::symbol::SymbolKind::SK_METHOD as u8
+                    || sym.kind == crate::core::types::symbol::SymbolKind::SK_CONSTRUCTOR as u8;
+                let is_entry_vis = sym.visibility
+                    == crate::core::types::symbol::SymbolVisibility::Public as u8
+                    || sym.visibility
+                        == crate::core::types::symbol::SymbolVisibility::Package as u8;
+
+                if is_callable && is_entry_vis {
                     let method_idx = sym_id as usize;
                     let fan_in = if method_idx < in_degrees.len() {
                         in_degrees[method_idx]

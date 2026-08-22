@@ -57,7 +57,7 @@ pub fn sat_count(
     }
     if node == TRUE_ID {
         // All remaining `depth` variables are free — 2^depth satisfying assignments.
-        return 1u64 << depth;
+        return if depth >= 64 { u64::MAX } else { 1u64 << depth };
     }
 
     // Memoization.

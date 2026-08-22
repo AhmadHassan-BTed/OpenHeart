@@ -187,9 +187,10 @@ pub fn resolve_method_target(
             || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
             || sym.kind == SymbolKind::SK_STATIC_INIT as u8
             || sym.kind == SymbolKind::SK_LAMBDA as u8)
-            && (sym.def_node == call_node || sym.decl_node == call_node) {
-                return Some(sym.symbol_id);
-            }
+            && (sym.def_node == call_node || sym.decl_node == call_node)
+        {
+            return Some(sym.symbol_id);
+        }
     }
 
     // 2. Find method identifier token or first token of call node
@@ -207,23 +208,31 @@ pub fn resolve_method_target(
     }
 
     // 3. Match symbol by token position
-    for sym in &sta.symbol_records {
-        if (sym.kind == SymbolKind::SK_METHOD as u8
-            || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
-            || sym.kind == SymbolKind::SK_STATIC_INIT as u8
-            || sym.kind == SymbolKind::SK_LAMBDA as u8)
-            && sym.first_token_id == tok_id
-        {
-            return Some(sym.symbol_id);
-        }
-    }
-
-    // 4. Token range enclosing match
-    for sym in &sta.symbol_records {
-        if (sym.kind == SymbolKind::SK_METHOD as u8 || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8)
-            && tok_id >= sym.first_token_id && tok_id <= sym.last_token_id {
+    if tok_id != u32::MAX {
+        for sym in &sta.symbol_records {
+            if (sym.kind == SymbolKind::SK_METHOD as u8
+                || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8
+                || sym.kind == SymbolKind::SK_STATIC_INIT as u8
+                || sym.kind == SymbolKind::SK_LAMBDA as u8)
+                && sym.first_token_id != u32::MAX
+                && sym.first_token_id == tok_id
+            {
                 return Some(sym.symbol_id);
             }
+        }
+
+        // 4. Token range enclosing match
+        for sym in &sta.symbol_records {
+            if (sym.kind == SymbolKind::SK_METHOD as u8
+                || sym.kind == SymbolKind::SK_CONSTRUCTOR as u8)
+                && sym.first_token_id != u32::MAX
+                && sym.last_token_id != u32::MAX
+                && tok_id >= sym.first_token_id
+                && tok_id <= sym.last_token_id
+            {
+                return Some(sym.symbol_id);
+            }
+        }
     }
 
     None

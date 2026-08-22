@@ -77,7 +77,11 @@ impl CDGBuilder {
                 if !list.iter().any(|&(y, _)| y == runner) {
                     list.push((runner, cd_type));
                 }
-                runner = ipdom.get(runner as usize).copied().unwrap_or(u32::MAX);
+                let next_runner = ipdom.get(runner as usize).copied().unwrap_or(u32::MAX);
+                if next_runner == runner {
+                    break;
+                }
+                runner = next_runner;
             }
         }
 

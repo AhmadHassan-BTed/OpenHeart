@@ -152,23 +152,25 @@ impl SymbolTableBuilder {
         for pre_idx in 0..bpa.node_count {
             let ntype = bpa.node_type(pre_idx);
             if (ntype == ASTNodeType::NN_METHOD_DECL || ntype == ASTNodeType::NN_CONSTRUCTOR_DECL)
-                && !self.node_to_symbol.contains_key(&pre_idx) {
-                    return Err(format!(
-                        "Invariant 1 Violated: AST node {} ({:?}) has no corresponding SymbolRecord",
-                        pre_idx, ntype
-                    ));
-                }
+                && !self.node_to_symbol.contains_key(&pre_idx)
+            {
+                return Err(format!(
+                    "Invariant 1 Violated: AST node {} ({:?}) has no corresponding SymbolRecord",
+                    pre_idx, ntype
+                ));
+            }
         }
 
         // Invariant 2: Parent chain completeness
         for sym in &self.symbols {
             if (sym.kind == SymbolKind::SK_METHOD as u8 || sym.kind == SymbolKind::SK_FIELD as u8)
-                && sym.parent_sym == u32::MAX {
-                    return Err(format!(
-                        "Invariant 2 Violated: Symbol {} (kind {:?}) has no parent symbol",
-                        sym.symbol_id, sym.kind
-                    ));
-                }
+                && sym.parent_sym == u32::MAX
+            {
+                return Err(format!(
+                    "Invariant 2 Violated: Symbol {} (kind {:?}) has no parent symbol",
+                    sym.symbol_id, sym.kind
+                ));
+            }
         }
 
         // Invariant 3: Type Hierarchy Acyclicity (Kahn's topological sort over TH_EXTENDS)
@@ -176,12 +178,13 @@ impl SymbolTableBuilder {
         // Invariant 5: Token range seed
         for sym in &self.symbols {
             if sym.first_token_id != u32::MAX
-                && sym.first_token_id >= tca.token_records.len() as u32 {
-                    return Err(format!(
-                        "Invariant 5 Violated: Symbol {} first_token_id {} out of bounds",
-                        sym.symbol_id, sym.first_token_id
-                    ));
-                }
+                && sym.first_token_id >= tca.token_records.len() as u32
+            {
+                return Err(format!(
+                    "Invariant 5 Violated: Symbol {} first_token_id {} out of bounds",
+                    sym.symbol_id, sym.first_token_id
+                ));
+            }
         }
 
         self.verify_th_acyclicity()?;

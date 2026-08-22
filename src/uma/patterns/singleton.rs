@@ -27,9 +27,12 @@ pub fn is_singleton(
         let child_name_bytes = tca.interner.lookup_text(child.name_id);
         let child_name = std::str::from_utf8(child_name_bytes).unwrap_or("");
 
-        if child_name.to_lowercase() == "instance"
-            || child_name.to_lowercase() == "getinstance"
-            || (!class_name.is_empty() && child_name == class_name)
+        let child_kind = SymbolKind::from(child.kind);
+        if child_name.eq_ignore_ascii_case("instance")
+            || child_name.eq_ignore_ascii_case("getinstance")
+            || (child_kind == SymbolKind::SK_FIELD
+                && (child.type_id == class_sym
+                    || (!class_name.is_empty() && child_name == class_name)))
         {
             has_singleton_ref = true;
             break;
