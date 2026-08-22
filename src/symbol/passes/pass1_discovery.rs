@@ -682,13 +682,12 @@ impl Pass1Discovery {
                         ) {
                             continue;
                         }
-                        if !blocklist_ids.contains(&tid) {
-                            if !bytes.is_empty()
+                        if !blocklist_ids.contains(&tid)
+                            && !bytes.is_empty()
                                 && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
                             {
                                 return tid;
                             }
-                        }
                     }
                 }
             }
@@ -726,8 +725,7 @@ impl Pass1Discovery {
                 if let Ok(text) = std::str::from_utf8(bytes) {
                     if !text.is_empty()
                         && (text.as_bytes()[0].is_ascii_alphabetic() || text.as_bytes()[0] == b'_')
-                    {
-                        if !matches!(
+                        && !matches!(
                             text,
                             "class"
                                 | "interface"
@@ -810,7 +808,6 @@ impl Pass1Discovery {
                         ) {
                             return tid;
                         }
-                    }
                 }
             }
             return u32::MAX;

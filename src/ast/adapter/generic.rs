@@ -19,7 +19,7 @@ impl ASTReductionAdapter for GenericASTReductionAdapter {
         self.ts_lang
     }
 
-    fn classify(&self, kind: &str, _node: &Node, depth: usize) -> ReductionDecision {
+    fn classify(&self, kind: &str, _node: &Node, _depth: usize) -> ReductionDecision {
         use ASTNodeType::*;
         use ReductionDecision::*;
 

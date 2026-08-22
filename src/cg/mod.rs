@@ -89,7 +89,7 @@ impl Phase6Stage {
             for &callee in &targets {
                 all_edges.push((site.caller_sym, callee, site.call_site_id, site.call_type));
             }
-            site_to_targets.push((site.clone(), targets));
+            site_to_targets.push((*site, targets));
         }
 
         let mut unique_edges = HashSet::new();

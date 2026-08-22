@@ -18,7 +18,7 @@ impl LivenessResult {
     pub fn is_live_in(&self, block_id: u32, sym_id: u32) -> bool {
         self.live_in
             .get(&block_id)
-            .map_or(false, |set| set.contains(&sym_id))
+            .is_some_and(|set| set.contains(&sym_id))
     }
 }
 

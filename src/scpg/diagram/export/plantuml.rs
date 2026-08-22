@@ -480,9 +480,7 @@ impl PlantUMLExporter {
             let pkg_alias = format!(
                 "pkg_{}",
                 node.full_path
-                    .replace('.', "_")
-                    .replace('/', "_")
-                    .replace('-', "_")
+                    .replace(['.', '/', '-'], "_")
             );
             out.push_str(&format!(
                 "\n{}package \"{}\" as {} {{\n",
@@ -561,9 +559,7 @@ impl PlantUMLExporter {
                     }
                     _ => continue,
                 };
-                if !edges_by_pair.contains_key(&pair) {
-                    edges_by_pair.insert(pair, rel_line);
-                }
+                edges_by_pair.entry(pair).or_insert(rel_line);
             }
         }
 
@@ -613,14 +609,14 @@ impl PlantUMLExporter {
 
                 if !Self::is_primitive_or_system(&type_name) && src_name != type_name {
                     let pair = (src_name.clone(), type_name.clone());
-                    if !edges_by_pair.contains_key(&pair) {
+                    edges_by_pair.entry(pair).or_insert_with(|| {
                         let rel_line = if is_coll {
                             format!("{} *-- \"*\" {}", src_name, type_name)
                         } else {
                             format!("{} o-- {}", src_name, type_name)
                         };
-                        edges_by_pair.insert(pair, rel_line);
-                    }
+                        rel_line
+                    });
                 }
             }
 
@@ -628,9 +624,7 @@ impl PlantUMLExporter {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, inner_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
-                    if !edges_by_pair.contains_key(&pair) {
-                        edges_by_pair.insert(pair, format!("{} *-- {}", src_name, dst_name));
-                    }
+                    edges_by_pair.entry(pair).or_insert_with(|| format!("{} *-- {}", src_name, dst_name));
                 }
             }
         }
@@ -652,17 +646,14 @@ impl PlantUMLExporter {
                             Self::sanitize(Self::resolve_name(sta, tca, method.return_type_sym_id));
                         if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                             let pair = (src_name.clone(), dst_name.clone());
-                            if !edges_by_pair.contains_key(&pair) {
+                            edges_by_pair.entry(pair).or_insert_with(|| {
                                 let stereotype = if is_factory {
                                     "<<create>>"
                                 } else {
                                     "<<build>>"
                                 };
-                                edges_by_pair.insert(
-                                    pair,
-                                    format!("{} ..> {} : {}", src_name, dst_name, stereotype),
-                                );
-                            }
+                                format!("{} ..> {} : {}", src_name, dst_name, stereotype)
+                            });
                         }
                     }
                 }
@@ -680,10 +671,7 @@ impl PlantUMLExporter {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, assoc_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
-                    if !edges_by_pair.contains_key(&pair) {
-                        edges_by_pair
-                            .insert(pair, format!("{} ..> {} : <<uses>>", src_name, dst_name));
-                    }
+                    edges_by_pair.entry(pair).or_insert_with(|| format!("{} ..> {} : <<uses>>", src_name, dst_name));
                 }
             }
         }
@@ -889,9 +877,7 @@ impl PlantUMLExporter {
             let pkg_alias = format!(
                 "pkg_{}",
                 node.full_path
-                    .replace('.', "_")
-                    .replace('/', "_")
-                    .replace('-', "_")
+                    .replace(['.', '/', '-'], "_")
             );
             out.push_str(&format!(
                 "{}package \"{}\" as {} {{\n",
@@ -954,16 +940,12 @@ impl PlantUMLExporter {
                 let src_alias = format!(
                     "pkg_{}",
                     src_pkg
-                        .replace('.', "_")
-                        .replace('/', "_")
-                        .replace('-', "_")
+                        .replace(['.', '/', '-'], "_")
                 );
                 let dst_alias = format!(
                     "pkg_{}",
                     dst_pkg
-                        .replace('.', "_")
-                        .replace('/', "_")
-                        .replace('-', "_")
+                        .replace(['.', '/', '-'], "_")
                 );
                 out.push_str(&format!("{} ..> {} : <<imports>>\n", src_alias, dst_alias));
             }

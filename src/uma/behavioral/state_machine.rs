@@ -10,7 +10,7 @@ impl StateMachineExtractor {
     pub fn extract_all(sta: &SymbolTableArtifact, _ssa: &SSAArtifact) -> Vec<StateMachineRecord> {
         let mut machines = Vec::new();
 
-        for sym_id in 0..sta.symbol_count as u32 {
+        for sym_id in 0..sta.symbol_count {
             let sym = match sta.symbol(sym_id) {
                 Some(s) => s,
                 None => continue,

@@ -226,7 +226,7 @@ class Config {}
         .map(|sym| sym.symbol_id)
         .unwrap();
 
-    let mut classes = vec![openheart::uma::types::ClassRecord {
+    let classes = vec![openheart::uma::types::ClassRecord {
         sym_id: class_sym_id,
         stereotype: openheart::uma::types::STEREOTYPE_NONE,
         visibility: openheart::core::types::symbol::SymbolVisibility::Public as u8,

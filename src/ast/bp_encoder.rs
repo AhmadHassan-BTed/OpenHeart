@@ -17,7 +17,7 @@ impl BPEncoder {
 
     pub fn with_node_capacity(node_count: usize) -> Self {
         let bit_cap = node_count * 2;
-        let word_cap = (bit_cap + 63) / 64;
+        let word_cap = bit_cap.div_ceil(64);
         Self {
             words: Vec::with_capacity(word_cap),
             bit_count: 0,

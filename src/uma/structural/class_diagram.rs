@@ -24,7 +24,7 @@ impl ClassDiagramExtractor {
 
         let mut children_map: std::collections::HashMap<u32, Vec<u32>> =
             std::collections::HashMap::new();
-        for child_sym_id in 0..sta.symbol_count as u32 {
+        for child_sym_id in 0..sta.symbol_count {
             if let Some(child) = sta.symbol(child_sym_id) {
                 if child.parent_sym != u32::MAX {
                     children_map
@@ -35,7 +35,7 @@ impl ClassDiagramExtractor {
             }
         }
 
-        for sym_id in 0..sta.symbol_count as u32 {
+        for sym_id in 0..sta.symbol_count {
             let sym = match sta.symbol(sym_id) {
                 Some(s) => s,
                 None => continue,
@@ -65,17 +65,15 @@ impl ClassDiagramExtractor {
             if sym.parent_sym != u32::MAX {
                 if let Some(parent) = sta.symbol(sym.parent_sym) {
                     parent_kind = SymbolKind::from(parent.kind);
-                    if parent_kind == SymbolKind::SK_METHOD
+                    if (parent_kind == SymbolKind::SK_METHOD
                         || parent_kind == SymbolKind::SK_FIELD
                         || parent_kind == SymbolKind::SK_PARAM
-                        || parent_kind == SymbolKind::SK_LOCAL_VAR
-                    {
-                        if SymbolKind::from(sym.kind) != SymbolKind::SK_CLASS
+                        || parent_kind == SymbolKind::SK_LOCAL_VAR)
+                        && SymbolKind::from(sym.kind) != SymbolKind::SK_CLASS
                             && SymbolKind::from(sym.kind) != SymbolKind::SK_LAMBDA
                         {
                             continue;
                         }
-                    }
                 }
             }
 
@@ -120,7 +118,7 @@ impl ClassDiagramExtractor {
             let starts_uppercase = name_str
                 .bytes()
                 .next()
-                .map_or(false, |b| b.is_ascii_uppercase());
+                .is_some_and(|b| b.is_ascii_uppercase());
 
             let mut is_test_file = false;
             let mut matches_file_stem = false;

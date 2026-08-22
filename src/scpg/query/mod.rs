@@ -23,6 +23,12 @@ pub struct QueryEngine {
     pub cache: LRUQueryCache,
 }
 
+impl Default for QueryEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QueryEngine {
     pub fn new() -> Self {
         Self {

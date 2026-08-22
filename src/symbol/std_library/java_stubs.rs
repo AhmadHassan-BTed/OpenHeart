@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 pub const BASE_STUB_SYMBOL_ID: u32 = 0xC000_0000;
 
-pub const OBJECT_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 0;
+pub const OBJECT_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID;
 pub const STRING_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 1;
 pub const INTEGER_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 2;
 pub const BOOLEAN_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 3;

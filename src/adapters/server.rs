@@ -37,10 +37,8 @@ impl OpenHeartServer {
             addr
         );
 
-        for stream in listener.incoming() {
-            if let Ok(mut stream) = stream {
-                Self::handle_connection(&mut stream);
-            }
+        for mut stream in listener.incoming().flatten() {
+            Self::handle_connection(&mut stream);
         }
         Ok(())
     }
@@ -199,7 +197,7 @@ impl OpenHeartServer {
         let repo_name = repo_url
             .trim_end_matches('/')
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("repo")
             .trim_end_matches(".git");
 

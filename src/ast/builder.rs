@@ -97,7 +97,7 @@ impl BPASTArtifact {
         }
         let close_pos = self.jump_table.match_pos[open_pos] as usize;
         if close_pos >= open_pos {
-            ((close_pos - open_pos + 1) / 2) as u32
+            (close_pos - open_pos).div_ceil(2) as u32
         } else {
             1
         }
