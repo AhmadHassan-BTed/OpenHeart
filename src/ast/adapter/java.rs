@@ -114,6 +114,10 @@ impl ASTReductionAdapter for JavaASTReductionAdapter {
             | "block_statements"
             | "superclass"
             | "super_interfaces"
+            | "extends_interfaces"
+            | "type_list"
+            | "interface_type_list"
+            | "type_arguments"
             | "type_bound" => Eliminate,
 
             // Pure Punctuation & Structural Delimiters

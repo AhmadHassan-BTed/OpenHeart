@@ -684,11 +684,63 @@ impl Pass1Discovery {
                         }
                         if !blocklist_ids.contains(&tid)
                             && !bytes.is_empty()
-                                && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
-                            {
-                                return tid;
-                            }
+                            && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+                        {
+                            return tid;
+                        }
                     }
+                }
+            }
+
+            // For method and constructor declarations, the name is the identifier immediately preceding '('
+            if matches!(
+                ntype,
+                ASTNodeType::NN_METHOD_DECL | ASTNodeType::NN_CONSTRUCTOR_DECL
+            ) {
+                let mut candidate = u32::MAX;
+                for tok_idx in ft..=end_tok {
+                    let rec = &tca.token_records[tok_idx as usize];
+                    if rec.token_type == crate::core::types::token::TokenType::Annotation as u8 {
+                        continue;
+                    }
+                    let tid = rec.text_id;
+                    let bytes = tca.interner.lookup_text(tid);
+                    if bytes == b"(" || bytes == b"{" || bytes == b";" {
+                        break;
+                    }
+                    if let Ok(text) = std::str::from_utf8(bytes) {
+                        let lower = text.to_lowercase();
+                        if !text.is_empty()
+                            && (text.as_bytes()[0].is_ascii_alphabetic()
+                                || text.as_bytes()[0] == b'_')
+                            && !matches!(
+                                lower.as_str(),
+                                "public"
+                                    | "private"
+                                    | "protected"
+                                    | "internal"
+                                    | "static"
+                                    | "final"
+                                    | "abstract"
+                                    | "synchronized"
+                                    | "native"
+                                    | "volatile"
+                                    | "transient"
+                                    | "default"
+                                    | "override"
+                                    | "fun"
+                                    | "fn"
+                                    | "def"
+                                    | "function"
+                                    | "void"
+                            )
+                        {
+                            candidate = tid;
+                        }
+                    }
+                }
+                if candidate != u32::MAX {
+                    return candidate;
                 }
             }
 
@@ -700,10 +752,34 @@ impl Pass1Discovery {
                 let mut candidate = u32::MAX;
                 for tok_idx in ft..=end_tok {
                     let rec = &tca.token_records[tok_idx as usize];
+                    if rec.token_type == crate::core::types::token::TokenType::Annotation as u8 {
+                        continue;
+                    }
                     let tid = rec.text_id;
-                    if !blocklist_ids.contains(&tid) {
-                        let bytes = tca.interner.lookup_text(tid);
-                        if !bytes.is_empty() && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+                    let bytes = tca.interner.lookup_text(tid);
+                    if bytes == b"=" || bytes == b";" {
+                        break;
+                    }
+                    if let Ok(text) = std::str::from_utf8(bytes) {
+                        let lower = text.to_lowercase();
+                        if !text.is_empty()
+                            && (text.as_bytes()[0].is_ascii_alphabetic()
+                                || text.as_bytes()[0] == b'_')
+                            && !matches!(
+                                lower.as_str(),
+                                "public"
+                                    | "private"
+                                    | "protected"
+                                    | "internal"
+                                    | "static"
+                                    | "final"
+                                    | "volatile"
+                                    | "transient"
+                                    | "val"
+                                    | "var"
+                                    | "let"
+                                    | "const"
+                            )
                         {
                             candidate = tid;
                         }
@@ -805,9 +881,10 @@ impl Pass1Discovery {
                                 | "Value"
                                 | "Builder"
                                 | "Data"
-                        ) {
-                            return tid;
-                        }
+                        )
+                    {
+                        return tid;
+                    }
                 }
             }
             return u32::MAX;

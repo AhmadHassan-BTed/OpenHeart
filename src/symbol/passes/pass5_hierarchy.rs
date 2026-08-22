@@ -27,19 +27,21 @@ impl Pass5Hierarchy {
                 || kind == SymbolKind::SK_ENUM as u8
                 || kind == SymbolKind::SK_RECORD as u8
             {
-                // Superclass extends clause
-                if let Some(super_ref_node) = Self::find_superclass_ref(decl_node, bpa) {
-                    if let Some(super_sym_id) = builder.get_type_ref_resolution(super_ref_node) {
-                        if super_sym_id != sym_id {
-                            builder.add_th_edge(sym_id, super_sym_id, THRelation::TH_EXTENDS);
+                for type_ref_node in Self::find_all_type_refs(decl_node, bpa) {
+                    if let Some(target_sym_id) = builder.get_type_ref_resolution(type_ref_node) {
+                        if target_sym_id != sym_id {
+                            let target_kind = builder.symbol(target_sym_id).map(|s| s.kind);
+                            let relation = if kind == SymbolKind::SK_CLASS as u8
+                                && target_kind == Some(SymbolKind::SK_INTERFACE as u8)
+                            {
+                                THRelation::TH_IMPLEMENTS
+                            } else if kind == SymbolKind::SK_INTERFACE as u8 {
+                                THRelation::TH_EXTENDS
+                            } else {
+                                THRelation::TH_EXTENDS
+                            };
+                            builder.add_th_edge(sym_id, target_sym_id, relation);
                         }
-                    }
-                }
-
-                // Implements clauses
-                for iface_ref_node in Self::find_implements_refs(decl_node, bpa) {
-                    if let Some(iface_sym_id) = builder.get_type_ref_resolution(iface_ref_node) {
-                        builder.add_th_edge(sym_id, iface_sym_id, THRelation::TH_IMPLEMENTS);
                     }
                 }
             }
@@ -100,28 +102,12 @@ impl Pass5Hierarchy {
         }
     }
 
-    fn find_superclass_ref(decl_node: u32, bpa: &BPASTArtifact) -> Option<u32> {
-        let mut cur = bpa.first_child(decl_node);
-        while let Some(c) = cur {
-            if bpa.node_type(c) == ASTNodeType::NN_TYPE_REF {
-                return Some(c);
-            }
-            cur = bpa.next_sibling(c);
-        }
-        None
-    }
-
-    fn find_implements_refs(decl_node: u32, bpa: &BPASTArtifact) -> Vec<u32> {
+    fn find_all_type_refs(decl_node: u32, bpa: &BPASTArtifact) -> Vec<u32> {
         let mut refs = Vec::new();
-        let mut first_skipped = false;
         let mut cur = bpa.first_child(decl_node);
         while let Some(c) = cur {
             if bpa.node_type(c) == ASTNodeType::NN_TYPE_REF {
-                if !first_skipped {
-                    first_skipped = true;
-                } else {
-                    refs.push(c);
-                }
+                refs.push(c);
             }
             cur = bpa.next_sibling(c);
         }

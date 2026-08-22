@@ -32,10 +32,7 @@ pub struct PlantUMLOptimizer;
 
 impl PlantUMLOptimizer {
     fn pkg_alias(pkg: &str) -> String {
-        format!(
-            "pkg_{}",
-            pkg.replace(['.', '/', '-'], "_")
-        )
+        format!("pkg_{}", pkg.replace(['.', '/', '-'], "_"))
     }
 
     pub fn optimize(
@@ -90,14 +87,17 @@ impl PlantUMLOptimizer {
                 continue;
             }
 
-            if let Some(src_pkg) = class_to_package.get(&edge.src_class) {
-                bundle_groups
-                    .entry((src_pkg.clone(), edge.dst_class.clone(), edge.rel_op.clone()))
-                    .or_default()
-                    .push(edge);
-            } else {
-                remaining_edges.push(edge);
+            let is_inheritance = edge.rel_op.contains("|>") || edge.full_line.contains("|>");
+            if !is_inheritance {
+                if let Some(src_pkg) = class_to_package.get(&edge.src_class) {
+                    bundle_groups
+                        .entry((src_pkg.clone(), edge.dst_class.clone(), edge.rel_op.clone()))
+                        .or_default()
+                        .push(edge);
+                    continue;
+                }
             }
+            remaining_edges.push(edge);
         }
 
         for ((sp, dst, op), b_edges) in bundle_groups {

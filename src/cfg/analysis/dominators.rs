@@ -61,15 +61,34 @@ pub fn compute_idom_cooper(n: usize, preds: &[Vec<u32>], rpo: &[u32]) -> Vec<u32
 #[inline]
 fn intersect(mut b1: u32, mut b2: u32, idom: &[u32], rpo_num: &[u32]) -> u32 {
     let n = idom.len();
-    while b1 != b2 {
+    while b1 != b2 && (b1 as usize) < n && (b2 as usize) < n {
         while (b1 as usize) < n && (b2 as usize) < n && rpo_num[b1 as usize] > rpo_num[b2 as usize]
         {
-            b1 = idom[b1 as usize];
+            let next_b1 = idom[b1 as usize];
+            if next_b1 == b1 {
+                break;
+            }
+            b1 = next_b1;
         }
         while (b1 as usize) < n && (b2 as usize) < n && rpo_num[b2 as usize] > rpo_num[b1 as usize]
         {
-            b2 = idom[b2 as usize];
+            let next_b2 = idom[b2 as usize];
+            if next_b2 == b2 {
+                break;
+            }
+            b2 = next_b2;
+        }
+        if (b1 as usize) < n
+            && (b2 as usize) < n
+            && rpo_num[b1 as usize] == rpo_num[b2 as usize]
+            && b1 != b2
+        {
+            break;
         }
     }
-    b1
+    if (b1 as usize) < n {
+        b1
+    } else {
+        b2
+    }
 }

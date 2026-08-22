@@ -430,7 +430,6 @@ impl PlantUMLExporter {
 
         #[derive(Default)]
         struct PkgTreeNode<'a> {
-            name: String,
             full_path: String,
             classes: Vec<&'a ClassRecord>,
             children: BTreeMap<String, PkgTreeNode<'a>>,
@@ -458,7 +457,6 @@ impl PlantUMLExporter {
                 let node = curr_map
                     .entry((*part).to_string())
                     .or_insert_with(|| PkgTreeNode {
-                        name: (*part).to_string(),
                         full_path: path_acc.clone(),
                         classes: Vec::new(),
                         children: BTreeMap::new(),
@@ -477,11 +475,7 @@ impl PlantUMLExporter {
             out: &mut String,
             render_class: &dyn Fn(&ClassRecord, &str, &mut String),
         ) {
-            let pkg_alias = format!(
-                "pkg_{}",
-                node.full_path
-                    .replace(['.', '/', '-'], "_")
-            );
+            let pkg_alias = format!("pkg_{}", node.full_path.replace(['.', '/', '-'], "_"));
             out.push_str(&format!(
                 "\n{}package \"{}\" as {} {{\n",
                 indent, node.full_path, pkg_alias
@@ -505,7 +499,7 @@ impl PlantUMLExporter {
 
         out.push('\n');
 
-        let mut class_by_name: HashMap<String, u32> = HashMap::new();
+        let mut class_by_name: BTreeMap<String, u32> = BTreeMap::new();
         for class_rec in &uma.classes {
             let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
             if !Self::is_primitive_or_system(&name) {
@@ -513,7 +507,7 @@ impl PlantUMLExporter {
             }
         }
 
-        let mut edges_by_pair: HashMap<(String, String), String> = HashMap::new();
+        let mut edges_by_pair: BTreeMap<(String, String), String> = BTreeMap::new();
 
         // 1. Inheritance (--|>) & Realization (..|>) from ClassRecord
         for class_rec in &uma.classes {
@@ -536,7 +530,9 @@ impl PlantUMLExporter {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, imp_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
-                    if !edges_by_pair.contains_key(&pair) {}
+                    edges_by_pair
+                        .entry(pair)
+                        .or_insert(format!("{} ..|> {}", src_name, dst_name));
                 }
             }
         }
@@ -624,7 +620,9 @@ impl PlantUMLExporter {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, inner_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
-                    edges_by_pair.entry(pair).or_insert_with(|| format!("{} *-- {}", src_name, dst_name));
+                    edges_by_pair
+                        .entry(pair)
+                        .or_insert_with(|| format!("{} *-- {}", src_name, dst_name));
                 }
             }
         }
@@ -671,7 +669,9 @@ impl PlantUMLExporter {
                 let dst_name = Self::sanitize(Self::resolve_name(sta, tca, assoc_sym));
                 if !Self::is_primitive_or_system(&dst_name) && src_name != dst_name {
                     let pair = (src_name.clone(), dst_name.clone());
-                    edges_by_pair.entry(pair).or_insert_with(|| format!("{} ..> {} : <<uses>>", src_name, dst_name));
+                    edges_by_pair
+                        .entry(pair)
+                        .or_insert_with(|| format!("{} ..> {} : <<uses>>", src_name, dst_name));
                 }
             }
         }
@@ -817,7 +817,6 @@ impl PlantUMLExporter {
 
         #[derive(Default)]
         struct PkgTreeNode {
-            name: String,
             full_path: String,
             children: BTreeMap<String, PkgTreeNode>,
         }
@@ -864,7 +863,6 @@ impl PlantUMLExporter {
                 let node = curr_map
                     .entry(part.to_string())
                     .or_insert_with(|| PkgTreeNode {
-                        name: part.to_string(),
                         full_path: path_acc.clone(),
                         children: BTreeMap::new(),
                     });
@@ -874,11 +872,7 @@ impl PlantUMLExporter {
         }
 
         fn render_pkg_tree(node: &PkgTreeNode, indent: &str, out: &mut String) {
-            let pkg_alias = format!(
-                "pkg_{}",
-                node.full_path
-                    .replace(['.', '/', '-'], "_")
-            );
+            let pkg_alias = format!("pkg_{}", node.full_path.replace(['.', '/', '-'], "_"));
             out.push_str(&format!(
                 "{}package \"{}\" as {} {{\n",
                 indent, node.full_path, pkg_alias
@@ -937,16 +931,8 @@ impl PlantUMLExporter {
             let mut sorted_deps: Vec<_> = pkg_deps.into_iter().collect();
             sorted_deps.sort();
             for (src_pkg, dst_pkg) in sorted_deps {
-                let src_alias = format!(
-                    "pkg_{}",
-                    src_pkg
-                        .replace(['.', '/', '-'], "_")
-                );
-                let dst_alias = format!(
-                    "pkg_{}",
-                    dst_pkg
-                        .replace(['.', '/', '-'], "_")
-                );
+                let src_alias = format!("pkg_{}", src_pkg.replace(['.', '/', '-'], "_"));
+                let dst_alias = format!("pkg_{}", dst_pkg.replace(['.', '/', '-'], "_"));
                 out.push_str(&format!("{} ..> {} : <<imports>>\n", src_alias, dst_alias));
             }
         }

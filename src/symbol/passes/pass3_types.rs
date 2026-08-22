@@ -72,7 +72,7 @@ impl Pass3Types {
                 NameResolver::resolve_via_import_map(&builder.scope_graph, type_name, scope_id)
             {
                 let qual_id = builder.qual_names.get_or_intern(&qual_name);
-                let ext_sym = Self::get_or_create_external(type_name, qual_id, builder);
+                let ext_sym = Self::get_or_create_external(text_id, qual_id, builder);
                 builder.set_type_ref_resolution(pre_idx, ext_sym);
                 continue;
             }
@@ -85,7 +85,7 @@ impl Pass3Types {
 
             // 5. Fallback: SK_EXTERNAL
             let qual_id = builder.qual_names.get_or_intern(type_name);
-            let ext_sym = Self::get_or_create_external(type_name, qual_id, builder);
+            let ext_sym = Self::get_or_create_external(text_id, qual_id, builder);
             builder.set_type_ref_resolution(pre_idx, ext_sym);
         }
     }
@@ -106,7 +106,7 @@ impl Pass3Types {
     }
 
     fn get_or_create_external(
-        _simple_name: &str,
+        name_id: u32,
         qual_name_id: u32,
         builder: &mut SymbolTableBuilder,
     ) -> u32 {
@@ -118,7 +118,7 @@ impl Pass3Types {
 
         builder.create_symbol(SymbolRecord {
             symbol_id: u32::MAX,
-            name_id: 0,
+            name_id,
             qual_name_id,
             type_id: u32::MAX,
             decl_node: u32::MAX,

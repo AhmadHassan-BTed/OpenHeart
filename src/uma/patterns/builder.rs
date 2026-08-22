@@ -21,8 +21,7 @@ pub fn is_builder(
     let mut child_id = sym.first_child;
     while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
         let child = &sta.symbol_records[child_id as usize];
-        if child.kind == 6 {
-            // SK_METHOD
+        if child.kind == crate::core::types::symbol::SymbolKind::SK_METHOD as u8 {
             total_methods += 1;
             if child.type_id == class_sym {
                 self_returning += 1;

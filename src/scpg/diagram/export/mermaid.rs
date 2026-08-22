@@ -331,18 +331,6 @@ impl PkgNode {
 pub struct MermaidExporter;
 
 impl MermaidExporter {
-    fn class_node_id(class_sym_id: u32, class_name: &str) -> String {
-        format!("{}_{}", Self::sanitize(class_name), class_sym_id)
-    }
-
-    fn class_node_label(class_name: &str) -> String {
-        class_name.to_string()
-    }
-
-    fn package_node_id(full_name: &str) -> String {
-        Self::sanitize(full_name)
-    }
-
     fn resolve_sym_package(
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
@@ -404,15 +392,6 @@ impl MermaidExporter {
             }
         }
         None
-    }
-
-    fn package_class_prefix(package_name: &str) -> String {
-        package_name
-            .split('.')
-            .next()
-            .and_then(|root| root.chars().next())
-            .map(|c| c.to_ascii_uppercase().to_string())
-            .unwrap_or_else(|| "P".to_string())
     }
 
     fn resolve_name<'a>(
