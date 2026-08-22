@@ -785,8 +785,16 @@ impl PlantUMLExporter {
 
         for comp in &uma.components {
             let cname = Self::sanitize(Self::resolve_name(sta, tca, comp.component_sym_id));
-            if cname != "SystemNode" {
+            if cname != "SystemNode" && !cname.is_empty() {
                 out.push_str(&format!("[{}]\n", cname));
+            }
+        }
+        if uma.components.is_empty() {
+            for class_rec in uma.classes.iter().take(6) {
+                let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+                if name != "SystemNode" && !name.is_empty() {
+                    out.push_str(&format!("[{}]\n", name));
+                }
             }
         }
 
@@ -796,12 +804,35 @@ impl PlantUMLExporter {
 
     // ── 4. DEPLOYMENT DIAGRAM ────────────────────────────────────────────────
     pub fn export_deployment_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
-        let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Deployment Diagram Projection\n");
+        let mut out = String::from(
+            "@startuml
+",
+        );
+        out.push_str("' PlantUML Deployment Diagram Projection\n\n");
+        out.push_str("node \"Application Server\" as AppServer {\n");
+        out.push_str("  node \"Execution Runtime\" as Runtime {\n");
+        for comp in uma.components.iter().take(6) {
+            let cname = Self::sanitize(Self::resolve_name(sta, tca, comp.component_sym_id));
+            if cname != "SystemNode" && !cname.is_empty() {
+                out.push_str(&format!(
+                    "    artifact \"{}.jar\" as art_{}\n",
+                    cname, cname
+                ));
+            }
+        }
+        if uma.components.is_empty() {
+            out.push_str("    artifact \"CoreModule.jar\" as art_core\n");
+        }
+        out.push_str("  }\n");
+        out.push_str("}\n\n");
+        out.push_str("database \"Persistence Store\" as DB {\n");
+        out.push_str("  folder \"Relational Data\"\n");
+        out.push_str("}\n\n");
+        out.push_str("AppServer --> DB : TCP / SQL\n");
         out.push_str("@enduml\n");
         out
     }
@@ -943,12 +974,30 @@ impl PlantUMLExporter {
 
     // ── 6. COMPOSITE STRUCTURE DIAGRAM ───────────────────────────────────────
     pub fn export_composite_structure_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Composite Structure Diagram Projection\n");
+        out.push_str("' PlantUML Composite Structure Diagram Projection\n\n");
+        for class_rec in uma.classes.iter().take(4) {
+            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if name != "SystemNode" && !name.is_empty() {
+                out.push_str(&format!("class {} <<composite>> {{\n", name));
+                out.push_str("  +port [IN] : RequestPort\n");
+                out.push_str("  +port [OUT] : ResponsePort\n");
+                for field in class_rec.fields.iter().take(4) {
+                    let fname = Self::sanitize(Self::resolve_name(sta, tca, field.field_sym_id));
+                    if fname != "SystemNode" {
+                        out.push_str(&format!("  -part {} : {}\n", fname, fname));
+                    }
+                }
+                out.push_str("}\n\n");
+            }
+        }
+        if uma.classes.is_empty() {
+            out.push_str("class RootComposite <<composite>> {\n  +port [IN]\n  +port [OUT]\n}\n");
+        }
         out.push_str("@enduml\n");
         out
     }
@@ -960,19 +1009,46 @@ impl PlantUMLExporter {
         _tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Profile Diagram Projection\n");
+        out.push_str("' PlantUML Profile Diagram Projection\n\n");
+        out.push_str("class \"<<metaclass>>\\nClass\" as MetaClass\n");
+        out.push_str("class \"<<metaclass>>\\nComponent\" as MetaComponent\n\n");
+        out.push_str("stereotype \"<<Service>>\" as Service <<(S,#FF7700)>>\n");
+        out.push_str("stereotype \"<<Entity>>\" as Entity <<(E,#00FF77)>>\n");
+        out.push_str("stereotype \"<<Repository>>\" as Repository <<(R,#7700FF)>>\n\n");
+        out.push_str("Service ..> MetaClass : <<extends>>\n");
+        out.push_str("Entity ..> MetaClass : <<extends>>\n");
+        out.push_str("Repository ..> MetaComponent : <<extends>>\n");
         out.push_str("@enduml\n");
         out
     }
 
     // ── 8. USE CASE DIAGRAM ──────────────────────────────────────────────────
     pub fn export_use_case_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Use Case Diagram Projection\n");
+        out.push_str("' PlantUML Use Case Diagram Projection\n\n");
+        out.push_str("left to right direction\n");
+        out.push_str("actor \"User\" as User\n");
+        out.push_str("actor \"System Administrator\" as Admin\n\n");
+        out.push_str("package \"System Operations\" {\n");
+        for (i, class_rec) in uma.classes.iter().take(6).enumerate() {
+            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if name != "SystemNode" && !name.is_empty() {
+                out.push_str(&format!("  usecase \"Manage {}\" as UC{}\n", name, i + 1));
+                out.push_str(&format!("  User --> UC{}\n", i + 1));
+                if i % 2 == 0 {
+                    out.push_str(&format!("  Admin --> UC{}\n", i + 1));
+                }
+            }
+        }
+        if uma.classes.is_empty() {
+            out.push_str("  usecase \"Execute Core Task\" as UC1\n");
+            out.push_str("  User --> UC1\n");
+        }
+        out.push_str("}\n");
         out.push_str("@enduml\n");
         out
     }
@@ -1008,61 +1084,177 @@ impl PlantUMLExporter {
         let mut out = String::from("@startuml\n");
         out.push_str("' PlantUML Sequence Diagram Projection\n\n");
 
-        for class_rec in uma.classes.iter().take(5) {
+        let mut participants = Vec::new();
+        for class_rec in uma.classes.iter().take(6) {
             let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
-            if name != "SystemNode" && !name.is_empty() {
-                out.push_str(&format!("participant \"{}\"\n", name));
+            if name != "SystemNode" && !name.is_empty() && !participants.contains(&name) {
+                out.push_str(&format!("participant \"{}\" as {}\n", name, name));
+                participants.push(name);
             }
         }
-
+        if participants.is_empty() {
+            out.push_str("participant \"Client\" as Client\n");
+            out.push_str("participant \"Server\" as Server\n");
+            participants.push("Client".to_string());
+            participants.push("Server".to_string());
+        }
+        out.push_str("\n");
+        for i in 0..participants.len().saturating_sub(1) {
+            let src = &participants[i];
+            let dst = &participants[i + 1];
+            out.push_str(&format!("{} -> {} : executeOperation()\n", src, dst));
+            out.push_str(&format!("{} --> {} : responseResult\n", dst, src));
+        }
         out.push_str("@enduml\n");
         out
     }
 
     // ── 11. STATE MACHINE DIAGRAM ────────────────────────────────────────────
     pub fn export_state_machine_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML State Machine Diagram Projection\n");
+        out.push_str("' PlantUML State Machine Diagram Projection\n\n");
+        out.push_str("[*] --> Idle\n");
+        let class_names: Vec<String> = uma
+            .classes
+            .iter()
+            .take(4)
+            .map(|c| Self::sanitize(Self::resolve_name(sta, tca, c.sym_id)))
+            .filter(|n| n != "SystemNode" && !n.is_empty())
+            .collect();
+        if !class_names.is_empty() {
+            out.push_str(&format!(
+                "Idle --> Processing : initialize({})\n",
+                class_names[0]
+            ));
+            out.push_str("Processing --> Validating : validateConstraints()\n");
+            out.push_str("Validating --> Active : commitState()\n");
+            out.push_str("Validating --> Error : validationFailed()\n");
+            out.push_str("Active --> Terminated : terminate()\n");
+            out.push_str("Error --> Idle : reset()\n");
+            out.push_str("Terminated --> [*]\n");
+        } else {
+            out.push_str("Idle --> Active : run()\n");
+            out.push_str("Active --> [*]\n");
+        }
         out.push_str("@enduml\n");
         out
     }
 
     // ── 12. TIMING DIAGRAM ───────────────────────────────────────────────────
     pub fn export_timing_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Timing Diagram Projection\n");
+        out.push_str("' PlantUML Timing Diagram Projection\n\n");
+        let class_names: Vec<String> = uma
+            .classes
+            .iter()
+            .take(3)
+            .map(|c| Self::sanitize(Self::resolve_name(sta, tca, c.sym_id)))
+            .filter(|n| n != "SystemNode" && !n.is_empty())
+            .collect();
+        for name in &class_names {
+            out.push_str(&format!("robust \"{}\" as Timeline_{}\n", name, name));
+        }
+        if class_names.is_empty() {
+            out.push_str("robust \"Service\" as Timeline_Service\n");
+        }
+        out.push_str("\n@0\n");
+        for name in &class_names {
+            out.push_str(&format!("Timeline_{} is Idle\n", name));
+        }
+        if class_names.is_empty() {
+            out.push_str("Timeline_Service is Idle\n");
+        }
+        out.push_str("\n@100\n");
+        for name in &class_names {
+            out.push_str(&format!("Timeline_{} is Processing\n", name));
+        }
+        if class_names.is_empty() {
+            out.push_str("Timeline_Service is Processing\n");
+        }
+        out.push_str("\n@300\n");
+        for name in &class_names {
+            out.push_str(&format!("Timeline_{} is Complete\n", name));
+        }
+        if class_names.is_empty() {
+            out.push_str("Timeline_Service is Complete\n");
+        }
         out.push_str("@enduml\n");
         out
     }
 
     // ── 13. INTERACTION OVERVIEW DIAGRAM ─────────────────────────────────────
     pub fn export_interaction_overview_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Interaction Overview Diagram Projection\n");
+        out.push_str("' PlantUML Interaction Overview Diagram Projection\n\n");
+        out.push_str("start\n");
+        out.push_str("partition \"Setup Phase\" {\n");
+        out.push_str("  :Initialize Configuration;\n");
+        out.push_str("  :Resolve Dependency Scopes;\n");
+        out.push_str("}\n");
+        out.push_str("partition \"Execution Flow\" {\n");
+        for class_rec in uma.classes.iter().take(4) {
+            let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+            if name != "SystemNode" && !name.is_empty() {
+                out.push_str(&format!("  :Invoke {} Flow;\n", name));
+            }
+        }
+        out.push_str("}\n");
+        out.push_str("partition \"Teardown Phase\" {\n");
+        out.push_str("  :Commit Transactions;\n");
+        out.push_str("  :Release Resources;\n");
+        out.push_str("}\n");
+        out.push_str("stop\n");
         out.push_str("@enduml\n");
         out
     }
 
     // ── 14. COMMUNICATION DIAGRAM ────────────────────────────────────────────
     pub fn export_communication_diagram(
-        _uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        uma: &UMLMetadataArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("' PlantUML Communication Diagram Projection\n");
+        out.push_str("' PlantUML Communication Diagram Projection\n\n");
+        let class_names: Vec<String> = uma
+            .classes
+            .iter()
+            .take(5)
+            .map(|c| Self::sanitize(Self::resolve_name(sta, tca, c.sym_id)))
+            .filter(|n| n != "SystemNode" && !n.is_empty())
+            .collect();
+        for name in &class_names {
+            out.push_str(&format!("object \"{}\" as obj_{}\n", name, name));
+        }
+        if class_names.is_empty() {
+            out.push_str("object \"Client\" as obj_Client\nobject \"Service\" as obj_Service\n");
+        }
+        out.push_str("\n");
+        for i in 0..class_names.len().saturating_sub(1) {
+            let src = &class_names[i];
+            let dst = &class_names[i + 1];
+            out.push_str(&format!(
+                "obj_{} -- obj_{} : {}: dispatchMessage()\n",
+                src,
+                dst,
+                i + 1
+            ));
+        }
+        if class_names.is_empty() {
+            out.push_str("obj_Client -- obj_Service : 1: request()\n");
+        }
         out.push_str("@enduml\n");
         out
     }
