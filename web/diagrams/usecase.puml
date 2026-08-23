@@ -46,38 +46,9 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-actor "PauseController" as act_PauseController
-actor "FractalApplication" as act_FractalApplication
-actor "OvernightManagerService" as act_OvernightManagerService
-actor "FractalTrainingService" as act_FractalTrainingService
+actor "LLMClient" as act_LLMClient
 
 rectangle "System Boundary: Domain Services" {
-  usecase "Image_DataInitializer_Factory.createDataInitializer()" as uc_Image_DataInitializer_Factory_createDataInitializer
-  act_PauseController --> uc_Image_DataInitializer_Factory_createDataInitializer
-  usecase "Image_DataInitializer_Factory.createDataInitializer()" as uc_Image_DataInitializer_Factory_createDataInitializer
-  act_PauseController --> uc_Image_DataInitializer_Factory_createDataInitializer
-  usecase "Image_Trainer_Factory.createTrainer()" as uc_Image_Trainer_Factory_createTrainer
-  act_PauseController --> uc_Image_Trainer_Factory_createTrainer
-  usecase "Image_Trainer_Factory.createTrainer()" as uc_Image_Trainer_Factory_createTrainer
-  act_PauseController --> uc_Image_Trainer_Factory_createTrainer
-  usecase "CheckpointManager.createCheckpoint()" as uc_CheckpointManager_createCheckpoint
-  act_PauseController --> uc_CheckpointManager_createCheckpoint
-  usecase "CheckpointManager.loadCheckpoint()" as uc_CheckpointManager_loadCheckpoint
-  act_PauseController --> uc_CheckpointManager_loadCheckpoint
-  usecase "CheckpointManager.createCheckpoint()" as uc_CheckpointManager_createCheckpoint
-  act_PauseController --> uc_CheckpointManager_createCheckpoint
-  usecase "networkConfig_ini.getBaseUrl()" as uc_networkConfig_ini_getBaseUrl
-  act_PauseController --> uc_networkConfig_ini_getBaseUrl
-  usecase "DataDownloader_naf.downloadFiles()" as uc_DataDownloader_naf_downloadFiles
-  act_PauseController --> uc_DataDownloader_naf_downloadFiles
-  usecase "DataDownloader_naf.downloadFiles()" as uc_DataDownloader_naf_downloadFiles
-  act_PauseController --> uc_DataDownloader_naf_downloadFiles
-  usecase "DataDownloader_naf.getFileSize()" as uc_DataDownloader_naf_getFileSize
-  act_PauseController --> uc_DataDownloader_naf_getFileSize
-  usecase "PauseController.isPaused()" as uc_PauseController_isPaused
-  act_PauseController --> uc_PauseController_isPaused
-  usecase "PauseController.isCancelled()" as uc_PauseController_isCancelled
-  act_PauseController --> uc_PauseController_isCancelled
 }
 
 @enduml

@@ -3,16 +3,16 @@
   "title": "UML 2.5 Runtime Instance Object Diagram",
   "nodes": [
     {
-      "id": "obj_Image_DataInitializer_Factory",
-      "label": "obj_Image_DataInitializer_Factory : Image_DataInitializer_Factory",
-      "name": "obj_Image_DataInitializer_Factory",
+      "id": "obj_SupportedLanguage",
+      "label": "obj_SupportedLanguage : SupportedLanguage",
+      "name": "obj_SupportedLanguage",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "Image_DataInitializer_Factory.java",
+      "file": "SupportedLanguage.java",
       "lines": [
         1
       ],
@@ -21,16 +21,16 @@
       "instructions": []
     },
     {
-      "id": "obj_Image_Trainer_Factory",
-      "label": "obj_Image_Trainer_Factory : Image_Trainer_Factory",
-      "name": "obj_Image_Trainer_Factory",
+      "id": "obj_Priority",
+      "label": "obj_Priority : Priority",
+      "name": "obj_Priority",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "Image_Trainer_Factory.java",
+      "file": "Priority.java",
       "lines": [
         1
       ],
@@ -39,233 +39,16 @@
       "instructions": []
     },
     {
-      "id": "obj_CheckpointManager",
-      "label": "obj_CheckpointManager : CheckpointManager",
-      "name": "obj_CheckpointManager",
+      "id": "obj_NFRCategory",
+      "label": "obj_NFRCategory : NFRCategory",
+      "name": "obj_NFRCategory",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "CheckpointManager.java",
-      "lines": [
-        1
-      ],
-      "fields": [
-        {
-          "visibility": "+",
-          "name": "TAG",
-          "type_name": "Object",
-          "signature": "TAG = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "fun",
-          "type_name": "Task",
-          "signature": "fun = \"<Task>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "fun",
-          "type_name": "Task",
-          "signature": "fun = \"<Task>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "TAG",
-          "type_name": "Object",
-          "signature": "TAG = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "imageTask",
-          "type_name": "Object",
-          "signature": "imageTask = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "ckptFile",
-          "type_name": "Object",
-          "signature": "ckptFile = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "metaFile",
-          "type_name": "Object",
-          "signature": "metaFile = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "inputs",
-          "type_name": "Object",
-          "signature": "inputs = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "json",
-          "type_name": "Object",
-          "signature": "json = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "jsonText",
-          "type_name": "Object",
-          "signature": "jsonText = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "lastEpoch",
-          "type_name": "Object",
-          "signature": "lastEpoch = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        }
-      ],
-      "methods": [],
-      "instructions": []
-    },
-    {
-      "id": "obj_networkConfig_ini",
-      "label": "obj_networkConfig_ini : networkConfig_ini",
-      "name": "obj_networkConfig_ini",
-      "kind": "object",
-      "stereotype": "<<object>>",
-      "parent": null,
-      "nest_level": 0,
-      "is_package": false,
-      "is_domain_tier": false,
-      "file": "networkConfig_ini.java",
-      "lines": [
-        1
-      ],
-      "fields": [
-        {
-          "visibility": "+",
-          "name": "String",
-          "type_name": "Object",
-          "signature": "String = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "String",
-          "type_name": "Object",
-          "signature": "String = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "get",
-          "type_name": "Object",
-          "signature": "get = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "API_KEY",
-          "type_name": "Object",
-          "signature": "API_KEY = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "SERVER_IP",
-          "type_name": "Object",
-          "signature": "SERVER_IP = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "SERVER_PROTOCOL",
-          "type_name": "Object",
-          "signature": "SERVER_PROTOCOL = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "SERVER_PORT",
-          "type_name": "Object",
-          "signature": "SERVER_PORT = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "portStr",
-          "type_name": "Object",
-          "signature": "portStr = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        }
-      ],
-      "methods": [],
-      "instructions": []
-    },
-    {
-      "id": "obj_DataDownloader_naf",
-      "label": "obj_DataDownloader_naf : DataDownloader_naf",
-      "name": "obj_DataDownloader_naf",
-      "kind": "object",
-      "stereotype": "<<object>>",
-      "parent": null,
-      "nest_level": 0,
-      "is_package": false,
-      "is_domain_tier": false,
-      "file": "DataDownloader_naf.java",
-      "lines": [
-        1
-      ],
-      "fields": [
-        {
-          "visibility": "+",
-          "name": "TAG",
-          "type_name": "String",
-          "signature": "TAG = \"<String>\"",
-          "is_static": false,
-          "is_final": false
-        }
-      ],
-      "methods": [],
-      "instructions": []
-    },
-    {
-      "id": "obj_PauseController",
-      "label": "obj_PauseController : PauseController",
-      "name": "obj_PauseController",
-      "kind": "object",
-      "stereotype": "<<object>>",
-      "parent": null,
-      "nest_level": 0,
-      "is_package": false,
-      "is_domain_tier": false,
-      "file": "PauseController.java",
+      "file": "NFRCategory.java",
       "lines": [
         1
       ],
@@ -274,16 +57,16 @@
       "instructions": []
     },
     {
-      "id": "obj_DownloadListener",
-      "label": "obj_DownloadListener : DownloadListener",
-      "name": "obj_DownloadListener",
+      "id": "obj_ScreenType",
+      "label": "obj_ScreenType : ScreenType",
+      "name": "obj_ScreenType",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "DownloadListener.java",
+      "file": "ScreenType.java",
       "lines": [
         1
       ],
@@ -292,16 +75,16 @@
       "instructions": []
     },
     {
-      "id": "obj_CancelledDownloadException",
-      "label": "obj_CancelledDownloadException : CancelledDownloadException",
-      "name": "obj_CancelledDownloadException",
+      "id": "obj_RelationshipType",
+      "label": "obj_RelationshipType : RelationshipType",
+      "name": "obj_RelationshipType",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "CancelledDownloadException.java",
+      "file": "RelationshipType.java",
       "lines": [
         1
       ],
@@ -310,206 +93,16 @@
       "instructions": []
     },
     {
-      "id": "obj_FileUploader_naf",
-      "label": "obj_FileUploader_naf : FileUploader_naf",
-      "name": "obj_FileUploader_naf",
+      "id": "obj_AttributeType",
+      "label": "obj_AttributeType : AttributeType",
+      "name": "obj_AttributeType",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "FileUploader_naf.java",
-      "lines": [
-        1
-      ],
-      "fields": [
-        {
-          "visibility": "+",
-          "name": "TAG",
-          "type_name": "String",
-          "signature": "TAG = \"<String>\"",
-          "is_static": false,
-          "is_final": false
-        }
-      ],
-      "methods": [],
-      "instructions": []
-    },
-    {
-      "id": "obj_Parser",
-      "label": "obj_Parser : Parser",
-      "name": "obj_Parser",
-      "kind": "object",
-      "stereotype": "<<object>>",
-      "parent": null,
-      "nest_level": 0,
-      "is_package": false,
-      "is_domain_tier": false,
-      "file": "Parser.java",
-      "lines": [
-        1
-      ],
-      "fields": [
-        {
-          "visibility": "+",
-          "name": "candidates",
-          "type_name": "Object",
-          "signature": "candidates = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "path",
-          "type_name": "Object",
-          "signature": "path = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "parser",
-          "type_name": "Object",
-          "signature": "parser = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "dynamicDevfreq",
-          "type_name": "Object",
-          "signature": "dynamicDevfreq = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "dynamicProc",
-          "type_name": "Object",
-          "signature": "dynamicProc = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "allCandidates",
-          "type_name": "Object",
-          "signature": "allCandidates = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "result",
-          "type_name": "Object",
-          "signature": "result = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "discovered",
-          "type_name": "Object",
-          "signature": "discovered = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "devfreqDir",
-          "type_name": "Object",
-          "signature": "devfreqDir = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "name",
-          "type_name": "Object",
-          "signature": "name = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "isGpu",
-          "type_name": "Object",
-          "signature": "isGpu = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "procDir",
-          "type_name": "Object",
-          "signature": "procDir = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "file",
-          "type_name": "Object",
-          "signature": "file = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "raw",
-          "type_name": "Object",
-          "signature": "raw = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "line",
-          "type_name": "Object",
-          "signature": "line = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "numStr",
-          "type_name": "Object",
-          "signature": "numStr = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "pct",
-          "type_name": "Object",
-          "signature": "pct = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        },
-        {
-          "visibility": "+",
-          "name": "idle",
-          "type_name": "Object",
-          "signature": "idle = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        }
-      ],
-      "methods": [],
-      "instructions": []
-    },
-    {
-      "id": "obj_Image_Task_Factory",
-      "label": "obj_Image_Task_Factory : Image_Task_Factory",
-      "name": "obj_Image_Task_Factory",
-      "kind": "object",
-      "stereotype": "<<object>>",
-      "parent": null,
-      "nest_level": 0,
-      "is_package": false,
-      "is_domain_tier": false,
-      "file": "Image_Task_Factory.java",
+      "file": "AttributeType.java",
       "lines": [
         1
       ],
@@ -518,29 +111,110 @@
       "instructions": []
     },
     {
-      "id": "obj_TaskType",
-      "label": "obj_TaskType : TaskType",
-      "name": "obj_TaskType",
+      "id": "obj_RawRequirementFeatures",
+      "label": "obj_RawRequirementFeatures : RawRequirementFeatures",
+      "name": "obj_RawRequirementFeatures",
       "kind": "object",
       "stereotype": "<<object>>",
       "parent": null,
       "nest_level": 0,
       "is_package": false,
       "is_domain_tier": false,
-      "file": "TaskType.java",
+      "file": "RawRequirementFeatures.java",
       "lines": [
         1
       ],
-      "fields": [
-        {
-          "visibility": "+",
-          "name": "PassiveTask",
-          "type_name": "Object",
-          "signature": "PassiveTask = \"<Object>\"",
-          "is_static": false,
-          "is_final": false
-        }
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "obj_FunctionalRequirement",
+      "label": "obj_FunctionalRequirement : FunctionalRequirement",
+      "name": "obj_FunctionalRequirement",
+      "kind": "object",
+      "stereotype": "<<object>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "FunctionalRequirement.java",
+      "lines": [
+        1
       ],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "obj_FunctionalRequirementSet",
+      "label": "obj_FunctionalRequirementSet : FunctionalRequirementSet",
+      "name": "obj_FunctionalRequirementSet",
+      "kind": "object",
+      "stereotype": "<<object>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "FunctionalRequirementSet.java",
+      "lines": [
+        1
+      ],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "obj_NonFunctionalRequirement",
+      "label": "obj_NonFunctionalRequirement : NonFunctionalRequirement",
+      "name": "obj_NonFunctionalRequirement",
+      "kind": "object",
+      "stereotype": "<<object>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "NonFunctionalRequirement.java",
+      "lines": [
+        1
+      ],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "obj_NonFunctionalRequirementSet",
+      "label": "obj_NonFunctionalRequirementSet : NonFunctionalRequirementSet",
+      "name": "obj_NonFunctionalRequirementSet",
+      "kind": "object",
+      "stereotype": "<<object>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "NonFunctionalRequirementSet.java",
+      "lines": [
+        1
+      ],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "obj_SitemapNode",
+      "label": "obj_SitemapNode : SitemapNode",
+      "name": "obj_SitemapNode",
+      "kind": "object",
+      "stereotype": "<<object>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "SitemapNode.java",
+      "lines": [
+        1
+      ],
+      "fields": [],
       "methods": [],
       "instructions": []
     }
@@ -548,88 +222,88 @@
   "edges": [
     {
       "id": "edge_1",
-      "source": "obj_Image_DataInitializer_Factory",
-      "target": "obj_Image_Trainer_Factory",
+      "source": "obj_SupportedLanguage",
+      "target": "obj_Priority",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_2",
-      "source": "obj_Image_Trainer_Factory",
-      "target": "obj_CheckpointManager",
+      "source": "obj_Priority",
+      "target": "obj_NFRCategory",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_3",
-      "source": "obj_CheckpointManager",
-      "target": "obj_networkConfig_ini",
+      "source": "obj_NFRCategory",
+      "target": "obj_ScreenType",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_4",
-      "source": "obj_networkConfig_ini",
-      "target": "obj_DataDownloader_naf",
+      "source": "obj_ScreenType",
+      "target": "obj_RelationshipType",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_5",
-      "source": "obj_DataDownloader_naf",
-      "target": "obj_PauseController",
+      "source": "obj_RelationshipType",
+      "target": "obj_AttributeType",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_6",
-      "source": "obj_PauseController",
-      "target": "obj_DownloadListener",
+      "source": "obj_AttributeType",
+      "target": "obj_RawRequirementFeatures",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_7",
-      "source": "obj_DownloadListener",
-      "target": "obj_CancelledDownloadException",
+      "source": "obj_RawRequirementFeatures",
+      "target": "obj_FunctionalRequirement",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_8",
-      "source": "obj_CancelledDownloadException",
-      "target": "obj_FileUploader_naf",
+      "source": "obj_FunctionalRequirement",
+      "target": "obj_FunctionalRequirementSet",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_9",
-      "source": "obj_FileUploader_naf",
-      "target": "obj_Parser",
+      "source": "obj_FunctionalRequirementSet",
+      "target": "obj_NonFunctionalRequirement",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_10",
-      "source": "obj_Parser",
-      "target": "obj_Image_Task_Factory",
+      "source": "obj_NonFunctionalRequirement",
+      "target": "obj_NonFunctionalRequirementSet",
       "kind": "association",
       "label": "references",
       "arrow": "-->"
     },
     {
       "id": "edge_11",
-      "source": "obj_Image_Task_Factory",
-      "target": "obj_TaskType",
+      "source": "obj_NonFunctionalRequirementSet",
+      "target": "obj_SitemapNode",
       "kind": "association",
       "label": "references",
       "arrow": "-->"

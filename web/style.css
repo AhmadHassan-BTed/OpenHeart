@@ -127,15 +127,15 @@ html, body {
   background: var(--border-light);
 }
 
-/* GitHub Repository Import Bar */
+/* GitHub Repository Import Bar (Widened & Responsive) */
 .repo-import-bar {
   display: flex;
   align-items: center;
   background: var(--bg-subtle);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-pill);
-  padding: 3px 6px 3px 12px;
-  width: 360px;
+  padding: 4px 6px 4px 14px;
+  width: clamp(460px, 40vw, 720px);
   transition: all 0.15s ease;
 }
 
@@ -149,13 +149,15 @@ html, body {
   color: var(--text-faint);
   margin-right: 8px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
 }
 
 .repo-import-input {
   border: none;
   background: transparent;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-main);
   width: 100%;
   outline: none;
@@ -169,19 +171,70 @@ html, body {
   background: var(--text-main);
   color: var(--text-inverse);
   border: none;
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: var(--radius-pill);
   font-family: var(--font-sans);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .btn-analyze-pill:hover {
   background: #1E293B;
   transform: scale(1.02);
+}
+
+.btn-analyze-pill:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Live Cloning & Analysis Progress Track ── */
+.clone-progress-track {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: transparent;
+  z-index: 120;
+  overflow: hidden;
+  display: none;
+}
+
+.clone-progress-track.active {
+  display: block;
+}
+
+.clone-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-emerald) 100%);
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
+  transition: width 0.3s ease-out;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #FFFFFF;
+  animation: spin 0.7s linear infinite;
+  margin-right: 4px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Preset Repository Chips */

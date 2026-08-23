@@ -1,1654 +1,263 @@
 classDiagram
-    namespace AppBackend {
-        namespace Network {
-            class networkConfig_ini {
-                +String Unknown
-                +String Unknown
-                +get Unknown
-                +API_KEY Unknown
-                +SERVER_IP Unknown
-                +SERVER_PROTOCOL Unknown
-                +SERVER_PORT Unknown
-                +portStr Unknown
-                +getBaseUrl() Unknown
-            }
-            namespace ModelUpdateTransmission {
-                class ModelTransmission_DTO {
-                    +task Unknown
-                }
-                class ModelTransmitter {
-                    +TAG Unknown
-                    +serverDao Unknown
-                    +transmitModel() Unknown
-                }
-            }
-            namespace Server_DAO {
-                class Auth {
-                    <<interface>> 
-                    +POST_RegisterLogin() Unknown
-                    +GET_RegisteredInfo() Unknown
-                    +POST_ForgetPassword_sendEmail() Unknown
-                    +POST_Forgetpassword_verifyEmail() Unknown
-                    +POST_Unregister() Unknown
-                }
-                class ModelTransmission {
-                    <<interface>> 
-                    +POST_UploadModelToServer() Unknown
-                }
-                class Server_DAO {
-                    +networkConfig Unknown
-                    +TAG Unknown
-                    +url Unknown
-                    +conn Unknown
-                    +reader Unknown
-                    +response Unknown
-                    +json Unknown
-                    +task Unknown
-                    +dateString Unknown
-                    +format Unknown
-                    +trainingTypeJsonArray Unknown
-                    +trainingTypeList Unknown
-                    +shapeJsonArray Unknown
-                    +shapeList Unknown
-                    +inputTensorJson Unknown
-                    +inputMap Unknown
-                    +outputTensorJson Unknown
-                    +outputMap Unknown
-                    +imageTask Unknown
-                    +taskId Unknown
-                    +ckptFilename Unknown
-                    +uploadFile Unknown
-                    +boundary Unknown
-                    +lineEnd Unknown
-                    +twoHyphens Unknown
-                    +dos Unknown
-                    +fileInputStream Unknown
-                    +bufferSize Unknown
-                    +buffer Unknown
-                    +bytesRead Unknown
-                    +responseCode Unknown
-                    +auth Unknown
-                    +firestore Unknown
-                    +email Unknown
-                    +password Unknown
-                    +username Unknown
-                    +phone Unknown
-                    +carrier Unknown
-                    +loginTask Unknown
-                    +user Unknown
-                    +userData Unknown
-                    +regTask Unknown
-                    +profileUpdates Unknown
-                    +targetEmail Unknown
-                    +resetTask Unknown
-                    +doc Unknown
-                    +userEmail Unknown
-                    +currentDate Unknown
-                    +base64Images Unknown
-                    +currentPayloadSize Unknown
-                    +maxSafePayloadSize Unknown
-                    +base64String Unknown
-                    +feedbackData Unknown
-                    +targetCollection Unknown
-                    +statusUpdate Unknown
-                    +resolvedStatus Unknown
-                    +hashMapOf Unknown
-                    +POST_Ping() Unknown
-                    +GET_Task() Unknown
-                    +POST_UploadModelToServer() Unknown
-                    +writeTextPart() Unknown
-                    +POST_RegisterLogin() Unknown
-                    +GET_RegisteredInfo() Unknown
-                    +POST_Forgetpassword_verifyEmail() Unknown
-                    +POST_ForgetPassword_sendEmail() Unknown
-                    +GET_VerifiedLiquidMBs() Unknown
-                    +POST_Unregister() Unknown
-                    +POST_SendRegisteredInfo() Unknown
-                }
-                class TaskPopulate {
-                    <<interface>> 
-                    +GET_Task() Unknown
-                }
-                Server_DAO ..|> TaskPopulate
-                Server_DAO ..|> Auth
-                Server_DAO ..|> ModelTransmission
-            }
-            namespace RegisteredInfo_B {
-                class Registered_DTO {
-                    +username Unknown
-                    +email Unknown
-                    +phoneNumber Unknown
-                    +carrier Unknown
-                    +timeZone Unknown
-                    +joinedOn Unknown
-                    +platform Unknown
-                    +hardwareID Unknown
-                    +serialNumber Unknown
-                    +processor Unknown
-                    +storage Unknown
-                    +totalRam Unknown
-                    +androidVersion Unknown
-                    +macAddress Unknown
-                    +status Unknown
-                }
-                class RegistrationManager {
-                    +context Unknown
-                    +handler Unknown
-                    +liveUpdateRunnable Unknown
-                    +startLiveUpdates() Unknown
-                }
-            }
-            Server_DAO --|> networkConfig_ini
-        }
-        namespace DataManager {
-            namespace DataLoaderAndInitializer {
-                class Image_DataInitializer_Factory {
-                    <<Factory>>
-                    +createDataInitializer() Unknown
-                    +createDataInitializer() Unknown
-                }
-                class DataInitializer {
-                    <<interface>> 
-                    +locadBatch() Unknown
-                    +preprocess() Unknown
-                }
-                class DataInitializer_Factory {
-                    <<interface>> 
-                    <<Factory>>
-                    +createDataInitializer() Unknown
-                }
-                class Image_DataInitializer {
-                    +TAG Unknown
-                    +imageStream Unknown
-                    +labelStream Unknown
-                    +imageTask Unknown
-                    +filesDir Unknown
-                    +imgFile Unknown
-                    +lblFile Unknown
-                    +numTrainings Unknown
-                    +numClasses Unknown
-                    +shapeArray Unknown
-                    +imgHeight Unknown
-                    +imgWidth Unknown
-                    +imageBytes Unknown
-                    +labelBytes Unknown
-                    +imageBatch Unknown
-                    +labelBatch Unknown
-                    +imageData Unknown
-                    +labelData Unknown
-                    +imgRead Unknown
-                    +lblRead Unknown
-                    +imageFloatBuffer Unknown
-                    +labelFloatBuffer Unknown
-                    +imageFloats Unknown
-                    +labelFloats Unknown
-                    +locadBatch() Unknown
-                    +preprocess() Unknown
-                }
-                Image_DataInitializer_Factory ..|> DataInitializer_Factory
-                Image_DataInitializer ..|> DataInitializer
-            }
-        }
-        namespace ResourceManagement {
-            class DataDownloader_naf {
-                +TAG String
-                +downloadFiles() Unknown
-                +downloadFiles() Unknown
-                +getFileSize() Unknown
-                +downloadFileWithProgress() Unknown
-            }
-            class PauseController {
-                <<interface>> 
-                +isPaused() Unknown
-                +isCancelled() Unknown
-            }
-            class DownloadListener {
-                <<interface>> 
-                +onDownloadFinished() Unknown
-                +onError() Unknown
-                +onProgressUpdate() Unknown
-                +onStatusMessage() Unknown
-            }
-            class CancelledDownloadException {
-                +CancelledDownloadException() Unknown
-            }
-            class FileUploader_naf {
-                +TAG String
-                +uploadCheckpoint() Unknown
-            }
-            class Parser {
-                +candidates Unknown
-                +path Unknown
-                +parser Unknown
-                +dynamicDevfreq Unknown
-                +dynamicProc Unknown
-                +allCandidates Unknown
-                +result Unknown
-                +discovered Unknown
-                +devfreqDir Unknown
-                +name Unknown
-                +isGpu Unknown
-                +procDir Unknown
-                +file Unknown
-                +raw Unknown
-                +line Unknown
-                +numStr Unknown
-                +pct Unknown
-                +idle Unknown
-                +read() Unknown
-                +fullScan() Unknown
-                +discoverDevfreqGpuNodes() Unknown
-                +discoverProcGpuNodes() Unknown
-                +tryCandidate() Unknown
-                +tryParseFile() Unknown
-                +parseRaw() Unknown
-            }
-            class GpuUsageReader {
-                +TAG Unknown
-                +lock Unknown
-                +resolvedPath Unknown
-                +resolvedParser Unknown
-                +scanComplete Unknown
-            }
-            class Parser {
-                <<enum>> 
-            }
-            namespace ResourceManager {
-                class ResourceManager_Live_DTO {
-                    +cpuPercentage Unknown
-                    +ramPercentage Unknown
-                    +temperature Unknown
-                    +batteryPercentage Unknown
-                    +gpuPercentage Unknown
-                    +activityManager Unknown
-                    +gpuSysfsAvailable Unknown
-                    +lastCpuLoad Unknown
-                    +cpuFloat Unknown
-                    +gpuFloat Unknown
-                    +memoryInfo Unknown
-                    +usedRam Unknown
-                    +intent Unknown
-                    +real Unknown
-                    +process Unknown
-                    +reader Unknown
-                    +line Unknown
-                    +totalCpu Unknown
-                    +trimmedLine Unknown
-                    +pattern Unknown
-                    +matches Unknown
-                    +sum Unknown
-                    +load Unknown
-                    +updateStatistics() Unknown
-                    +resolveGpuLoad() Unknown
-                    +getActualCpuUsage() Unknown
-                }
-                class ResourceManager_Record_DTO {
-                    +deviceStandbyTime Unknown
-                    +networkStandbyTime Unknown
-                    +networkOnlineStartTime Unknown
-                    +networkOnlineEndTime Unknown
-                    +powerConsuption Unknown
-                    +tempStorage Unknown
-                    +backgroundTasksRunning Unknown
-                }
-                class ResourceStatistics {
-                    +overallPerformance Unknown
-                    +estimatedTimeLeft Unknown
-                    +epochsCompleted Unknown
-                    +inferenceTesting Unknown
-                }
-            }
-            namespace OperationControl {
-                class OperationControl {
-                    +context Unknown
-                    +globalState Unknown
-                    +allowed Unknown
-                    +networkAllowed Unknown
-                    +config Unknown
-                    +cm Unknown
-                    +network Unknown
-                    +caps Unknown
-                    +isWifi Unknown
-                    +isCellular Unknown
-                    +powerManager Unknown
-                    +batteryStatus Unknown
-                    +status Unknown
-                    +isCharging Unknown
-                    +level Unknown
-                    +scale Unknown
-                    +batteryPct Unknown
-                    +waitForOptimalConditions() Unknown
-                    +waitForNetworkToUpload() Unknown
-                    +evaluateNetworkOnly() Unknown
-                    +evaluateDeviceState() Unknown
-                    +getViolationMessage() Unknown
-                }
-            }
-        }
-        namespace Factory {
-            namespace PackageTypeTrainer {
-                class Builder {
-                    <<interface>> 
-                    <<Builder>>
-                    +build() Unknown
-                    +make() Unknown
-                }
-                class PackageTypeTrainer {
-                    +context Unknown
-                    +task Unknown
-                    +dataInitializer Unknown
-                    +trainer Unknown
-                    +validator Unknown
-                    +TAG Unknown
-                    +validationResult Unknown
-                    +opControl Unknown
-                    +transmissionDTO Unknown
-                    +transmitter Unknown
-                    +flusher Unknown
-                    +uploadSuccess Unknown
-                    +attemptCount Unknown
-                    +run() Unknown
-                }
-                class PackageTypeTrainerBuilder {
-                    <<Builder>>
-                    +TAG Unknown
-                    +taskFactory Unknown
-                    +dataInitializerFactory Unknown
-                    +trainerFactory Unknown
-                    +validatorFactory Unknown
-                    +buildContext Unknown
-                    +ctx Unknown
-                    +tFactory Unknown
-                    +task Unknown
-                    +dFactory Unknown
-                    +dataInitializer Unknown
-                    +trFactory Unknown
-                    +trainer Unknown
-                    +vFactory Unknown
-                    +validator Unknown
-                    +build() Unknown
-                    +make() Unknown
-                    +addTask() Unknown
-                    +addDataInitializer() Unknown
-                    +addTrainer() Unknown
-                    +addValidator() Unknown
-                    +buildFinal() Unknown
-                }
-                PackageTypeTrainerBuilder ..|> Builder
-            }
-        }
-        namespace LocalTrainingModule {
-            namespace TrainingExecutor {
-                class Image_Trainer_Factory {
-                    <<Factory>>
-                    +createTrainer() Unknown
-                    +createTrainer() Unknown
-                }
-                class ImageTrainer {
-                    +task Unknown
-                    +trainingData Unknown
-                    +interpreter Unknown
-                    +currentEpoch Unknown
-                    +checkpointManager Unknown
-                    +TAG Unknown
-                    +availableSignatures Unknown
-                    +imageTask Unknown
-                    +modelFile Unknown
-                    +inputStream Unknown
-                    +buffer Unknown
-                    +imageBatch Unknown
-                    +labelBatch Unknown
-                    +shapeArray Unknown
-                    +imgHeight Unknown
-                    +imgWidth Unknown
-                    +numClasses Unknown
-                    +numTrainings Unknown
-                    +numEpochs Unknown
-                    +trainingStartTime Unknown
-                    +timeLeftStr Unknown
-                    +totalSteps Unknown
-                    +currentStep Unknown
-                    +singleImageBuffer Unknown
-                    +singleLabelBuffer Unknown
-                    +lossBuffer Unknown
-                    +inputs Unknown
-                    +outputs Unknown
-                    +lastLoss Unknown
-                    +hardwareIssue Unknown
-                    +imgPos Unknown
-                    +imgArray Unknown
-                    +lblPos Unknown
-                    +lblArray Unknown
-                    +percent Unknown
-                    +logMessage Unknown
-                    +completedInSession Unknown
-                    +timeElapsed Unknown
-                    +avgTimePerEpoch Unknown
-                    +remainingEpochs Unknown
-                    +remainingMillis Unknown
-                    +seconds Unknown
-                    +minutes Unknown
-                    +completedEpochs Unknown
-                    +setUpTrainer() Unknown
-                    +loadModelFile() Unknown
-                    +loadModel() Unknown
-                    +initializeWeights() Unknown
-                    +trainModel() Unknown
-                }
-                class Trainer {
-                    <<interface>> 
-                    +task Unknown
-                    +trainingData Unknown
-                    +interpreter Unknown
-                    +currentEpoch Unknown
-                    +setUpTrainer() Unknown
-                    +loadModelFile() Unknown
-                    +loadModel() Unknown
-                    +initializeWeights() Unknown
-                    +trainModel() Unknown
-                }
-                class Trainer_Factory {
-                    <<interface>> 
-                    <<Factory>>
-                    +createTrainer() Unknown
-                }
-                class TrainingCallback {
-                    <<interface>> 
-                    +onProgress() Unknown
-                    +onStatusUpdate() Unknown
-                    +onValidationUpdate() Unknown
-                    +onEpochUpdate() Unknown
-                    +isPaused() Unknown
-                    +isCancelled() Unknown
-                    +onWaitingStateChanged() Unknown
-                    +checkLiveConditions() Unknown
-                    +onTaskAcquired() Unknown
-                    +onUploadSuccess() Unknown
-                }
-                Image_Trainer_Factory ..|> Trainer_Factory
-                ImageTrainer ..|> Trainer
-            }
-            namespace TrainingStateManager {
-                class CheckpointManager {
-                    <<Decorator>>
-                    +TAG Unknown
-                    +fun Task
-                    +fun Task
-                    +TAG Unknown
-                    +imageTask Unknown
-                    +ckptFile Unknown
-                    +metaFile Unknown
-                    +inputs Unknown
-                    +json Unknown
-                    +jsonText Unknown
-                    +lastEpoch Unknown
-                    +createCheckpoint() Unknown
-                    +loadCheckpoint() Unknown
-                    +createCheckpoint() Unknown
-                    +loadCheckpoint() Unknown
-                }
-                class checkpoint_DTO {
-                    +task_Id Unknown
-                    +lastEpoch Unknown
-                    +checkpointTimestamp Unknown
-                }
-                class checkpoints_DTO {
-                    +checkpoints Unknown
-                }
-                checkpoints_DTO --|> checkpoint_DTO
-            }
-        }
-        namespace TaskContainer {
-            class Image_Task_Factory {
-                <<Factory>>
-                +createTask() Unknown
-                +createTask() Unknown
-            }
-            class TaskType {
-                +PassiveTask Unknown
-            }
-            class Image_Task {
-                +task_Id Unknown
-                +taskType Unknown
-                +task_expire_date Unknown
-                +task_completion_status Unknown
-                +training_type Unknown
-                +CKPT_FILENAME Unknown
-                +architecture Unknown
-                +reward_rate Unknown
-                +NUM_EPOCHS Unknown
-                +input_tensor_name Unknown
-                +output_tensor_name Unknown
-                +MODEL_FILENAME Unknown
-                +BATCH_SIZE Unknown
-                +NUM_TRAININGS Unknown
-                +INPUT_SHAPE Unknown
-                +NUM_CLASSES Unknown
-                +TRAIN_IMAGES_FILENAME Unknown
-                +TRAIN_LABELS_FILENAME Unknown
-                +save_data() Unknown
-            }
-            class Image_Task_DataParams {
-                <<interface>> 
-                +BATCH_SIZE Unknown
-                +NUM_TRAININGS Unknown
-                +INPUT_SHAPE Unknown
-                +NUM_CLASSES Unknown
-                +TRAIN_IMAGES_FILENAME Unknown
-                +TRAIN_LABELS_FILENAME Unknown
-            }
-            class Image_Task_ModelParams {
-                <<interface>> 
-                +NUM_EPOCHS Unknown
-                +input_tensor_name Unknown
-                +output_tensor_name Unknown
-                +MODEL_FILENAME Unknown
-            }
-            class Task {
-                <<interface>> 
-                +task_Id Unknown
-                +taskType Unknown
-                +task_expire_date Unknown
-                +task_completion_status Unknown
-                +training_type Unknown
-                +CKPT_FILENAME Unknown
-                +architecture Unknown
-                +reward_rate Unknown
-                +save_data() Unknown
-            }
-            class Task_DataParams {
-                <<interface>> 
-            }
-            class Task_Factory {
-                <<interface>> 
-                <<Factory>>
-                +createTask() Unknown
-            }
-            class Task_ModelParams {
-                <<interface>> 
-                +NUM_EPOCHS Unknown
-                +input_tensor_name Unknown
-                +output_tensor_name Unknown
-                +MODEL_FILENAME Unknown
-            }
-            class task_DTO {
-                +current_task_Id Unknown
-                +list_task_Id Unknown
-            }
-            Image_Task_Factory ..|> Task_Factory
-            Image_Task --|> TaskType
-            Image_Task_DataParams ..|> Task_DataParams
-            Image_Task_ModelParams ..|> Task_ModelParams
-            Task ..|> Task_ModelParams
-            Task ..|> Task_DataParams
-            task_DTO ..|> Task
-        }
-        namespace Validator {
-            namespace ModelInferenceValidator {
-                class Image_InferenceValidator_Factory {
-                    <<Factory>>
-                    +createInferenceValidator() Unknown
-                    +createInferenceValidator() Unknown
-                }
-                class Image_InferenceValidator {
-                    +TAG Unknown
-                    +pair Unknown
-                    +imageTask Unknown
-                    +imageBatch Unknown
-                    +shapeArray Unknown
-                    +imgHeight Unknown
-                    +imgWidth Unknown
-                    +numClasses Unknown
-                    +singleImageFloats Unknown
-                    +inputBuffer Unknown
-                    +outputBuffer Unknown
-                    +logitsBuffer Unknown
-                    +inputs Unknown
-                    +outputs Unknown
-                    +probs Unknown
-                    +predictedClass Unknown
-                    +confidence Unknown
-                    +resultString Unknown
-                    +infer() Unknown
-                    +inferImageInferenceValidate() Unknown
-                }
-                class InferenceValidator {
-                    <<interface>> 
-                    +infer() Unknown
-                }
-                class InferenceValidator_Factory {
-                    <<interface>> 
-                    <<Factory>>
-                    +createInferenceValidator() Unknown
-                }
-                Image_InferenceValidator_Factory ..|> InferenceValidator_Factory
-                Image_InferenceValidator ..|> InferenceValidator
-            }
-        }
-        CheckpointManager --> Task
-        PackageTypeTrainer ..|> Trainer
-        PackageTypeTrainer ..|> DataInitializer
-        PackageTypeTrainer ..|> InferenceValidator
-        PackageTypeTrainer ..|> Task
-        ModelTransmission_DTO ..|> Task
+    class SupportedLanguage {
     }
-    namespace AppFrontend {
-        namespace Interface {
-            namespace Insights {
-                class InsightsPagerAdapter {
-                    <<Adapter>>
-                    +getItemCount() Unknown
-                    +getItemCount() Unknown
-                    +createFragment() Unknown
-                }
-                class InsightsPagerFragment {
-                    +FragmentInsightsPagerBinding Unknown
-                    +get Unknown
-                    +_binding Unknown
-                    +binding Unknown
-                    +pagerAdapter Unknown
-                    +page Unknown
-                    +onCreateView() Unknown
-                    +onViewCreated() Unknown
-                }
-                namespace ModelTraining {
-                    class ModelTrainingFragment {
-                    }
-                    class ModelTrainingFragment {
-                        <<Decorator>>
-                        +binding FragmentModelBinding
-                        +sharedViewModel HomeViewModel
-                        +onCreateView() View
-                        +onDestroyView() Unknown
-                    }
-                    class ModelTrainingViewModel {
-                        +mText Unknown
-                        +ModelTrainingViewModel() Unknown
-                        +getText() Unknown
-                        +updateModelTrainingGraph() Unknown
-                    }
-                    class TrainingWaveView {
-                        +density Unknown
-                        +wavePath Unknown
-                        +wavePaint Unknown
-                        +density Unknown
-                        +wavePath Unknown
-                        +wavePaint Unknown
-                        +animTime Unknown
-                        +lastFrameTime Unknown
-                        +isActive Unknown
-                        +currentAmpMultiplier Unknown
-                        +isStateInitialized Unknown
-                        +topColors Unknown
-                        +bottomColors Unknown
-                        +layers Unknown
-                        +setActive() Unknown
-                    }
-                    class WaveLayer {
-                        +freq Unknown
-                        +speed Unknown
-                        +ampPercentage Unknown
-                        +offset Unknown
-                        +currentTime Unknown
-                        +deltaTime Unknown
-                        +targetAmp Unknown
-                        +isAnimating Unknown
-                        +width Unknown
-                        +centerY Unknown
-                        +layer Unknown
-                        +direction Unknown
-                        +maxAvailableHeight Unknown
-                        +currentLayerMaxPx Unknown
-                        +baseThickness Unknown
-                        +xf Unknown
-                        +normalizedX Unknown
-                        +rawSineSum Unknown
-                        +yOffset Unknown
-                        +onDraw() Unknown
-                        +drawWave() Unknown
-                    }
-                }
-                namespace DeviceInsights {
-                    class DeviceInsightsFragment {
-                        <<Decorator>>
-                        +binding FragmentDeviceBinding
-                        +viewModel DeviceInsightsViewModel
-                        +binding Unknown
-                        +viewModel Unknown
-                        +Override Unknown
-                        +onCreateView() View
-                        +setupObservers() Unknown
-                        +onDestroyView() Unknown
-                    }
-                    class DeviceInsightsViewModel {
-                        <<Decorator>>
-                        +batteryPercent Unknown
-                        +isCharging Unknown
-                        +isOnline Unknown
-                        +isWifi Unknown
-                        +isCellular Unknown
-                        +deviceStandby Unknown
-                        +networkStandby Unknown
-                        +powerConsumption Unknown
-                        +tempStorage Unknown
-                        +bgTasks Unknown
-                        +batteryReceiver BroadcastReceiver
-                        +networkCallback Unknown
-                        +pollingHandler Handler
-                        +pollingRunnable Runnable
-                        +liveVoltage_mV Unknown
-                        +prefs SharedPreferences
-                        +PREFS_NAME String
-                        +KEY_NET_START_TIME String
-                        +DeviceInsightsViewModel() Unknown
-                        +getBatteryPercent() Unknown
-                        +getIsCharging() Unknown
-                        +getIsOnline() Unknown
-                        +getIsWifi() Unknown
-                        +getIsCellular() Unknown
-                        +getDeviceStandby() Unknown
-                        +getNetworkStandby() Unknown
-                        +getPowerConsumption() Unknown
-                        +getTempStorage() Unknown
-                        +getBgTasks() Unknown
-                        +button_optimize() Unknown
-                        +startLiveUpdates() Unknown
-                        +updateStats() Unknown
-                        +getFolderSize() Unknown
-                        +clearCacheFolder() Unknown
-                        +onCleared() Unknown
-                    }
-                }
-                namespace UsageInsights {
-                    class HeartBeatView {
-                        +density Unknown
-                        +isActive Unknown
-                        +currentAmpMultiplier Unknown
-                        +isStateInitialized Unknown
-                        +fun Unknown
-                        +wavePaint Unknown
-                        +style Unknown
-                        +strokeWidth Unknown
-                        +isAntiAlias Unknown
-                        +strokeJoin Unknown
-                        +strokeCap Unknown
-                        +density Unknown
-                        +isActive Unknown
-                        +currentAmpMultiplier Unknown
-                        +isStateInitialized Unknown
-                        +wavePaint Unknown
-                        +baselinePaint Unknown
-                        +path Unknown
-                        +phase Unknown
-                        +midY Unknown
-                        +targetAmp Unknown
-                        +dynamicAmplitude Unknown
-                        +freq1 Unknown
-                        +freq2 Unknown
-                        +stepSize Unknown
-                        +xf Unknown
-                        +yOffset Unknown
-                        +isAnimating Unknown
-                        +setActive() Unknown
-                        +updateStats() Unknown
-                        +setActive() Unknown
-                        +updateStats() Unknown
-                        +onDraw() Unknown
-                    }
-                    class ResourceStatsChartView {
-                        +currentStats Unknown
-                        +targetStats Unknown
-                        +dp Unknown
-                        +frameCount Unknown
-                        +barPaint Unknown
-                        +style Unknown
-                        +strokeWidth Unknown
-                        +pathEffect Unknown
-                        +currentStats Unknown
-                        +targetStats Unknown
-                        +dp Unknown
-                        +frameCount Unknown
-                        +barPaint Unknown
-                        +textPaint Unknown
-                        +gridPaint Unknown
-                        +current Unknown
-                        +target Unknown
-                        +paddingLeft Unknown
-                        +paddingRight Unknown
-                        +paddingTop Unknown
-                        +paddingBottom Unknown
-                        +chartWidth Unknown
-                        +chartHeight Unknown
-                        +barHeight Unknown
-                        +spacing Unknown
-                        +gridValues Unknown
-                        +x Unknown
-                        +label Unknown
-                        +currentY Unknown
-                        +barWidth Unknown
-                        +displayValue Unknown
-                        +suffix Unknown
-                        +updateStats() Unknown
-                        +onDraw() Unknown
-                        +generateRandomTargets() Unknown
-                        +onAttachedToWindow() Unknown
-                        +onDetachedFromWindow() Unknown
-                    }
-                    class UsageInsights_Fragment {
-                        +_binding Unknown
-                        +binding Unknown
-                        +viewModel Unknown
-                        +sharedHomeViewModel Unknown
-                        +formattedStatsMap Unknown
-                        +isTrainingActive Unknown
-                        +onCreateView() Unknown
-                        +onViewCreated() Unknown
-                        +onDestroyView() Unknown
-                    }
-                    class UsageInsights_ViewModel {
-                        +romUsage Unknown
-                        +stat Unknown
-                        +totalBytes Unknown
-                        +availableBytes Unknown
-                        +transformLiveStats() Unknown
-                        +getRomUsagePercentage() Unknown
-                    }
-                }
-            }
-            namespace TrainingLogsDisplay {
-                class TrainingLogsDisplay_ViewModel {
-                    +consoleLogs Unknown
-                    +Unknown Unknown
-                    +currentStatus Unknown
-                    +stepsText Unknown
-                    +lossText Unknown
-                    +consoleLogs Unknown
-                    +currentStatus Unknown
-                    +stepsText Unknown
-                    +lossText Unknown
-                }
-                class TrainingLogger {
-                    +consoleLogs Unknown
-                    +currentStatus Unknown
-                    +stepsText Unknown
-                    +lossText Unknown
-                    +current Unknown
-                    +lines Unknown
-                    +safeLines Unknown
-                    +appendLog() Unknown
-                }
-                class TrainingLogsDisplay_Fragment {
-                    +_binding Unknown
-                    +binding Unknown
-                    +viewModel Unknown
-                    +onCreateView() Unknown
-                    +onViewCreated() Unknown
-                    +onDestroyView() Unknown
-                }
-            }
-            namespace Auth {
-                namespace DeviceUnregister {
-                    class DeviceUnregister_Fragment {
-                        +_binding Unknown
-                        +binding Unknown
-                        +viewModel Unknown
-                        +selectedScreenshots Unknown
-                        +authStateListener Unknown
-                        +pickImagesLauncher Unknown
-                        +safeUris Unknown
-                        +successCount Unknown
-                        +bytes Unknown
-                        +user Unknown
-                        +title Unknown
-                        +desc Unknown
-                        +agreedToTerms Unknown
-                        +wantsToUnregister Unknown
-                        +dto Unknown
-                        +context Unknown
-                        +originalBitmap Unknown
-                        +source Unknown
-                        +maxSize Unknown
-                        +width Unknown
-                        +height Unknown
-                        +bitmapRatio Unknown
-                        +resizedBitmap Unknown
-                        +stream Unknown
-                        +onCreateView() Unknown
-                        +onViewCreated() Unknown
-                        +onStart() Unknown
-                        +onStop() Unknown
-                        +onResume() Unknown
-                        +enforceAuthenticationUI() Unknown
-                        +setupObservers() Unknown
-                        +setupClickListeners() Unknown
-                        +button_unregister() Unknown
-                        +uriToByteArray() Unknown
-                        +onDestroyView() Unknown
-                    }
-                    class DeviceUnregister_ViewModel {
-                        +_unregisterStatus Unknown
-                        +unregisterStatus Unknown
-                        +registrationManager Unknown
-                        +globalState Unknown
-                        +rawData Unknown
-                        +serverDao Unknown
-                        +registeredDto Unknown
-                        +success Unknown
-                        +unregister() Unknown
-                    }
-                    class Unregister_DTO {
-                        +problemTitle Unknown
-                        +description Unknown
-                        +screenshots Unknown
-                        +wantsToUnregister Unknown
-                    }
-                }
-                namespace ForgetPassword {
-                    class ForgetPassword_DTO {
-                        +email Unknown
-                        +confirmationCode Unknown
-                        +newPassword Unknown
-                    }
-                    class ForgetPassword_Fragment {
-                        +_binding Unknown
-                        +binding Unknown
-                        +viewModel Unknown
-                        +isEmailSent Unknown
-                        +email Unknown
-                        +dto Unknown
-                        +onCreateView() Unknown
-                        +onViewCreated() Unknown
-                        +setupInitialUI() Unknown
-                        +setupObservers() Unknown
-                        +setupClickListeners() Unknown
-                        +attemptSendEmail() Unknown
-                        +lockAndSend() Unknown
-                        +unlockEmailField() Unknown
-                        +onDestroyView() Unknown
-                    }
-                    class ForgetPassword_ViewModel {
-                        +_resetStatus Unknown
-                        +resetStatus Unknown
-                        +globalState Unknown
-                        +registeredDto Unknown
-                        +serverDao Unknown
-                        +recover() Unknown
-                    }
-                }
-                namespace DeviceAuthorization {
-                    class DeviceAuthorization_Fragment {
-                        +_binding Unknown
-                        +binding Unknown
-                        +viewModel Unknown
-                        +isPasswordVisible Unknown
-                        +currentUser Unknown
-                        +msg Unknown
-                        +customTypeface Unknown
-                        +username Unknown
-                        +email Unknown
-                        +phone Unknown
-                        +carrier Unknown
-                        +password Unknown
-                        +agreedToTerms Unknown
-                        +loginData Unknown
-                        +onCreateView() Unknown
-                        +onViewCreated() Unknown
-                        +onResume() Unknown
-                        +setupObservers() Unknown
-                        +setupClickListeners() Unknown
-                        +togglePasswordVisibility() Unknown
-                        +fixPasswordFont() Unknown
-                        +button_LoginRegister() Unknown
-                        +onDestroyView() Unknown
-                    }
-                    class DeviceAuthorization_ViewModel {
-                        +_authStatus Unknown
-                        +authStatus Unknown
-                        +globalState Unknown
-                        +pollingJob Unknown
-                        +regManager Unknown
-                        +registeredDto Unknown
-                        +serverDao Unknown
-                        +success Unknown
-                        +msg Unknown
-                        +displayMsg Unknown
-                        +auth Unknown
-                        +verified Unknown
-                        +maxAttempts Unknown
-                        +currentUser Unknown
-                        +loginRegister() Unknown
-                        +startPollingForVerification() Unknown
-                        +updateAuthStatus() Unknown
-                        +onCleared() Unknown
-                    }
-                    class LoginRegister_DTO {
-                        +username Unknown
-                        +password Unknown
-                        +email Unknown
-                        +phoneNumber Unknown
-                        +carrier Unknown
-                    }
-                }
-            }
-            namespace GetStarted {
-                class GetStarted_Fragment {
-                    +_binding Unknown
-                    +binding Unknown
-                    +prefs Unknown
-                    +navOptions Unknown
-                    +onCreateView() Unknown
-                    +onDestroyView() Unknown
-                }
-            }
-            namespace Home {
-                class DiamondTrainingView {
-                    <<Decorator>>
-                    +paint Paint
-                    +path Path
-                    +density Unknown
-                    +MIN_STROKE Unknown
-                    +MAX_STROKE Unknown
-                    +strokeWidth Unknown
-                    +DiamondTrainingView() Unknown
-                    +onDraw() Unknown
-                    +setProgress() Unknown
-                }
-                class HomeFragment {
-                    <<Decorator>>
-                    +TAG String
-                    +binding FragmentHomeBinding
-                    +homeViewModel HomeViewModel
-                    +onCreateView() View
-                    +onDestroyView() Unknown
-                }
-                class HomeViewModel {
-                }
-                class HomeViewModel {
-                    <<Decorator>>
-                    +repository TrainingStateRepository
-                    +liveStats Unknown
-                    +resourceManager ResourceManager_Live_DTO
-                    +TAG String
-                    +architectureModel Unknown
-                    +HomeViewModel() Unknown
-                    +getArchitectureModel() Unknown
-                    +setArchitectureModel() Unknown
-                    +toggleAILifecycle() Unknown
-                    +getTrainingProgress() Unknown
-                    +getStatusMessage() Unknown
-                    +getDetailedStats() Unknown
-                    +getLiveStats() Unknown
-                }
-                class ModelTrainer {
-                    +Interpreter Unknown
-                    +NUM_EPOCHS Unknown
-                    +BATCH_SIZE Unknown
-                    +IMG_HEIGHT Unknown
-                    +IMG_WIDTH Unknown
-                    +NUM_TRAININGS Unknown
-                    +NUM_BATCHES Unknown
-                    +NUM_CLASSES Unknown
-                    +InputStream Unknown
-                    +InputStream Unknown
-                    +TAG Unknown
-                    +context Unknown
-                    +interpreter Unknown
-                    +NUM_EPOCHS Unknown
-                    +BATCH_SIZE Unknown
-                    +IMG_HEIGHT Unknown
-                    +IMG_WIDTH Unknown
-                    +NUM_TRAININGS Unknown
-                    +NUM_BATCHES Unknown
-                    +NUM_CLASSES Unknown
-                    +imagesInputStream Unknown
-                    +labelsInputStream Unknown
-                    +TAG Unknown
-                    +modelBuffer Unknown
-                    +fileDescriptor Unknown
-                    +inputStream Unknown
-                    +fileChannel Unknown
-                    +startOffset Unknown
-                    +declaredLength Unknown
-                    +imagesStream Unknown
-                    +labelsStream Unknown
-                    +imageSkipBytes Unknown
-                    +labelSkipBytes Unknown
-                    +imageByteBuffer Unknown
-                    +imageBatch Unknown
-                    +labelByteBuffer Unknown
-                    +labelBatch Unknown
-                    +imageData Unknown
-                    +labelData Unknown
-                    +imageBytes Unknown
-                    +labelBytes Unknown
-                    +imageFloatBuffer Unknown
-                    +labelFloatBuffer Unknown
-                    +imageFloats Unknown
-                    +labelFloats Unknown
-                    +losses Unknown
-                    +lastLoss Unknown
-                    +sampleCount Unknown
-                    +batchData Unknown
-                    +singleImageBuffer Unknown
-                    +singleLabelBuffer Unknown
-                    +inputs Unknown
-                    +outputs Unknown
-                    +lossBuffer Unknown
-                    +inputByteBuffer Unknown
-                    +inputBuffer Unknown
-                    +outputByteBuffer Unknown
-                    +outputBuffer Unknown
-                    +logitsByteBuffer Unknown
-                    +logitsBuffer Unknown
-                    +probabilities Unknown
-                    +logits Unknown
-                    +maxIdx Unknown
-                    +maxProb Unknown
-                    +documentsDir Unknown
-                    +testFile Unknown
-                    +checkpointFile Unknown
-                    +saveInputs Unknown
-                    +saveOutputs Unknown
-                    +files Unknown
-                    +restoreInputs Unknown
-                    +restoreOutputs Unknown
-                    +testImage Unknown
-                    +inferInputs Unknown
-                    +inferOutputs Unknown
-                    +filesDir Unknown
-                    +loadModel() Unknown
-                    +loadModelFile() Unknown
-                    +initializeDataStreams() Unknown
-                    +loadBatch() Unknown
-                    +initializeWeights() Unknown
-                    +trainModel() Unknown
-                    +inferModel() Unknown
-                    +restoreWeights() Unknown
-                    +org_restoreWeights() Unknown
-                    +cleanup() Unknown
-                }
-                class TrainingStateRepository {
-                    <<Singleton>>
-                    +instance TrainingStateRepository
-                    +isActive Unknown
-                    +isWaiting Unknown
-                    +isPaused Unknown
-                    +trainingProgress Unknown
-                    +statusMessage Unknown
-                    +detailedStats Unknown
-                    +TrainingStateRepository() Unknown
-                    +getInstance() TrainingStateRepository
-                }
-                class trainer_naf {
-                    +Interpreter Unknown
-                    +TAG Unknown
-                    +NUM_EPOCHS Unknown
-                    +BATCH_SIZE Unknown
-                    +IMG_HEIGHT Unknown
-                    +IMG_WIDTH Unknown
-                    +NUM_TRAININGS Unknown
-                    +NUM_BATCHES Unknown
-                    +NUM_CLASSES Unknown
-                    +SERVER_IMAGES_FILENAME Unknown
-                    +SERVER_LABELS_FILENAME Unknown
-                    +context Unknown
-                    +interpreter Unknown
-                    +TAG Unknown
-                    +NUM_EPOCHS Unknown
-                    +BATCH_SIZE Unknown
-                    +IMG_HEIGHT Unknown
-                    +IMG_WIDTH Unknown
-                    +NUM_TRAININGS Unknown
-                    +NUM_BATCHES Unknown
-                    +NUM_CLASSES Unknown
-                    +SERVER_IMAGES_FILENAME Unknown
-                    +SERVER_LABELS_FILENAME Unknown
-                }
-                class TrainingCallback {
-                    <<interface>> 
-                    +serverModel Unknown
-                    +modelBuffer Unknown
-                    +inputStream Unknown
-                    +fileDescriptor Unknown
-                    +imgFile Unknown
-                    +lblFile Unknown
-                    +totalSteps Unknown
-                    +currentStep Unknown
-                    +lastLoss Unknown
-                    +batchData Unknown
-                    +imageBatch Unknown
-                    +singleImageBuffer Unknown
-                    +singleLabelBuffer Unknown
-                    +inputs Unknown
-                    +lossBuffer Unknown
-                    +outputs Unknown
-                    +percent Unknown
-                    +imagesStream Unknown
-                    +labelsStream Unknown
-                    +imageSkipBytes Unknown
-                    +labelSkipBytes Unknown
-                    +labelBatch Unknown
-                    +imageData Unknown
-                    +labelData Unknown
-                    +imageFloatBuffer Unknown
-                    +labelFloatBuffer Unknown
-                    +imageFloats Unknown
-                    +labelFloats Unknown
-                    +inputBuffer Unknown
-                    +outputBuffer Unknown
-                    +logitsBuffer Unknown
-                    +onProgress() Unknown
-                    +onLog() Unknown
-                    +initializeInterpreter() Unknown
-                    +trainModel() Unknown
-                    +loadBatchFromFile() Unknown
-                    +inferModel() Unknown
-                }
-                HomeFragment --> HomeViewModel
-            }
-            namespace RewardBank {
-                class FluidWaveLayout {
-                    +Float Unknown
-                    +Float Unknown
-                    +isFirstVaporSet Unknown
-                    +isFirstLiquidSet Unknown
-                    +vaporStartPct Unknown
-                    +vaporTargetPct Unknown
-                    +vaporSurgeX Unknown
-                    +liquidStartPct Unknown
-                    +liquidTargetPct Unknown
-                    +liquidSurgeX Unknown
-                    +Float Unknown
-                    +get Unknown
-                    +paintLiquidFront Unknown
-                    +style Unknown
-                    +targetVaporPercentage Unknown
-                    +targetLiquidPercentage Unknown
-                    +isFirstVaporSet Unknown
-                    +isFirstLiquidSet Unknown
-                    +vaporStartPct Unknown
-                    +vaporTargetPct Unknown
-                    +vaporSurgeX Unknown
-                    +liquidStartPct Unknown
-                    +liquidTargetPct Unknown
-                    +liquidSurgeX Unknown
-                    +depthFactor Unknown
-                    +paintLiquidFront Unknown
-                    +paintLiquidBack Unknown
-                    +paintVaporFront Unknown
-                    +paintVaporBack Unknown
-                    +pathLiquidFront Unknown
-                    +pathLiquidBack Unknown
-                    +pathVaporFront Unknown
-                    +pathVaporBack Unknown
-                    +phaseShift Unknown
-                    +lastFrameTime Unknown
-                    +sensorManager Unknown
-                    +accelerometer Unknown
-                    +targetTiltOffset Unknown
-                    +currentTiltOffset Unknown
-                    +targetVolatility Unknown
-                    +currentVolatility Unknown
-                    +lastAccel Unknown
-                    +set() Unknown
-                    +set() Unknown
-                }
-                class Particle {
-                    +x Unknown
-                    +y Unknown
-                    +vx Unknown
-                    +vy Unknown
-                    +radius Unknown
-                    +isFront Unknown
-                    +active Unknown
-                    +maxParticles Unknown
-                    +particles Unknown
-                    +frameCallback Unknown
-                }
-                class RewardBank_Fragment {
-                    +_binding Unknown
-                    +binding Unknown
-                    +viewModel Unknown
-                    +user Unknown
-                    +pulse Unknown
-                    +openDrawer Unknown
-                    +goToLogin Unknown
-                    +onCreateView() Unknown
-                    +onResume() Unknown
-                    +checkAuthStatus() Unknown
-                    +setupObservers() Unknown
-                    +setupClickListeners() Unknown
-                    +onDestroyView() Unknown
-                }
-                class RewardBank_ViewModel {
-                    <<Singleton>>
-                    +INSTANCE Unknown
-                    +PREFS_NAME Unknown
-                    +prefs Unknown
-                    +auth Unknown
-                    +firestoreListener Unknown
-                    +MAX_MB_LIMIT Unknown
-                    +vaporMBs Unknown
-                    +liquidMBs Unknown
-                    +dateFormat Unknown
-                    +lastActiveDate Unknown
-                    +isFlushing Unknown
-                    +vaporPercentage Unknown
-                    +liquidPercentage Unknown
-                    +displayGBs Unknown
-                    +statusText Unknown
-                    +authListener Unknown
-                    +user Unknown
-                    +timeTickReceiver Unknown
-                    +getInstance() Unknown
-                }
-            }
-            namespace Settings {
-                class Settings_Fragment {
-                    +_binding Unknown
-                    +binding Unknown
-                    +viewModel Unknown
-                    +config Unknown
-                    +onCreateView() Unknown
-                    +onViewCreated() Unknown
-                    +onResume() Unknown
-                    +setupInitialState() Unknown
-                    +setupListeners() Unknown
-                }
-                class Settings_ViewModel {
-                    +app Unknown
-                    +globalState Unknown
-                    +fileOps Unknown
-                    +config Unknown
-                    +serviceIntent Unknown
-                    +getConfig() Unknown
-                    +saveConfig() Unknown
-                    +toggleWifi() Unknown
-                    +toggleData() Unknown
-                    +toggleOvernight() Unknown
-                    +toggleIdle() Unknown
-                    +toggleChargingExclusive() Unknown
-                    +updateChargeLimit() Unknown
-                }
-            }
-            namespace RegisteredInfo_F {
-                class RegisteredInfo_Fragment {
-                    +_binding Unknown
-                    +binding Unknown
-                    +viewModel Unknown
-                    +onCreateView() Unknown
-                    +onViewCreated() Unknown
-                    +onResume() Unknown
-                    +onPause() Unknown
-                    +updateUiStats() Unknown
-                    +onDestroyView() Unknown
-                }
-                class RegisteredInfo_ViewModel {
-                    +registrationManager Unknown
-                    +globalState Unknown
-                    +_deviceInfo Unknown
-                    +deviceInfo Unknown
-                    +cachedUsername Unknown
-                    +cachedEmail Unknown
-                    +cachedJoinedOn Unknown
-                    +pollingJob Unknown
-                    +auth Unknown
-                    +user Unknown
-                    +isVerified Unknown
-                    +rawData Unknown
-                    +serverDao Unknown
-                    +finalData Unknown
-                    +immediateUpdate Unknown
-                    +refreshFirebaseData() Unknown
-                    +startPollingForVerification() Unknown
-                    +startLiveHardwareUpdates() Unknown
-                    +stopLiveHardwareUpdates() Unknown
-                }
-            }
-            namespace AboutUs {
-                class AboutUs_Fragment {
-                    +_binding Unknown
-                    +binding Unknown
-                    +onCreateView() Unknown
-                    +onViewCreated() Unknown
-                    +setupClickListeners() Unknown
-                    +joinUs() Unknown
-                    +onDestroyView() Unknown
-                }
-            }
-            ModelTrainingFragment --> HomeViewModel
-        }
-        namespace Flush {
-            class Flusher {
-                <<Decorator>>
-                +TAG Unknown
-                +filesDir Unknown
-                +fun Task
-                +fun Task
-                +TAG Unknown
-                +filesDir Unknown
-                +imageTask Unknown
-                +ckptFile Unknown
-                +metaFile Unknown
-                +imgFile Unknown
-                +lblFile Unknown
-                +modelFile Unknown
-                +directory Unknown
-                +prefix Unknown
-                +flushCheckpoint() Unknown
-                +flushCurrentTask() Unknown
-                +flushAll() Unknown
-                +flushCheckpoint() Unknown
-                +flushCurrentTask() Unknown
-                +flushAll() Unknown
-            }
+    class Priority {
+    }
+    class NFRCategory {
+    }
+    class ScreenType {
+    }
+    class RelationshipType {
+    }
+    class AttributeType {
+    }
+    class RawRequirementFeatures {
+    }
+    class FunctionalRequirement {
+    }
+    class FunctionalRequirementSet {
+    }
+    class NonFunctionalRequirement {
+    }
+    class NonFunctionalRequirementSet {
+    }
+    class SitemapNode {
+    }
+    class NavigationEdge {
+    }
+    class Sitemap {
+    }
+    class EntityAttribute {
+    }
+    class EntityRelationship {
+    }
+    class EntitySet {
+    }
+    class ComponentNode {
+    }
+    class ComponentTree {
+    }
+    class ComponentTreeSet {
+    }
+    class TechStackSelection {
+    }
+    class PipelineTiming {
+    }
+    class FullSRSOutput {
+    }
+    class CompilerBuilder {
+        <<Builder>>
+    }
+    class CompilerEngine {
+    }
+    class NavigationType {
+    }
+    class StateManagerType {
+        <<State>>
+    }
+    class CompilerError {
+    }
+    class ValidationError {
+    }
+    class CompilationError {
+    }
+    class FileWriter {
+    }
+    class AppEntryGenerator {
+    }
+    class ComponentsGenerator {
+    }
+    class EnvFilesGenerator {
+    }
+    class NavigationGenerator {
+    }
+    class StateManagementGenerator {
+        <<State>>
+    }
+    class StaticDataGenerator {
+    }
+    class UtilitiesGenerator {
+    }
+    class ApiError {
+    }
+    class NavRoute {
+    }
+    class StateManager {
+        <<State>>
+    }
+    class AppConfig {
+    }
+    class ComponentGenerationError {
+    }
+    class MissingComponentNameError {
+    }
+    class InvalidDesignTokensError {
+    }
+    class InvalidLayoutSpecificationError {
+    }
+    class UnsupportedComponentTypeError {
+    }
+    class MalformedHierarchyError {
+    }
+    class ComponentValidationError {
+    }
+    class ComponentGenerator {
+    }
+    class FirebaseHelper {
+    }
+    class CustomerFeedback {
+    }
+    class EngineReframer {
+    }
+    class CurrentState {
+        <<State>>
+    }
+    class CurrentState {
+        <<State>>
+    }
+    class SRSRequest {
+    }
+    class LLMAPIError {
+    }
+    class LLMClient {
+    }
+    class ExtractedComponentNode {
+    }
+    class ExtractedAttribute {
+    }
+    class ExtractedRelationship {
+    }
+    class ExtractedEntity {
+    }
+    class ExtractedFR {
+    }
+    class ExtractedNFR {
+    }
+    class SRSPipelineError {
+    }
+    class ExtractedFeatures {
+    }
+    class ExtractedScreen {
+    }
+    class ExtractedEdge {
+    }
+    class ExtractedSitemap {
+    }
+    class ExtractedStack {
+    }
+    class Tester {
+    }
+    class IDAssigner {
+    }
+    class IDAssigner {
+    }
+    class CodeEditor {
+    }
+    class ICodeEditor {
+    }
+    class FileHandler {
+    }
+    class IFileHandler {
+    }
+    class MarkdownConverter {
+    }
+    class IMarkdownConverter {
+    }
+    class Reformatter {
+    }
+    class IReformatter {
+    }
+    class VerificationValidation {
+    }
+    class REFERENCE {
+    }
+    class AppStore {
+        <<interface>> 
+    }
+    class AppContextType {
+        <<interface>> 
+    }
+    class RawRequirementFeatures {
+    }
+    class The {
+    }
+    class ScreenType {
+        <<record>> 
+    }
+    class Module {
+        <<interface>> 
+    }
+    class Module {
+        <<interface>> 
+    }
+    class Keeping {
+        <<interface>> 
+    }
+    class JSONDecodeError {
+    }
+    class FormattingOptions {
+    }
+    class ButtonProps {
+        <<interface>> 
+    }
+    class SectionProps {
+        <<interface>> 
+    }
+    class StatusBadgeProps {
+        <<interface>> 
+    }
+    class DeploymentSectionProps {
+        <<interface>> 
+    }
+    class DesignSectionProps {
+        <<interface>> 
+    }
+    class GeneratedComponentsSectionProps {
+        <<interface>> 
+    }
+    class PreviewSectionProps {
+        <<interface>> 
+    }
+    class LayoutNode {
+        <<interface>> 
+    }
+    class ScreenRendererProps {
+        <<interface>> 
+    }
+    class PromptComposerProps {
+        <<interface>> 
+    }
+    class SRSSectionProps {
+        <<interface>> 
+    }
+    class WorkflowStepperProps {
+        <<interface>> 
+    }
+    namespace config {
+        class ConfigFilesGenerator {
         }
     }
-    namespace AppGlobal {
-        class GlobalState {
-            <<State>>
-            +appConfig Unknown
-            +server Unknown
-            +registrationManager Unknown
-            +currentTask Unknown
-            +packageTypeTrainerBuilder Unknown
-            +packageTypeTrainer Unknown
-            +flusher Unknown
-            +resourceStatistics Unknown
-            +resourceManager_Live_DTO Unknown
-            +resourceManager_Record_DTO Unknown
-            +pingStatusCalculatorAndDispatcher() Unknown
+    namespace relative {
+        class ComponentTreeIn {
         }
-        class app_config {
-            +onWifi Unknown
-            +onData Unknown
-            +overNightUtilization Unknown
-            +idleTimeUtilization Unknown
-            +minChargeLimit Unknown
-            +maxChargeLimit Unknown
-            +onChargingExclusive Unknown
-            +isLoggedIn Unknown
+        class GenerateComponentsRequest {
         }
-        namespace Utils {
-            class FileOperations {
-                +gson Unknown
-                +TAG Unknown
-                +context Unknown
-                +gson Unknown
-                +TAG Unknown
-                +file Unknown
-                +json Unknown
-                +obj Unknown
-                +writeJson() Unknown
-                +T() Unknown
-                +reified() Unknown
-            }
-            class GlobalUtils {
-                +fileOperations Unknown
-            }
-            GlobalUtils --|> FileOperations
+        class GeneratedComponent {
+        }
+        class FailedComponent {
+        }
+        class GenerateComponentsResponse {
         }
     }
-    namespace com {
-        namespace example {
-            namespace fractal {
-                class BootReceiver {
-                    +fileOps Unknown
-                    +config Unknown
-                    +serviceIntent Unknown
-                    +onReceive() Unknown
-                    +onReceive() Unknown
-                }
-                class FractalApplication {
-                    <<Decorator>>
-                    +GlobalState GlobalUtils
-                    +GlobalUtils app_config
-                    +app_config Unknown
-                    +startupExecutor Unknown
-                    +globalState Unknown
-                    +globalUtils Unknown
-                    +appConfig Unknown
-                    +startupExecutor Unknown
-                    +fileOps Unknown
-                    +fileName Unknown
-                    +defaultAsset Unknown
-                    +loadedConfig Unknown
-                    +serverDao Unknown
-                    +trainerBuilder Unknown
-                    +state Unknown
-                    +onCreate() Unknown
-                    +initializeHeavyComponents() Unknown
-                    +onCreate() Unknown
-                    +initializeHeavyComponents() Unknown
-                }
-                class MainActivity {
-                    <<Decorator>>
-                    +binding ActivityMainBinding
-                    +PREFS_NAME String
-                    +KEY_LAST_SYNCED String
-                    +onCreate() Unknown
-                    +initFirebaseRemoteConfig() Unknown
-                    +startHardwareSyncThread() Unknown
-                    +setupNavigationUI() Unknown
-                    +setupSidebarNav() Unknown
-                    +attachBaseContext() Unknown
-                    +animateNavIcons() Unknown
-                    +dispatchTouchEvent() Unknown
-                }
-                class OvernightManagerService {
-                    +CHANNEL_ID Unknown
-                    +ACTION_STOP Unknown
-                    +CHANNEL_ID Unknown
-                    +NOTIFICATION_ID Unknown
-                    +ACTION_STOP Unknown
-                    +scope Unknown
-                    +repo Unknown
-                    +isManagingCurrentWindow Unknown
-                    +isFirstRun Unknown
-                    +app Unknown
-                    +config Unknown
-                    +hour Unknown
-                    +minutesUntilMidnight Unknown
-                    +startIntent Unknown
-                    +resumeIntent Unknown
-                    +pauseIntent Unknown
-                    +channel Unknown
-                    +openAppIntent Unknown
-                    +openAppPending Unknown
-                    +stopIntent Unknown
-                    +stopPendingIntent Unknown
-                    +onCreate() Unknown
-                    +onStartCommand() Unknown
-                    +onDestroy() Unknown
-                    +onBind() Unknown
-                    +runOvernightLoop() Unknown
-                    +startGeneration() Unknown
-                    +resumeGeneration() Unknown
-                    +pauseForDaytime() Unknown
-                    +createNotificationChannel() Unknown
-                    +buildNotification() Unknown
-                    +updateNotification() Unknown
-                }
-                class FractalTrainingService {
-                    +CHANNEL_ID Unknown
-                    +NOTIFICATION_ID Unknown
-                    +TAG Unknown
-                    +currentStatusText Unknown
-                    +lastProgress Unknown
-                    +isCurrentlyDownloading Unknown
-                    +trainingThread Unknown
-                    +systemUiMode Unknown
-                    +repo Unknown
-                    +progress Unknown
-                    +incomingText Unknown
-                    +orchestrator Unknown
-                    +onCreate() Unknown
-                    +isSystemInDarkMode() Unknown
-                    +onStartCommand() Unknown
-                    +startPipelineThread() Unknown
-                }
-                class TrainingCallback {
-                    +currentTaskRewardRate Unknown
-                    +currentTaskTotalEpochs Unknown
-                    +currentStats Unknown
-                    +perf Unknown
-                    +mbsPerEpoch Unknown
-                    +app Unknown
-                    +stats Unknown
-                    +numericOnly Unknown
-                    +notificationManager Unknown
-                    +onTaskAcquired() Unknown
-                    +onEpochUpdate() Unknown
-                    +onUploadSuccess() Unknown
-                    +onProgress() Unknown
-                    +onValidationUpdate() Unknown
-                    +onStatusUpdate() Unknown
-                    +updateNotification() Unknown
-                }
-                class Orchestrator {
-                    +context Unknown
-                    +TAG Unknown
-                    +globalState Unknown
-                    +deviceId Unknown
-                    +opControl Unknown
-                    +task Unknown
-                    +attemptCount Unknown
-                    +downloadSuccess Unknown
-                    +needsDownload Unknown
-                    +modelFile Unknown
-                    +imagesFile Unknown
-                    +labelsFile Unknown
-                    +latch Unknown
-                    +pauseController Unknown
-                    +executeTrainingPipeline() Unknown
-                }
-                class DataDownloader_naf {
-                    +isPaused() Unknown
-                    +isCancelled() Unknown
-                    +onDownloadFinished() Unknown
-                    +onError() Unknown
-                }
-            }
+    namespace stallation {
+        class Jinie {
+        }
+        class DependencyCheck {
+        }
+        class DependencyReport {
         }
     }
-
-    DataDownloader_naf *-- PauseController
-    DataDownloader_naf *-- DownloadListener
-    DataDownloader_naf *-- CancelledDownloadException
-    Flusher --> Task
-    DiamondTrainingView --|> View
-    HomeFragment --|> Fragment
-    HomeViewModel --|> AndroidViewModel
-    HomeViewModel --> ResourceManager_Live_DTO
-    DeviceInsightsFragment --|> Fragment
-    DeviceInsightsViewModel --|> AndroidViewModel
-    DeviceInsightsViewModel --> BroadcastReceiver
-    ModelTrainingFragment --|> Fragment
-    ModelTrainingViewModel --|> ViewModel
-    BootReceiver --|> BroadcastReceiver
-    FractalApplication --> GlobalUtils
-    FractalApplication --> app_config
-    MainActivity --|> AppCompatActivity
-    OvernightManagerService *-- NOTIFICATION_ID
-    GlobalState --|> Flusher
-    GlobalState ..|> Task
+    namespace version {
+        class EnvSetupManager {
+        }
+    }

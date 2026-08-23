@@ -3,9 +3,9 @@
   "title": "UML 2.5 Deployment Nodes & Artifacts",
   "nodes": [
     {
-      "id": "node_AppBackend",
-      "label": "Execution Node: AppBackend",
-      "name": "AppBackend",
+      "id": "node_json",
+      "label": "Execution Node: json",
+      "name": "json",
       "kind": "package",
       "stereotype": "<<executionEnvironment>>",
       "parent": null,
@@ -19,12 +19,12 @@
       "instructions": []
     },
     {
-      "id": "art_AppBackend",
-      "label": "AppBackend.jar",
-      "name": "AppBackend.jar",
+      "id": "art_json",
+      "label": "json.jar",
+      "name": "json.jar",
       "kind": "artifact",
       "stereotype": "<<artifact>>",
-      "parent": "node_AppBackend",
+      "parent": "node_json",
       "nest_level": 1,
       "is_package": false,
       "is_domain_tier": false,
@@ -35,9 +35,9 @@
       "instructions": []
     },
     {
-      "id": "node_DataManager",
-      "label": "Execution Node: DataManager",
-      "name": "DataManager",
+      "id": "node_owns",
+      "label": "Execution Node: owns",
+      "name": "owns",
       "kind": "package",
       "stereotype": "<<executionEnvironment>>",
       "parent": null,
@@ -51,12 +51,12 @@
       "instructions": []
     },
     {
-      "id": "art_DataManager",
-      "label": "DataManager.jar",
-      "name": "DataManager.jar",
+      "id": "art_owns",
+      "label": "owns.jar",
+      "name": "owns.jar",
       "kind": "artifact",
       "stereotype": "<<artifact>>",
-      "parent": "node_DataManager",
+      "parent": "node_owns",
       "nest_level": 1,
       "is_package": false,
       "is_domain_tier": false,
@@ -67,9 +67,9 @@
       "instructions": []
     },
     {
-      "id": "node_DataLoaderAndInitializer",
-      "label": "Execution Node: DataLoaderAndInitializer",
-      "name": "DataLoaderAndInitializer",
+      "id": "node_config",
+      "label": "Execution Node: config",
+      "name": "config",
       "kind": "package",
       "stereotype": "<<executionEnvironment>>",
       "parent": null,
@@ -83,12 +83,12 @@
       "instructions": []
     },
     {
-      "id": "art_DataLoaderAndInitializer",
-      "label": "DataLoaderAndInitializer.jar",
-      "name": "DataLoaderAndInitializer.jar",
+      "id": "art_config",
+      "label": "config.jar",
+      "name": "config.jar",
       "kind": "artifact",
       "stereotype": "<<artifact>>",
-      "parent": "node_DataLoaderAndInitializer",
+      "parent": "node_config",
       "nest_level": 1,
       "is_package": false,
       "is_domain_tier": false,
@@ -99,9 +99,9 @@
       "instructions": []
     },
     {
-      "id": "node_Factory",
-      "label": "Execution Node: Factory",
-      "name": "Factory",
+      "id": "node_relative",
+      "label": "Execution Node: relative",
+      "name": "relative",
       "kind": "package",
       "stereotype": "<<executionEnvironment>>",
       "parent": null,
@@ -115,12 +115,12 @@
       "instructions": []
     },
     {
-      "id": "art_Factory",
-      "label": "Factory.jar",
-      "name": "Factory.jar",
+      "id": "art_relative",
+      "label": "relative.jar",
+      "name": "relative.jar",
       "kind": "artifact",
       "stereotype": "<<artifact>>",
-      "parent": "node_Factory",
+      "parent": "node_relative",
       "nest_level": 1,
       "is_package": false,
       "is_domain_tier": false,
@@ -131,9 +131,9 @@
       "instructions": []
     },
     {
-      "id": "node_PackageTypeTrainer",
-      "label": "Execution Node: PackageTypeTrainer",
-      "name": "PackageTypeTrainer",
+      "id": "node_Lets",
+      "label": "Execution Node: Lets",
+      "name": "Lets",
       "kind": "package",
       "stereotype": "<<executionEnvironment>>",
       "parent": null,
@@ -147,12 +147,12 @@
       "instructions": []
     },
     {
-      "id": "art_PackageTypeTrainer",
-      "label": "PackageTypeTrainer.jar",
-      "name": "PackageTypeTrainer.jar",
+      "id": "art_Lets",
+      "label": "Lets.jar",
+      "name": "Lets.jar",
       "kind": "artifact",
       "stereotype": "<<artifact>>",
-      "parent": "node_PackageTypeTrainer",
+      "parent": "node_Lets",
       "nest_level": 1,
       "is_package": false,
       "is_domain_tier": false,
@@ -163,9 +163,9 @@
       "instructions": []
     },
     {
-      "id": "node_LocalTrainingModule",
-      "label": "Execution Node: LocalTrainingModule",
-      "name": "LocalTrainingModule",
+      "id": "node_terface",
+      "label": "Execution Node: terface",
+      "name": "terface",
       "kind": "package",
       "stereotype": "<<executionEnvironment>>",
       "parent": null,
@@ -179,12 +179,12 @@
       "instructions": []
     },
     {
-      "id": "art_LocalTrainingModule",
-      "label": "LocalTrainingModule.jar",
-      "name": "LocalTrainingModule.jar",
+      "id": "art_terface",
+      "label": "terface.jar",
+      "name": "terface.jar",
       "kind": "artifact",
       "stereotype": "<<artifact>>",
-      "parent": "node_LocalTrainingModule",
+      "parent": "node_terface",
       "nest_level": 1,
       "is_package": false,
       "is_domain_tier": false,
@@ -198,48 +198,48 @@
   "edges": [
     {
       "id": "edge_1",
-      "source": "art_AppBackend",
-      "target": "node_AppBackend",
+      "source": "art_json",
+      "target": "node_json",
       "kind": "manifestation",
       "label": "<<manifest>>",
       "arrow": "..>"
     },
     {
       "id": "edge_2",
-      "source": "art_DataManager",
-      "target": "node_DataManager",
+      "source": "art_owns",
+      "target": "node_owns",
       "kind": "manifestation",
       "label": "<<manifest>>",
       "arrow": "..>"
     },
     {
       "id": "edge_3",
-      "source": "art_DataLoaderAndInitializer",
-      "target": "node_DataLoaderAndInitializer",
+      "source": "art_config",
+      "target": "node_config",
       "kind": "manifestation",
       "label": "<<manifest>>",
       "arrow": "..>"
     },
     {
       "id": "edge_4",
-      "source": "art_Factory",
-      "target": "node_Factory",
+      "source": "art_relative",
+      "target": "node_relative",
       "kind": "manifestation",
       "label": "<<manifest>>",
       "arrow": "..>"
     },
     {
       "id": "edge_5",
-      "source": "art_PackageTypeTrainer",
-      "target": "node_PackageTypeTrainer",
+      "source": "art_Lets",
+      "target": "node_Lets",
       "kind": "manifestation",
       "label": "<<manifest>>",
       "arrow": "..>"
     },
     {
       "id": "edge_6",
-      "source": "art_LocalTrainingModule",
-      "target": "node_LocalTrainingModule",
+      "source": "art_terface",
+      "target": "node_terface",
       "kind": "manifestation",
       "label": "<<manifest>>",
       "arrow": "..>"

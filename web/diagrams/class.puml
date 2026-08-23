@@ -46,1657 +46,248 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
+class SupportedLanguage {
+}
+class Priority {
+}
+class NFRCategory {
+}
+class ScreenType {
+}
+class RelationshipType {
+}
+class AttributeType {
+}
+class RawRequirementFeatures {
+}
+class FunctionalRequirement {
+}
+class FunctionalRequirementSet {
+}
+class NonFunctionalRequirement {
+}
+class NonFunctionalRequirementSet {
+}
+class SitemapNode {
+}
+class NavigationEdge {
+}
+class Sitemap {
+}
+class EntityAttribute {
+}
+class EntityRelationship {
+}
+class EntitySet {
+}
+class ComponentNode {
+}
+class ComponentTree {
+}
+class ComponentTreeSet {
+}
+class TechStackSelection {
+}
+class PipelineTiming {
+}
+class FullSRSOutput {
+}
+class CompilerBuilder <<Builder>> {
+}
+class CompilerEngine {
+}
+class NavigationType {
+}
+class StateManagerType <<State>> {
+}
+class CompilerError {
+}
+class ValidationError {
+}
+class CompilationError {
+}
+class FileWriter {
+}
+class AppEntryGenerator {
+}
+class ComponentsGenerator {
+}
+class EnvFilesGenerator {
+}
+class NavigationGenerator {
+}
+class StateManagementGenerator <<State>> {
+}
+class StaticDataGenerator {
+}
+class UtilitiesGenerator {
+}
+class ApiError {
+}
+class NavRoute {
+}
+class StateManager <<State>> {
+}
+class AppConfig {
+}
+class ComponentGenerationError {
+}
+class MissingComponentNameError {
+}
+class InvalidDesignTokensError {
+}
+class InvalidLayoutSpecificationError {
+}
+class UnsupportedComponentTypeError {
+}
+class MalformedHierarchyError {
+}
+class ComponentValidationError {
+}
+class ComponentGenerator {
+}
+class FirebaseHelper {
+}
+class CustomerFeedback {
+}
+class EngineReframer {
+}
+class CurrentState <<State>> {
+}
+class CurrentState <<State>> {
+}
+class SRSRequest {
+}
+class LLMAPIError {
+}
+class LLMClient {
+}
+class ExtractedComponentNode {
+}
+class ExtractedAttribute {
+}
+class ExtractedRelationship {
+}
+class ExtractedEntity {
+}
+class ExtractedFR {
+}
+class ExtractedNFR {
+}
+class SRSPipelineError {
+}
+class ExtractedFeatures {
+}
+class ExtractedScreen {
+}
+class ExtractedEdge {
+}
+class ExtractedSitemap {
+}
+class ExtractedStack {
+}
+class Tester {
+}
+class IDAssigner {
+}
+class IDAssigner {
+}
+class CodeEditor {
+}
+class ICodeEditor {
+}
+class FileHandler {
+}
+class IFileHandler {
+}
+class MarkdownConverter {
+}
+class IMarkdownConverter {
+}
+class Reformatter {
+}
+class IReformatter {
+}
+class VerificationValidation {
+}
+class REFERENCE {
+}
+interface AppStore {
+}
+interface AppContextType {
+}
+class RawRequirementFeatures {
+}
+class The {
+}
+class ScreenType {
+}
+interface Module {
+}
+interface Module {
+}
+interface Keeping {
+}
+class JSONDecodeError {
+}
+class FormattingOptions {
+}
+interface ButtonProps {
+}
+interface SectionProps {
+}
+interface StatusBadgeProps {
+}
+interface DeploymentSectionProps {
+}
+interface DesignSectionProps {
+}
+interface GeneratedComponentsSectionProps {
+}
+interface PreviewSectionProps {
+}
+interface LayoutNode {
+}
+interface ScreenRendererProps {
+}
+interface PromptComposerProps {
+}
+interface SRSSectionProps {
+}
+interface WorkflowStepperProps {
+}
 
-package "AppBackend" as pkg_AppBackend {
-
-  package "AppBackend.DataManager" as pkg_AppBackend_DataManager {
-
-    package "AppBackend.DataManager.DataLoaderAndInitializer" as pkg_AppBackend_DataManager_DataLoaderAndInitializer {
-      class Image_DataInitializer_Factory <<Factory>> {
-        +createDataInitializer() : 
-        +createDataInitializer() : 
-      }
-      interface DataInitializer {
-        +locadBatch() : 
-        +preprocess() : 
-      }
-      interface DataInitializer_Factory <<Factory>> {
-        +createDataInitializer() : 
-      }
-      class Image_DataInitializer {
-        +TAG : 
-        +imageStream : 
-        +labelStream : 
-        +imageTask : 
-        +filesDir : 
-        +imgFile : 
-        +lblFile : 
-        +numTrainings : 
-        +numClasses : 
-        +shapeArray : 
-        +imgHeight : 
-        +imgWidth : 
-        +imageBytes : 
-        +labelBytes : 
-        +imageBatch : 
-        +labelBatch : 
-        +imageData : 
-        +labelData : 
-        +imgRead : 
-        +lblRead : 
-        +imageFloatBuffer : 
-        +labelFloatBuffer : 
-        +imageFloats : 
-        +labelFloats : 
-        +locadBatch() : 
-        +preprocess() : 
-      }
-    }
-  }
-
-  package "AppBackend.Factory" as pkg_AppBackend_Factory {
-
-    package "AppBackend.Factory.PackageTypeTrainer" as pkg_AppBackend_Factory_PackageTypeTrainer {
-      interface Builder <<Builder>> {
-        +build() : 
-        +make() : 
-      }
-      class PackageTypeTrainer {
-        +context : 
-        +task : 
-        +dataInitializer : 
-        +trainer : 
-        +validator : 
-        +TAG : 
-        +validationResult : 
-        +opControl : 
-        +transmissionDTO : 
-        +transmitter : 
-        +flusher : 
-        +uploadSuccess : 
-        +attemptCount : 
-        +run() : 
-      }
-      class PackageTypeTrainerBuilder <<Builder>> {
-        +TAG : 
-        +taskFactory : 
-        +dataInitializerFactory : 
-        +trainerFactory : 
-        +validatorFactory : 
-        +buildContext : 
-        +ctx : 
-        +tFactory : 
-        +task : 
-        +dFactory : 
-        +dataInitializer : 
-        +trFactory : 
-        +trainer : 
-        +vFactory : 
-        +validator : 
-        +build() : 
-        +make() : 
-        +addTask() : 
-        +addDataInitializer() : 
-        +addTrainer() : 
-        +addValidator() : 
-        +buildFinal() : 
-      }
-    }
-  }
-
-  package "AppBackend.LocalTrainingModule" as pkg_AppBackend_LocalTrainingModule {
-
-    package "AppBackend.LocalTrainingModule.TrainingExecutor" as pkg_AppBackend_LocalTrainingModule_TrainingExecutor {
-      class Image_Trainer_Factory <<Factory>> {
-        +createTrainer() : 
-        +createTrainer() : 
-      }
-      class ImageTrainer {
-        +task : 
-        +trainingData : 
-        +interpreter : 
-        +currentEpoch : 
-        +checkpointManager : 
-        +TAG : 
-        +availableSignatures : 
-        +imageTask : 
-        +modelFile : 
-        +inputStream : 
-        +buffer : 
-        +imageBatch : 
-        +labelBatch : 
-        +shapeArray : 
-        +imgHeight : 
-        +imgWidth : 
-        +numClasses : 
-        +numTrainings : 
-        +numEpochs : 
-        +trainingStartTime : 
-        +timeLeftStr : 
-        +totalSteps : 
-        +currentStep : 
-        +singleImageBuffer : 
-        +singleLabelBuffer : 
-        +lossBuffer : 
-        +inputs : 
-        +outputs : 
-        +lastLoss : 
-        +hardwareIssue : 
-        +imgPos : 
-        +imgArray : 
-        +lblPos : 
-        +lblArray : 
-        +percent : 
-        +logMessage : 
-        +completedInSession : 
-        +timeElapsed : 
-        +avgTimePerEpoch : 
-        +remainingEpochs : 
-        +remainingMillis : 
-        +seconds : 
-        +minutes : 
-        +completedEpochs : 
-        +setUpTrainer() : 
-        +loadModelFile() : 
-        +loadModel() : 
-        +initializeWeights() : 
-        +trainModel() : 
-      }
-      interface Trainer {
-        +task : 
-        +trainingData : 
-        +interpreter : 
-        +currentEpoch : 
-        +setUpTrainer() : 
-        +loadModelFile() : 
-        +loadModel() : 
-        +initializeWeights() : 
-        +trainModel() : 
-      }
-      interface Trainer_Factory <<Factory>> {
-        +createTrainer() : 
-      }
-      interface TrainingCallback {
-        +onProgress() : 
-        +onStatusUpdate() : 
-        +onValidationUpdate() : 
-        +onEpochUpdate() : 
-        +isPaused() : 
-        +isCancelled() : 
-        +onWaitingStateChanged() : 
-        +checkLiveConditions() : 
-        +onTaskAcquired() : 
-        +onUploadSuccess() : 
-      }
-    }
-
-    package "AppBackend.LocalTrainingModule.TrainingStateManager" as pkg_AppBackend_LocalTrainingModule_TrainingStateManager {
-      class CheckpointManager <<Decorator>> {
-        +TAG : 
-        +fun : Task
-        +fun : Task
-        +TAG : 
-        +imageTask : 
-        +ckptFile : 
-        +metaFile : 
-        +inputs : 
-        +json : 
-        +jsonText : 
-        +lastEpoch : 
-        +createCheckpoint() : 
-        +loadCheckpoint() : 
-        +createCheckpoint() : 
-        +loadCheckpoint() : 
-      }
-      class checkpoint_DTO {
-        +task_Id : 
-        +lastEpoch : 
-        +checkpointTimestamp : 
-      }
-      class checkpoints_DTO {
-        +checkpoints : 
-      }
-    }
-  }
-
-  package "AppBackend.Network" as pkg_AppBackend_Network {
-    class networkConfig_ini {
-      +String : 
-      +String : 
-      +get : 
-      +API_KEY : 
-      +SERVER_IP : 
-      +SERVER_PROTOCOL : 
-      +SERVER_PORT : 
-      +portStr : 
-      +getBaseUrl() : 
-    }
-
-    package "AppBackend.Network.ModelUpdateTransmission" as pkg_AppBackend_Network_ModelUpdateTransmission {
-      class ModelTransmission_DTO {
-        +task : 
-      }
-      class ModelTransmitter {
-        +TAG : 
-        +serverDao : 
-        +transmitModel() : 
-      }
-    }
-
-    package "AppBackend.Network.RegisteredInfo" as pkg_AppBackend_Network_RegisteredInfo {
-      class Registered_DTO {
-        +username : 
-        +email : 
-        +phoneNumber : 
-        +carrier : 
-        +timeZone : 
-        +joinedOn : 
-        +platform : 
-        +hardwareID : 
-        +serialNumber : 
-        +processor : 
-        +storage : 
-        +totalRam : 
-        +androidVersion : 
-        +macAddress : 
-        +status : 
-      }
-      class RegistrationManager {
-        +context : 
-        +handler : 
-        +liveUpdateRunnable : 
-        +startLiveUpdates() : 
-      }
-    }
-
-    package "AppBackend.Network.Server_DAO" as pkg_AppBackend_Network_Server_DAO {
-      interface Auth {
-        +POST_RegisterLogin() : 
-        +GET_RegisteredInfo() : 
-        +POST_ForgetPassword_sendEmail() : 
-        +POST_Forgetpassword_verifyEmail() : 
-        +POST_Unregister() : 
-      }
-      interface ModelTransmission {
-        +POST_UploadModelToServer() : 
-      }
-      class Server_DAO {
-        +networkConfig : 
-        +TAG : 
-        +url : 
-        +conn : 
-        +reader : 
-        +response : 
-        +json : 
-        +task : 
-        +dateString : 
-        +format : 
-        +trainingTypeJsonArray : 
-        +trainingTypeList : 
-        +shapeJsonArray : 
-        +shapeList : 
-        +inputTensorJson : 
-        +inputMap : 
-        +outputTensorJson : 
-        +outputMap : 
-        +imageTask : 
-        +taskId : 
-        +ckptFilename : 
-        +uploadFile : 
-        +boundary : 
-        +lineEnd : 
-        +twoHyphens : 
-        +dos : 
-        +fileInputStream : 
-        +bufferSize : 
-        +buffer : 
-        +bytesRead : 
-        +responseCode : 
-        +auth : 
-        +firestore : 
-        +email : 
-        +password : 
-        +username : 
-        +phone : 
-        +carrier : 
-        +loginTask : 
-        +user : 
-        +userData : 
-        +regTask : 
-        +profileUpdates : 
-        +targetEmail : 
-        +resetTask : 
-        +doc : 
-        +userEmail : 
-        +currentDate : 
-        +base64Images : 
-        +currentPayloadSize : 
-        +maxSafePayloadSize : 
-        +base64String : 
-        +feedbackData : 
-        +targetCollection : 
-        +statusUpdate : 
-        +resolvedStatus : 
-        +hashMapOf : 
-        +POST_Ping() : 
-        +GET_Task() : 
-        +POST_UploadModelToServer() : 
-        +writeTextPart() : 
-        +POST_RegisterLogin() : 
-        +GET_RegisteredInfo() : 
-        +POST_Forgetpassword_verifyEmail() : 
-        +POST_ForgetPassword_sendEmail() : 
-        +GET_VerifiedLiquidMBs() : 
-        +POST_Unregister() : 
-        +POST_SendRegisteredInfo() : 
-      }
-      interface TaskPopulate {
-        +GET_Task() : 
-      }
-    }
-  }
-
-  package "AppBackend.ResourceManagement" as pkg_AppBackend_ResourceManagement {
-    class DataDownloader_naf {
-      +TAG : String
-      +downloadFiles() : 
-      +downloadFiles() : 
-      +getFileSize() : 
-      +downloadFileWithProgress() : 
-    }
-    interface PauseController {
-      +isPaused() : 
-      +isCancelled() : 
-    }
-    interface DownloadListener {
-      +onDownloadFinished() : 
-      +onError() : 
-      +onProgressUpdate() : 
-      +onStatusMessage() : 
-    }
-    class CancelledDownloadException {
-      +CancelledDownloadException() : 
-    }
-    class FileUploader_naf {
-      +TAG : String
-      +uploadCheckpoint() : 
-    }
-    class Parser {
-      +candidates : 
-      +path : 
-      +parser : 
-      +dynamicDevfreq : 
-      +dynamicProc : 
-      +allCandidates : 
-      +result : 
-      +discovered : 
-      +devfreqDir : 
-      +name : 
-      +isGpu : 
-      +procDir : 
-      +file : 
-      +raw : 
-      +line : 
-      +numStr : 
-      +pct : 
-      +idle : 
-      +read() : 
-      +fullScan() : 
-      +discoverDevfreqGpuNodes() : 
-      +discoverProcGpuNodes() : 
-      +tryCandidate() : 
-      +tryParseFile() : 
-      +parseRaw() : 
-    }
-    class GpuUsageReader {
-      +TAG : 
-      +lock : 
-      +resolvedPath : 
-      +resolvedParser : 
-      +scanComplete : 
-    }
-    enum Parser {
-    }
-
-    package "AppBackend.ResourceManagement.OperationControl" as pkg_AppBackend_ResourceManagement_OperationControl {
-      class OperationControl {
-        +context : 
-        +globalState : 
-        +allowed : 
-        +networkAllowed : 
-        +config : 
-        +cm : 
-        +network : 
-        +caps : 
-        +isWifi : 
-        +isCellular : 
-        +powerManager : 
-        +batteryStatus : 
-        +status : 
-        +isCharging : 
-        +level : 
-        +scale : 
-        +batteryPct : 
-        +waitForOptimalConditions() : 
-        +waitForNetworkToUpload() : 
-        +evaluateNetworkOnly() : 
-        +evaluateDeviceState() : 
-        +getViolationMessage() : 
-      }
-    }
-
-    package "AppBackend.ResourceManagement.ResourceManager" as pkg_AppBackend_ResourceManagement_ResourceManager {
-      class ResourceManager_Live_DTO {
-        +cpuPercentage : 
-        +ramPercentage : 
-        +temperature : 
-        +batteryPercentage : 
-        +gpuPercentage : 
-        +activityManager : 
-        +gpuSysfsAvailable : 
-        +lastCpuLoad : 
-        +cpuFloat : 
-        +gpuFloat : 
-        +memoryInfo : 
-        +usedRam : 
-        +intent : 
-        +real : 
-        +process : 
-        +reader : 
-        +line : 
-        +totalCpu : 
-        +trimmedLine : 
-        +pattern : 
-        +matches : 
-        +sum : 
-        +load : 
-        +updateStatistics() : 
-        +resolveGpuLoad() : 
-        +getActualCpuUsage() : 
-      }
-      class ResourceManager_Record_DTO {
-        +deviceStandbyTime : 
-        +networkStandbyTime : 
-        +networkOnlineStartTime : 
-        +networkOnlineEndTime : 
-        +powerConsuption : 
-        +tempStorage : 
-        +backgroundTasksRunning : 
-      }
-      class ResourceStatistics {
-        +overallPerformance : 
-        +estimatedTimeLeft : 
-        +epochsCompleted : 
-        +inferenceTesting : 
-      }
-    }
-  }
-
-  package "AppBackend.TaskContainer" as pkg_AppBackend_TaskContainer {
-    class Image_Task_Factory <<Factory>> {
-      +createTask() : 
-      +createTask() : 
-    }
-    class TaskType {
-      +PassiveTask : 
-    }
-    class Image_Task {
-      +task_Id : 
-      +taskType : 
-      +task_expire_date : 
-      +task_completion_status : 
-      +training_type : 
-      +CKPT_FILENAME : 
-      +architecture : 
-      +reward_rate : 
-      +NUM_EPOCHS : 
-      +input_tensor_name : 
-      +output_tensor_name : 
-      +MODEL_FILENAME : 
-      +BATCH_SIZE : 
-      +NUM_TRAININGS : 
-      +INPUT_SHAPE : 
-      +NUM_CLASSES : 
-      +TRAIN_IMAGES_FILENAME : 
-      +TRAIN_LABELS_FILENAME : 
-      +save_data() : 
-    }
-    interface Image_Task_DataParams {
-      +BATCH_SIZE : 
-      +NUM_TRAININGS : 
-      +INPUT_SHAPE : 
-      +NUM_CLASSES : 
-      +TRAIN_IMAGES_FILENAME : 
-      +TRAIN_LABELS_FILENAME : 
-    }
-    interface Image_Task_ModelParams {
-      +NUM_EPOCHS : 
-      +input_tensor_name : 
-      +output_tensor_name : 
-      +MODEL_FILENAME : 
-    }
-    interface Task {
-      +task_Id : 
-      +taskType : 
-      +task_expire_date : 
-      +task_completion_status : 
-      +training_type : 
-      +CKPT_FILENAME : 
-      +architecture : 
-      +reward_rate : 
-      +save_data() : 
-    }
-    interface Task_DataParams {
-    }
-    interface Task_Factory <<Factory>> {
-      +createTask() : 
-    }
-    interface Task_ModelParams {
-      +NUM_EPOCHS : 
-      +input_tensor_name : 
-      +output_tensor_name : 
-      +MODEL_FILENAME : 
-    }
-    class task_DTO {
-      +current_task_Id : 
-      +list_task_Id : 
-    }
-  }
-
-  package "AppBackend.Validator" as pkg_AppBackend_Validator {
-
-    package "AppBackend.Validator.ModelInferenceValidator" as pkg_AppBackend_Validator_ModelInferenceValidator {
-      class Image_InferenceValidator_Factory <<Factory>> {
-        +createInferenceValidator() : 
-        +createInferenceValidator() : 
-      }
-      class Image_InferenceValidator {
-        +TAG : 
-        +pair : 
-        +imageTask : 
-        +imageBatch : 
-        +shapeArray : 
-        +imgHeight : 
-        +imgWidth : 
-        +numClasses : 
-        +singleImageFloats : 
-        +inputBuffer : 
-        +outputBuffer : 
-        +logitsBuffer : 
-        +inputs : 
-        +outputs : 
-        +probs : 
-        +predictedClass : 
-        +confidence : 
-        +resultString : 
-        +infer() : 
-        +inferImageInferenceValidate() : 
-      }
-      interface InferenceValidator {
-        +infer() : 
-      }
-      interface InferenceValidator_Factory <<Factory>> {
-        +createInferenceValidator() : 
-      }
-    }
+package "config" as pkg_config {
+  class ConfigFilesGenerator {
   }
 }
 
-package "AppFrontend" as pkg_AppFrontend {
-
-  package "AppFrontend.Flush" as pkg_AppFrontend_Flush {
-    class Flusher <<Decorator>> {
-      +TAG : 
-      +filesDir : 
-      +fun : Task
-      +fun : Task
-      +TAG : 
-      +filesDir : 
-      +imageTask : 
-      +ckptFile : 
-      +metaFile : 
-      +imgFile : 
-      +lblFile : 
-      +modelFile : 
-      +directory : 
-      +prefix : 
-      +flushCheckpoint() : 
-      +flushCurrentTask() : 
-      +flushAll() : 
-      +flushCheckpoint() : 
-      +flushCurrentTask() : 
-      +flushAll() : 
-    }
+package "relative" as pkg_relative {
+  class ComponentTreeIn {
   }
-
-  package "AppFrontend.Interface" as pkg_AppFrontend_Interface {
-
-    package "AppFrontend.Interface.AboutUs" as pkg_AppFrontend_Interface_AboutUs {
-      class AboutUs_Fragment {
-        +_binding : 
-        +binding : 
-        +onCreateView() : 
-        +onViewCreated() : 
-        +setupClickListeners() : 
-        +joinUs() : 
-        +onDestroyView() : 
-      }
-    }
-
-    package "AppFrontend.Interface.Auth" as pkg_AppFrontend_Interface_Auth {
-
-      package "AppFrontend.Interface.Auth.DeviceAuthorization" as pkg_AppFrontend_Interface_Auth_DeviceAuthorization {
-        class DeviceAuthorization_Fragment {
-          +_binding : 
-          +binding : 
-          +viewModel : 
-          +isPasswordVisible : 
-          +currentUser : 
-          +msg : 
-          +customTypeface : 
-          +username : 
-          +email : 
-          +phone : 
-          +carrier : 
-          +password : 
-          +agreedToTerms : 
-          +loginData : 
-          +onCreateView() : 
-          +onViewCreated() : 
-          +onResume() : 
-          +setupObservers() : 
-          +setupClickListeners() : 
-          +togglePasswordVisibility() : 
-          +fixPasswordFont() : 
-          +button_LoginRegister() : 
-          +onDestroyView() : 
-        }
-        class DeviceAuthorization_ViewModel {
-          +_authStatus : 
-          +authStatus : 
-          +globalState : 
-          +pollingJob : 
-          +regManager : 
-          +registeredDto : 
-          +serverDao : 
-          +success : 
-          +msg : 
-          +displayMsg : 
-          +auth : 
-          +verified : 
-          +maxAttempts : 
-          +currentUser : 
-          +loginRegister() : 
-          +startPollingForVerification() : 
-          +updateAuthStatus() : 
-          +onCleared() : 
-        }
-        class LoginRegister_DTO {
-          +username : 
-          +password : 
-          +email : 
-          +phoneNumber : 
-          +carrier : 
-        }
-      }
-
-      package "AppFrontend.Interface.Auth.DeviceUnregister" as pkg_AppFrontend_Interface_Auth_DeviceUnregister {
-        class DeviceUnregister_Fragment {
-          +_binding : 
-          +binding : 
-          +viewModel : 
-          +selectedScreenshots : 
-          +authStateListener : 
-          +pickImagesLauncher : 
-          +safeUris : 
-          +successCount : 
-          +bytes : 
-          +user : 
-          +title : 
-          +desc : 
-          +agreedToTerms : 
-          +wantsToUnregister : 
-          +dto : 
-          +context : 
-          +originalBitmap : 
-          +source : 
-          +maxSize : 
-          +width : 
-          +height : 
-          +bitmapRatio : 
-          +resizedBitmap : 
-          +stream : 
-          +onCreateView() : 
-          +onViewCreated() : 
-          +onStart() : 
-          +onStop() : 
-          +onResume() : 
-          +enforceAuthenticationUI() : 
-          +setupObservers() : 
-          +setupClickListeners() : 
-          +button_unregister() : 
-          +uriToByteArray() : 
-          +onDestroyView() : 
-        }
-        class DeviceUnregister_ViewModel {
-          +_unregisterStatus : 
-          +unregisterStatus : 
-          +registrationManager : 
-          +globalState : 
-          +rawData : 
-          +serverDao : 
-          +registeredDto : 
-          +success : 
-          +unregister() : 
-        }
-        class Unregister_DTO {
-          +problemTitle : 
-          +description : 
-          +screenshots : 
-          +wantsToUnregister : 
-        }
-      }
-
-      package "AppFrontend.Interface.Auth.ForgetPassword" as pkg_AppFrontend_Interface_Auth_ForgetPassword {
-        class ForgetPassword_DTO {
-          +email : 
-          +confirmationCode : 
-          +newPassword : 
-        }
-        class ForgetPassword_Fragment {
-          +_binding : 
-          +binding : 
-          +viewModel : 
-          +isEmailSent : 
-          +email : 
-          +dto : 
-          +onCreateView() : 
-          +onViewCreated() : 
-          +setupInitialUI() : 
-          +setupObservers() : 
-          +setupClickListeners() : 
-          +attemptSendEmail() : 
-          +lockAndSend() : 
-          +unlockEmailField() : 
-          +onDestroyView() : 
-        }
-        class ForgetPassword_ViewModel {
-          +_resetStatus : 
-          +resetStatus : 
-          +globalState : 
-          +registeredDto : 
-          +serverDao : 
-          +recover() : 
-        }
-      }
-    }
-
-    package "AppFrontend.Interface.GetStarted" as pkg_AppFrontend_Interface_GetStarted {
-      class GetStarted_Fragment {
-        +_binding : 
-        +binding : 
-        +prefs : 
-        +navOptions : 
-        +onCreateView() : 
-        +onDestroyView() : 
-      }
-    }
-
-    package "AppFrontend.Interface.Home" as pkg_AppFrontend_Interface_Home {
-      class DiamondTrainingView <<Decorator>> {
-        +paint : Paint
-        +path : Path
-        +density : 
-        +MIN_STROKE : 
-        +MAX_STROKE : 
-        +strokeWidth : 
-        +DiamondTrainingView() : 
-        +onDraw() : 
-        +setProgress() : 
-      }
-      class HomeFragment <<Decorator>> {
-        +TAG : String
-        +binding : FragmentHomeBinding
-        +homeViewModel : HomeViewModel
-        +onCreateView() : View
-        +onDestroyView() : 
-      }
-      class HomeViewModel {
-      }
-      class HomeViewModel <<Decorator>> {
-        +repository : TrainingStateRepository
-        +liveStats : 
-        +resourceManager : ResourceManager_Live_DTO
-        +TAG : String
-        +architectureModel : 
-        +HomeViewModel() : 
-        +getArchitectureModel() : 
-        +setArchitectureModel() : 
-        +toggleAILifecycle() : 
-        +getTrainingProgress() : 
-        +getStatusMessage() : 
-        +getDetailedStats() : 
-        +getLiveStats() : 
-      }
-      class ModelTrainer {
-        +Interpreter : 
-        +NUM_EPOCHS : 
-        +BATCH_SIZE : 
-        +IMG_HEIGHT : 
-        +IMG_WIDTH : 
-        +NUM_TRAININGS : 
-        +NUM_BATCHES : 
-        +NUM_CLASSES : 
-        +InputStream : 
-        +InputStream : 
-        +TAG : 
-        +context : 
-        +interpreter : 
-        +NUM_EPOCHS : 
-        +BATCH_SIZE : 
-        +IMG_HEIGHT : 
-        +IMG_WIDTH : 
-        +NUM_TRAININGS : 
-        +NUM_BATCHES : 
-        +NUM_CLASSES : 
-        +imagesInputStream : 
-        +labelsInputStream : 
-        +TAG : 
-        +modelBuffer : 
-        +fileDescriptor : 
-        +inputStream : 
-        +fileChannel : 
-        +startOffset : 
-        +declaredLength : 
-        +imagesStream : 
-        +labelsStream : 
-        +imageSkipBytes : 
-        +labelSkipBytes : 
-        +imageByteBuffer : 
-        +imageBatch : 
-        +labelByteBuffer : 
-        +labelBatch : 
-        +imageData : 
-        +labelData : 
-        +imageBytes : 
-        +labelBytes : 
-        +imageFloatBuffer : 
-        +labelFloatBuffer : 
-        +imageFloats : 
-        +labelFloats : 
-        +losses : 
-        +lastLoss : 
-        +sampleCount : 
-        +batchData : 
-        +singleImageBuffer : 
-        +singleLabelBuffer : 
-        +inputs : 
-        +outputs : 
-        +lossBuffer : 
-        +inputByteBuffer : 
-        +inputBuffer : 
-        +outputByteBuffer : 
-        +outputBuffer : 
-        +logitsByteBuffer : 
-        +logitsBuffer : 
-        +probabilities : 
-        +logits : 
-        +maxIdx : 
-        +maxProb : 
-        +documentsDir : 
-        +testFile : 
-        +checkpointFile : 
-        +saveInputs : 
-        +saveOutputs : 
-        +files : 
-        +restoreInputs : 
-        +restoreOutputs : 
-        +testImage : 
-        +inferInputs : 
-        +inferOutputs : 
-        +filesDir : 
-        +loadModel() : 
-        +loadModelFile() : 
-        +initializeDataStreams() : 
-        +loadBatch() : 
-        +initializeWeights() : 
-        +trainModel() : 
-        +inferModel() : 
-        +restoreWeights() : 
-        +org_restoreWeights() : 
-        +cleanup() : 
-      }
-      class TrainingStateRepository <<Singleton>> {
-        +instance : TrainingStateRepository
-        +isActive : 
-        +isWaiting : 
-        +isPaused : 
-        +trainingProgress : 
-        +statusMessage : 
-        +detailedStats : 
-        +TrainingStateRepository() : 
-        +getInstance() : TrainingStateRepository
-      }
-      class trainer_naf {
-        +Interpreter : 
-        +TAG : 
-        +NUM_EPOCHS : 
-        +BATCH_SIZE : 
-        +IMG_HEIGHT : 
-        +IMG_WIDTH : 
-        +NUM_TRAININGS : 
-        +NUM_BATCHES : 
-        +NUM_CLASSES : 
-        +SERVER_IMAGES_FILENAME : 
-        +SERVER_LABELS_FILENAME : 
-        +context : 
-        +interpreter : 
-        +TAG : 
-        +NUM_EPOCHS : 
-        +BATCH_SIZE : 
-        +IMG_HEIGHT : 
-        +IMG_WIDTH : 
-        +NUM_TRAININGS : 
-        +NUM_BATCHES : 
-        +NUM_CLASSES : 
-        +SERVER_IMAGES_FILENAME : 
-        +SERVER_LABELS_FILENAME : 
-      }
-      interface TrainingCallback {
-        +serverModel : 
-        +modelBuffer : 
-        +inputStream : 
-        +fileDescriptor : 
-        +imgFile : 
-        +lblFile : 
-        +totalSteps : 
-        +currentStep : 
-        +lastLoss : 
-        +batchData : 
-        +imageBatch : 
-        +singleImageBuffer : 
-        +singleLabelBuffer : 
-        +inputs : 
-        +lossBuffer : 
-        +outputs : 
-        +percent : 
-        +imagesStream : 
-        +labelsStream : 
-        +imageSkipBytes : 
-        +labelSkipBytes : 
-        +labelBatch : 
-        +imageData : 
-        +labelData : 
-        +imageFloatBuffer : 
-        +labelFloatBuffer : 
-        +imageFloats : 
-        +labelFloats : 
-        +inputBuffer : 
-        +outputBuffer : 
-        +logitsBuffer : 
-        +onProgress() : 
-        +onLog() : 
-        +initializeInterpreter() : 
-        +trainModel() : 
-        +loadBatchFromFile() : 
-        +inferModel() : 
-      }
-    }
-
-    package "AppFrontend.Interface.Insights" as pkg_AppFrontend_Interface_Insights {
-      class InsightsPagerAdapter <<Adapter>> {
-        +getItemCount() : 
-        +getItemCount() : 
-        +createFragment() : 
-      }
-      class InsightsPagerFragment {
-        +FragmentInsightsPagerBinding : 
-        +get : 
-        +_binding : 
-        +binding : 
-        +pagerAdapter : 
-        +page : 
-        +onCreateView() : 
-        +onViewCreated() : 
-      }
-
-      package "AppFrontend.Interface.Insights.DeviceInsights" as pkg_AppFrontend_Interface_Insights_DeviceInsights {
-        class DeviceInsightsFragment <<Decorator>> {
-          +binding : FragmentDeviceBinding
-          +viewModel : DeviceInsightsViewModel
-          +binding : 
-          +viewModel : 
-          +Override : 
-          +onCreateView() : View
-          +setupObservers() : 
-          +onDestroyView() : 
-        }
-        class DeviceInsightsViewModel <<Decorator>> {
-          +batteryPercent : 
-          +isCharging : 
-          +isOnline : 
-          +isWifi : 
-          +isCellular : 
-          +deviceStandby : 
-          +networkStandby : 
-          +powerConsumption : 
-          +tempStorage : 
-          +bgTasks : 
-          +batteryReceiver : BroadcastReceiver
-          +networkCallback : 
-          +pollingHandler : Handler
-          +pollingRunnable : Runnable
-          +liveVoltage_mV : 
-          +prefs : SharedPreferences
-          +PREFS_NAME : String
-          +KEY_NET_START_TIME : String
-          +DeviceInsightsViewModel() : 
-          +getBatteryPercent() : 
-          +getIsCharging() : 
-          +getIsOnline() : 
-          +getIsWifi() : 
-          +getIsCellular() : 
-          +getDeviceStandby() : 
-          +getNetworkStandby() : 
-          +getPowerConsumption() : 
-          +getTempStorage() : 
-          +getBgTasks() : 
-          +button_optimize() : 
-          +startLiveUpdates() : 
-          +updateStats() : 
-          +getFolderSize() : 
-          +clearCacheFolder() : 
-          +onCleared() : 
-        }
-      }
-
-      package "AppFrontend.Interface.Insights.ModelTraining" as pkg_AppFrontend_Interface_Insights_ModelTraining {
-        class ModelTrainingFragment {
-        }
-        class ModelTrainingFragment <<Decorator>> {
-          +binding : FragmentModelBinding
-          +sharedViewModel : HomeViewModel
-          +onCreateView() : View
-          +onDestroyView() : 
-        }
-        class ModelTrainingViewModel {
-          +mText : 
-          +ModelTrainingViewModel() : 
-          +getText() : 
-          +updateModelTrainingGraph() : 
-        }
-        class TrainingWaveView {
-          +density : 
-          +wavePath : 
-          +wavePaint : 
-          +density : 
-          +wavePath : 
-          +wavePaint : 
-          +animTime : 
-          +lastFrameTime : 
-          +isActive : 
-          +currentAmpMultiplier : 
-          +isStateInitialized : 
-          +topColors : 
-          +bottomColors : 
-          +layers : 
-          +setActive() : 
-        }
-        class WaveLayer {
-          +freq : 
-          +speed : 
-          +ampPercentage : 
-          +offset : 
-          +currentTime : 
-          +deltaTime : 
-          +targetAmp : 
-          +isAnimating : 
-          +width : 
-          +centerY : 
-          +layer : 
-          +direction : 
-          +maxAvailableHeight : 
-          +currentLayerMaxPx : 
-          +baseThickness : 
-          +xf : 
-          +normalizedX : 
-          +rawSineSum : 
-          +yOffset : 
-          +onDraw() : 
-          +drawWave() : 
-        }
-      }
-
-      package "AppFrontend.Interface.Insights.UsageInsights" as pkg_AppFrontend_Interface_Insights_UsageInsights {
-        class HeartBeatView {
-          +density : 
-          +isActive : 
-          +currentAmpMultiplier : 
-          +isStateInitialized : 
-          +fun : 
-          +wavePaint : 
-          +style : 
-          +strokeWidth : 
-          +isAntiAlias : 
-          +strokeJoin : 
-          +strokeCap : 
-          +density : 
-          +isActive : 
-          +currentAmpMultiplier : 
-          +isStateInitialized : 
-          +wavePaint : 
-          +baselinePaint : 
-          +path : 
-          +phase : 
-          +midY : 
-          +targetAmp : 
-          +dynamicAmplitude : 
-          +freq1 : 
-          +freq2 : 
-          +stepSize : 
-          +xf : 
-          +yOffset : 
-          +isAnimating : 
-          +setActive() : 
-          +updateStats() : 
-          +setActive() : 
-          +updateStats() : 
-          +onDraw() : 
-        }
-        class ResourceStatsChartView {
-          +currentStats : 
-          +targetStats : 
-          +dp : 
-          +frameCount : 
-          +barPaint : 
-          +style : 
-          +strokeWidth : 
-          +pathEffect : 
-          +currentStats : 
-          +targetStats : 
-          +dp : 
-          +frameCount : 
-          +barPaint : 
-          +textPaint : 
-          +gridPaint : 
-          +current : 
-          +target : 
-          +paddingLeft : 
-          +paddingRight : 
-          +paddingTop : 
-          +paddingBottom : 
-          +chartWidth : 
-          +chartHeight : 
-          +barHeight : 
-          +spacing : 
-          +gridValues : 
-          +x : 
-          +label : 
-          +currentY : 
-          +barWidth : 
-          +displayValue : 
-          +suffix : 
-          +updateStats() : 
-          +onDraw() : 
-          +generateRandomTargets() : 
-          +onAttachedToWindow() : 
-          +onDetachedFromWindow() : 
-        }
-        class UsageInsights_Fragment {
-          +_binding : 
-          +binding : 
-          +viewModel : 
-          +sharedHomeViewModel : 
-          +formattedStatsMap : 
-          +isTrainingActive : 
-          +onCreateView() : 
-          +onViewCreated() : 
-          +onDestroyView() : 
-        }
-        class UsageInsights_ViewModel {
-          +romUsage : 
-          +stat : 
-          +totalBytes : 
-          +availableBytes : 
-          +transformLiveStats() : 
-          +getRomUsagePercentage() : 
-        }
-      }
-    }
-
-    package "AppFrontend.Interface.RegisteredInfo" as pkg_AppFrontend_Interface_RegisteredInfo {
-      class RegisteredInfo_Fragment {
-        +_binding : 
-        +binding : 
-        +viewModel : 
-        +onCreateView() : 
-        +onViewCreated() : 
-        +onResume() : 
-        +onPause() : 
-        +updateUiStats() : 
-        +onDestroyView() : 
-      }
-      class RegisteredInfo_ViewModel {
-        +registrationManager : 
-        +globalState : 
-        +_deviceInfo : 
-        +deviceInfo : 
-        +cachedUsername : 
-        +cachedEmail : 
-        +cachedJoinedOn : 
-        +pollingJob : 
-        +auth : 
-        +user : 
-        +isVerified : 
-        +rawData : 
-        +serverDao : 
-        +finalData : 
-        +immediateUpdate : 
-        +refreshFirebaseData() : 
-        +startPollingForVerification() : 
-        +startLiveHardwareUpdates() : 
-        +stopLiveHardwareUpdates() : 
-      }
-    }
-
-    package "AppFrontend.Interface.RewardBank" as pkg_AppFrontend_Interface_RewardBank {
-      class FluidWaveLayout {
-        +Float : 
-        +Float : 
-        +isFirstVaporSet : 
-        +isFirstLiquidSet : 
-        +vaporStartPct : 
-        +vaporTargetPct : 
-        +vaporSurgeX : 
-        +liquidStartPct : 
-        +liquidTargetPct : 
-        +liquidSurgeX : 
-        +Float : 
-        +get : 
-        +paintLiquidFront : 
-        +style : 
-        +targetVaporPercentage : 
-        +targetLiquidPercentage : 
-        +isFirstVaporSet : 
-        +isFirstLiquidSet : 
-        +vaporStartPct : 
-        +vaporTargetPct : 
-        +vaporSurgeX : 
-        +liquidStartPct : 
-        +liquidTargetPct : 
-        +liquidSurgeX : 
-        +depthFactor : 
-        +paintLiquidFront : 
-        +paintLiquidBack : 
-        +paintVaporFront : 
-        +paintVaporBack : 
-        +pathLiquidFront : 
-        +pathLiquidBack : 
-        +pathVaporFront : 
-        +pathVaporBack : 
-        +phaseShift : 
-        +lastFrameTime : 
-        +sensorManager : 
-        +accelerometer : 
-        +targetTiltOffset : 
-        +currentTiltOffset : 
-        +targetVolatility : 
-        +currentVolatility : 
-        +lastAccel : 
-        +set() : 
-        +set() : 
-      }
-      class Particle {
-        +x : 
-        +y : 
-        +vx : 
-        +vy : 
-        +radius : 
-        +isFront : 
-        +active : 
-        +maxParticles : 
-        +particles : 
-        +frameCallback : 
-      }
-      class RewardBank_Fragment {
-        +_binding : 
-        +binding : 
-        +viewModel : 
-        +user : 
-        +pulse : 
-        +openDrawer : 
-        +goToLogin : 
-        +onCreateView() : 
-        +onResume() : 
-        +checkAuthStatus() : 
-        +setupObservers() : 
-        +setupClickListeners() : 
-        +onDestroyView() : 
-      }
-      class RewardBank_ViewModel <<Singleton>> {
-        +INSTANCE : 
-        +PREFS_NAME : 
-        +prefs : 
-        +auth : 
-        +firestoreListener : 
-        +MAX_MB_LIMIT : 
-        +vaporMBs : 
-        +liquidMBs : 
-        +dateFormat : 
-        +lastActiveDate : 
-        +isFlushing : 
-        +vaporPercentage : 
-        +liquidPercentage : 
-        +displayGBs : 
-        +statusText : 
-        +authListener : 
-        +user : 
-        +timeTickReceiver : 
-        +getInstance() : 
-      }
-    }
-
-    package "AppFrontend.Interface.Settings" as pkg_AppFrontend_Interface_Settings {
-      class Settings_Fragment {
-        +_binding : 
-        +binding : 
-        +viewModel : 
-        +config : 
-        +onCreateView() : 
-        +onViewCreated() : 
-        +onResume() : 
-        +setupInitialState() : 
-        +setupListeners() : 
-      }
-      class Settings_ViewModel {
-        +app : 
-        +globalState : 
-        +fileOps : 
-        +config : 
-        +serviceIntent : 
-        +getConfig() : 
-        +saveConfig() : 
-        +toggleWifi() : 
-        +toggleData() : 
-        +toggleOvernight() : 
-        +toggleIdle() : 
-        +toggleChargingExclusive() : 
-        +updateChargeLimit() : 
-      }
-    }
-
-    package "AppFrontend.Interface.TrainingLogsDisplay" as pkg_AppFrontend_Interface_TrainingLogsDisplay {
-      class TrainingLogsDisplay_ViewModel {
-        +consoleLogs : 
-        +val : 
-        +currentStatus : 
-        +stepsText : 
-        +lossText : 
-        +consoleLogs : 
-        +currentStatus : 
-        +stepsText : 
-        +lossText : 
-      }
-      class TrainingLogger {
-        +consoleLogs : 
-        +currentStatus : 
-        +stepsText : 
-        +lossText : 
-        +current : 
-        +lines : 
-        +safeLines : 
-        +appendLog() : 
-      }
-      class TrainingLogsDisplay_Fragment {
-        +_binding : 
-        +binding : 
-        +viewModel : 
-        +onCreateView() : 
-        +onViewCreated() : 
-        +onDestroyView() : 
-      }
-    }
+  class GenerateComponentsRequest {
+  }
+  class GeneratedComponent {
+  }
+  class FailedComponent {
+  }
+  class GenerateComponentsResponse {
   }
 }
 
-package "AppGlobal" as pkg_AppGlobal {
-  class GlobalState <<State>> {
-    +appConfig : 
-    +server : 
-    +registrationManager : 
-    +currentTask : 
-    +packageTypeTrainerBuilder : 
-    +packageTypeTrainer : 
-    +flusher : 
-    +resourceStatistics : 
-    +resourceManager_Live_DTO : 
-    +resourceManager_Record_DTO : 
-    +pingStatusCalculatorAndDispatcher() : 
+package "stallation" as pkg_stallation {
+  class Jinie {
   }
-  class app_config {
-    +onWifi : 
-    +onData : 
-    +overNightUtilization : 
-    +idleTimeUtilization : 
-    +minChargeLimit : 
-    +maxChargeLimit : 
-    +onChargingExclusive : 
-    +isLoggedIn : 
+  class DependencyCheck {
   }
-
-  package "AppGlobal.Utils" as pkg_AppGlobal_Utils {
-    class FileOperations {
-      +gson : 
-      +TAG : 
-      +context : 
-      +gson : 
-      +TAG : 
-      +file : 
-      +json : 
-      +obj : 
-      +writeJson() : 
-      +T() : 
-      +reified() : 
-    }
-    class GlobalUtils {
-      +fileOperations : 
-    }
+  class DependencyReport {
   }
 }
 
-package "com" as pkg_com {
-
-  package "com.example" as pkg_com_example {
-
-    package "com.example.fractal" as pkg_com_example_fractal {
-      class BootReceiver {
-        +fileOps : 
-        +config : 
-        +serviceIntent : 
-        +onReceive() : 
-        +onReceive() : 
-      }
-      class FractalApplication <<Decorator>> {
-        +GlobalState : GlobalUtils
-        +GlobalUtils : app_config
-        +app_config : 
-        +startupExecutor : 
-        +globalState : 
-        +globalUtils : 
-        +appConfig : 
-        +startupExecutor : 
-        +fileOps : 
-        +fileName : 
-        +defaultAsset : 
-        +loadedConfig : 
-        +serverDao : 
-        +trainerBuilder : 
-        +state : 
-        +onCreate() : 
-        +initializeHeavyComponents() : 
-        +onCreate() : 
-        +initializeHeavyComponents() : 
-      }
-      class MainActivity <<Decorator>> {
-        +binding : ActivityMainBinding
-        +PREFS_NAME : String
-        +KEY_LAST_SYNCED : String
-        +onCreate() : 
-        +initFirebaseRemoteConfig() : 
-        +startHardwareSyncThread() : 
-        +setupNavigationUI() : 
-        +setupSidebarNav() : 
-        +attachBaseContext() : 
-        +animateNavIcons() : 
-        +dispatchTouchEvent() : 
-      }
-      class OvernightManagerService {
-        +CHANNEL_ID : 
-        +ACTION_STOP : 
-        +CHANNEL_ID : 
-        +NOTIFICATION_ID : 
-        +ACTION_STOP : 
-        +scope : 
-        +repo : 
-        +isManagingCurrentWindow : 
-        +isFirstRun : 
-        +app : 
-        +config : 
-        +hour : 
-        +minutesUntilMidnight : 
-        +startIntent : 
-        +resumeIntent : 
-        +pauseIntent : 
-        +channel : 
-        +openAppIntent : 
-        +openAppPending : 
-        +stopIntent : 
-        +stopPendingIntent : 
-        +onCreate() : 
-        +onStartCommand() : 
-        +onDestroy() : 
-        +onBind() : 
-        +runOvernightLoop() : 
-        +startGeneration() : 
-        +resumeGeneration() : 
-        +pauseForDaytime() : 
-        +createNotificationChannel() : 
-        +buildNotification() : 
-        +updateNotification() : 
-      }
-      class FractalTrainingService {
-        +CHANNEL_ID : 
-        +NOTIFICATION_ID : 
-        +TAG : 
-        +currentStatusText : 
-        +lastProgress : 
-        +isCurrentlyDownloading : 
-        +trainingThread : 
-        +systemUiMode : 
-        +repo : 
-        +progress : 
-        +incomingText : 
-        +orchestrator : 
-        +onCreate() : 
-        +isSystemInDarkMode() : 
-        +onStartCommand() : 
-        +startPipelineThread() : 
-      }
-      class TrainingCallback {
-        +currentTaskRewardRate : 
-        +currentTaskTotalEpochs : 
-        +currentStats : 
-        +perf : 
-        +mbsPerEpoch : 
-        +app : 
-        +stats : 
-        +numericOnly : 
-        +notificationManager : 
-        +onTaskAcquired() : 
-        +onEpochUpdate() : 
-        +onUploadSuccess() : 
-        +onProgress() : 
-        +onValidationUpdate() : 
-        +onStatusUpdate() : 
-        +updateNotification() : 
-      }
-      class Orchestrator {
-        +context : 
-        +TAG : 
-        +globalState : 
-        +deviceId : 
-        +opControl : 
-        +task : 
-        +attemptCount : 
-        +downloadSuccess : 
-        +needsDownload : 
-        +modelFile : 
-        +imagesFile : 
-        +labelsFile : 
-        +latch : 
-        +pauseController : 
-        +executeTrainingPipeline() : 
-      }
-      class DataDownloader_naf {
-        +isPaused() : 
-        +isCancelled() : 
-        +onDownloadFinished() : 
-        +onError() : 
-      }
-    }
+package "version" as pkg_version {
+  class EnvSetupManager {
   }
 }
 
-BootReceiver --|> BroadcastReceiver
-CheckpointManager --> Task
-DataDownloader_naf +-- CancelledDownloadException
-DataDownloader_naf +-- DownloadListener
-DataDownloader_naf +-- PauseController
-DeviceInsightsFragment --> DeviceInsightsViewModel
-DeviceInsightsFragment --|> Fragment
-DeviceInsightsViewModel --|> AndroidViewModel
-DiamondTrainingView --|> View
-FileOperations +-- class
-Flusher --> Task
-FractalApplication --> GlobalUtils
-FractalApplication --> app_config
-GlobalState --|> Flusher
-GlobalState ..|> Task
-GlobalUtils --|> FileOperations
-HomeFragment --|> Fragment
-HomeFragment --> HomeViewModel
-HomeViewModel --|> AndroidViewModel
-HomeViewModel --> ResourceManager_Live_DTO
-HomeViewModel --> TrainingStateRepository
-ImageTrainer ..|> Trainer
-Image_DataInitializer ..|> DataInitializer
-Image_DataInitializer_Factory ..|> DataInitializer_Factory
-Image_InferenceValidator ..|> InferenceValidator
-Image_InferenceValidator_Factory ..|> InferenceValidator_Factory
-Image_Task --|> TaskType
-Image_Task_DataParams ..|> Task_DataParams
-Image_Task_Factory ..|> Task_Factory
-Image_Task_ModelParams ..|> Task_ModelParams
-Image_Trainer_Factory ..|> Trainer_Factory
-MainActivity --|> AppCompatActivity
-ModelTrainingFragment --|> Fragment
-ModelTrainingFragment --> HomeViewModel
-ModelTrainingViewModel --|> ViewModel
-ModelTransmission_DTO ..|> Task
-OvernightManagerService +-- NOTIFICATION_ID
-PackageTypeTrainer ..|> DataInitializer
-PackageTypeTrainer ..|> InferenceValidator
-PackageTypeTrainer ..|> Task
-PackageTypeTrainer ..|> Trainer
-PackageTypeTrainerBuilder ..|> Builder
-Server_DAO ..|> Auth
-Server_DAO ..|> ModelTransmission
-Server_DAO ..|> TaskPopulate
-Server_DAO --|> networkConfig_ini
-Task ..|> Task_DataParams
-Task ..|> Task_ModelParams
-TaskType +-- class
-checkpoints_DTO --|> checkpoint_DTO
-task_DTO ..|> Task
 
 @enduml

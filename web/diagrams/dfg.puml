@@ -48,7 +48,7 @@ skinparam UsecaseFontColor #ffffff
 
 title Static Single Assignment (SSA) Def-Use Data Flow Graph
 
-package "SSA Scope: Image_DataInitializer_Factory" {
+package "SSA Scope: SupportedLanguage" {
   class "SSA Def: v₀" as v0_0 <<SSA_Def>> {
     +var_name: retries
     +version: 0
@@ -67,7 +67,7 @@ package "SSA Scope: Image_DataInitializer_Factory" {
   v1_0 --> v2_0 : reaching_def_1
 }
 
-package "SSA Scope: Image_Trainer_Factory" {
+package "SSA Scope: Priority" {
   class "SSA Def: v₀" as v0_1 <<SSA_Def>> {
     +var_name: retries
     +version: 0
@@ -86,7 +86,7 @@ package "SSA Scope: Image_Trainer_Factory" {
   v1_1 --> v2_1 : reaching_def_1
 }
 
-package "SSA Scope: CheckpointManager" {
+package "SSA Scope: NFRCategory" {
   class "SSA Def: v₀" as v0_2 <<SSA_Def>> {
     +var_name: retries
     +version: 0

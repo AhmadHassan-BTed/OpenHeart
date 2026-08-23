@@ -46,172 +46,21 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-package "AboutUs" as pkg_AboutUs {
+package "Lets" as pkg_Lets {
 }
-package "AppBackend" as pkg_AppBackend {
-  package "DataManager" as pkg_AppBackend_DataManager {
-    package "DataLoaderAndInitializer" as pkg_AppBackend_DataManager_DataLoaderAndInitializer {
-    }
-  }
-  package "Factory" as pkg_AppBackend_Factory {
-    package "PackageTypeTrainer" as pkg_AppBackend_Factory_PackageTypeTrainer {
-    }
-  }
-  package "LocalTrainingModule" as pkg_AppBackend_LocalTrainingModule {
-    package "TrainingExecutor" as pkg_AppBackend_LocalTrainingModule_TrainingExecutor {
-    }
-    package "TrainingStateManager" as pkg_AppBackend_LocalTrainingModule_TrainingStateManager {
-    }
-  }
-  package "Network" as pkg_AppBackend_Network {
-    package "ModelUpdateTransmission" as pkg_AppBackend_Network_ModelUpdateTransmission {
-    }
-    package "RegisteredInfo" as pkg_AppBackend_Network_RegisteredInfo {
-    }
-    package "Server_DAO" as pkg_AppBackend_Network_Server_DAO {
-    }
-  }
-  package "ResourceManagement" as pkg_AppBackend_ResourceManagement {
-    package "OperationControl" as pkg_AppBackend_ResourceManagement_OperationControl {
-    }
-    package "ResourceManager" as pkg_AppBackend_ResourceManagement_ResourceManager {
-    }
-  }
-  package "TaskContainer" as pkg_AppBackend_TaskContainer {
-  }
-  package "Validator" as pkg_AppBackend_Validator {
-    package "ModelInferenceValidator" as pkg_AppBackend_Validator_ModelInferenceValidator {
-    }
-  }
+package "config" as pkg_config {
 }
-package "AppFrontend" as pkg_AppFrontend {
-  package "Flush" as pkg_AppFrontend_Flush {
-  }
-  package "Interface" as pkg_AppFrontend_Interface {
-    package "AboutUs" as pkg_AppFrontend_Interface_AboutUs {
-    }
-    package "Auth" as pkg_AppFrontend_Interface_Auth {
-      package "DeviceAuthorization" as pkg_AppFrontend_Interface_Auth_DeviceAuthorization {
-      }
-      package "DeviceUnregister" as pkg_AppFrontend_Interface_Auth_DeviceUnregister {
-      }
-      package "ForgetPassword" as pkg_AppFrontend_Interface_Auth_ForgetPassword {
-      }
-    }
-    package "GetStarted" as pkg_AppFrontend_Interface_GetStarted {
-    }
-    package "Home" as pkg_AppFrontend_Interface_Home {
-    }
-    package "Insights" as pkg_AppFrontend_Interface_Insights {
-      package "DeviceInsights" as pkg_AppFrontend_Interface_Insights_DeviceInsights {
-      }
-      package "ModelTraining" as pkg_AppFrontend_Interface_Insights_ModelTraining {
-      }
-      package "UsageInsights" as pkg_AppFrontend_Interface_Insights_UsageInsights {
-      }
-    }
-    package "RegisteredInfo" as pkg_AppFrontend_Interface_RegisteredInfo {
-    }
-    package "RewardBank" as pkg_AppFrontend_Interface_RewardBank {
-    }
-    package "Settings" as pkg_AppFrontend_Interface_Settings {
-    }
-    package "TrainingLogsDisplay" as pkg_AppFrontend_Interface_TrainingLogsDisplay {
-    }
-  }
+package "json" as pkg_json {
 }
-package "AppGlobal" as pkg_AppGlobal {
-  package "Utils" as pkg_AppGlobal_Utils {
-  }
+package "owns" as pkg_owns {
 }
-package "Auth" as pkg_Auth {
+package "relative" as pkg_relative {
 }
-package "DataLoaderAndInitializer" as pkg_DataLoaderAndInitializer {
+package "stallation" as pkg_stallation {
 }
-package "DataManager" as pkg_DataManager {
+package "terface" as pkg_terface {
 }
-package "DeviceAuthorization" as pkg_DeviceAuthorization {
+package "version" as pkg_version {
 }
-package "DeviceInsights" as pkg_DeviceInsights {
-}
-package "DeviceUnregister" as pkg_DeviceUnregister {
-}
-package "Factory" as pkg_Factory {
-}
-package "Flush" as pkg_Flush {
-}
-package "ForgetPassword" as pkg_ForgetPassword {
-}
-package "GetStarted" as pkg_GetStarted {
-}
-package "Home" as pkg_Home {
-}
-package "Insights" as pkg_Insights {
-}
-package "Interface" as pkg_Interface {
-}
-package "LocalTrainingModule" as pkg_LocalTrainingModule {
-}
-package "ModelInferenceValidator" as pkg_ModelInferenceValidator {
-}
-package "ModelTraining" as pkg_ModelTraining {
-}
-package "ModelUpdateTransmission" as pkg_ModelUpdateTransmission {
-}
-package "Network" as pkg_Network {
-}
-package "OperationControl" as pkg_OperationControl {
-}
-package "PackageTypeTrainer" as pkg_PackageTypeTrainer {
-}
-package "RegisteredInfo" as pkg_RegisteredInfo {
-}
-package "ResourceManagement" as pkg_ResourceManagement {
-}
-package "ResourceManager" as pkg_ResourceManager {
-}
-package "RewardBank" as pkg_RewardBank {
-}
-package "Server_DAO" as pkg_Server_DAO {
-}
-package "Settings" as pkg_Settings {
-}
-package "TaskContainer" as pkg_TaskContainer {
-}
-package "TrainingExecutor" as pkg_TrainingExecutor {
-}
-package "TrainingLogsDisplay" as pkg_TrainingLogsDisplay {
-}
-package "TrainingStateManager" as pkg_TrainingStateManager {
-}
-package "UsageInsights" as pkg_UsageInsights {
-}
-package "Utils" as pkg_Utils {
-}
-package "Validator" as pkg_Validator {
-}
-package "com" as pkg_com {
-  package "example" as pkg_com_example {
-    package "fractal" as pkg_com_example_fractal {
-    }
-  }
-}
-package "example" as pkg_example {
-}
-package "fractal" as pkg_fractal {
-}
-
-' Formal UML Package Dependencies
-pkg_AppBackend_LocalTrainingModule_TrainingStateManager ..> pkg_AppBackend_TaskContainer : <<imports>>
-pkg_AppFrontend_Flush ..> pkg_AppBackend_TaskContainer : <<imports>>
-pkg_AppFrontend_Interface_Home ..> pkg_AppBackend_ResourceManagement : <<imports>>
-pkg_AppFrontend_Interface_Home ..> pkg_AppBackend_ResourceManagement_ResourceManager : <<imports>>
-pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppBackend_Network_RegisteredInfo : <<imports>>
-pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppBackend_ResourceManagement : <<imports>>
-pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppFrontend_Interface_RewardBank : <<imports>>
-pkg_AppFrontend_Interface_Insights_ModelTraining ..> pkg_AppFrontend_Interface_Home : <<imports>>
-pkg_com_example_fractal ..> pkg_AppBackend_ResourceManagement : <<imports>>
-pkg_com_example_fractal ..> pkg_AppGlobal : <<imports>>
-pkg_com_example_fractal ..> pkg_AppGlobal_Utils : <<imports>>
 
 @enduml

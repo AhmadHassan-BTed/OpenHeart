@@ -1,20 +1,17 @@
 graph TD
-    subgraph Scenario_AppFrontend["Scenario: AppFrontend"]
-        Disp_onUploadSuccess["dispatch onUploadSuccess()"]
+    subgraph Scenario_generateSRSWithProgress["Scenario: generateSRSWithProgress"]
+        Disp_App["dispatch App()"]
     end
 
-    subgraph Scenario_Suppress["Scenario: Suppress"]
-        Disp_run["dispatch run()"]
-        Disp_startLiveUpdates["dispatch startLiveUpdates()"]
-        Disp_startLiveUpdates["dispatch startLiveUpdates()"]
-        Disp_startLiveUpdates["dispatch startLiveUpdates()"]
+    subgraph Scenario_Unknown["Scenario: Unknown"]
+        Disp_component_name["dispatch component_name()"]
     end
 
-    subgraph Scenario_if["Scenario: if"]
-        Disp_POST_Ping["dispatch POST_Ping()"]
+    subgraph Scenario_Unknown["Scenario: Unknown"]
+        Disp_RootNavigator["dispatch RootNavigator()"]
     end
 
-    subgraph Scenario_AppFrontend["Scenario: AppFrontend"]
-        Disp_isPaused["dispatch isPaused()"]
+    subgraph Scenario_Unknown["Scenario: Unknown"]
+        Disp_component_name["dispatch component_name()"]
     end
 

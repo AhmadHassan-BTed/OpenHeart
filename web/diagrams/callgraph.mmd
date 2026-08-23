@@ -1,24 +1,2 @@
 flowchart TD
     %% Inter-procedural Call Graph & Tarjan SCC Recursion Supergraph
-    CG_Image_DataInitializer_Factory_createDataInitializer["Image_DataInitializer_Factory.createDataInitializer()<br/>V(G)=1"]
-    CG_Image_DataInitializer_Factory_createDataInitializer["Image_DataInitializer_Factory.createDataInitializer()<br/>V(G)=1"]
-    CG_Image_Trainer_Factory_createTrainer["Image_Trainer_Factory.createTrainer()<br/>V(G)=1"]
-    CG_Image_Trainer_Factory_createTrainer["Image_Trainer_Factory.createTrainer()<br/>V(G)=1"]
-    CG_CheckpointManager_createCheckpoint["CheckpointManager.createCheckpoint()<br/>V(G)=1"]
-    CG_CheckpointManager_loadCheckpoint["CheckpointManager.loadCheckpoint()<br/>V(G)=2"]
-    CG_CheckpointManager_createCheckpoint["CheckpointManager.createCheckpoint()<br/>V(G)=1"]
-    CG_networkConfig_ini_getBaseUrl["networkConfig_ini.getBaseUrl()<br/>V(G)=1"]
-    CG_DataDownloader_naf_downloadFiles["DataDownloader_naf.downloadFiles()<br/>V(G)=1"]
-    CG_DataDownloader_naf_downloadFiles["DataDownloader_naf.downloadFiles()<br/>V(G)=1"]
-    CG_DataDownloader_naf_getFileSize["DataDownloader_naf.getFileSize()<br/>V(G)=1"]
-    CG_PauseController_isPaused["PauseController.isPaused()<br/>V(G)=1"]
-    CG_PauseController_isCancelled["PauseController.isCancelled()<br/>V(G)=1"]
-    CG_CheckpointManager_loadCheckpoint -->|CHA/1-CFA dispatch| CG_PauseController_isPaused
-    CG_PauseController_isPaused -->|CHA/1-CFA dispatch| CG_PauseController_isCancelled
-    CG_PauseController_isCancelled -->|CHA/1-CFA dispatch| CG_CheckpointManager_createCheckpoint
-    CG_CheckpointManager_createCheckpoint -->|CHA/1-CFA dispatch| CG_networkConfig_ini_getBaseUrl
-    CG_networkConfig_ini_getBaseUrl -->|CHA/1-CFA dispatch| CG_DataDownloader_naf_getFileSize
-    CG_DataDownloader_naf_getFileSize -->|CHA/1-CFA dispatch| CG_Image_DataInitializer_Factory_createDataInitializer
-    CG_Image_DataInitializer_Factory_createDataInitializer -->|CHA/1-CFA dispatch| CG_DataDownloader_naf_downloadFiles
-    CG_DataDownloader_naf_downloadFiles -->|CHA/1-CFA dispatch| CG_Image_Trainer_Factory_createTrainer
-    CG_CheckpointManager_loadCheckpoint -.->|Tarjan SCC cycle (Recursive)| CG_CheckpointManager_loadCheckpoint

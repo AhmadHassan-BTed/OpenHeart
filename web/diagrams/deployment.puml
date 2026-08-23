@@ -46,168 +46,36 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-node "Host Environment: AppBackend" as node_AppBackend <<executionEnvironment>> {
-  artifact "art_AppBackend.jar" as art_AppBackend <<artifact>>
+node "Host Environment: json" as node_json <<executionEnvironment>> {
+  artifact "art_json.jar" as art_json <<artifact>>
 }
 
-node "Host Environment: DataManager" as node_DataManager <<executionEnvironment>> {
-  artifact "art_DataManager.jar" as art_DataManager <<artifact>>
+node "Host Environment: owns" as node_owns <<executionEnvironment>> {
+  artifact "art_owns.jar" as art_owns <<artifact>>
 }
 
-node "Host Environment: DataLoaderAndInitializer" as node_DataLoaderAndInitializer <<executionEnvironment>> {
-  artifact "art_DataLoaderAndInitializer.jar" as art_DataLoaderAndInitializer <<artifact>>
+node "Host Environment: config" as node_config <<executionEnvironment>> {
+  artifact "art_config.jar" as art_config <<artifact>>
 }
 
-node "Host Environment: Factory" as node_Factory <<executionEnvironment>> {
-  artifact "art_Factory.jar" as art_Factory <<artifact>>
+node "Host Environment: relative" as node_relative <<executionEnvironment>> {
+  artifact "art_relative.jar" as art_relative <<artifact>>
 }
 
-node "Host Environment: PackageTypeTrainer" as node_PackageTypeTrainer <<executionEnvironment>> {
-  artifact "art_PackageTypeTrainer.jar" as art_PackageTypeTrainer <<artifact>>
+node "Host Environment: Lets" as node_Lets <<executionEnvironment>> {
+  artifact "art_Lets.jar" as art_Lets <<artifact>>
 }
 
-node "Host Environment: LocalTrainingModule" as node_LocalTrainingModule <<executionEnvironment>> {
-  artifact "art_LocalTrainingModule.jar" as art_LocalTrainingModule <<artifact>>
+node "Host Environment: terface" as node_terface <<executionEnvironment>> {
+  artifact "art_terface.jar" as art_terface <<artifact>>
 }
 
-node "Host Environment: TrainingExecutor" as node_TrainingExecutor <<executionEnvironment>> {
-  artifact "art_TrainingExecutor.jar" as art_TrainingExecutor <<artifact>>
+node "Host Environment: version" as node_version <<executionEnvironment>> {
+  artifact "art_version.jar" as art_version <<artifact>>
 }
 
-node "Host Environment: TrainingStateManager" as node_TrainingStateManager <<executionEnvironment>> {
-  artifact "art_TrainingStateManager.jar" as art_TrainingStateManager <<artifact>>
-}
-
-node "Host Environment: Network" as node_Network <<executionEnvironment>> {
-  artifact "art_Network.jar" as art_Network <<artifact>>
-}
-
-node "Host Environment: ModelUpdateTransmission" as node_ModelUpdateTransmission <<executionEnvironment>> {
-  artifact "art_ModelUpdateTransmission.jar" as art_ModelUpdateTransmission <<artifact>>
-}
-
-node "Host Environment: RegisteredInfo" as node_RegisteredInfo <<executionEnvironment>> {
-  artifact "art_RegisteredInfo.jar" as art_RegisteredInfo <<artifact>>
-}
-
-node "Host Environment: Server_DAO" as node_Server_DAO <<executionEnvironment>> {
-  artifact "art_Server_DAO.jar" as art_Server_DAO <<artifact>>
-}
-
-node "Host Environment: ResourceManagement" as node_ResourceManagement <<executionEnvironment>> {
-  artifact "art_ResourceManagement.jar" as art_ResourceManagement <<artifact>>
-}
-
-node "Host Environment: OperationControl" as node_OperationControl <<executionEnvironment>> {
-  artifact "art_OperationControl.jar" as art_OperationControl <<artifact>>
-}
-
-node "Host Environment: ResourceManager" as node_ResourceManager <<executionEnvironment>> {
-  artifact "art_ResourceManager.jar" as art_ResourceManager <<artifact>>
-}
-
-node "Host Environment: TaskContainer" as node_TaskContainer <<executionEnvironment>> {
-  artifact "art_TaskContainer.jar" as art_TaskContainer <<artifact>>
-}
-
-node "Host Environment: Validator" as node_Validator <<executionEnvironment>> {
-  artifact "art_Validator.jar" as art_Validator <<artifact>>
-}
-
-node "Host Environment: ModelInferenceValidator" as node_ModelInferenceValidator <<executionEnvironment>> {
-  artifact "art_ModelInferenceValidator.jar" as art_ModelInferenceValidator <<artifact>>
-}
-
-node "Host Environment: AppFrontend" as node_AppFrontend <<executionEnvironment>> {
-  artifact "art_AppFrontend.jar" as art_AppFrontend <<artifact>>
-}
-
-node "Host Environment: Flush" as node_Flush <<executionEnvironment>> {
-  artifact "art_Flush.jar" as art_Flush <<artifact>>
-}
-
-node "Host Environment: Interface" as node_Interface <<executionEnvironment>> {
-  artifact "art_Interface.jar" as art_Interface <<artifact>>
-}
-
-node "Host Environment: AboutUs" as node_AboutUs <<executionEnvironment>> {
-  artifact "art_AboutUs.jar" as art_AboutUs <<artifact>>
-}
-
-node "Host Environment: Auth" as node_Auth <<executionEnvironment>> {
-  artifact "art_Auth.jar" as art_Auth <<artifact>>
-}
-
-node "Host Environment: DeviceAuthorization" as node_DeviceAuthorization <<executionEnvironment>> {
-  artifact "art_DeviceAuthorization.jar" as art_DeviceAuthorization <<artifact>>
-}
-
-node "Host Environment: DeviceUnregister" as node_DeviceUnregister <<executionEnvironment>> {
-  artifact "art_DeviceUnregister.jar" as art_DeviceUnregister <<artifact>>
-}
-
-node "Host Environment: ForgetPassword" as node_ForgetPassword <<executionEnvironment>> {
-  artifact "art_ForgetPassword.jar" as art_ForgetPassword <<artifact>>
-}
-
-node "Host Environment: GetStarted" as node_GetStarted <<executionEnvironment>> {
-  artifact "art_GetStarted.jar" as art_GetStarted <<artifact>>
-}
-
-node "Host Environment: Home" as node_Home <<executionEnvironment>> {
-  artifact "art_Home.jar" as art_Home <<artifact>>
-}
-
-node "Host Environment: Insights" as node_Insights <<executionEnvironment>> {
-  artifact "art_Insights.jar" as art_Insights <<artifact>>
-}
-
-node "Host Environment: DeviceInsights" as node_DeviceInsights <<executionEnvironment>> {
-  artifact "art_DeviceInsights.jar" as art_DeviceInsights <<artifact>>
-}
-
-node "Host Environment: ModelTraining" as node_ModelTraining <<executionEnvironment>> {
-  artifact "art_ModelTraining.jar" as art_ModelTraining <<artifact>>
-}
-
-node "Host Environment: UsageInsights" as node_UsageInsights <<executionEnvironment>> {
-  artifact "art_UsageInsights.jar" as art_UsageInsights <<artifact>>
-}
-
-node "Host Environment: RegisteredInfo" as node_RegisteredInfo <<executionEnvironment>> {
-  artifact "art_RegisteredInfo.jar" as art_RegisteredInfo <<artifact>>
-}
-
-node "Host Environment: RewardBank" as node_RewardBank <<executionEnvironment>> {
-  artifact "art_RewardBank.jar" as art_RewardBank <<artifact>>
-}
-
-node "Host Environment: Settings" as node_Settings <<executionEnvironment>> {
-  artifact "art_Settings.jar" as art_Settings <<artifact>>
-}
-
-node "Host Environment: TrainingLogsDisplay" as node_TrainingLogsDisplay <<executionEnvironment>> {
-  artifact "art_TrainingLogsDisplay.jar" as art_TrainingLogsDisplay <<artifact>>
-}
-
-node "Host Environment: AppGlobal" as node_AppGlobal <<executionEnvironment>> {
-  artifact "art_AppGlobal.jar" as art_AppGlobal <<artifact>>
-}
-
-node "Host Environment: Utils" as node_Utils <<executionEnvironment>> {
-  artifact "art_Utils.jar" as art_Utils <<artifact>>
-}
-
-node "Host Environment: com" as node_com <<executionEnvironment>> {
-  artifact "art_com.jar" as art_com <<artifact>>
-}
-
-node "Host Environment: example" as node_example <<executionEnvironment>> {
-  artifact "art_example.jar" as art_example <<artifact>>
-}
-
-node "Host Environment: fractal" as node_fractal <<executionEnvironment>> {
-  artifact "art_fractal.jar" as art_fractal <<artifact>>
+node "Host Environment: stallation" as node_stallation <<executionEnvironment>> {
+  artifact "art_stallation.jar" as art_stallation <<artifact>>
 }
 
 @enduml
