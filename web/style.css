@@ -75,12 +75,16 @@ body.dark-theme .app-header {
   background: rgba(17, 24, 39, 0.95);
 }
 
-body.dark-theme .interactive-canvas-container {
-  background-color: #0B0F19;
+body.dark-theme .interactive-canvas-container,
+[data-theme="dark"] .interactive-canvas-container,
+body.dark-theme #interactive-canvas,
+[data-theme="dark"] #interactive-canvas {
+  background-color: #0B0F19 !important;
   background-image: 
-    radial-gradient(rgba(255, 255, 255, 0.08) 1.2px, transparent 1.2px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    radial-gradient(rgba(255, 255, 255, 0.12) 1.2px, transparent 1.2px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
 }
 
 /* ── Reset & Core ── */

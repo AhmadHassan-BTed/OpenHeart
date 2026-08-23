@@ -190,8 +190,13 @@ export class InteractiveGraphCanvas {
   }
 
   getModernStyleSheet() {
+    const isDark = typeof document !== 'undefined' && document.body && (
+      document.body.classList.contains('dark-theme') || 
+      document.documentElement.getAttribute('data-theme') === 'dark'
+    );
+
     return [
-      // ── Level 3: SVG 3-Compartment Class Card Vector (Pure White Floating Card) ──
+      // ── Level 3: SVG 3-Compartment Class Card Vector (Pure White / Dark Floating Card) ──
       {
         selector: 'node[?svgDataUri]',
         style: {
@@ -210,14 +215,14 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Level 0: Root Domain Tier Container (Lightest Soft Violet Tint) ──
+      // ── Level 0: Root Domain Tier Container (Lightest Soft Violet / Deep Dark Tint) ──
       {
         selector: 'node[?isPackage].nest-level-0, node[?isPackage][nestLevel = 0]',
         style: {
-          'background-color': '#FAF5FF',
-          'background-opacity': 0.85,
+          'background-color': isDark ? '#13111C' : '#FAF5FF',
+          'background-opacity': isDark ? 0.92 : 0.85,
           'border-width': 2.5,
-          'border-color': '#C084FC',
+          'border-color': isDark ? '#9333EA' : '#C084FC',
           'border-style': 'solid',
           'shape': 'roundrectangle',
           'border-radius': '14px',
@@ -225,30 +230,30 @@ export class InteractiveGraphCanvas {
           'text-halign': 'left',
           'text-margin-x': 18,
           'text-margin-y': -16,
-          'text-background-color': '#FFFFFF',
+          'text-background-color': isDark ? '#1E1B4B' : '#FFFFFF',
           'text-background-opacity': 1.0,
           'text-background-padding': '6px 16px',
           'text-border-width': 2.0,
-          'text-border-color': '#C084FC',
+          'text-border-color': isDark ? '#9333EA' : '#C084FC',
           'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '12.5px',
           'font-weight': 800,
           'letter-spacing': '0.03em',
-          'color': '#6B21A8',
+          'color': isDark ? '#E9D5FF' : '#6B21A8',
           'padding': '44px',
           'z-index': 1
         }
       },
 
-      // ── Level 1: Subpackage Container (Darker / Richer Violet Tint) ──
+      // ── Level 1: Subpackage Container (Richer Violet Tint) ──
       {
         selector: 'node[?isPackage].nest-level-1, node[?isPackage][nestLevel = 1]',
         style: {
-          'background-color': '#F3E8FF',
-          'background-opacity': 0.90,
+          'background-color': isDark ? '#1A1829' : '#F3E8FF',
+          'background-opacity': isDark ? 0.94 : 0.90,
           'border-width': 2.2,
-          'border-color': '#A855F7',
+          'border-color': isDark ? '#A855F7' : '#A855F7',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
           'border-radius': '12px',
@@ -256,16 +261,16 @@ export class InteractiveGraphCanvas {
           'text-halign': 'left',
           'text-margin-x': 16,
           'text-margin-y': -14,
-          'text-background-color': '#FAF5FF',
+          'text-background-color': isDark ? '#2E1065' : '#FAF5FF',
           'text-background-opacity': 1.0,
           'text-background-padding': '5px 14px',
           'text-border-width': 1.8,
-          'text-border-color': '#A855F7',
+          'text-border-color': isDark ? '#A855F7' : '#A855F7',
           'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '12px',
           'font-weight': 700,
-          'color': '#581C87',
+          'color': isDark ? '#F3E8FF' : '#581C87',
           'padding': '38px',
           'z-index': 2
         }
@@ -275,10 +280,10 @@ export class InteractiveGraphCanvas {
       {
         selector: 'node[?isPackage].nest-level-2, node[?isPackage][nestLevel = 2]',
         style: {
-          'background-color': '#E9D5FF',
-          'background-opacity': 0.95,
+          'background-color': isDark ? '#221F38' : '#E9D5FF',
+          'background-opacity': isDark ? 0.96 : 0.95,
           'border-width': 2.0,
-          'border-color': '#9333EA',
+          'border-color': isDark ? '#C084FC' : '#9333EA',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
           'border-radius': '10px',
@@ -286,29 +291,29 @@ export class InteractiveGraphCanvas {
           'text-halign': 'left',
           'text-margin-x': 16,
           'text-margin-y': -14,
-          'text-background-color': '#F3E8FF',
+          'text-background-color': isDark ? '#3B0764' : '#F3E8FF',
           'text-background-opacity': 1.0,
           'text-background-padding': '5px 12px',
           'text-border-width': 1.8,
-          'text-border-color': '#9333EA',
+          'text-border-color': isDark ? '#C084FC' : '#9333EA',
           'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11.5px',
           'font-weight': 700,
-          'color': '#4C1D95',
+          'color': isDark ? '#FAF5FF' : '#4C1D95',
           'padding': '32px',
           'z-index': 3
         }
       },
 
-      // ── Level 3: Leaf Subpackage Container (Darkest Deep Purple Tint) ──
+      // ── Level 3: Leaf Subpackage Container (Deep Purple Tint) ──
       {
         selector: 'node[?isPackage].nest-level-3, node[?isPackage][nestLevel = 3]',
         style: {
-          'background-color': '#DDD6FE',
+          'background-color': isDark ? '#2B264A' : '#DDD6FE',
           'background-opacity': 1.0,
           'border-width': 2.2,
-          'border-color': '#7E22CE',
+          'border-color': isDark ? '#D8B4FE' : '#7E22CE',
           'border-style': 'solid',
           'shape': 'roundrectangle',
           'border-radius': '8px',
@@ -316,16 +321,16 @@ export class InteractiveGraphCanvas {
           'text-halign': 'left',
           'text-margin-x': 14,
           'text-margin-y': -13,
-          'text-background-color': '#EDE9FE',
+          'text-background-color': isDark ? '#4C1D95' : '#EDE9FE',
           'text-background-opacity': 1.0,
           'text-background-padding': '4px 10px',
           'text-border-width': 1.8,
-          'text-border-color': '#7E22CE',
+          'text-border-color': isDark ? '#D8B4FE' : '#7E22CE',
           'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11px',
           'font-weight': 700,
-          'color': '#3B0764',
+          'color': isDark ? '#FFFFFF' : '#3B0764',
           'padding': '28px',
           'z-index': 4
         }
@@ -335,10 +340,10 @@ export class InteractiveGraphCanvas {
       {
         selector: 'node[?isPackage].nest-level-4, node[?isPackage].nest-level-5, node[?isPackage][nestLevel >= 4]',
         style: {
-          'background-color': '#C4B5FD',
+          'background-color': isDark ? '#342D5C' : '#C4B5FD',
           'background-opacity': 1.0,
           'border-width': 2.5,
-          'border-color': '#6B21A8',
+          'border-color': isDark ? '#E9D5FF' : '#6B21A8',
           'border-style': 'solid',
           'shape': 'roundrectangle',
           'border-radius': '8px',
@@ -346,16 +351,16 @@ export class InteractiveGraphCanvas {
           'text-halign': 'left',
           'text-margin-x': 14,
           'text-margin-y': -13,
-          'text-background-color': '#DDD6FE',
+          'text-background-color': isDark ? '#581C87' : '#DDD6FE',
           'text-background-opacity': 1.0,
           'text-background-padding': '4px 10px',
           'text-border-width': 2.0,
-          'text-border-color': '#6B21A8',
+          'text-border-color': isDark ? '#E9D5FF' : '#6B21A8',
           'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11px',
           'font-weight': 700,
-          'color': '#2E1065',
+          'color': isDark ? '#FFFFFF' : '#2E1065',
           'padding': '24px',
           'z-index': 5
         }
@@ -365,10 +370,10 @@ export class InteractiveGraphCanvas {
       {
         selector: 'node[?isPackage]',
         style: {
-          'background-color': '#F8FAFC',
+          'background-color': isDark ? '#111827' : '#F8FAFC',
           'background-opacity': 0.9,
           'border-width': 2.0,
-          'border-color': '#475569',
+          'border-color': isDark ? '#64748B' : '#475569',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
           'border-radius': '10px',
@@ -376,16 +381,16 @@ export class InteractiveGraphCanvas {
           'text-halign': 'left',
           'text-margin-x': 16,
           'text-margin-y': -14,
-          'text-background-color': '#FFFFFF',
+          'text-background-color': isDark ? '#1F2937' : '#FFFFFF',
           'text-background-opacity': 1.0,
           'text-background-padding': '5px 12px',
           'text-border-width': 1.5,
-          'text-border-color': '#475569',
+          'text-border-color': isDark ? '#64748B' : '#475569',
           'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11px',
           'font-weight': 700,
-          'color': '#1E293B',
+          'color': isDark ? '#F3F4F6' : '#1E293B',
           'padding': '36px',
           'z-index': 1
         }
@@ -409,8 +414,8 @@ export class InteractiveGraphCanvas {
         selector: 'edge',
         style: {
           'width': 2.2,
-          'line-color': '#64748B',
-          'target-arrow-color': '#64748B',
+          'line-color': isDark ? '#94A3B8' : '#64748B',
+          'target-arrow-color': isDark ? '#94A3B8' : '#64748B',
           'target-arrow-shape': 'vee',
           'arrow-scale': 1.8,
           'curve-style': 'taxi',
@@ -424,12 +429,12 @@ export class InteractiveGraphCanvas {
           'font-family': 'JetBrains Mono, monospace',
           'font-size': '10px',
           'font-weight': 700,
-          'color': '#1E293B',
-          'text-background-color': '#FFFFFF',
+          'color': isDark ? '#F8FAFC' : '#1E293B',
+          'text-background-color': isDark ? '#1E293B' : '#FFFFFF',
           'text-background-opacity': 0.95,
           'text-background-padding': '3px 6px',
           'text-border-width': 1,
-          'text-border-color': '#CBD5E1',
+          'text-border-color': isDark ? '#475569' : '#CBD5E1',
           'text-border-opacity': 1,
           'z-index': 999
         }
