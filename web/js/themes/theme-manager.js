@@ -6,6 +6,68 @@ import { LightTheme } from './light.js';
 import { DarkTheme } from './dark.js';
 
 let themeListeners = [];
+let cachedManifest = null;
+
+export async function fetchManifest() {
+  if (cachedManifest) return cachedManifest;
+  try {
+    const res = await fetch('diagrams/manifest.json');
+    if (res.ok) {
+      cachedManifest = await res.json();
+    }
+  } catch (e) {
+    console.warn('[THEME] Could not load diagrams/manifest.json:', e);
+  }
+  return cachedManifest;
+}
+
+export function setManifest(manifest) {
+  cachedManifest = manifest;
+}
+
+export function getCachedManifest() {
+  return cachedManifest;
+}
+
+function compileDynamicEdgeStyles(manifest, isDark, edges) {
+  const dynamicEdgeStyles = [];
+  const relTypes = (manifest && manifest.relationship_types) ? manifest.relationship_types : {
+    generalization: { label: 'Generalization', color_light: '#7C3AED', color_dark: '#A78BFA', target_arrow_shape: 'triangle', target_arrow_fill: 'hollow', line_style: 'solid', width: 2.5, arrow_scale: 2.0 },
+    realization: { label: 'Realization', color_light: '#2563EB', color_dark: '#60A5FA', target_arrow_shape: 'triangle', target_arrow_fill: 'hollow', line_style: 'dashed', width: 2.4, arrow_scale: 2.0 },
+    composition: { label: 'Composition', color_light: '#DC2626', color_dark: '#F87171', source_arrow_shape: 'diamond', source_arrow_fill: 'filled', target_arrow_shape: 'none', line_style: 'solid', width: 2.6, arrow_scale: 2.2 },
+    aggregation: { label: 'Aggregation', color_light: '#059669', color_dark: '#34D399', source_arrow_shape: 'diamond', source_arrow_fill: 'hollow', target_arrow_shape: 'none', line_style: 'solid', width: 2.4, arrow_scale: 2.2 },
+    association: { label: 'Association', color_light: '#0284C7', color_dark: '#38BDF8', target_arrow_shape: 'vee', line_style: 'solid', width: 2.2, arrow_scale: 1.8 },
+    dependency: { label: 'Dependency', color_light: '#D97706', color_dark: '#FBBF24', target_arrow_shape: 'vee', line_style: 'dashed', width: 2.0, arrow_scale: 1.8 }
+  };
+
+  Object.entries(relTypes).forEach(([kind, conf]) => {
+    const color = isDark ? (conf.color_dark || '#38BDF8') : (conf.color_light || '#0284C7');
+    const styleObj = {
+      'target-arrow-shape': conf.target_arrow_shape || 'vee',
+      'line-style': conf.line_style || 'solid',
+      'line-color': color,
+      'target-arrow-color': color,
+      'width': conf.width || 2.2,
+      'arrow-scale': conf.arrow_scale || 1.8,
+      'z-index': 999
+    };
+    if (conf.target_arrow_fill) styleObj['target-arrow-fill'] = conf.target_arrow_fill;
+    if (conf.source_arrow_shape) {
+      styleObj['source-arrow-shape'] = conf.source_arrow_shape;
+      styleObj['source-arrow-color'] = color;
+    }
+    if (conf.source_arrow_fill) styleObj['source-arrow-fill'] = conf.source_arrow_fill;
+    if (conf.line_style === 'dashed') styleObj['line-dash-pattern'] = [6, 4];
+    if (conf.line_style === 'dotted') styleObj['line-dash-pattern'] = [2, 3];
+
+    dynamicEdgeStyles.push({
+      selector: `edge[uml_kind = "${kind}"], edge.edge-${kind}`,
+      style: styleObj
+    });
+  });
+
+  return dynamicEdgeStyles;
+}
 
 export function isDarkMode() {
   if (typeof document === 'undefined' || !document.body) return false;
@@ -77,10 +139,11 @@ export function initTheme() {
   return applyTheme(saved || 'light');
 }
 
-export function buildCytoscapeStylesheet(theme = null) {
+export function buildCytoscapeStylesheet(theme = null, manifest = null) {
   if (!theme) {
     theme = getCurrentTheme();
   }
+  const isDark = theme.isDark || isDarkMode();
 
   const { packages: pkgs, edges } = theme;
 
@@ -361,244 +424,8 @@ export function buildCytoscapeStylesheet(theme = null) {
       }
     },
 
-    // ── 1. UML Generalization (--|>) ──
-    {
-      selector: 'edge[uml_kind = "generalization"], edge.edge-generalization',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'hollow',
-        'line-color': edges.generalization,
-        'target-arrow-color': edges.generalization,
-        'line-style': 'solid',
-        'width': 2.5,
-        'arrow-scale': 2.0
-      }
-    },
-
-    // ── 2. UML Realization / Implementation (..|>) ──
-    {
-      selector: 'edge[uml_kind = "realization"], edge.edge-realization',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'hollow',
-        'line-color': edges.realization,
-        'target-arrow-color': edges.realization,
-        'line-style': 'dashed',
-        'line-dash-pattern': [8, 4],
-        'width': 2.4,
-        'arrow-scale': 2.0
-      }
-    },
-
-    // ── 3. UML Composition (*--) ──
-    {
-      selector: 'edge[uml_kind = "composition"], edge.edge-composition',
-      style: {
-        'source-arrow-shape': 'diamond',
-        'source-arrow-fill': 'filled',
-        'line-color': edges.composition,
-        'source-arrow-color': edges.composition,
-        'target-arrow-shape': 'none',
-        'line-style': 'solid',
-        'width': 2.6,
-        'arrow-scale': 2.2
-      }
-    },
-
-    // ── 4. UML Aggregation (o--) ──
-    {
-      selector: 'edge[uml_kind = "aggregation"], edge.edge-aggregation',
-      style: {
-        'source-arrow-shape': 'diamond',
-        'source-arrow-fill': 'hollow',
-        'line-color': edges.aggregation,
-        'source-arrow-color': edges.aggregation,
-        'target-arrow-shape': 'none',
-        'line-style': 'solid',
-        'width': 2.4,
-        'arrow-scale': 2.2
-      }
-    },
-
-    // ── 5. UML Association (-->) ──
-    {
-      selector: 'edge[uml_kind = "association"], edge.edge-association',
-      style: {
-        'target-arrow-shape': 'vee',
-        'line-color': edges.association,
-        'target-arrow-color': edges.association,
-        'line-style': 'solid',
-        'width': 2.2,
-        'arrow-scale': 1.8
-      }
-    },
-
-    // ── 6. UML Dependency (..>) ──
-    {
-      selector: 'edge[uml_kind = "dependency"], edge.edge-dependency',
-      style: {
-        'target-arrow-shape': 'vee',
-        'line-color': edges.dependency,
-        'target-arrow-color': edges.dependency,
-        'line-style': 'dashed',
-        'line-dash-pattern': [6, 4],
-        'width': 2.0,
-        'arrow-scale': 1.8
-      }
-    },
-
-    // ── 7. UML Package Containment (+--) ──
-    {
-      selector: 'edge[uml_kind = "containment"], edge.edge-containment',
-      style: {
-        'target-arrow-shape': 'circle',
-        'target-arrow-fill': 'filled',
-        'line-color': edges.containment,
-        'target-arrow-color': edges.containment,
-        'line-style': 'dotted',
-        'width': 2.0,
-        'arrow-scale': 1.4
-      }
-    },
-
-    // ── 8. Sequence Message (->) ──
-    {
-      selector: 'edge[uml_kind = "message"], edge.edge-message',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'filled',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#818CF8' : '#6366F1',
-        'target-arrow-color': theme.isDark ? '#818CF8' : '#6366F1',
-        'source-arrow-shape': 'none',
-        'arrow-scale': 1.8,
-        'width': 2.4,
-        'z-index': 999
-      }
-    },
-
-    // ── 9. State Transition (-->) ──
-    {
-      selector: 'edge[uml_kind = "transition"], edge.edge-transition',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'filled',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#22D3EE' : '#06B6D4',
-        'target-arrow-color': theme.isDark ? '#22D3EE' : '#06B6D4',
-        'source-arrow-shape': 'none',
-        'arrow-scale': 1.8,
-        'width': 2.4,
-        'z-index': 999
-      }
-    },
-
-    // ── 10. Activity Control Flow (-->) ──
-    {
-      selector: 'edge[uml_kind = "control_flow"], edge.edge-control_flow',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'filled',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#34D399' : '#10B981',
-        'target-arrow-color': theme.isDark ? '#34D399' : '#10B981',
-        'source-arrow-shape': 'none',
-        'arrow-scale': 1.8,
-        'width': 2.4,
-        'z-index': 999
-      }
-    },
-
-    // ── 11. Deployment Manifestation (..>) ──
-    {
-      selector: 'edge[uml_kind = "manifestation"], edge.edge-manifestation',
-      style: {
-        'target-arrow-shape': 'vee',
-        'target-arrow-fill': 'filled',
-        'line-style': 'dashed',
-        'line-dash-pattern': [6, 4],
-        'line-color': theme.isDark ? '#FB923C' : '#EA580C',
-        'target-arrow-color': theme.isDark ? '#FB923C' : '#EA580C',
-        'source-arrow-shape': 'none',
-        'arrow-scale': 1.8,
-        'width': 2.2,
-        'z-index': 999
-      }
-    },
-
-    // ── 12. ROBDD Low Branch (..>) [Dashed / 0-branch] ──
-    {
-      selector: 'edge[uml_kind = "low_branch"], edge.edge-low_branch',
-      style: {
-        'target-arrow-shape': 'vee',
-        'line-style': 'dashed',
-        'line-dash-pattern': [5, 4],
-        'line-color': theme.isDark ? '#EF4444' : '#DC2626',
-        'target-arrow-color': theme.isDark ? '#EF4444' : '#DC2626',
-        'width': 2.2,
-        'arrow-scale': 1.8,
-        'z-index': 999
-      }
-    },
-
-    // ── 13. ROBDD High Branch (-->) [Solid / 1-branch] ──
-    {
-      selector: 'edge[uml_kind = "high_branch"], edge.edge-high_branch',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'filled',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#10B981' : '#059669',
-        'target-arrow-color': theme.isDark ? '#10B981' : '#059669',
-        'width': 2.5,
-        'arrow-scale': 1.8,
-        'z-index': 999
-      }
-    },
-
-    // ── 14. Data Flow Def-Use (-->) ──
-    {
-      selector: 'edge[uml_kind = "data_flow"], edge.edge-data_flow',
-      style: {
-        'target-arrow-shape': 'vee',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#38BDF8' : '#0284C7',
-        'target-arrow-color': theme.isDark ? '#38BDF8' : '#0284C7',
-        'width': 2.2,
-        'arrow-scale': 1.8,
-        'z-index': 999
-      }
-    },
-
-    // ── 15. Profile Metamodel Extension (--|>) ──
-    {
-      selector: 'edge[uml_kind = "extension"], edge.edge-extension',
-      style: {
-        'target-arrow-shape': 'triangle',
-        'target-arrow-fill': 'filled',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#C084FC' : '#9333EA',
-        'target-arrow-color': theme.isDark ? '#C084FC' : '#9333EA',
-        'width': 2.5,
-        'arrow-scale': 2.0,
-        'z-index': 999
-      }
-    },
-
-    // ── 16. Composite Assembly Connector (-->) ──
-    {
-      selector: 'edge[uml_kind = "assembly_connector"], edge.edge-assembly_connector',
-      style: {
-        'target-arrow-shape': 'circle',
-        'target-arrow-fill': 'hollow',
-        'line-style': 'solid',
-        'line-color': theme.isDark ? '#FACC15' : '#D97706',
-        'target-arrow-color': theme.isDark ? '#FACC15' : '#D97706',
-        'width': 2.4,
-        'arrow-scale': 1.6,
-        'z-index': 999
-      }
-    },
+    // ── Dynamically Compiled Relationship Styles from Manifest ──
+    ...compileDynamicEdgeStyles(manifest || cachedManifest, isDark, edges),
 
     // ── VIBRANT PATH ILLUMINATION: Highlighted Nodes ──
     {
