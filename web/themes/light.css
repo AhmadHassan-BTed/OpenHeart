@@ -1,0 +1,56 @@
+/**
+ * OpenHeart Light Theme CSS Tokens
+ */
+:root, [data-theme="light"] {
+  --bg-app: #FAFCFE;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #F8FAFC;
+  --bg-muted: #F1F5F9;
+  --bg-card: #FFFFFF;
+  --bg-header: rgba(255, 255, 255, 0.95);
+  --bg-footer: rgba(255, 255, 255, 0.95);
+  --bg-canvas: #FAFCFE;
+  --bg-tree: #FFFFFF;
+  --bg-tree-header: #F8FAFC;
+  --bg-tree-hover: #F1F5F9;
+  --bg-tree-active: #EFF6FF;
+  --bg-tabs: #F8FAFC;
+  --bg-tab-active: #FFFFFF;
+  --bg-badge: #E2E8F0;
+  --bg-breadcrumb: #F1F5F9;
+  --bg-slider: #F1F5F9;
+  --bg-floating: rgba(255, 255, 255, 0.96);
+
+  --border-light: #E2E8F0;
+  --border-medium: #CBD5E1;
+  --border-focus: #2563EB;
+  --border-slider: #E2E8F0;
+
+  --text-main: #0F172A;
+  --text-muted: #475569;
+  --text-faint: #64748B;
+  --text-inverse: #FFFFFF;
+  --text-badge: #475569;
+  --text-tree-folder: #334155;
+  --text-tree-file: #1E293B;
+  --text-tree-active: #1D4ED8;
+  --text-breadcrumb-root: #475569;
+  --text-breadcrumb-pkg: #2563EB;
+  --text-breadcrumb-file: #0F172A;
+
+  --accent-blue: #2563EB;
+  --accent-blue-subtle: #EFF6FF;
+  --accent-purple: #7C3AED;
+  --accent-emerald: #059669;
+  --accent-emerald-subtle: #ECFDF5;
+  --accent-amber: #D97706;
+  --accent-rose: #DC2626;
+
+  --canvas-grid-dot: #CBD5E1;
+  --canvas-grid-line: rgba(0, 0, 0, 0.02);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 12px 32px -4px rgba(0, 0, 0, 0.12);
+}

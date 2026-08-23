@@ -3,6 +3,7 @@
  * Styles are derived purely from parsed AST types, stereotypes, and visibility tokens.
  * Supports dynamic width/height fitting, high-performance rendering, and Dark Mode themes.
  */
+import { getTheme } from './themes/index.js';
 
 /** ── 1. Dynamic UML Class / Interface / Abstract / Enum Card ── */
 export function generateUmlClassCardSvg(classData) {
@@ -16,6 +17,9 @@ export function generateUmlClassCardSvg(classData) {
     height = 180,
     isDark = false
   } = classData;
+
+  const theme = getTheme(isDark);
+  const cardTokens = theme.cards;
 
   const HEADER_HEIGHT = 50;
   const ROW_HEIGHT = 22;
@@ -43,36 +47,36 @@ export function generateUmlClassCardSvg(classData) {
   const cardHeight = Math.max(height, calculatedHeight);
 
   // Dynamic theme determination based strictly on AST kind
-  let headerBg = isDark ? "#1E293B" : "#F8FAFC";
-  let borderStroke = isDark ? "#64748B" : "#475569";
-  let stereotypeBg = isDark ? "#334155" : "#F1F5F9";
-  let stereotypeColor = isDark ? "#94A3B8" : "#475569";
-  let cardBg = isDark ? "#0F172A" : "#FFFFFF";
-  let titleColor = isDark ? "#F8FAFC" : "#0F172A";
-  let bodyTextColor = isDark ? "#CBD5E1" : "#334155";
-  let separatorColor = isDark ? "#334155" : "#E2E8F0";
+  let headerBg = cardTokens.defaultHeaderBg;
+  let borderStroke = cardTokens.defaultBorder;
+  let stereotypeBg = cardTokens.defaultStereotypeBg;
+  let stereotypeColor = cardTokens.defaultStereotypeColor;
+  let cardBg = cardTokens.defaultBg;
+  let titleColor = cardTokens.defaultTitleColor;
+  let bodyTextColor = cardTokens.defaultBodyText;
+  let separatorColor = cardTokens.defaultSeparator;
 
   if (kind === 'interface') {
-    headerBg = isDark ? "#1E3A8A" : "#EFF6FF";
-    borderStroke = isDark ? "#60A5FA" : "#2563EB";
-    stereotypeBg = isDark ? "#1E40AF" : "#DBEAFE";
-    stereotypeColor = isDark ? "#93C5FD" : "#1D4ED8";
+    headerBg = cardTokens.interface.headerBg;
+    borderStroke = cardTokens.interface.border;
+    stereotypeBg = cardTokens.interface.stereotypeBg;
+    stereotypeColor = cardTokens.interface.stereotypeColor;
   } else if (kind === 'abstract') {
-    headerBg = isDark ? "#581C87" : "#FAF5FF";
-    borderStroke = isDark ? "#C084FC" : "#7C3AED";
-    stereotypeBg = isDark ? "#6B21A8" : "#F3E8FF";
-    stereotypeColor = isDark ? "#E9D5FF" : "#7E22CE";
+    headerBg = cardTokens.abstract.headerBg;
+    borderStroke = cardTokens.abstract.border;
+    stereotypeBg = cardTokens.abstract.stereotypeBg;
+    stereotypeColor = cardTokens.abstract.stereotypeColor;
   } else if (kind === 'enum') {
-    headerBg = isDark ? "#78350F" : "#FFFBEB";
-    borderStroke = isDark ? "#FBBF24" : "#D97706";
-    stereotypeBg = isDark ? "#92400E" : "#FEF3C7";
-    stereotypeColor = isDark ? "#FDE68A" : "#B45309";
+    headerBg = cardTokens.enum.headerBg;
+    borderStroke = cardTokens.enum.border;
+    stereotypeBg = cardTokens.enum.stereotypeBg;
+    stereotypeColor = cardTokens.enum.stereotypeColor;
   } else if (stereotype && stereotype !== '<<class>>') {
     const hue = hashString(stereotype) % 360;
-    headerBg = isDark ? `hsl(${hue}, 45%, 20%)` : `hsl(${hue}, 85%, 96%)`;
+    headerBg = theme.isDark ? `hsl(${hue}, 45%, 20%)` : `hsl(${hue}, 85%, 96%)`;
     borderStroke = `hsl(${hue}, 70%, 55%)`;
-    stereotypeBg = isDark ? `hsl(${hue}, 40%, 28%)` : `hsl(${hue}, 80%, 90%)`;
-    stereotypeColor = isDark ? `hsl(${hue}, 80%, 80%)` : `hsl(${hue}, 85%, 30%)`;
+    stereotypeBg = theme.isDark ? `hsl(${hue}, 40%, 28%)` : `hsl(${hue}, 80%, 90%)`;
+    stereotypeColor = theme.isDark ? `hsl(${hue}, 80%, 80%)` : `hsl(${hue}, 85%, 30%)`;
   }
 
   let svg = `
@@ -202,13 +206,15 @@ export function generatePackageFolderSvg(pkgData) {
 /** ── 3. State Machine Node ── */
 export function generateStateNodeSvg(data) {
   const { name = "State", entryAction = null, doActivity = null, exitAction = null, width = 240, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const t = theme.cards.state;
   const isInitial = name === '[*]' || name === 'state_init' || name.endsWith('_init');
   const isFinal = name === 'state_final' || name.endsWith('_final');
 
   if (isInitial) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-  <circle cx="24" cy="24" r="18" fill="${isDark ? '#38BDF8' : '#0F172A'}" stroke="${isDark ? '#0284C7' : '#38BDF8'}" stroke-width="2.5" />
+  <circle cx="24" cy="24" r="18" fill="${t.initialBg}" stroke="${t.initialStroke}" stroke-width="2.5" />
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 48, height: 48 };
   }
@@ -216,8 +222,8 @@ export function generateStateNodeSvg(data) {
   if (isFinal) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-  <circle cx="24" cy="24" r="20" fill="${isDark ? '#0F172A' : '#FFFFFF'}" stroke="${isDark ? '#38BDF8' : '#0F172A'}" stroke-width="2" />
-  <circle cx="24" cy="24" r="13" fill="${isDark ? '#38BDF8' : '#0F172A'}" />
+  <circle cx="24" cy="24" r="20" fill="${t.finalOuterBg}" stroke="${t.finalOuterStroke}" stroke-width="2" />
+  <circle cx="24" cy="24" r="13" fill="${t.finalInnerBg}" />
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 48, height: 48 };
   }
@@ -228,11 +234,11 @@ export function generateStateNodeSvg(data) {
   if (exitAction) actions.push({ label: 'exit /', action: exitAction, color: '#EF4444' });
 
   const height = 40 + (actions.length > 0 ? actions.length * 18 + 14 : 10);
-  const cardBg = isDark ? '#0F172A' : '#FFFFFF';
-  const headerBg = isDark ? '#075985' : '#F0F9FF';
-  const strokeColor = isDark ? '#38BDF8' : '#0284C7';
-  const titleColor = isDark ? '#F0F9FF' : '#0369A1';
-  const bodyTextColor = isDark ? '#CBD5E1' : '#334155';
+  const cardBg = t.bg;
+  const headerBg = t.headerBg;
+  const strokeColor = t.border;
+  const titleColor = t.titleColor;
+  const bodyTextColor = t.bodyText;
 
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -259,6 +265,8 @@ export function generateStateNodeSvg(data) {
 /** ── 4. Activity Action Node ── */
 export function generateActionNodeSvg(data) {
   const { name = "Action", isStart = false, isStop = false, width = 230, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const t = theme.cards.action;
 
   if (isStart || name === 'start') {
     const svg = `
@@ -271,18 +279,18 @@ export function generateActionNodeSvg(data) {
   if (isStop || name === 'stop') {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-  <circle cx="22" cy="22" r="18" fill="${isDark ? '#0F172A' : '#FFFFFF'}" stroke="#EF4444" stroke-width="2.5" />
+  <circle cx="22" cy="22" r="18" fill="${theme.isDark ? '#0F172A' : '#FFFFFF'}" stroke="#EF4444" stroke-width="2.5" />
   <circle cx="22" cy="22" r="11" fill="#EF4444" />
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 44, height: 44 };
   }
 
   const height = 54;
-  const cardBg = isDark ? '#1E1B4B' : '#FFFFFF';
-  const strokeColor = isDark ? '#818CF8' : '#6366F1';
-  const badgeBg = isDark ? '#312E81' : '#EEF2FF';
-  const badgeColor = isDark ? '#C7D2FE' : '#4F46E5';
-  const textColor = isDark ? '#F8FAFC' : '#1E293B';
+  const cardBg = t.bg;
+  const strokeColor = t.border;
+  const badgeBg = t.badgeBg;
+  const badgeColor = t.badgeColor;
+  const textColor = t.textColor;
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -298,11 +306,13 @@ export function generateActionNodeSvg(data) {
 /** ── 5. Component & Interface Sockets ── */
 export function generateComponentNodeSvg(data) {
   const { name = "Component", isInterface = false, width = 240, height = 70, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const t = theme.cards.component;
 
   if (isInterface) {
-    const textColor = isDark ? '#F8FAFC' : '#1E293B';
-    const circleBg = isDark ? '#1E293B' : '#FFFFFF';
-    const strokeColor = isDark ? '#60A5FA' : '#2563EB';
+    const textColor = t.ifaceText;
+    const circleBg = t.ifaceBg;
+    const strokeColor = t.ifaceStroke;
 
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="180" height="54" viewBox="0 0 180 54">
@@ -313,10 +323,10 @@ export function generateComponentNodeSvg(data) {
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 180, height: 54 };
   }
 
-  const cardBg = isDark ? '#064E3B' : '#FFFFFF';
-  const strokeColor = isDark ? '#34D399' : '#059669';
-  const textColor = isDark ? '#F8FAFC' : '#0F172A';
-  const badgeColor = isDark ? '#6EE7B7' : '#059669';
+  const cardBg = t.bg;
+  const strokeColor = t.border;
+  const textColor = t.textColor;
+  const badgeColor = t.badgeColor;
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -333,10 +343,12 @@ export function generateComponentNodeSvg(data) {
 /** ── 6. Deployment Node & Artifact ── */
 export function generateDeploymentNodeSvg(data) {
   const { name = "Device", isArtifact = false, width = 230, height = 75, isDark = false } = data;
-  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
-  const strokeColor = isArtifact ? (isDark ? '#FBBF24' : '#D97706') : (isDark ? '#94A3B8' : '#64748B');
-  const textColor = isDark ? '#F8FAFC' : '#0F172A';
-  const badgeColor = isArtifact ? (isDark ? '#FDE68A' : '#B45309') : (isDark ? '#CBD5E1' : '#475569');
+  const theme = getTheme(isDark);
+  const t = isArtifact ? theme.cards.artifact : theme.cards.device;
+  const cardBg = t.bg;
+  const strokeColor = t.border;
+  const textColor = t.textColor;
+  const badgeColor = t.badgeColor;
 
   if (isArtifact) {
     const svg = `
@@ -348,7 +360,7 @@ export function generateDeploymentNodeSvg(data) {
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
   }
 
-  const tabFill = isDark ? '#334155' : '#F1F5F9';
+  const tabFill = t.tabFill;
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <polygon points="12,1 12,12 1,12" fill="${tabFill}" stroke="${strokeColor}" stroke-width="1.2" />
@@ -363,10 +375,12 @@ export function generateDeploymentNodeSvg(data) {
 /** ── 7. Sequence Participant / Lifeline Header Card ── */
 export function generateSequenceLifelineSvg(data) {
   const { name = "Participant", isActor = false, width = 180, height = 60, isDark = false } = data;
-  const cardBg = isDark ? '#1E1B4B' : '#F8FAFC';
-  const strokeColor = isDark ? '#818CF8' : '#4F46E5';
-  const badgeColor = isDark ? '#C7D2FE' : '#4F46E5';
-  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const theme = getTheme(isDark);
+  const t = theme.cards.sequence;
+  const cardBg = t.bg;
+  const strokeColor = t.border;
+  const badgeColor = t.badgeColor;
+  const textColor = t.textColor;
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -380,12 +394,14 @@ export function generateSequenceLifelineSvg(data) {
 /** ── 8. Use Case Bubble & Actor ── */
 export function generateUseCaseSvg(data) {
   const { name = "Use Case", isActor = false, width = 220, height = 70, isDark = false } = data;
-  const strokeColor = isDark ? '#60A5FA' : '#2563EB';
-  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
-  const textColor = isDark ? '#F8FAFC' : '#1E293B';
+  const theme = getTheme(isDark);
+  const t = theme.cards.usecase;
+  const strokeColor = t.border;
+  const cardBg = t.bg;
+  const textColor = t.textColor;
 
   if (isActor) {
-    const actorStroke = isDark ? '#F8FAFC' : '#0F172A';
+    const actorStroke = t.actorStroke;
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90">
   <circle cx="60" cy="18" r="12" fill="${cardBg}" stroke="${actorStroke}" stroke-width="2" />
@@ -409,16 +425,18 @@ export function generateUseCaseSvg(data) {
 /** ── 9. Object Runtime Instance Card ── */
 export function generateObjectCardSvg(data) {
   const { name = "obj", fields = [], width = 240, height = 90, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const t = theme.cards.object;
   const HEADER_HEIGHT = 32;
   const ROW_HEIGHT = 18;
   const calculatedHeight = HEADER_HEIGHT + Math.max(1, fields.length) * ROW_HEIGHT + 14;
   const cardHeight = Math.max(height, calculatedHeight);
 
-  const cardBg = isDark ? '#0F172A' : '#FFFFFF';
-  const headerBg = isDark ? '#075985' : '#F0F9FF';
-  const strokeColor = isDark ? '#38BDF8' : '#0284C7';
-  const titleColor = isDark ? '#E0F2FE' : '#0369A1';
-  const bodyTextColor = isDark ? '#CBD5E1' : '#334155';
+  const cardBg = t.bg;
+  const headerBg = t.headerBg;
+  const strokeColor = t.border;
+  const titleColor = t.titleColor;
+  const bodyTextColor = t.bodyText;
 
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${cardHeight}" viewBox="0 0 ${width} ${cardHeight}">
@@ -443,15 +461,17 @@ export function generateObjectCardSvg(data) {
 /** ── 10. Compiler CFG Basic Block Card ── */
 export function generateCfgBlockSvg(data) {
   const { id = "bb_0", label = "Block", instructions = [], width = 280, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const t = theme.cards.cfg;
   const HEADER_HEIGHT = 36;
   const ROW_HEIGHT = 18;
   const height = HEADER_HEIGHT + Math.max(1, instructions.length) * ROW_HEIGHT + 18;
 
-  const cardBg = isDark ? '#1F1F2E' : '#FFFFFF';
-  const headerBg = isDark ? '#450A0A' : '#FEF2F2';
-  const strokeColor = isDark ? '#F87171' : '#DC2626';
-  const titleColor = isDark ? '#FECACA' : '#991B1B';
-  const bodyTextColor = isDark ? '#E2E8F0' : '#334155';
+  const cardBg = t.bg;
+  const headerBg = t.headerBg;
+  const strokeColor = t.border;
+  const titleColor = t.titleColor;
+  const bodyTextColor = t.bodyText;
 
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -482,10 +502,12 @@ export function generateCfgBlockSvg(data) {
 /** ── 11. ROBDD Decision Gate Node ── */
 export function generateBddGateSvg(data) {
   const { varName = "var", isTerminal = false, terminalValue = 1, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const t = theme.cards.bdd;
 
   if (isTerminal) {
     const isTrue = terminalValue === 1;
-    const bg = isTrue ? "#10B981" : "#EF4444";
+    const bg = isTrue ? t.trueBg : t.falseBg;
     const text = isTrue ? "TRUE (1)" : "FALSE (0)";
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="90" height="38" viewBox="0 0 90 38">
@@ -495,10 +517,10 @@ export function generateBddGateSvg(data) {
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 90, height: 38 };
   }
 
-  const cardBg = isDark ? '#1E3A8A' : '#FFFFFF';
-  const strokeColor = isDark ? '#60A5FA' : '#3B82F6';
-  const badgeColor = isDark ? '#93C5FD' : '#3B82F6';
-  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const cardBg = t.bg;
+  const strokeColor = t.border;
+  const badgeColor = t.badgeColor;
+  const textColor = t.textColor;
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="130" height="60" viewBox="0 0 130 60">

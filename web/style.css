@@ -1,3 +1,6 @@
+@import './themes/light.css';
+@import './themes/dark.css';
+
 /* ==========================================================================
    OPENHEART — ULTRA-MODERN STUDIO (2026 PRECISION DEVELOPER INTERFACE)
    Inspired by Linear, Raycast, Vercel, and Apple Developer Tools.
@@ -5,38 +8,6 @@
    ========================================================================== */
 
 :root {
-  /* ── Modern Neutral Canvas ── */
-  --bg-app: #F8FAFC;
-  --bg-surface: #FFFFFF;
-  --bg-subtle: #F1F5F9;
-  --bg-muted: #E2E8F0;
-  
-  /* ── Precision Faded Borders ── */
-  --border-light: #E2E8F0;
-  --border-medium: #CBD5E1;
-  --border-focus: #0F172A;
-  
-  /* ── High-Contrast Typography ── */
-  --text-main: #0F172A;
-  --text-muted: #475569;
-  --text-faint: #94A3B8;
-  --text-inverse: #FFFFFF;
-
-  /* ── Modern Accent Accents ── */
-  --accent-red: #EF4444;
-  --accent-red-subtle: #FEF2F2;
-  --accent-blue: #3B82F6;
-  --accent-blue-subtle: #EFF6FF;
-  --accent-emerald: #10B981;
-  --accent-emerald-subtle: #ECFDF5;
-  --accent-indigo: #6366F1;
-
-  /* ── Elevation Shadows ── */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
-  --shadow-card: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.03);
-  --shadow-modal: 0 20px 40px -8px rgba(15, 23, 42, 0.12), 0 8px 16px -4px rgba(15, 23, 42, 0.06);
-
   /* ── Radii ── */
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -47,44 +18,6 @@
   /* ── Typography ── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-}
-
-/* ── Ultra-Sleek Precision Dark Mode Theme ── */
-body.dark-theme, [data-theme="dark"] {
-  --bg-app: #0B0F19;
-  --bg-surface: #111827;
-  --bg-subtle: #1F2937;
-  --bg-muted: #374151;
-
-  --border-light: #1F2937;
-  --border-medium: #374151;
-  --border-focus: #60A5FA;
-
-  --text-main: #F9FAFB;
-  --text-muted: #9CA3AF;
-  --text-faint: #6B7280;
-  --text-inverse: #0F172A;
-
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 20px 40px -8px rgba(0, 0, 0, 0.7);
-}
-
-body.dark-theme .app-header {
-  background: rgba(17, 24, 39, 0.95);
-}
-
-body.dark-theme .interactive-canvas-container,
-[data-theme="dark"] .interactive-canvas-container,
-body.dark-theme #interactive-canvas,
-[data-theme="dark"] #interactive-canvas {
-  background-color: #0B0F19 !important;
-  background-image: 
-    radial-gradient(rgba(255, 255, 255, 0.12) 1.2px, transparent 1.2px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px) !important;
-  background-size: 24px 24px !important;
 }
 
 /* ── Reset & Core ── */
@@ -118,7 +51,7 @@ html, body {
 
 /* ── Top Header Navigation ── */
 .app-header {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-header);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-light);
   display: flex;
@@ -410,7 +343,7 @@ html, body {
 }
 
 .hud-status-capsule {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-floating);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-light);
   padding: 6px 14px;
@@ -459,8 +392,11 @@ html, body {
 #interactive-canvas {
   width: 100%;
   height: 100%;
-  background-color: #FAFCFE;
-  background-image: radial-gradient(circle, #CBD5E1 1px, transparent 1px);
+  background-color: var(--bg-canvas);
+  background-image: 
+    radial-gradient(var(--canvas-grid-dot) 1.2px, transparent 1.2px),
+    linear-gradient(to right, var(--canvas-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--canvas-grid-line) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -469,7 +405,7 @@ html, body {
   position: absolute;
   bottom: 14px;
   left: 14px;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--bg-floating);
   backdrop-filter: blur(14px);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -482,11 +418,6 @@ html, body {
   max-width: calc(100% - 28px);
   pointer-events: auto;
   transition: all 0.15s ease;
-}
-
-body.dark-theme .canvas-floating-layers-bar {
-  background: rgba(17, 24, 39, 0.96);
-  border-color: var(--border-medium);
 }
 
 .layers-panel-header {
@@ -588,7 +519,7 @@ body.dark-theme .canvas-floating-layers-bar {
 /* ── Inspector Tab Switcher ── */
 .inspector-nav-tabs {
   display: flex;
-  background: #F8FAFC;
+  background: var(--bg-tabs);
   border-bottom: 1px solid var(--border-light);
   padding: 4px 6px 0;
   gap: 4px;
@@ -616,15 +547,15 @@ body.dark-theme .canvas-floating-layers-bar {
 .inspector-tab-btn.active {
   color: var(--accent-blue);
   border-bottom-color: var(--accent-blue);
-  background: #FFFFFF;
+  background: var(--bg-tab-active);
   border-top-left-radius: var(--radius-xs);
   border-top-right-radius: var(--radius-xs);
 }
 
 .badge-count {
   font-size: 9.5px;
-  background: #E2E8F0;
-  color: #475569;
+  background: var(--bg-badge);
+  color: var(--text-badge);
   padding: 1px 5px;
   border-radius: 10px;
   font-weight: 700;
@@ -637,14 +568,14 @@ body.dark-theme .canvas-floating-layers-bar {
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--text-faint);
-  background: #F8FAFC;
+  background: var(--bg-tree-header);
   border-bottom: 1px solid var(--border-light);
 }
 
 .file-tree-scroll-container {
   max-height: 180px;
   overflow-y: auto;
-  background: #FFFFFF;
+  background: var(--bg-tree);
   border-bottom: 1px solid var(--border-light);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -658,18 +589,18 @@ body.dark-theme .canvas-floating-layers-bar {
   padding: 3px 8px;
   cursor: pointer;
   user-select: none;
-  color: #334155;
+  color: var(--text-tree-folder);
   font-weight: 600;
   font-size: 11px;
 }
 
 .tree-folder-header:hover {
-  background: #F1F5F9;
+  background: var(--bg-tree-hover);
 }
 
 .tree-arrow {
   font-size: 8px;
-  color: #64748B;
+  color: var(--text-faint);
   width: 10px;
   display: inline-block;
 }
@@ -690,20 +621,20 @@ body.dark-theme .canvas-floating-layers-bar {
   gap: 6px;
   padding: 3px 8px;
   cursor: pointer;
-  color: #1E293B;
+  color: var(--text-tree-file);
   font-size: 11px;
   user-select: none;
 }
 
 .tree-file-row:hover {
-  background: #F1F5F9;
+  background: var(--bg-tree-hover);
 }
 
 .tree-file-row.active {
-  background: #EFF6FF;
-  color: #1D4ED8;
+  background: var(--bg-tree-active);
+  color: var(--text-tree-active);
   font-weight: 600;
-  border-left: 2.5px solid #2563EB;
+  border-left: 2.5px solid var(--accent-blue);
 }
 
 .tree-badge {
@@ -716,18 +647,18 @@ body.dark-theme .canvas-floating-layers-bar {
 }
 
 .badge-c {
-  background: #DBEAFE;
-  color: #1D4ED8;
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
 }
 
 .badge-i {
-  background: #DCFCE7;
-  color: #15803D;
+  background: var(--accent-emerald-subtle);
+  color: var(--accent-emerald);
 }
 
 .badge-a {
-  background: #F3E8FF;
-  color: #7E22CE;
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--accent-purple);
 }
 
 .tree-file-label {
@@ -789,7 +720,7 @@ body.dark-theme .canvas-floating-layers-bar {
 
 .monaco-breadcrumb-bar {
   padding: 6px 14px;
-  background: #F1F5F9;
+  background: var(--bg-breadcrumb);
   border-bottom: 1px solid var(--border-light);
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -802,22 +733,22 @@ body.dark-theme .canvas-floating-layers-bar {
 }
 
 .breadcrumb-root {
-  color: #475569;
+  color: var(--text-breadcrumb-root);
   font-weight: 600;
 }
 
 .breadcrumb-divider {
-  color: #94A3B8;
+  color: var(--text-faint);
   font-weight: 400;
 }
 
 .breadcrumb-pkg {
-  color: #2563EB;
+  color: var(--text-breadcrumb-pkg);
   font-weight: 600;
 }
 
 .breadcrumb-file {
-  color: #0F172A;
+  color: var(--text-breadcrumb-file);
   font-weight: 700;
 }
 
@@ -852,7 +783,7 @@ body.dark-theme .canvas-floating-layers-bar {
 
 /* ── Modern Footer Status Bar ── */
 .app-footer {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-footer);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border-light);
   display: flex;
@@ -869,8 +800,8 @@ body.dark-theme .canvas-floating-layers-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #F1F5F9;
-  border: 1px solid #E2E8F0;
+  background: var(--bg-slider);
+  border: 1px solid var(--border-slider);
   border-radius: 20px;
   padding: 3px 10px;
   margin-right: 6px;
@@ -880,7 +811,7 @@ body.dark-theme .canvas-floating-layers-bar {
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 700;
-  color: #334155;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -890,7 +821,7 @@ body.dark-theme .canvas-floating-layers-bar {
   width: 75px;
   height: 4px;
   border-radius: 2px;
-  background: #CBD5E1;
+  background: var(--border-medium);
   outline: none;
   cursor: pointer;
 }
@@ -901,7 +832,7 @@ body.dark-theme .canvas-floating-layers-bar {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #2563EB;
+  background: var(--accent-blue);
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: transform 0.15s ease;
@@ -915,7 +846,7 @@ body.dark-theme .canvas-floating-layers-bar {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
-  color: #2563EB;
+  color: var(--accent-blue);
   min-width: 32px;
 }
 
