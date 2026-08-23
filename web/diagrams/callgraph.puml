@@ -59,15 +59,15 @@ rectangle "Subject.notifyObservers()\n[V(G)=1]" as CG_Subject_notifyObservers #1
 rectangle "CreditCardStrategy.CreditCardStrategy()\n[V(G)=1]" as CG_CreditCardStrategy_CreditCardStrategy #14171f
 rectangle "CreditCardStrategy.pay()\n[V(G)=1]" as CG_CreditCardStrategy_pay #14171f
 rectangle "PaymentStrategy.pay()\n[V(G)=1]" as CG_PaymentStrategy_pay #14171f
-CG_NewsAgency_setNews --> CG_NewsChannel_update : CHA/1-CFA dispatch
-CG_NewsChannel_update --> CG_Subject_attach : CHA/1-CFA dispatch
-CG_Subject_attach --> CG_Subject_notifyObservers : CHA/1-CFA dispatch
-CG_Subject_notifyObservers --> CG_CreditCardStrategy_pay : CHA/1-CFA dispatch
-CG_CreditCardStrategy_pay --> CG_PaymentStrategy_pay : CHA/1-CFA dispatch
-CG_PaymentStrategy_pay --> CG_NewsAgency_detach : CHA/1-CFA dispatch
-CG_NewsAgency_detach --> CG_Observer_update : CHA/1-CFA dispatch
-CG_Observer_update --> CG_NewsAgency_attach : CHA/1-CFA dispatch
+CG_Subject_detach --> CG_NewsAgency_detach : CHA/1-CFA dispatch
+CG_NewsAgency_detach --> CG_NewsChannel_update : CHA/1-CFA dispatch
+CG_NewsChannel_update --> CG_NewsAgency_attach : CHA/1-CFA dispatch
 CG_NewsAgency_attach --> CG_CreditCardStrategy_CreditCardStrategy : CHA/1-CFA dispatch
-CG_CreditCardStrategy_CreditCardStrategy --> CG_Subject_detach : CHA/1-CFA dispatch
-CG_NewsAgency_setNews ..> CG_NewsAgency_setNews : Tarjan SCC cycle <<Recursive>> #ef4444
+CG_CreditCardStrategy_CreditCardStrategy --> CG_CreditCardStrategy_pay : CHA/1-CFA dispatch
+CG_CreditCardStrategy_pay --> CG_PaymentStrategy_pay : CHA/1-CFA dispatch
+CG_PaymentStrategy_pay --> CG_NewsAgency_setNews : CHA/1-CFA dispatch
+CG_NewsAgency_setNews --> CG_Observer_update : CHA/1-CFA dispatch
+CG_Observer_update --> CG_Subject_notifyObservers : CHA/1-CFA dispatch
+CG_Subject_notifyObservers --> CG_Subject_attach : CHA/1-CFA dispatch
+CG_Subject_detach ..> CG_Subject_detach : Tarjan SCC cycle <<Recursive>> #ef4444
 @enduml

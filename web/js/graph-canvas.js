@@ -11,6 +11,8 @@
 
 import { parsePumlToCytoscape } from './puml-parser.js';
 import { computeDeterministicLayout } from './uml-layout.js';
+import { loadGraphIrToCytoscape } from './graph-loader.js';
+import { generatePackageFolderSvg } from './uml-card-renderer.js';
 
 export class InteractiveGraphCanvas {
   constructor(containerId = 'interactive-canvas') {
@@ -65,14 +67,29 @@ export class InteractiveGraphCanvas {
 
     let elements = customElements;
     if (!elements) {
+      // ── 1. Official Direct Ingestion: Strongly-Typed Graph IR from Rust Compiler ──
       try {
-        const response = await fetch(`diagrams/${graphType}.puml`);
-        if (response.ok) {
-          const pumlText = await response.text();
-          elements = parsePumlToCytoscape(pumlText, graphType);
+        const jsonRes = await fetch(`diagrams/${graphType}.json`);
+        if (jsonRes.ok) {
+          const graphIr = await jsonRes.json();
+          elements = loadGraphIrToCytoscape(graphIr);
+          console.log(`[OpenHeart Pipeline] Loaded Official Direct Graph IR for ${graphType}: ${elements.length} elements`);
         }
-      } catch (err) {
-        console.warn(`[OpenHeart Canvas] Failed to fetch diagrams/${graphType}.puml:`, err);
+      } catch (jsonErr) {
+        console.warn(`[OpenHeart Pipeline] Direct JSON IR fetch failed, trying PUML fallback:`, jsonErr);
+      }
+
+      // ── 2. Fallback: Parse PUML if JSON is absent ──
+      if (!elements || elements.length === 0) {
+        try {
+          const pumlRes = await fetch(`diagrams/${graphType}.puml`);
+          if (pumlRes.ok) {
+            const pumlText = await pumlRes.text();
+            elements = parsePumlToCytoscape(pumlText, graphType);
+          }
+        } catch (pumlErr) {
+          console.warn(`[OpenHeart Pipeline] PUML fallback failed:`, pumlErr);
+        }
       }
     }
 

@@ -46,8 +46,8 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-actor "ExternalActor" as act_ExternalActor
 participant "Observer" as part_Observer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Observer : update()
 activate part_Observer
@@ -74,36 +74,36 @@ part_Actor -> part_Subject : notifyObservers()
 activate part_Subject
 part_Subject --> part_Actor : return
 deactivate part_Subject
-actor "ExternalActor" as act_ExternalActor
 participant "CreditCardStrategy" as part_CreditCardStrategy
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_CreditCardStrategy : CreditCardStrategy()
 activate part_CreditCardStrategy
 part_CreditCardStrategy --> part_Actor : return
 deactivate part_CreditCardStrategy
-actor "ExternalActor" as act_ExternalActor
 participant "PaymentStrategy" as part_PaymentStrategy
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_PaymentStrategy : pay()
 activate part_PaymentStrategy
 part_PaymentStrategy --> part_Actor : return
 deactivate part_PaymentStrategy
-participant "PaypalStrategy" as part_PaypalStrategy
 actor "ExternalActor" as act_ExternalActor
+participant "PaypalStrategy" as part_PaypalStrategy
 
 part_Actor -> part_PaypalStrategy : PaypalStrategy()
 activate part_PaypalStrategy
 part_PaypalStrategy --> part_Actor : return
 deactivate part_PaypalStrategy
-participant "ShoppingCart" as part_ShoppingCart
 actor "ExternalActor" as act_ExternalActor
+participant "ShoppingCart" as part_ShoppingCart
 
 part_Actor -> part_ShoppingCart : setPaymentStrategy()
 activate part_ShoppingCart
 part_ShoppingCart --> part_Actor : return
 deactivate part_ShoppingCart
-actor "ExternalActor" as act_ExternalActor
 participant "DataMiner" as part_DataMiner
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DataMiner : openFile()
 activate part_DataMiner
@@ -137,8 +137,8 @@ part_Actor -> part_Computer : setRam()
 activate part_Computer
 part_Computer --> part_Actor : return
 deactivate part_Computer
-actor "ExternalActor" as act_ExternalActor
 participant "Computer" as part_Computer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Computer : setStorage()
 activate part_Computer
@@ -151,22 +151,22 @@ part_Actor -> part_Computer : setGraphicsCardEnabled()
 activate part_Computer
 part_Computer --> part_Actor : return
 deactivate part_Computer
-participant "Computer" as part_Computer
 actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
 
 part_Actor -> part_Computer : getCpu()
 activate part_Computer
 part_Computer --> part_Actor : return
 deactivate part_Computer
-participant "Computer" as part_Computer
 actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
 
 part_Actor -> part_Computer : getRam()
 activate part_Computer
 part_Computer --> part_Actor : return
 deactivate part_Computer
-actor "ExternalActor" as act_ExternalActor
 participant "Computer" as part_Computer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Computer : getStorage()
 activate part_Computer
@@ -179,8 +179,8 @@ part_Actor -> part_Computer : isGraphicsCardEnabled()
 activate part_Computer
 part_Computer --> part_Actor : return
 deactivate part_Computer
-actor "ExternalActor" as act_ExternalActor
 participant "ComputerBuilder" as part_ComputerBuilder
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ComputerBuilder : ComputerBuilder()
 activate part_ComputerBuilder
@@ -200,8 +200,8 @@ part_Actor -> part_Logistics : createTransport()
 activate part_Logistics
 part_Logistics --> part_Actor : return
 deactivate part_Logistics
-actor "ExternalActor" as act_ExternalActor
 participant "Transport" as part_Transport
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Transport : deliver()
 activate part_Transport
@@ -221,8 +221,8 @@ part_Actor -> part_AdvancedMediaPlayer : playVlc()
 activate part_AdvancedMediaPlayer
 part_AdvancedMediaPlayer --> part_Actor : return
 deactivate part_AdvancedMediaPlayer
-participant "AdvancedMediaPlayer" as part_AdvancedMediaPlayer
 actor "ExternalActor" as act_ExternalActor
+participant "AdvancedMediaPlayer" as part_AdvancedMediaPlayer
 
 part_Actor -> part_AdvancedMediaPlayer : playMp4()
 activate part_AdvancedMediaPlayer
@@ -242,8 +242,8 @@ part_Actor -> part_MediaPlayer : play()
 activate part_MediaPlayer
 part_MediaPlayer --> part_Actor : return
 deactivate part_MediaPlayer
-participant "Mp4Player" as part_Mp4Player
 actor "ExternalActor" as act_ExternalActor
+participant "Mp4Player" as part_Mp4Player
 
 part_Actor -> part_Mp4Player : playVlc()
 activate part_Mp4Player
@@ -256,36 +256,36 @@ part_Actor -> part_VlcPlayer : playMp4()
 activate part_VlcPlayer
 part_VlcPlayer --> part_Actor : return
 deactivate part_VlcPlayer
-participant "Beverage" as part_Beverage
 actor "ExternalActor" as act_ExternalActor
+participant "Beverage" as part_Beverage
 
 part_Actor -> part_Beverage : getDescription()
 activate part_Beverage
 part_Beverage --> part_Actor : return
 deactivate part_Beverage
-participant "Beverage" as part_Beverage
 actor "ExternalActor" as act_ExternalActor
+participant "Beverage" as part_Beverage
 
 part_Actor -> part_Beverage : cost()
 activate part_Beverage
 part_Beverage --> part_Actor : return
 deactivate part_Beverage
-participant "CondimentDecorator" as part_CondimentDecorator
 actor "ExternalActor" as act_ExternalActor
+participant "CondimentDecorator" as part_CondimentDecorator
 
 part_Actor -> part_CondimentDecorator : CondimentDecorator()
 activate part_CondimentDecorator
 part_CondimentDecorator --> part_Actor : return
 deactivate part_CondimentDecorator
-participant "CondimentDecorator" as part_CondimentDecorator
 actor "ExternalActor" as act_ExternalActor
+participant "CondimentDecorator" as part_CondimentDecorator
 
 part_Actor -> part_CondimentDecorator : getDescription()
 activate part_CondimentDecorator
 part_CondimentDecorator --> part_Actor : return
 deactivate part_CondimentDecorator
-participant "Espresso" as part_Espresso
 actor "ExternalActor" as act_ExternalActor
+participant "Espresso" as part_Espresso
 
 part_Actor -> part_Espresso : getDescription()
 activate part_Espresso
@@ -305,8 +305,8 @@ part_Actor -> part_Mocha : Mocha()
 activate part_Mocha
 part_Mocha --> part_Actor : return
 deactivate part_Mocha
-participant "Whip" as part_Whip
 actor "ExternalActor" as act_ExternalActor
+participant "Whip" as part_Whip
 
 part_Actor -> part_Whip : Whip()
 activate part_Whip

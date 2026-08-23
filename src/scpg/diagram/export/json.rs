@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use crate::ingestion::TokenCorpusArtifact;
+use crate::scpg::diagram::export::plantuml::PlantUMLExporter;
 use crate::symbol::SymbolTableArtifact;
 use crate::uma::types::*;
 
@@ -67,36 +68,17 @@ pub struct JSONExporter;
 
 impl JSONExporter {
     fn sanitize(name: &str) -> String {
-        name.trim()
-            .replace(['$', '<', '>', '[', ']', ' ', '-'], "_")
-    }
-
-    fn resolve_name<'a>(sta: &'a SymbolTableArtifact, tca: &'a TokenCorpusArtifact, sym_id: u32) -> &'a str {
-        if (sym_id as usize) < sta.symbols.len() {
-            let sym = &sta.symbols[sym_id as usize];
-            if (sym.name_token_idx as usize) < tca.tokens.len() {
-                return tca.get_lexeme(sym.name_token_idx);
-            }
-        }
-        ""
-    }
-
-    fn resolve_sym_package(
-        sta: &SymbolTableArtifact,
-        tca: &TokenCorpusArtifact,
-        sym_id: u32,
-    ) -> Option<String> {
-        if (sym_id as usize) >= sta.symbols.len() {
-            return None;
-        }
-        let sym = &sta.symbols[sym_id as usize];
-        if sym.package_sym_id != u32::MAX {
-            let pname = Self::resolve_name(sta, tca, sym.package_sym_id);
-            if !pname.is_empty() {
-                return Some(pname.to_string());
-            }
-        }
-        None
+        let clean: String = name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        clean
     }
 
     // ── 1. CLASS DIAGRAM GRAPH IR ─────────────────────────────────────────────
@@ -111,7 +93,7 @@ impl JSONExporter {
 
         let mut package_classes: HashMap<String, Vec<&ClassRecord>> = HashMap::new();
         for class_rec in &uma.classes {
-            let pkg = Self::resolve_sym_package(sta, tca, class_rec.sym_id)
+            let pkg = PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id)
                 .unwrap_or_else(|| "default".to_string());
             package_classes.entry(pkg).or_default().push(class_rec);
         }
@@ -154,7 +136,7 @@ impl JSONExporter {
             }
 
             for class_rec in classes {
-                let name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.sym_id));
+                let name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.sym_id));
                 if name.is_empty() {
                     continue;
                 }
@@ -175,17 +157,17 @@ impl JSONExporter {
 
                 let mut fields_ir = Vec::new();
                 for f in &class_rec.fields {
-                    let fname = Self::resolve_name(sta, tca, f.field_sym_id);
+                    let fname = PlantUMLExporter::resolve_name(sta, tca, f.field_sym_id);
                     let ftype = if f.type_sym_id != u32::MAX {
-                        Self::resolve_name(sta, tca, f.type_sym_id)
+                        PlantUMLExporter::resolve_name(sta, tca, f.type_sym_id)
                     } else {
                         "Object"
                     };
 
                     let vis = match f.visibility {
-                        VISIBILITY_PUBLIC => "+",
-                        VISIBILITY_PRIVATE => "-",
-                        VISIBILITY_PROTECTED => "#",
+                        1 => "+",
+                        2 => "-",
+                        3 => "#",
                         _ => "~",
                     };
 
@@ -201,17 +183,17 @@ impl JSONExporter {
 
                 let mut methods_ir = Vec::new();
                 for m in &class_rec.methods {
-                    let mname = Self::resolve_name(sta, tca, m.method_sym_id);
+                    let mname = PlantUMLExporter::resolve_name(sta, tca, m.method_sym_id);
                     let mret = if m.return_type_sym_id != u32::MAX {
-                        Self::resolve_name(sta, tca, m.return_type_sym_id)
+                        PlantUMLExporter::resolve_name(sta, tca, m.return_type_sym_id)
                     } else {
                         "void"
                     };
 
                     let vis = match m.visibility {
-                        VISIBILITY_PUBLIC => "+",
-                        VISIBILITY_PRIVATE => "-",
-                        VISIBILITY_PROTECTED => "#",
+                        1 => "+",
+                        2 => "-",
+                        3 => "#",
                         _ => "~",
                     };
 
@@ -243,7 +225,7 @@ impl JSONExporter {
                 });
 
                 if class_rec.extends_sym != u32::MAX {
-                    let base_name = Self::sanitize(Self::resolve_name(sta, tca, class_rec.extends_sym));
+                    let base_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.extends_sym));
                     if !base_name.is_empty() {
                         edge_id_counter += 1;
                         edges.push(GraphEdgeIR {
@@ -258,7 +240,7 @@ impl JSONExporter {
                 }
 
                 for iface_sym in &class_rec.implements_syms {
-                    let iface_name = Self::sanitize(Self::resolve_name(sta, tca, *iface_sym));
+                    let iface_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, *iface_sym));
                     if !iface_name.is_empty() {
                         edge_id_counter += 1;
                         edges.push(GraphEdgeIR {
@@ -274,7 +256,7 @@ impl JSONExporter {
 
                 for f in &class_rec.fields {
                     if f.type_sym_id != u32::MAX {
-                        let target_name = Self::sanitize(Self::resolve_name(sta, tca, f.type_sym_id));
+                        let target_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, f.type_sym_id));
                         if !target_name.is_empty() && target_name != name {
                             let (kind, arrow) = if f.is_collection != 0 {
                                 ("aggregation", "o--")
@@ -325,7 +307,7 @@ impl JSONExporter {
 
         let mut all_pkg_paths = HashSet::new();
         for class_rec in &uma.classes {
-            if let Some(pkg) = Self::resolve_sym_package(sta, tca, class_rec.sym_id) {
+            if let Some(pkg) = PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
                 if !pkg.is_empty() {
                     all_pkg_paths.insert(pkg);
                 }
@@ -372,14 +354,24 @@ impl JSONExporter {
 
         let mut pkg_deps: HashSet<(String, String)> = HashSet::new();
         for class_rec in &uma.classes {
-            let src_pkg = match Self::resolve_sym_package(sta, tca, class_rec.sym_id) {
+            let src_pkg = match PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
                 Some(p) if !p.is_empty() => p,
                 _ => continue,
             };
 
             for field in &class_rec.fields {
                 if field.type_sym_id != u32::MAX {
-                    if let Some(dst_pkg) = Self::resolve_sym_package(sta, tca, field.type_sym_id) {
+                    if let Some(dst_pkg) = PlantUMLExporter::resolve_sym_package(sta, tca, None, field.type_sym_id) {
+                        if !dst_pkg.is_empty() && src_pkg != dst_pkg {
+                            pkg_deps.insert((src_pkg.clone(), dst_pkg));
+                        }
+                    }
+                }
+            }
+
+            for method in &class_rec.methods {
+                if method.return_type_sym_id != u32::MAX {
+                    if let Some(dst_pkg) = PlantUMLExporter::resolve_sym_package(sta, tca, None, method.return_type_sym_id) {
                         if !dst_pkg.is_empty() && src_pkg != dst_pkg {
                             pkg_deps.insert((src_pkg.clone(), dst_pkg));
                         }
