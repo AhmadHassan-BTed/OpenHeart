@@ -237,10 +237,22 @@
     import { InteractiveGraphCanvas } from './js/graph-canvas.js';
     import { SourceEditorModule } from './js/editor.js';
 
-    const canvas = new InteractiveGraphCanvas('interactive-canvas');
-    const editor = new SourceEditorModule('monaco-container');
-
     window.addEventListener('DOMContentLoaded', () => {
+      const canvas = new InteractiveGraphCanvas('interactive-canvas');
+      const editor = new SourceEditorModule('monaco-container');
+
+      // Synchronize active diagram tab on page load
+      const savedGraph = localStorage.getItem('openheart_active_graph') || 'class';
+      canvas.currentGraphType = savedGraph;
+      
+      document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-graph-type') === savedGraph) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
       canvas.init();
       editor.init();
 
@@ -248,7 +260,7 @@
       canvas.setNodeSelectCallback((nodeData) => {
         document.getElementById('inspect-headline').innerText = nodeData.label.split('\n')[0];
         document.getElementById('inspect-meta').innerText = `ID: ${nodeData.id} | Kind: ${nodeData.kind}`;
-        document.getElementById('prop-kind').innerText = nodeData.kind.toUpperCase();
+        document.getElementById('prop-kind').innerText = (nodeData.kind || 'NODE').toUpperCase();
         document.getElementById('prop-predicate').innerText = nodeData.predicate || 'N/A';
         document.getElementById('editor-filename').innerText = nodeData.file || 'VideoConversionFacade.java';
 
@@ -267,9 +279,11 @@
       // Graph selection tabs
       document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+          const targetBtn = e.currentTarget;
           document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          const graphType = btn.getAttribute('data-graph-type');
+          targetBtn.classList.add('active');
+          const graphType = targetBtn.getAttribute('data-graph-type');
+          localStorage.setItem('openheart_active_graph', graphType);
           canvas.renderGraph(graphType);
         });
       });
@@ -297,7 +311,7 @@
         setTimeout(() => {
           const newHash = '0x' + Math.floor(Math.random() * 0xFFFFFFFF).toString(16).toUpperCase();
           hashBadge.innerText = `SCPG ${newHash} · Verified`;
-          hudText.innerHTML = `✓ SCPG Generated for <strong>${repoName}</strong> · Ready`;
+          hudText.innerHTML = `SCPG Generated for <strong>${repoName}</strong> · Ready`;
           canvas.renderGraph(canvas.currentGraphType);
         }, 900);
       };
@@ -310,8 +324,9 @@
       });
 
       document.querySelectorAll('.preset-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-          const repo = chip.getAttribute('data-repo');
+        chip.addEventListener('click', (e) => {
+          const chipEl = e.currentTarget;
+          const repo = chipEl.getAttribute('data-repo');
           if (repo === 'petclinic') {
             document.getElementById('input-repo-url').value = 'https://github.com/spring-projects/spring-petclinic';
             importRepo('spring-petclinic');
@@ -324,7 +339,6 @@
           }
         });
       });
-
     });
   </script>
 </body>

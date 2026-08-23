@@ -1,13 +1,13 @@
 /**
- * OpenHeart Robust PlantUML & Mermaid Graph Engine Parser
- * Fully realizes nested package hierarchies, compound container nodes, class stereotypes,
- * method/field signatures, partitions, components, and all UML 2.5 relationship semantics.
+ * OpenHeart Precision PlantUML & Mermaid Graph Engine Parser
+ * Clean UML 2.5 notation with strict 3-compartment class formatting (Name, Attributes, Operations),
+ * non-overlapping leaf package containers, and collision-free computed geometry.
  */
 
 export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
   const elements = [];
   const nodeMap = new Map();
-  const packageStack = []; // Stack of active package / partition IDs
+  const packageStack = [];
   const lines = pumlContent.split('\n');
 
   let currentBlock = null;
@@ -18,23 +18,25 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 1. Package / Partition / Deployment Node Open ──
+    // ── 1. Package / Partition / Deployment Node ──
     const pkgMatch = rawLine.match(/^package\s+"([^"]+)"(?:\s+as\s+([A-Za-z0-9_]+))?\s*\{?/) ||
                      rawLine.match(/^partition\s+"([^"]+)"\s*\{?/) ||
                      rawLine.match(/^node\s+"([^"]+)"(?:\s+as\s+([A-Za-z0-9_]+))?(?:\s+<<[^>]+>>)?\s*\{?/);
     if (pkgMatch) {
       const pkgName = pkgMatch[1];
       const pkgId = pkgMatch[2] || `pkg_${pkgName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-      const parentPkgId = packageStack.length > 0 ? packageStack[packageStack.length - 1] : null;
 
-      if (!nodeMap.has(pkgId)) {
+      // In Class diagrams, prune redundant root empty wrappers ("com", "com.patterns")
+      // to keep clean side-by-side leaf package boxes without concentric container overlap
+      const isRedundantWrapper = (pkgName === 'com' || pkgName === 'com.patterns' || pkgName === 'patterns') && diagramType === 'class';
+
+      if (!isRedundantWrapper && !nodeMap.has(pkgId)) {
         const pkgNode = {
           data: {
             id: pkgId,
-            label: `📁 ${pkgName}`,
+            label: `package [${pkgName}]`,
             kind: 'package',
-            isPackage: true,
-            parent: parentPkgId || undefined
+            isPackage: true
           },
           classes: 'compound-package'
         };
@@ -43,7 +45,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       }
 
       if (rawLine.includes('{')) {
-        packageStack.push(pkgId);
+        packageStack.push(isRedundantWrapper ? null : pkgId);
       }
       continue;
     }
@@ -53,17 +55,18 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
     if (artMatch) {
       const artName = artMatch[1];
       const artId = artMatch[2] || `art_${artName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      const activePkg = getActivePackage(packageStack);
       if (!nodeMap.has(artId)) {
         const node = {
           data: {
             id: artId,
-            label: `<<Artifact>>\n${artName}`,
+            label: `<<artifact>>\n${artName}`,
             kind: 'entry',
-            width: 200,
-            height: 55,
+            width: 220,
+            height: 60,
             file: `${artName}.java`,
             lines: [1],
-            parent: packageStack.length > 0 ? packageStack[packageStack.length - 1] : undefined
+            parent: activePkg
           }
         };
         nodeMap.set(artId, node);
@@ -72,7 +75,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 2. Block/Package Closing: } ──
+    // ── 2. Block / Package Closing: } ──
     if (rawLine === '}') {
       if (currentBlock) {
         registerClassNode(currentBlock, nodeMap, elements, packageStack);
@@ -93,7 +96,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const rawType = classMatch[1];
       const kind = rawType.includes('interface') ? 'interface' : (rawType.includes('abstract') ? 'abstract' : 'class');
       const name = classMatch[2];
-      const stereotype = classMatch[3] ? `<<${classMatch[3]}>>` : (kind === 'interface' ? '<<Interface>>' : (kind === 'abstract' ? '<<Abstract>>' : '<<Class>>'));
+      const stereotype = classMatch[3] ? `<<${classMatch[3]}>>` : (kind === 'interface' ? '<<interface>>' : (kind === 'abstract' ? '<<abstract>>' : '<<class>>'));
       const id = classMatch[4] || name;
 
       currentBlock = {
@@ -101,7 +104,8 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
         name: name,
         kind: kind,
         stereotype: stereotype,
-        members: []
+        fields: [],
+        methods: []
       };
 
       if (!rawLine.includes('{')) {
@@ -114,12 +118,16 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
     // ── 4. Accumulate Members Inside Class Block ──
     if (currentBlock) {
       if (rawLine !== '{') {
-        currentBlock.members.push(rawLine);
+        if (rawLine.includes('(') || rawLine.includes(')')) {
+          currentBlock.methods.push(rawLine);
+        } else {
+          currentBlock.fields.push(rawLine);
+        }
       }
       continue;
     }
 
-    // ── 5. Component / Interface Socket: component [com] as comp_com / () "Icom" as iface_com ──
+    // ── 5. Component / Interface Socket ──
     const compMatch = rawLine.match(/^component\s+\[([^\]]+)\]\s+as\s+([A-Za-z0-9_]+)/) ||
                       rawLine.match(/^component\s+([A-Za-z0-9_]+)/) ||
                       rawLine.match(/^\(\)\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/);
@@ -127,17 +135,18 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const id = compMatch[2] || compMatch[1];
       const label = compMatch[1];
       const isIface = rawLine.startsWith('()');
+      const activePkg = getActivePackage(packageStack);
       if (!nodeMap.has(id)) {
         const node = {
           data: {
             id: id,
-            label: isIface ? `<<Interface>>\n${label}` : `<<Component>>\n${label}`,
+            label: isIface ? `<<interface>>\n${label}` : `<<component>>\n${label}`,
             kind: isIface ? 'interface' : 'entry',
-            width: isIface ? 160 : 220,
-            height: isIface ? 50 : 65,
+            width: isIface ? 180 : 230,
+            height: isIface ? 55 : 70,
             file: `${label}.java`,
             lines: [1],
-            parent: packageStack.length > 0 ? packageStack[packageStack.length - 1] : undefined
+            parent: activePkg
           }
         };
         nodeMap.set(id, node);
@@ -146,23 +155,25 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 6. Activity Actions: :Block_1; / start / stop ──
+    // ── 6. Activity Actions ──
     const actMatch = rawLine.match(/^:([^;]+);/) || rawLine.match(/^(start|stop)/);
     if (actMatch) {
       const label = actMatch[1];
       const id = `act_${elements.length}_${label.replace(/[^a-zA-Z0-9_]/g, '')}`;
+      const isStart = label === 'start';
+      const isStop = label === 'stop';
+      const activePkg = getActivePackage(packageStack);
       if (!nodeMap.has(id)) {
-        const isTerminal = label === 'start' || label === 'stop';
         const node = {
           data: {
             id: id,
-            label: isTerminal ? `(${label.toUpperCase()})` : `Action: ${label}`,
-            kind: label === 'start' ? 'entry' : (label === 'stop' ? 'exit' : 'block'),
-            width: isTerminal ? 140 : 220,
-            height: 48,
+            label: isStart ? '(( START ))' : (isStop ? '(( STOP ))' : `[Action] ${label}`),
+            kind: isStart ? 'entry' : (isStop ? 'exit' : 'block'),
+            width: isStart || isStop ? 150 : 240,
+            height: 50,
             file: 'Activity.java',
             lines: [1],
-            parent: packageStack.length > 0 ? packageStack[packageStack.length - 1] : undefined
+            parent: activePkg
           }
         };
         nodeMap.set(id, node);
@@ -171,22 +182,23 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 7. State Machine: state "Transcoding" as sm_transcoding ──
+    // ── 7. State Machine ──
     const stateMatch = rawLine.match(/^state\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/) || rawLine.match(/^state\s+([A-Za-z0-9_]+)/);
     if (stateMatch) {
       const id = stateMatch[2] || stateMatch[1];
       const label = stateMatch[1];
+      const activePkg = getActivePackage(packageStack);
       if (!nodeMap.has(id)) {
         const node = {
           data: {
             id: id,
-            label: `STATE: ${label}`,
+            label: `[State] ${label}`,
             kind: id === '[*]' ? 'entry' : 'block',
             width: 220,
             height: 55,
             file: `${id}.java`,
             lines: [1],
-            parent: packageStack.length > 0 ? packageStack[packageStack.length - 1] : undefined
+            parent: activePkg
           }
         };
         nodeMap.set(id, node);
@@ -237,24 +249,46 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
   return elements;
 }
 
+function getActivePackage(packageStack) {
+  for (let i = packageStack.length - 1; i >= 0; i--) {
+    if (packageStack[i]) return packageStack[i];
+  }
+  return undefined;
+}
+
 function registerClassNode(block, nodeMap, elements, packageStack) {
   if (nodeMap.has(block.id)) return;
 
-  const currentParentPkg = packageStack.length > 0 ? packageStack[packageStack.length - 1] : undefined;
-  const header = `${block.stereotype} ${block.name}`;
-  const memberText = block.members.slice(0, 8).join('\n');
-  const fullLabel = memberText ? `${header}\n──────────────────────\n${memberText}` : header;
+  const currentParentPkg = getActivePackage(packageStack);
+  
+  // Strict 3-Compartment UML 2.5 Construction
+  const nameCompartment = `${block.stereotype}\n${block.name}`;
+  const sections = [nameCompartment];
 
-  const nodeHeight = Math.max(80, 48 + (block.members.length * 15));
-  const nodeWidth = Math.max(220, Math.min(300, block.name.length * 12 + 100));
+  if (block.fields.length > 0) {
+    sections.push(block.fields.slice(0, 5).join('\n'));
+  }
+  if (block.methods.length > 0) {
+    sections.push(block.methods.slice(0, 6).join('\n'));
+  }
+
+  const fullLabel = sections.join('\n──────────────────────\n');
+  const allLines = fullLabel.split('\n');
+  let maxLineWidth = 0;
+  for (const l of allLines) {
+    if (l.length > maxLineWidth) maxLineWidth = l.length;
+  }
+
+  const nodeWidth = Math.max(240, Math.min(320, maxLineWidth * 8 + 40));
+  const nodeHeight = Math.max(80, Math.min(220, allLines.length * 17 + 25));
 
   const node = {
     data: {
       id: block.id,
       label: fullLabel,
-      kind: 'class',
+      kind: block.kind || 'class',
       width: nodeWidth,
-      height: Math.min(180, nodeHeight),
+      height: nodeHeight,
       file: `${block.name}.java`,
       lines: [1, 5, 10],
       parent: currentParentPkg
@@ -268,15 +302,15 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
 function ensureNodeExists(id, nodeMap, elements, packageStack) {
   if (!id || nodeMap.has(id)) return;
 
-  const currentParentPkg = packageStack.length > 0 ? packageStack[packageStack.length - 1] : undefined;
+  const currentParentPkg = getActivePackage(packageStack);
   const label = id.replace(/_/g, ' ');
   const node = {
     data: {
       id: id,
-      label: `<<Class>> ${label}`,
+      label: `<<class>>\n${label}`,
       kind: id.includes('init') || id.includes('start') || id.includes('entry') ? 'entry' : 'class',
       width: 220,
-      height: 60,
+      height: 65,
       file: `${id}.java`,
       lines: [1],
       parent: currentParentPkg
