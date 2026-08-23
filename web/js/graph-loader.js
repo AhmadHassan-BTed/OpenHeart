@@ -74,7 +74,7 @@ export function loadGraphIrToCytoscape(graphIr) {
             rawName: node.name || shortName,
             textLabel: displayLabel,
             kind: 'package',
-            isPackage: true,
+            isPackage: false,
             isLeafPackage: true,
             isDomainTier: isDomainTier,
             parent: node.parent || undefined,

@@ -183,9 +183,7 @@ export function generatePackageFolderSvg(pkgData) {
     borderColor = isDomainTier ? '#2563EB' : '#7C3AED';
     textColor = isDomainTier ? '#1E40AF' : '#581C87';
     titleColor = '#0F172A';
-  }
-
-  const borderStyle = isDomainTier ? '' : 'stroke-dasharray="5 3"';
+  const borderStyle = '';
 
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -194,8 +192,8 @@ export function generatePackageFolderSvg(pkgData) {
   <text x="12" y="${TAB_HEIGHT - 9}" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="800" fill="${textColor}">
     ${isCollapsed ? '📁 [+]' : '📁'} ${escapeXml(shortName)}
   </text>
-  <!-- Package Folder Body Container -->
-  <rect x="2" y="${TAB_HEIGHT}" width="${width - 4}" height="${height - TAB_HEIGHT - 2}" rx="6" ry="6" fill="${bodyBg}" stroke="${borderColor}" stroke-width="1.8" ${borderStyle} />
+  <!-- Package Folder Body Container (Solid Clean Vector Border) -->
+  <rect x="2" y="${TAB_HEIGHT}" width="${width - 4}" height="${height - TAB_HEIGHT - 2}" rx="6" ry="6" fill="${bodyBg}" stroke="${borderColor}" stroke-width="1.8" />
   <!-- Package Title in Body -->
   <text x="${width / 2}" y="${TAB_HEIGHT + 30}" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="${titleColor}" text-anchor="middle">
     ${escapeXml(shortName)}

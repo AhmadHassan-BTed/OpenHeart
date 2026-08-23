@@ -324,6 +324,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       el.data.width = svgData.width;
       el.data.height = svgData.height;
       el.data.svgDataUri = svgData.dataUri;
+      el.data.isPackage = false;
       el.data.isLeafPackage = true;
       el.classes = `leaf-package nest-level-${Math.min(5, el.data.nestLevel || 0)}`;
     }
