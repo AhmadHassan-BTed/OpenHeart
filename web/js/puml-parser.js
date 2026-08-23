@@ -14,12 +14,10 @@ import {
   generateCfgBlockSvg,
   generateBddGateSvg
 } from './uml-card-renderer.js';
+import { isDarkMode } from './themes/index.js';
 
 export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
-  const isDark = typeof document !== 'undefined' && document.body && (
-    document.body.classList.contains('dark-theme') || 
-    document.documentElement.getAttribute('data-theme') === 'dark'
-  );
+  const isDark = isDarkMode();
   const elements = [];
   const nodeMap = new Map();
   const packageStack = [];
@@ -321,10 +319,7 @@ function getActivePackage(packageStack) {
 function registerClassNode(block, nodeMap, elements, packageStack) {
   if (nodeMap.has(block.id)) return;
 
-  const isDark = typeof document !== 'undefined' && document.body && (
-    document.body.classList.contains('dark-theme') || 
-    document.documentElement.getAttribute('data-theme') === 'dark'
-  );
+  const isDark = isDarkMode();
 
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;
@@ -363,10 +358,7 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
 function ensureNodeExists(id, nodeMap, elements, packageStack, diagramType) {
   if (!id || nodeMap.has(id)) return;
 
-  const isDark = typeof document !== 'undefined' && document.body && (
-    document.body.classList.contains('dark-theme') || 
-    document.documentElement.getAttribute('data-theme') === 'dark'
-  );
+  const isDark = isDarkMode();
 
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;

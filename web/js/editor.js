@@ -4,6 +4,8 @@
  * Dynamically fetches and decompiles source code on demand.
  */
 
+import { isDarkMode, onThemeChange } from './themes/index.js';
+
 export class SourceEditorModule {
   constructor(containerId = "monaco-container") {
     this.containerId = containerId;
@@ -20,6 +22,10 @@ export class SourceEditorModule {
     if (window.monaco) {
       this.createMonacoInstance(container);
     }
+
+    onThemeChange((theme, isDark) => {
+      this.setTheme(isDark);
+    });
   }
 
   createMonacoInstance(container) {
@@ -28,7 +34,7 @@ export class SourceEditorModule {
       this.editor = null;
     }
 
-    const isDark = document.body && document.body.classList.contains('dark-theme');
+    const isDark = isDarkMode();
 
     this.editor = window.monaco.editor.create(container, {
       value: "// OpenHeart Dynamic Code Synchronizer\n// Select any file or diagram node to view source",
