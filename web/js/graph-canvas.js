@@ -13,7 +13,7 @@ import { parsePumlToCytoscape } from './puml-parser.js';
 import { computeDeterministicLayout } from './uml-layout.js';
 import { loadGraphIrToCytoscape } from './graph-loader.js';
 import { generatePackageFolderSvg } from './uml-card-renderer.js';
-import { getTheme, buildCytoscapeStylesheet } from './themes/index.js';
+import { getTheme, onThemeChange, buildCytoscapeStylesheet } from './themes/index.js';
 
 export class InteractiveGraphCanvas {
   constructor(containerId = 'interactive-canvas') {
@@ -36,6 +36,10 @@ export class InteractiveGraphCanvas {
     const container = document.getElementById(this.containerId);
     if (!container) return;
     this.renderGraph(this.currentGraphType);
+
+    onThemeChange((theme, isDark) => {
+      this.setTheme(isDark);
+    });
   }
 
   setNodeSelectCallback(cb) {

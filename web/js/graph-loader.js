@@ -16,14 +16,12 @@ import {
   generateCfgBlockSvg,
   generateBddGateSvg
 } from './uml-card-renderer.js';
+import { isDarkMode } from './themes/index.js';
 
 export function loadGraphIrToCytoscape(graphIr) {
   if (!graphIr || !graphIr.nodes) return [];
 
-  const isDark = typeof document !== 'undefined' && document.body && (
-    document.body.classList.contains('dark-theme') || 
-    document.documentElement.getAttribute('data-theme') === 'dark'
-  );
+  const isDark = isDarkMode();
   const elements = [];
   const nodeMap = new Map();
 

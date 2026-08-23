@@ -1,23 +1,85 @@
 /**
  * OpenHeart Theme Manager
- * Unifies Light and Dark themes, generating Cytoscape stylesheets dynamically.
+ * Unified Theme Engine with Pub/Sub Lifecycle Management and Cytoscape Stylesheet Compiler.
  */
 import { LightTheme } from './light.js';
 import { DarkTheme } from './dark.js';
 
+let themeListeners = [];
+
+export function isDarkMode() {
+  if (typeof document === 'undefined' || !document.body) return false;
+  return document.body.classList.contains('dark-theme') ||
+         document.documentElement.getAttribute('data-theme') === 'dark';
+}
+
+export function getCurrentTheme() {
+  return isDarkMode() ? DarkTheme : LightTheme;
+}
+
 export function getTheme(isDark = null) {
   if (isDark === null) {
-    isDark = typeof document !== 'undefined' && document.body && (
-      document.body.classList.contains('dark-theme') ||
-      document.documentElement.getAttribute('data-theme') === 'dark'
-    );
+    return getCurrentTheme();
   }
   return isDark ? DarkTheme : LightTheme;
 }
 
+export function onThemeChange(callback) {
+  if (typeof callback === 'function') {
+    themeListeners.push(callback);
+  }
+  return () => {
+    themeListeners = themeListeners.filter(cb => cb !== callback);
+  };
+}
+
+export function applyTheme(themeName) {
+  const isDark = themeName === 'dark';
+  if (typeof document !== 'undefined' && document.body) {
+    if (isDark) {
+      document.body.classList.add('dark-theme');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-theme');
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('openheart_theme', themeName);
+  }
+
+  const themeObj = isDark ? DarkTheme : LightTheme;
+  themeListeners.forEach(cb => {
+    try {
+      cb(themeObj, isDark);
+    } catch (e) {
+      console.error('[THEME] Error notifying listener:', e);
+    }
+  });
+
+  return themeObj;
+}
+
+export function toggleTheme() {
+  const next = isDarkMode() ? 'light' : 'dark';
+  return applyTheme(next);
+}
+
+export function initTheme() {
+  let saved = null;
+  if (typeof localStorage !== 'undefined') {
+    saved = localStorage.getItem('openheart_theme');
+  }
+  if (!saved && typeof window !== 'undefined' && window.matchMedia) {
+    saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return applyTheme(saved || 'light');
+}
+
 export function buildCytoscapeStylesheet(theme = null) {
   if (!theme) {
-    theme = getTheme();
+    theme = getCurrentTheme();
   }
 
   const { packages: pkgs, edges } = theme;
