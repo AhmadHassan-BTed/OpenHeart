@@ -1,0 +1,1961 @@
+{
+  "diagram_type": "class",
+  "title": "UML 2.5 Class Model",
+  "nodes": [
+    {
+      "id": "pkg_com",
+      "label": "package [com]",
+      "name": "com",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": true,
+      "is_domain_tier": true,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns",
+      "label": "package [patterns]",
+      "name": "patterns",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com",
+      "nest_level": 1,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_creational",
+      "label": "package [creational]",
+      "name": "creational",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns",
+      "nest_level": 2,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_creational_builder",
+      "label": "package [builder]",
+      "name": "builder",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_creational",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "Computer",
+      "label": "Computer",
+      "name": "Computer",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_builder",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Computer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "cpu",
+          "type_name": "",
+          "signature": "cpu: ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "ram",
+          "type_name": "",
+          "signature": "ram: ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "storage",
+          "type_name": "",
+          "signature": "storage: ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "graphicsCardEnabled",
+          "type_name": "",
+          "signature": "graphicsCardEnabled: ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "setCpu",
+          "type_name": "",
+          "signature": "setCpu(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "setRam",
+          "type_name": "",
+          "signature": "setRam(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "setStorage",
+          "type_name": "",
+          "signature": "setStorage(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "setGraphicsCardEnabled",
+          "type_name": "",
+          "signature": "setGraphicsCardEnabled(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getCpu",
+          "type_name": "",
+          "signature": "getCpu(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getRam",
+          "type_name": "",
+          "signature": "getRam(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getStorage",
+          "type_name": "",
+          "signature": "getStorage(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "isGraphicsCardEnabled",
+          "type_name": "",
+          "signature": "isGraphicsCardEnabled(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "ComputerBuilder",
+      "label": "ComputerBuilder",
+      "name": "ComputerBuilder",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_builder",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "ComputerBuilder.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "computer",
+          "type_name": "Computer",
+          "signature": "computer: Computer",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "ComputerBuilder",
+          "type_name": "void",
+          "signature": "ComputerBuilder(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "buildCpu",
+          "type_name": "ComputerBuilder",
+          "signature": "buildCpu(): ComputerBuilder",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "buildRam",
+          "type_name": "ComputerBuilder",
+          "signature": "buildRam(): ComputerBuilder",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "buildStorage",
+          "type_name": "ComputerBuilder",
+          "signature": "buildStorage(): ComputerBuilder",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "setGraphicsCard",
+          "type_name": "ComputerBuilder",
+          "signature": "setGraphicsCard(): ComputerBuilder",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "build",
+          "type_name": "Computer",
+          "signature": "build(): Computer",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Director",
+      "label": "Director",
+      "name": "Director",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_builder",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Director.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "constructGamingComputer",
+          "type_name": "Computer",
+          "signature": "constructGamingComputer(): Computer",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_behavioral",
+      "label": "package [behavioral]",
+      "name": "behavioral",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns",
+      "nest_level": 2,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_behavioral_observer",
+      "label": "package [observer]",
+      "name": "observer",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_behavioral",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "NewsAgency",
+      "label": "NewsAgency",
+      "name": "NewsAgency",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_observer",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "NewsAgency.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "news",
+          "type_name": "",
+          "signature": "news: ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "observers",
+          "type_name": "Object",
+          "signature": "observers: Object",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "setNews",
+          "type_name": "",
+          "signature": "setNews(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "attach",
+          "type_name": "",
+          "signature": "attach(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "detach",
+          "type_name": "",
+          "signature": "detach(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "notifyObservers",
+          "type_name": "",
+          "signature": "notifyObservers(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "NewsChannel",
+      "label": "NewsChannel",
+      "name": "NewsChannel",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_observer",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "NewsChannel.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "news",
+          "type_name": "",
+          "signature": "news: ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "update",
+          "type_name": "",
+          "signature": "update(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Observer",
+      "label": "Observer",
+      "name": "Observer",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_behavioral_observer",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Observer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "update",
+          "type_name": "",
+          "signature": "update(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Subject",
+      "label": "Subject",
+      "name": "Subject",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_behavioral_observer",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Subject.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "attach",
+          "type_name": "",
+          "signature": "attach(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "detach",
+          "type_name": "",
+          "signature": "detach(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "notifyObservers",
+          "type_name": "",
+          "signature": "notifyObservers(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_structural",
+      "label": "package [structural]",
+      "name": "structural",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns",
+      "nest_level": 2,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_structural_adapter",
+      "label": "package [adapter]",
+      "name": "adapter",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_structural",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "AdvancedMediaPlayer",
+      "label": "AdvancedMediaPlayer",
+      "name": "AdvancedMediaPlayer",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_structural_adapter",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "AdvancedMediaPlayer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "playVlc",
+          "type_name": "",
+          "signature": "playVlc(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "playMp4",
+          "type_name": "",
+          "signature": "playMp4(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "AudioPlayer",
+      "label": "AudioPlayer",
+      "name": "AudioPlayer",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_adapter",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "AudioPlayer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "mediaAdapter",
+          "type_name": "MediaAdapter",
+          "signature": "mediaAdapter: MediaAdapter",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "play",
+          "type_name": "",
+          "signature": "play(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "MediaAdapter",
+      "label": "MediaAdapter",
+      "name": "MediaAdapter",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_adapter",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "MediaAdapter.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "advancedMusicPlayer",
+          "type_name": "AdvancedMediaPlayer",
+          "signature": "advancedMusicPlayer: AdvancedMediaPlayer",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "MediaAdapter",
+          "type_name": "void",
+          "signature": "MediaAdapter(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "play",
+          "type_name": "",
+          "signature": "play(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "MediaPlayer",
+      "label": "MediaPlayer",
+      "name": "MediaPlayer",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_structural_adapter",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "MediaPlayer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "play",
+          "type_name": "",
+          "signature": "play(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Mp4Player",
+      "label": "Mp4Player",
+      "name": "Mp4Player",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_adapter",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Mp4Player.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "playVlc",
+          "type_name": "",
+          "signature": "playVlc(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "playMp4",
+          "type_name": "",
+          "signature": "playMp4(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "VlcPlayer",
+      "label": "VlcPlayer",
+      "name": "VlcPlayer",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_adapter",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "VlcPlayer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "playVlc",
+          "type_name": "",
+          "signature": "playVlc(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "playMp4",
+          "type_name": "",
+          "signature": "playMp4(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_creational_factory",
+      "label": "package [factory]",
+      "name": "factory",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_creational",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "Logistics",
+      "label": "Logistics",
+      "name": "Logistics",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_factory",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Logistics.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "planDelivery",
+          "type_name": "",
+          "signature": "planDelivery(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "createTransport",
+          "type_name": "Transport",
+          "signature": "createTransport(): Transport",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "RoadLogistics",
+      "label": "RoadLogistics",
+      "name": "RoadLogistics",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_factory",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "RoadLogistics.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "createTransport",
+          "type_name": "Transport",
+          "signature": "createTransport(): Transport",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "SeaLogistics",
+      "label": "SeaLogistics",
+      "name": "SeaLogistics",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_factory",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "SeaLogistics.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "createTransport",
+          "type_name": "Transport",
+          "signature": "createTransport(): Transport",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Ship",
+      "label": "Ship",
+      "name": "Ship",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_factory",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Ship.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "deliver",
+          "type_name": "",
+          "signature": "deliver(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Transport",
+      "label": "Transport",
+      "name": "Transport",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_creational_factory",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Transport.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "deliver",
+          "type_name": "",
+          "signature": "deliver(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Truck",
+      "label": "Truck",
+      "name": "Truck",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_factory",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Truck.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "deliver",
+          "type_name": "",
+          "signature": "deliver(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_behavioral_strategy",
+      "label": "package [strategy]",
+      "name": "strategy",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_behavioral",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "CreditCardStrategy",
+      "label": "CreditCardStrategy",
+      "name": "CreditCardStrategy",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_strategy",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CreditCardStrategy.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "name",
+          "type_name": "",
+          "signature": "name: ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "cardNumber",
+          "type_name": "",
+          "signature": "cardNumber: ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "CreditCardStrategy",
+          "type_name": "void",
+          "signature": "CreditCardStrategy(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "pay",
+          "type_name": "",
+          "signature": "pay(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "PaymentStrategy",
+      "label": "PaymentStrategy",
+      "name": "PaymentStrategy",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_behavioral_strategy",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "PaymentStrategy.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "pay",
+          "type_name": "",
+          "signature": "pay(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "PaypalStrategy",
+      "label": "PaypalStrategy",
+      "name": "PaypalStrategy",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_strategy",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "PaypalStrategy.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "emailId",
+          "type_name": "",
+          "signature": "emailId: ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "PaypalStrategy",
+          "type_name": "void",
+          "signature": "PaypalStrategy(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "pay",
+          "type_name": "",
+          "signature": "pay(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "ShoppingCart",
+      "label": "ShoppingCart",
+      "name": "ShoppingCart",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_strategy",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "ShoppingCart.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "paymentStrategy",
+          "type_name": "PaymentStrategy",
+          "signature": "paymentStrategy: PaymentStrategy",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "setPaymentStrategy",
+          "type_name": "",
+          "signature": "setPaymentStrategy(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "checkout",
+          "type_name": "",
+          "signature": "checkout(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_behavioral_templatemethod",
+      "label": "package [templatemethod]",
+      "name": "templatemethod",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_behavioral",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "CsvDataMiner",
+      "label": "CsvDataMiner",
+      "name": "CsvDataMiner",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_templatemethod",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CsvDataMiner.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "openFile",
+          "type_name": "",
+          "signature": "openFile(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "extractData",
+          "type_name": "",
+          "signature": "extractData(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "parseData",
+          "type_name": "",
+          "signature": "parseData(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "DataMiner",
+      "label": "DataMiner",
+      "name": "DataMiner",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_templatemethod",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "DataMiner.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "mine",
+          "type_name": "",
+          "signature": "mine(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "openFile",
+          "type_name": "",
+          "signature": "openFile(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "extractData",
+          "type_name": "",
+          "signature": "extractData(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "parseData",
+          "type_name": "",
+          "signature": "parseData(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "closeFile",
+          "type_name": "",
+          "signature": "closeFile(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "PdfDataMiner",
+      "label": "PdfDataMiner",
+      "name": "PdfDataMiner",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_behavioral_templatemethod",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "PdfDataMiner.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "openFile",
+          "type_name": "",
+          "signature": "openFile(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "extractData",
+          "type_name": "",
+          "signature": "extractData(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "parseData",
+          "type_name": "",
+          "signature": "parseData(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_structural_facade",
+      "label": "package [facade]",
+      "name": "facade",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_structural",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "AudioMixer",
+      "label": "AudioMixer",
+      "name": "AudioMixer",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_facade",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "AudioMixer.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "fix",
+          "type_name": "",
+          "signature": "fix(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "BitrateReader",
+      "label": "BitrateReader",
+      "name": "BitrateReader",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_facade",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "BitrateReader.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "read",
+          "type_name": "",
+          "signature": "read(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "VideoConversionFacade",
+      "label": "VideoConversionFacade",
+      "name": "VideoConversionFacade",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_facade",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "VideoConversionFacade.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "audioMixer",
+          "type_name": "AudioMixer",
+          "signature": "audioMixer: AudioMixer",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "bitrateReader",
+          "type_name": "BitrateReader",
+          "signature": "bitrateReader: BitrateReader",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "convertVideo",
+          "type_name": "",
+          "signature": "convertVideo(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_creational_singleton",
+      "label": "package [singleton]",
+      "name": "singleton",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_creational",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "DatabaseConnectionPool",
+      "label": "DatabaseConnectionPool",
+      "name": "DatabaseConnectionPool",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_creational_singleton",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "DatabaseConnectionPool.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "instance",
+          "type_name": "DatabaseConnectionPool",
+          "signature": "instance: DatabaseConnectionPool",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "maxConnections",
+          "type_name": "",
+          "signature": "maxConnections: ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "isInitialized",
+          "type_name": "",
+          "signature": "isInitialized: ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "DatabaseConnectionPool",
+          "type_name": "void",
+          "signature": "DatabaseConnectionPool(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getInstance",
+          "type_name": "DatabaseConnectionPool",
+          "signature": "getInstance(): DatabaseConnectionPool",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "executeQuery",
+          "type_name": "",
+          "signature": "executeQuery(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "pkg_com_patterns_structural_decorator",
+      "label": "package [decorator]",
+      "name": "decorator",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": "pkg_com_patterns_structural",
+      "nest_level": 3,
+      "is_package": true,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "Beverage",
+      "label": "Beverage",
+      "name": "Beverage",
+      "kind": "interface",
+      "stereotype": "<<interface>>",
+      "parent": "pkg_com_patterns_structural_decorator",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Beverage.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "getDescription",
+          "type_name": "",
+          "signature": "getDescription(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "cost",
+          "type_name": "",
+          "signature": "cost(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "CondimentDecorator",
+      "label": "CondimentDecorator",
+      "name": "CondimentDecorator",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_decorator",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CondimentDecorator.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [
+        {
+          "visibility": "+",
+          "name": "beverage",
+          "type_name": "Beverage",
+          "signature": "beverage: Beverage",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "CondimentDecorator",
+          "type_name": "void",
+          "signature": "CondimentDecorator(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getDescription",
+          "type_name": "",
+          "signature": "getDescription(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Espresso",
+      "label": "Espresso",
+      "name": "Espresso",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_decorator",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Espresso.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "getDescription",
+          "type_name": "",
+          "signature": "getDescription(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "cost",
+          "type_name": "",
+          "signature": "cost(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Mocha",
+      "label": "Mocha",
+      "name": "Mocha",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_decorator",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Mocha.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "Mocha",
+          "type_name": "void",
+          "signature": "Mocha(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getDescription",
+          "type_name": "",
+          "signature": "getDescription(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "cost",
+          "type_name": "",
+          "signature": "cost(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    },
+    {
+      "id": "Whip",
+      "label": "Whip",
+      "name": "Whip",
+      "kind": "class",
+      "stereotype": "<<class>>",
+      "parent": "pkg_com_patterns_structural_decorator",
+      "nest_level": 4,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "Whip.java",
+      "lines": [
+        1,
+        5,
+        10
+      ],
+      "fields": [],
+      "methods": [
+        {
+          "visibility": "+",
+          "name": "Whip",
+          "type_name": "void",
+          "signature": "Whip(): void",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "getDescription",
+          "type_name": "",
+          "signature": "getDescription(): ",
+          "is_static": false,
+          "is_final": false
+        },
+        {
+          "visibility": "+",
+          "name": "cost",
+          "type_name": "",
+          "signature": "cost(): ",
+          "is_static": false,
+          "is_final": false
+        }
+      ],
+      "instructions": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_1",
+      "source": "ComputerBuilder",
+      "target": "Computer",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_2",
+      "source": "NewsAgency",
+      "target": "Subject",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_3",
+      "source": "NewsChannel",
+      "target": "Observer",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_4",
+      "source": "AudioPlayer",
+      "target": "MediaPlayer",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_5",
+      "source": "AudioPlayer",
+      "target": "MediaAdapter",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_6",
+      "source": "MediaAdapter",
+      "target": "MediaPlayer",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_7",
+      "source": "MediaAdapter",
+      "target": "AdvancedMediaPlayer",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_8",
+      "source": "Mp4Player",
+      "target": "AdvancedMediaPlayer",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_9",
+      "source": "VlcPlayer",
+      "target": "AdvancedMediaPlayer",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_10",
+      "source": "RoadLogistics",
+      "target": "Logistics",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_11",
+      "source": "SeaLogistics",
+      "target": "Logistics",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_12",
+      "source": "Ship",
+      "target": "Transport",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_13",
+      "source": "Truck",
+      "target": "Transport",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_14",
+      "source": "CreditCardStrategy",
+      "target": "PaymentStrategy",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_15",
+      "source": "PaypalStrategy",
+      "target": "PaymentStrategy",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_16",
+      "source": "ShoppingCart",
+      "target": "PaymentStrategy",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_17",
+      "source": "CsvDataMiner",
+      "target": "DataMiner",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_18",
+      "source": "PdfDataMiner",
+      "target": "DataMiner",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_19",
+      "source": "VideoConversionFacade",
+      "target": "AudioMixer",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_20",
+      "source": "VideoConversionFacade",
+      "target": "BitrateReader",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_21",
+      "source": "CondimentDecorator",
+      "target": "Beverage",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_22",
+      "source": "CondimentDecorator",
+      "target": "Beverage",
+      "kind": "association",
+      "label": null,
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_23",
+      "source": "Espresso",
+      "target": "Beverage",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_24",
+      "source": "Mocha",
+      "target": "CondimentDecorator",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    },
+    {
+      "id": "edge_25",
+      "source": "Whip",
+      "target": "CondimentDecorator",
+      "kind": "generalization",
+      "label": null,
+      "arrow": "--|>"
+    }
+  ],
+  "metadata": {
+    "total_nodes": 49,
+    "total_edges": 25,
+    "compiler_hash": "0x83D2D2B2",
+    "verified": true
+  }
+}

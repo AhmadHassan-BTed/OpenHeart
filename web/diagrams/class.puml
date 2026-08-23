@@ -256,31 +256,29 @@ package "com" as pkg_com {
   }
 }
 
-AudioPlayer o-- MediaAdapter
-AudioPlayer ..|> MediaPlayer
-ComputerBuilder *-- Computer
-CondimentDecorator o-- Beverage
-CondimentDecorator ..|> Beverage
-CreditCardStrategy ..|> PaymentStrategy
+AudioPlayer --> MediaAdapter
+AudioPlayer --|> MediaPlayer
+ComputerBuilder --> Computer
+CondimentDecorator --|> Beverage
+CreditCardStrategy --|> PaymentStrategy
 CsvDataMiner --|> DataMiner
-Espresso ..|> Beverage
-MediaAdapter o-- AdvancedMediaPlayer
-MediaAdapter ..|> MediaPlayer
+Espresso --|> Beverage
+MediaAdapter --> AdvancedMediaPlayer
+MediaAdapter --|> MediaPlayer
 Mocha --|> CondimentDecorator
-Mp4Player ..|> AdvancedMediaPlayer
-NewsAgency ..|> Subject
-NewsAgency o-- Observer
-NewsChannel ..|> Observer
-PaypalStrategy ..|> PaymentStrategy
+Mp4Player --|> AdvancedMediaPlayer
+NewsAgency --|> Subject
+NewsChannel --|> Observer
+PaypalStrategy --|> PaymentStrategy
 PdfDataMiner --|> DataMiner
 RoadLogistics --|> Logistics
 SeaLogistics --|> Logistics
-Ship ..|> Transport
-ShoppingCart o-- PaymentStrategy
-Truck ..|> Transport
-VideoConversionFacade *-- AudioMixer
-VideoConversionFacade *-- BitrateReader
-VlcPlayer ..|> AdvancedMediaPlayer
+Ship --|> Transport
+ShoppingCart --> PaymentStrategy
+Truck --|> Transport
+VideoConversionFacade --> AudioMixer
+VideoConversionFacade --> BitrateReader
+VlcPlayer --|> AdvancedMediaPlayer
 Whip --|> CondimentDecorator
 
 @enduml

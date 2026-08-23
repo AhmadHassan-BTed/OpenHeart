@@ -102,8 +102,14 @@ impl OpenHeartEngine {
         self.export_plantuml(uma, sta, tca)
     }
 
-    pub fn export_json(&self, classes: &[ClassRecord]) -> String {
-        JSONExporter::export_class_diagram(classes)
+    pub fn export_json(
+        &self,
+        uma: &UMLMetadataArtifact,
+        sta: &crate::symbol::SymbolTableArtifact,
+        tca: &crate::ingestion::TokenCorpusArtifact,
+    ) -> String {
+        let graph_ir = JSONExporter::export_class_diagram(uma, sta, tca);
+        serde_json::to_string_pretty(&graph_ir).unwrap_or_else(|_| "{}".to_string())
     }
 
     pub fn summary(&self, uma: &UMLMetadataArtifact) -> String {

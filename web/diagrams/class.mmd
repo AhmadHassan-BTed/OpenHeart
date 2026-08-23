@@ -13,32 +13,6 @@ classDiagram
                         +executeQuery() Unknown
                     }
                 }
-                namespace factory {
-                    class Logistics {
-                        +planDelivery() Unknown
-                        +createTransport() Transport
-                    }
-                    class RoadLogistics {
-                        +createTransport() Transport
-                    }
-                    class SeaLogistics {
-                        +createTransport() Transport
-                    }
-                    class Ship {
-                        +deliver() Unknown
-                    }
-                    class Transport {
-                        <<interface>> 
-                        +deliver() Unknown
-                    }
-                    class Truck {
-                        +deliver() Unknown
-                    }
-                    RoadLogistics --|> Logistics
-                    SeaLogistics --|> Logistics
-                    Ship --|> Transport
-                    Truck --|> Transport
-                }
                 namespace builder {
                     class Computer {
                         <<Decorator>>
@@ -68,6 +42,32 @@ classDiagram
                     class Director {
                         +constructGamingComputer() Computer
                     }
+                }
+                namespace factory {
+                    class Logistics {
+                        +planDelivery() Unknown
+                        +createTransport() Transport
+                    }
+                    class RoadLogistics {
+                        +createTransport() Transport
+                    }
+                    class SeaLogistics {
+                        +createTransport() Transport
+                    }
+                    class Ship {
+                        +deliver() Unknown
+                    }
+                    class Transport {
+                        <<interface>> 
+                        +deliver() Unknown
+                    }
+                    class Truck {
+                        +deliver() Unknown
+                    }
+                    RoadLogistics --|> Logistics
+                    SeaLogistics --|> Logistics
+                    Ship --|> Transport
+                    Truck --|> Transport
                 }
             }
             namespace structural {
@@ -105,6 +105,20 @@ classDiagram
                     Mp4Player --|> AdvancedMediaPlayer
                     VlcPlayer --|> AdvancedMediaPlayer
                 }
+                namespace facade {
+                    class AudioMixer {
+                        +fix() Unknown
+                    }
+                    class BitrateReader {
+                        +read() Unknown
+                    }
+                    class VideoConversionFacade {
+                        <<Decorator>>
+                        +audioMixer AudioMixer
+                        +bitrateReader BitrateReader
+                        +convertVideo() Unknown
+                    }
+                }
                 namespace decorator {
                     class Beverage {
                         <<interface>> 
@@ -136,20 +150,6 @@ classDiagram
                     Mocha --|> CondimentDecorator
                     Whip --|> CondimentDecorator
                 }
-                namespace facade {
-                    class AudioMixer {
-                        +fix() Unknown
-                    }
-                    class BitrateReader {
-                        +read() Unknown
-                    }
-                    class VideoConversionFacade {
-                        <<Decorator>>
-                        +audioMixer AudioMixer
-                        +bitrateReader BitrateReader
-                        +convertVideo() Unknown
-                    }
-                }
             }
             namespace behavioral {
                 namespace observer {
@@ -180,27 +180,6 @@ classDiagram
                     NewsAgency --|> Subject
                     NewsChannel --|> Observer
                 }
-                namespace templatemethod {
-                    class CsvDataMiner {
-                        +openFile() Unknown
-                        +extractData() Unknown
-                        +parseData() Unknown
-                    }
-                    class DataMiner {
-                        +mine() Unknown
-                        +openFile() Unknown
-                        +extractData() Unknown
-                        +parseData() Unknown
-                        +closeFile() Unknown
-                    }
-                    class PdfDataMiner {
-                        +openFile() Unknown
-                        +extractData() Unknown
-                        +parseData() Unknown
-                    }
-                    CsvDataMiner --|> DataMiner
-                    PdfDataMiner --|> DataMiner
-                }
                 namespace strategy {
                     class CreditCardStrategy {
                         <<State>>
@@ -228,6 +207,27 @@ classDiagram
                     }
                     CreditCardStrategy --|> PaymentStrategy
                     PaypalStrategy --|> PaymentStrategy
+                }
+                namespace templatemethod {
+                    class CsvDataMiner {
+                        +openFile() Unknown
+                        +extractData() Unknown
+                        +parseData() Unknown
+                    }
+                    class DataMiner {
+                        +mine() Unknown
+                        +openFile() Unknown
+                        +extractData() Unknown
+                        +parseData() Unknown
+                        +closeFile() Unknown
+                    }
+                    class PdfDataMiner {
+                        +openFile() Unknown
+                        +extractData() Unknown
+                        +parseData() Unknown
+                    }
+                    CsvDataMiner --|> DataMiner
+                    PdfDataMiner --|> DataMiner
                 }
             }
         }

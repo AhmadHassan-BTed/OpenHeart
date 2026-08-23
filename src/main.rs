@@ -297,6 +297,15 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         ) {
             fs::write(diag_dir.join(format!("{}.mmd", diag_type)), mmd).ok();
         }
+        if let Some(json) = diag_engine.export_diagram(
+            openheart::scpg::diagram::DiagramFormat::JSON,
+            diag_type,
+            &uma_artifact,
+            &sta_artifact,
+            &tca_artifact,
+        ) {
+            fs::write(diag_dir.join(format!("{}.json", diag_type)), json).ok();
+        }
     }
 
     log_info("================================================================================");

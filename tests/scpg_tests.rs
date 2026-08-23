@@ -158,8 +158,8 @@ public class SystemCompleteTest {
     let puml = engine.export_plantuml(&uma, &sta, &tca);
     assert!(puml.contains("@startuml"));
 
-    let json = engine.export_json(&uma.classes);
-    assert!(json.contains("\"diagram\": \"class\""));
+    let json = engine.export_json(&uma, &sta, &tca);
+    assert!(json.contains("\"diagram_type\": \"class\""));
 
     let summary = engine.summary(&uma);
     assert!(summary.contains("Generated all 14 UML Diagram Types"));

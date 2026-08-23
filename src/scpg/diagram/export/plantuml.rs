@@ -234,7 +234,7 @@ skinparam UsecaseFontColor #ffffff\n\n"
         primitives.contains(&name)
     }
 
-    fn resolve_sym_package(
+    pub fn resolve_sym_package(
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
         _bpa_bytes: Option<&[u8]>,
