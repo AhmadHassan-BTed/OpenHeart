@@ -384,18 +384,21 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Default Edge Fallback ──
+      // ── Default Edge Fallback (Smooth Bezier Routing & Visible Arrows) ──
       {
         selector: 'edge',
         style: {
-          'width': 2.0,
+          'width': 2.2,
           'line-color': '#64748B',
           'target-arrow-color': '#64748B',
           'target-arrow-shape': 'vee',
-          'arrow-scale': 1.6,
+          'arrow-scale': 1.8,
           'curve-style': 'bezier',
-          'source-distance-from-node': 3,
-          'target-distance-from-node': 3,
+          'control-point-step-size': 35,
+          'source-distance-from-node': 4,
+          'target-distance-from-node': 4,
+          'source-endpoint': 'outside-to-node',
+          'target-endpoint': 'outside-to-node',
           'label': 'data(label)',
           'font-family': 'JetBrains Mono, monospace',
           'font-size': '10px',
@@ -411,7 +414,7 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── 1. UML Generalization (--|>) : Royal Purple Solid Line + Hollow Triangle Head ──
+      // ── 1. UML Generalization (--|>) : Royal Purple Solid Line + Bold Hollow Triangle Head ──
       {
         selector: 'edge[uml_kind = "generalization"], edge.edge-generalization',
         style: {
@@ -421,13 +424,13 @@ export class InteractiveGraphCanvas {
           'target-arrow-color': '#8B5CF6',
           'source-arrow-shape': 'none',
           'line-style': 'solid',
-          'arrow-scale': 2.2,
-          'width': 2.4,
+          'arrow-scale': 2.5,
+          'width': 2.6,
           'z-index': 999
         }
       },
 
-      // ── 2. UML Realization (..|>) : Electric Azure Dashed Line + Hollow Triangle Head ──
+      // ── 2. UML Realization (..|>) : Electric Azure Dashed Line + Bold Hollow Triangle Head ──
       {
         selector: 'edge[uml_kind = "realization"], edge.edge-realization',
         style: {
@@ -438,13 +441,13 @@ export class InteractiveGraphCanvas {
           'line-color': '#2563EB',
           'target-arrow-color': '#2563EB',
           'source-arrow-shape': 'none',
-          'arrow-scale': 2.2,
-          'width': 2.4,
+          'arrow-scale': 2.5,
+          'width': 2.6,
           'z-index': 999
         }
       },
 
-      // ── 3. UML Composition (*-- or --*) : Ruby Crimson Solid Line + Filled Diamond ──
+      // ── 3. UML Composition (*-- or --*) : Ruby Crimson Solid Line + Solid Filled Diamond ──
       {
         selector: 'edge[uml_kind = "composition"], edge.edge-composition',
         style: {
@@ -454,8 +457,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#DC2626',
           'target-arrow-shape': 'none',
           'line-style': 'solid',
-          'arrow-scale': 2.6,
-          'width': 2.5,
+          'arrow-scale': 2.8,
+          'width': 2.6,
           'z-index': 999
         }
       },
@@ -468,13 +471,13 @@ export class InteractiveGraphCanvas {
           'source-arrow-shape': 'none',
           'line-color': '#DC2626',
           'line-style': 'solid',
-          'arrow-scale': 2.6,
-          'width': 2.5,
+          'arrow-scale': 2.8,
+          'width': 2.6,
           'z-index': 999
         }
       },
 
-      // ── 4. UML Aggregation (o-- or --o) : Emerald Green Solid Line + Hollow Diamond ──
+      // ── 4. UML Aggregation (o-- or --o) : Emerald Green Solid Line + Bold Hollow Diamond ──
       {
         selector: 'edge[uml_kind = "aggregation"], edge.edge-aggregation',
         style: {
@@ -484,8 +487,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#059669',
           'target-arrow-shape': 'none',
           'line-style': 'solid',
-          'arrow-scale': 2.6,
-          'width': 2.5,
+          'arrow-scale': 2.8,
+          'width': 2.6,
           'z-index': 999
         }
       },
@@ -498,13 +501,13 @@ export class InteractiveGraphCanvas {
           'source-arrow-shape': 'none',
           'line-color': '#059669',
           'line-style': 'solid',
-          'arrow-scale': 2.6,
-          'width': 2.5,
+          'arrow-scale': 2.8,
+          'width': 2.6,
           'z-index': 999
         }
       },
 
-      // ── 5. UML Directed Association (-->) : Cyan Blue Solid Line + Open Vee Arrowhead ──
+      // ── 5. UML Directed Association (-->) : Cyan Blue Solid Line + Sharp Open Vee Arrowhead ──
       {
         selector: 'edge[uml_kind = "association"], edge.edge-association',
         style: {
@@ -514,13 +517,13 @@ export class InteractiveGraphCanvas {
           'line-color': '#0284C7',
           'target-arrow-color': '#0284C7',
           'source-arrow-shape': 'none',
-          'arrow-scale': 1.8,
-          'width': 2.0,
+          'arrow-scale': 2.0,
+          'width': 2.2,
           'z-index': 999
         }
       },
 
-      // ── 6. UML Dependency (..>) : Amber Gold Dashed Line + Open Vee Arrowhead ──
+      // ── 6. UML Dependency (..>) : Amber Gold Dashed Line + Sharp Open Vee Arrowhead ──
       {
         selector: 'edge[uml_kind = "dependency"], edge.edge-dependency',
         style: {
@@ -531,8 +534,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#D97706',
           'target-arrow-color': '#D97706',
           'source-arrow-shape': 'none',
-          'arrow-scale': 1.8,
-          'width': 2.0,
+          'arrow-scale': 2.0,
+          'width': 2.2,
           'z-index': 999
         }
       },
@@ -547,8 +550,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#6366F1',
           'target-arrow-color': '#6366F1',
           'source-arrow-shape': 'none',
-          'arrow-scale': 1.6,
-          'width': 2.2,
+          'arrow-scale': 1.8,
+          'width': 2.4,
           'z-index': 999
         }
       },
@@ -563,8 +566,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#06B6D4',
           'target-arrow-color': '#06B6D4',
           'source-arrow-shape': 'none',
-          'arrow-scale': 1.6,
-          'width': 2.2,
+          'arrow-scale': 1.8,
+          'width': 2.4,
           'z-index': 999
         }
       },
@@ -579,8 +582,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#10B981',
           'target-arrow-color': '#10B981',
           'source-arrow-shape': 'none',
-          'arrow-scale': 1.6,
-          'width': 2.2,
+          'arrow-scale': 1.8,
+          'width': 2.4,
           'z-index': 999
         }
       },
@@ -596,8 +599,8 @@ export class InteractiveGraphCanvas {
           'line-color': '#EA580C',
           'target-arrow-color': '#EA580C',
           'source-arrow-shape': 'none',
-          'arrow-scale': 1.6,
-          'width': 2.0,
+          'arrow-scale': 1.8,
+          'width': 2.2,
           'z-index': 999
         }
       },
