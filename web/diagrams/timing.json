@@ -1,12 +1,137 @@
 {
-  "diagram_type": "state",
-  "title": "UML 2.5 State Machine Models",
-  "nodes": [],
-  "edges": [],
+  "diagram_type": "timing",
+  "title": "UML 2.5 Timing Diagram · Real-Time Pipeline Stage Execution",
+  "nodes": [
+    {
+      "id": "track_compiler_core",
+      "label": "Compiler Core Pipeline",
+      "name": "CompilerCore",
+      "kind": "timing_track",
+      "stereotype": "<<lifeline>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CompilerTiming.java",
+      "lines": [1],
+      "fields": [],
+      "methods": [],
+      "instructions": [
+        "@0ms: IDLE",
+        "@10ms: PHASE1_LEXING",
+        "@30ms: PHASE2_BP_AST",
+        "@60ms: PHASE3_SYMBOLS",
+        "@100ms: PHASE4_DOMINATORS",
+        "@150ms: PHASE5_SSA",
+        "@200ms: PHASE8_ROBDD",
+        "@260ms: PHASE10_SCPG",
+        "@280ms: READY"
+      ]
+    },
+    {
+      "id": "track_memory_pool",
+      "label": "Direct Memory Buffer Pool",
+      "name": "MemoryPool",
+      "kind": "timing_track",
+      "stereotype": "<<lifeline>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CompilerTiming.java",
+      "lines": [10],
+      "fields": [],
+      "methods": [],
+      "instructions": [
+        "@0ms: ALLOCATED_64MB",
+        "@10ms: MMAP_ACTIVE",
+        "@60ms: ARENA_SCRATCH",
+        "@200ms: BDD_DEDUP_CACHE",
+        "@280ms: RETENTION_CLEARED"
+      ]
+    },
+    {
+      "id": "track_worker_threads",
+      "label": "Rayon Ray Parallel Workers",
+      "name": "ParallelWorkers",
+      "kind": "timing_track",
+      "stereotype": "<<lifeline>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CompilerTiming.java",
+      "lines": [20],
+      "fields": [],
+      "methods": [],
+      "instructions": [
+        "@0ms: DORMANT",
+        "@10ms: PARALLEL_FAN_OUT",
+        "@100ms: COOPER_FIXED_POINT",
+        "@200ms: PARALLEL_ROBDD_APPLY",
+        "@280ms: JOINED"
+      ]
+    },
+    {
+      "id": "track_disk_io",
+      "label": "Zero-Copy Disk & Cache I/O",
+      "name": "DiskIO",
+      "kind": "timing_track",
+      "stereotype": "<<lifeline>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "CompilerTiming.java",
+      "lines": [30],
+      "fields": [],
+      "methods": [],
+      "instructions": [
+        "@0ms: IDLE",
+        "@10ms: READ_MANIFEST",
+        "@260ms: WRITE_SCPG_BINARY",
+        "@280ms: FLUSHED"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_tm_0",
+      "source": "track_compiler_core",
+      "target": "track_memory_pool",
+      "kind": "transition",
+      "label": "@10ms: requestBuffer()",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_tm_1",
+      "source": "track_compiler_core",
+      "target": "track_worker_threads",
+      "kind": "transition",
+      "label": "@100ms: spawnCooperDominators()",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_tm_2",
+      "source": "track_worker_threads",
+      "target": "track_compiler_core",
+      "kind": "transition",
+      "label": "@150ms: ssaFrontierReady()",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_tm_3",
+      "source": "track_compiler_core",
+      "target": "track_disk_io",
+      "kind": "transition",
+      "label": "@260ms: serializeBinarySCPG()",
+      "arrow": "-->"
+    }
+  ],
   "metadata": {
-    "total_nodes": 0,
-    "total_edges": 0,
-    "compiler_hash": "0x83D2D2B2",
+    "total_nodes": 4,
+    "total_edges": 4,
+    "compiler_hash": "0x7CA43810",
     "verified": true
   }
 }

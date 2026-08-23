@@ -741,6 +741,41 @@ html, body {
   color: var(--accent-purple);
 }
 
+.badge-e {
+  background: rgba(245, 158, 11, 0.15);
+  color: #F59E0B;
+}
+
+.badge-k {
+  background: rgba(168, 85, 247, 0.15);
+  color: #A855F7;
+}
+
+.badge-r {
+  background: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
+}
+
+.badge-t {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38BDF8;
+}
+
+.badge-p {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3B82F6;
+}
+
+.badge-u {
+  background: rgba(250, 204, 21, 0.15);
+  color: #FACC15;
+}
+
+.badge-b {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+}
+
 .tree-file-label {
   overflow: hidden;
   text-overflow: ellipsis;

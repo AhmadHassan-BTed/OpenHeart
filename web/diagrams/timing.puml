@@ -8,47 +8,51 @@ skinparam defaultFontColor #e5e5e5
 skinparam defaultFontSize 12
 skinparam ArrowColor #38bdf8
 skinparam ArrowThickness 1.5
-skinparam packageStyle rectangle
-skinparam PackageBorderColor #facc15
-skinparam PackageBackgroundColor #0f141c
-skinparam PackageFontColor #facc15
-skinparam ClassBorderColor #38bdf8
-skinparam ClassBackgroundColor #14171f
-skinparam ClassHeaderBackgroundColor #1e2433
-skinparam ClassFontColor #ffffff
-skinparam ObjectBorderColor #38bdf8
-skinparam ObjectBackgroundColor #14171f
-skinparam ObjectFontColor #ffffff
-skinparam ComponentBorderColor #38bdf8
-skinparam ComponentBackgroundColor #14171f
-skinparam ComponentFontColor #ffffff
-skinparam NodeBorderColor #38bdf8
-skinparam NodeBackgroundColor #14171f
-skinparam NodeFontColor #ffffff
-skinparam StateBorderColor #38bdf8
-skinparam StateBackgroundColor #14171f
-skinparam StateFontColor #ffffff
-skinparam ActivityBorderColor #38bdf8
-skinparam ActivityBackgroundColor #14171f
-skinparam ActivityFontColor #ffffff
-skinparam SequenceLifeLineBorderColor #38bdf8
-skinparam SequenceLifeLineBackgroundColor #14171f
-skinparam SequenceGroupBorderColor #facc15
-skinparam SequenceGroupBackgroundColor #0f141c
-skinparam SequenceGroupFontColor #facc15
-skinparam ParticipantBorderColor #38bdf8
-skinparam ParticipantBackgroundColor #14171f
-skinparam ParticipantFontColor #ffffff
-skinparam ActorBorderColor #facc15
-skinparam ActorBackgroundColor #14171f
-skinparam ActorFontColor #ffffff
-skinparam UsecaseBorderColor #38bdf8
-skinparam UsecaseBackgroundColor #14171f
-skinparam UsecaseFontColor #ffffff
 
-robust "ExternalActor" as tl_ExternalActor
-robust "backend" as tl_backend
+robust "Compiler Core" as CC
+concise "Memory Pool" as MP
+robust "Parallel Workers" as PW
+concise "Disk I/O" as DIO
 
 @0
-tl_backend is App
+CC is IDLE
+MP is ALLOCATED_64MB
+PW is DORMANT
+DIO is IDLE
+
+@10
+CC is PHASE1_LEXING
+MP is MMAP_ACTIVE
+PW is PARALLEL_FAN_OUT
+DIO is READ_MANIFEST
+
+@30
+CC is PHASE2_BP_AST
+
+@60
+CC is PHASE3_SYMBOLS
+MP is ARENA_SCRATCH
+
+@100
+CC is PHASE4_DOMINATORS
+PW is COOPER_FIXED_POINT
+
+@150
+CC is PHASE5_SSA
+
+@200
+CC is PHASE8_ROBDD
+MP is BDD_DEDUP_CACHE
+PW is PARALLEL_ROBDD_APPLY
+
+@260
+CC is PHASE10_SCPG
+DIO is WRITE_SCPG_BINARY
+
+@280
+CC is READY
+MP is RETENTION_CLEARED
+PW is JOINED
+DIO is FLUSHED
+
 @enduml

@@ -8,108 +8,48 @@ skinparam defaultFontColor #e5e5e5
 skinparam defaultFontSize 12
 skinparam ArrowColor #38bdf8
 skinparam ArrowThickness 1.5
-skinparam packageStyle rectangle
-skinparam PackageBorderColor #facc15
-skinparam PackageBackgroundColor #0f141c
-skinparam PackageFontColor #facc15
-skinparam ClassBorderColor #38bdf8
-skinparam ClassBackgroundColor #14171f
-skinparam ClassHeaderBackgroundColor #1e2433
-skinparam ClassFontColor #ffffff
-skinparam ObjectBorderColor #38bdf8
-skinparam ObjectBackgroundColor #14171f
-skinparam ObjectFontColor #ffffff
-skinparam ComponentBorderColor #38bdf8
-skinparam ComponentBackgroundColor #14171f
-skinparam ComponentFontColor #ffffff
-skinparam NodeBorderColor #38bdf8
-skinparam NodeBackgroundColor #14171f
-skinparam NodeFontColor #ffffff
-skinparam StateBorderColor #38bdf8
-skinparam StateBackgroundColor #14171f
-skinparam StateFontColor #ffffff
-skinparam ActivityBorderColor #38bdf8
-skinparam ActivityBackgroundColor #14171f
-skinparam ActivityFontColor #ffffff
-skinparam SequenceLifeLineBorderColor #38bdf8
-skinparam SequenceLifeLineBackgroundColor #14171f
-skinparam SequenceGroupBorderColor #facc15
-skinparam SequenceGroupBackgroundColor #0f141c
-skinparam SequenceGroupFontColor #facc15
-skinparam ParticipantBorderColor #38bdf8
-skinparam ParticipantBackgroundColor #14171f
-skinparam ParticipantFontColor #ffffff
-skinparam ActorBorderColor #facc15
-skinparam ActorBackgroundColor #14171f
-skinparam ActorFontColor #ffffff
-skinparam UsecaseBorderColor #38bdf8
-skinparam UsecaseBackgroundColor #14171f
-skinparam UsecaseFontColor #ffffff
 
-title Control Flow Graph (CFG) & Dominator Frontiers
-
-state "Function CFG: state()" as CFG_state {
-  state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
-  state "Branch Gate: (condition)" as Gate1 <<choice>>
-  state "Then Block 1\n[Statements Execution]" as BB1 #14171f
-  state "Else/Merge Block 2\n[Dominance Frontier]" as BB2 #14171f
-  state "Exit Return Block 3" as BB3 #0f172a
-
-  [*] --> BB0
-  BB0 --> Gate1 : evaluate
-  Gate1 --> BB1 : [true branch]
-  Gate1 --> BB2 : [false branch]
-  BB1 --> BB2 : fallthrough
-  BB2 --> BB3 : proceed
-  BB3 --> [*] : return
+card "BB0: Entry" as BB0 {
+  v0 = load_param(manifest)
+  v1 = validate_manifest(v0)
+  branch_if v1 != 0
 }
 
-state "Function CFG: this()" as CFG_this {
-  state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
-  state "Branch Gate: (condition)" as Gate1 <<choice>>
-  state "Then Block 1\n[Statements Execution]" as BB1 #14171f
-  state "Else/Merge Block 2\n[Dominance Frontier]" as BB2 #14171f
-  state "Exit Return Block 3" as BB3 #0f172a
-
-  [*] --> BB0
-  BB0 --> Gate1 : evaluate
-  Gate1 --> BB1 : [true branch]
-  Gate1 --> BB2 : [false branch]
-  BB1 --> BB2 : fallthrough
-  BB2 --> BB3 : proceed
-  BB3 --> [*] : return
+card "BB1: Parse AST" as BB1 {
+  v2 = mmap_corpus(v0)
+  v3 = build_bp_ast(v2)
+  v4 = resolve_symbols(v3)
+  branch_if v4.is_valid()
 }
 
-state "Function CFG: path()" as CFG_path {
-  state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
-  state "Branch Gate: (condition)" as Gate1 <<choice>>
-  state "Then Block 1\n[Statements Execution]" as BB1 #14171f
-  state "Else/Merge Block 2\n[Dominance Frontier]" as BB2 #14171f
-  state "Exit Return Block 3" as BB3 #0f172a
-
-  [*] --> BB0
-  BB0 --> Gate1 : evaluate
-  Gate1 --> BB1 : [true branch]
-  Gate1 --> BB2 : [false branch]
-  BB1 --> BB2 : fallthrough
-  BB2 --> BB3 : proceed
-  BB3 --> [*] : return
+card "BB2: Cooper Dominators" as BB2 {
+  v5 = compute_rpo(v3)
+  v6 = intersect_idom_loop(v5)
+  v7 = compute_dominance_frontiers(v6)
 }
 
-state "Function CFG: disabled()" as CFG_disabled {
-  state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
-  state "Branch Gate: (condition)" as Gate1 <<choice>>
-  state "Then Block 1\n[Statements Execution]" as BB1 #14171f
-  state "Else/Merge Block 2\n[Dominance Frontier]" as BB2 #14171f
-  state "Exit Return Block 3" as BB3 #0f172a
-
-  [*] --> BB0
-  BB0 --> Gate1 : evaluate
-  Gate1 --> BB1 : [true branch]
-  Gate1 --> BB2 : [false branch]
-  BB1 --> BB2 : fallthrough
-  BB2 --> BB3 : proceed
-  BB3 --> [*] : return
+card "BB3: ROBDD Saturation" as BB3 {
+  v8 = phi(v7, null)
+  v9 = build_bdd_unique_table(v8)
+  v10 = saturate_knuth(v9)
 }
+
+card "BB4: Error Diagnostic" as BB4 {
+  v11 = format_error_diagnostic()
+  log_diagnostic(v11)
+}
+
+card "BB5: Exit" as BB5 {
+  v12 = phi(v10, v11)
+  return v12
+}
+
+BB0 --> BB1 : [true]
+BB0 --> BB4 : [false]
+BB1 --> BB2 : [valid]
+BB1 --> BB4 : [invalid]
+BB2 --> BB3
+BB3 --> BB5
+BB4 --> BB5
 
 @enduml

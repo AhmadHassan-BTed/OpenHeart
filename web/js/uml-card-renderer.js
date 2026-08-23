@@ -550,6 +550,121 @@ export function generateBddGateSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
+/** ── 12. Composite Structure Part Node ── */
+export function generateCompositeCardSvg(data) {
+  const { name = "Part", fields = [], methods = [], width = 270, height = 110, isDark = false } = data;
+  const theme = getTheme(isDark);
+  const cardBg = isDark ? '#14171F' : '#FFFFFF';
+  const strokeColor = isDark ? '#38BDF8' : '#0284C7';
+  const headerBg = isDark ? '#1E2433' : '#F0F9FF';
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const bodyColor = isDark ? '#CBD5E1' : '#334155';
+
+  let svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <rect x="1" y="1" width="${width - 2}" height="32" rx="6" fill="${headerBg}" />
+  <line x1="1" y1="32" x2="${width - 1}" y2="32" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">⚙️ ${escapeXml(name)}</text>
+  <!-- Port Pins on left and right borders -->
+  <rect x="-4" y="20" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
+  <rect x="${width - 4}" y="20" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
+`;
+
+  let y = 48;
+  fields.slice(0, 2).forEach(f => {
+    const txt = typeof f === 'string' ? f : (f.signature || f.name);
+    svg += `\n  <text x="12" y="${y}" font-family="JetBrains Mono, monospace" font-size="9" fill="${bodyColor}">• ${escapeXml(txt)}</text>`;
+    y += 18;
+  });
+
+  svg += `\n</svg>`;
+  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+}
+
+/** ── 13. Profile Metaclass / Stereotype Node ── */
+export function generateProfileCardSvg(data) {
+  const { name = "Stereotype", stereotype = "<<stereotype>>", fields = [], width = 270, height = 110, isDark = false } = data;
+  const isMeta = stereotype.includes('metaclass');
+  const cardBg = isDark ? '#14171F' : '#FFFFFF';
+  const strokeColor = isMeta ? (isDark ? '#FACC15' : '#D97706') : (isDark ? '#C084FC' : '#9333EA');
+  const headerBg = isMeta ? (isDark ? '#2D2815' : '#FEF9C3') : (isDark ? '#281B38' : '#F3E8FF');
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const badgeColor = strokeColor;
+  const bodyColor = isDark ? '#CBD5E1' : '#334155';
+
+  let svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <rect x="1" y="1" width="${width - 2}" height="38" rx="6" fill="${headerBg}" />
+  <line x1="1" y1="38" x2="${width - 1}" y2="38" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="${width / 2}" y="16" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;${isMeta ? 'metaclass' : 'stereotype'}&gt;&gt;</text>
+  <text x="${width / 2}" y="32" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
+`;
+
+  let y = 54;
+  fields.slice(0, 3).forEach(f => {
+    const txt = typeof f === 'string' ? f : (f.signature || f.name);
+    svg += `\n  <text x="12" y="${y}" font-family="JetBrains Mono, monospace" font-size="9" fill="${bodyColor}">+ ${escapeXml(txt)}</text>`;
+    y += 18;
+  });
+
+  svg += `\n</svg>`;
+  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+}
+
+/** ── 14. Timing Diagram Multi-State Waveform Track ── */
+export function generateTimingTrackSvg(data) {
+  const { name = "Lifeline", instructions = [], width = 620, height = 120, isDark = false } = data;
+  const cardBg = isDark ? '#0F141C' : '#F8FAFC';
+  const strokeColor = isDark ? '#38BDF8' : '#0284C7';
+  const headerBg = isDark ? '#1E2433' : '#E2E8F0';
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const pulseColor = isDark ? '#34D399' : '#10B981';
+
+  let svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.5" />
+  <rect x="1" y="1" width="180" height="${height - 2}" rx="6" fill="${headerBg}" />
+  <line x1="180" y1="1" x2="180" y2="${height - 1}" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="90" y="38" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${strokeColor}" text-anchor="middle">&lt;&lt;timing track&gt;&gt;</text>
+  <text x="90" y="65" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
+  <!-- Time Axis Waveform Grid -->
+  <line x1="190" y1="80" x2="${width - 20}" y2="80" stroke="${strokeColor}" stroke-width="1" stroke-dasharray="3 3" />
+  <line x1="190" y1="40" x2="${width - 20}" y2="40" stroke="${pulseColor}" stroke-width="2.5" />
+`;
+
+  let x = 200;
+  instructions.slice(0, 5).forEach((inst, idx) => {
+    svg += `\n  <circle cx="${x}" cy="40" r="4" fill="${pulseColor}" />`;
+    svg += `\n  <text x="${x}" y="98" font-family="JetBrains Mono, monospace" font-size="8.5" fill="${textColor}" text-anchor="middle">${escapeXml(inst.split(':')[0] || `@${idx * 50}ms`)}</text>`;
+    x += 80;
+  });
+
+  svg += `\n</svg>`;
+  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+}
+
+/** ── 15. Interaction Overview Frame Node ── */
+export function generateInteractionFrameSvg(data) {
+  const { name = "Interaction", instructions = [], width = 280, height = 90, isDark = false } = data;
+  const cardBg = isDark ? '#14171F' : '#FFFFFF';
+  const strokeColor = isDark ? '#6366F1' : '#4F46E5';
+  const headerBg = isDark ? '#1E1B4B' : '#EEF2FF';
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="4" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <!-- Pentagonal 'sd' frame tag -->
+  <polygon points="1,1 80,1 95,14 95,24 1,24" fill="${headerBg}" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="10" y="16" font-family="JetBrains Mono, monospace" font-size="9" font-weight="800" fill="${strokeColor}">ref sd</text>
+  <text x="${width / 2}" y="52" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
+</svg>`;
+
+  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+}
+
 function parseMemberRow(raw) {
   let cleaned = (typeof raw === 'string' ? raw : (raw.signature || raw.name || '')).trim();
   let vis = '+';

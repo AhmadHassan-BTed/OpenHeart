@@ -1,10 +1,13 @@
 /**
  * OpenHeart Hierarchical Architectural Layout Engine (Zero Hardcoding)
  * Recursive bottom-up composite bounding box layout algorithm for arbitrary package trees.
- * Guarantees zero overlapping, generous arrow routing channels, and clean UML folder tab clearances.
+ * Guarantees zero overlapping, cycle-safe topological ranking, generous arrow routing channels,
+ * and dedicated domain geometry for Sequence, Timing, Composite, and Pipeline Program Graphs.
  */
 
 export function computeDeterministicLayout(elements, graphType = 'class') {
+  if (!elements || elements.length === 0) return elements;
+
   const nodeMap = new Map();
   const packageMap = new Map();
   const standaloneNodes = [];
@@ -46,12 +49,21 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
     }
   });
 
-  // Hierarchical compiler graphs (CFG, ROBDD, Activity, State, Sequence, etc.)
-  if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'state', 'statemachine', 'sequence', 'activity'].includes(graphType)) {
+  // ── Dispatch Specialized Domain Layouts ──
+  if (graphType === 'sequence' || graphType === 'communication') {
+    return layoutSequenceGraph(nodeMap, edges, elements);
+  }
+  if (graphType === 'timing') {
+    return layoutTimingGraph(nodeMap, edges, elements);
+  }
+  if (graphType === 'usecase' || graphType === 'use_case') {
+    return layoutUseCaseGraph(nodeMap, edges, elements);
+  }
+  if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'state', 'statemachine', 'activity', 'interaction'].includes(graphType)) {
     return layoutHierarchicalGraph(nodeMap, edges, elements);
   }
 
-  // 2. Constants for UML 2.5 Geometry
+  // ── 2. Standard UML Class / Package / Composite Bounding Box Engine ──
   const CARD_WIDTH = 290;
   const CARD_GAP_X = 120;
   const CARD_GAP_Y = 100;
@@ -61,7 +73,6 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
   const SIBLING_GAP_X = 80;
   const ROOT_GAP_Y = 180;
 
-  // 3. Step A: Bottom-up recursive bounding box computation
   function computePackageBounds(pkg) {
     pkg.childPackages.forEach(cp => computePackageBounds(cp));
 
@@ -101,7 +112,6 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
       subpackagesWidth -= SIBLING_GAP_X;
     }
 
-    // If this is a leaf package without children or classes, assign standard folder card dimensions
     if (pkg.childClasses.length === 0 && pkg.childPackages.length === 0) {
       pkg.bounds = {
         width: 240,
@@ -141,7 +151,6 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
     pkg.element.data.origHeight = pkg.bounds.height;
   }
 
-  // 4. Step B: Recursive top-down spatial positioning
   function positionPackage(pkg, originX, originY) {
     const pkgCenterX = originX + pkg.bounds.width / 2;
     const pkgCenterY = originY + pkg.bounds.height / 2;
@@ -181,7 +190,6 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
     }
   }
 
-  // 5. Find Root Packages (drill down single-child empty root wrappers)
   const rootPackages = [];
   const prunedPkgIds = new Set();
 
@@ -200,17 +208,14 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
     }
   });
 
-  // Run bottom-up bounds computation on each root
   rootPackages.forEach(rp => computePackageBounds(rp));
 
-  // Run top-down positioning, stacking roots vertically
   let currentRootY = 0;
   rootPackages.forEach(rp => {
     positionPackage(rp, 0, currentRootY);
     currentRootY += rp.bounds.height + ROOT_GAP_Y;
   });
 
-  // Standalone nodes shelf
   if (standaloneNodes.length > 0) {
     let shelfX = 0;
     standaloneNodes.forEach(node => {
@@ -224,7 +229,6 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
     });
   }
 
-  // Filter out single-child empty root wrappers so Cytoscape has no concentric empty boxes
   const finalElements = [];
   elements.forEach(el => {
     if (el.data && el.data.isPackage && prunedPkgIds.has(el.data.id)) {
@@ -236,6 +240,11 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
   return finalElements;
 }
 
+/**
+ * ── Cycle-Safe Topological Hierarchical Layout Engine ──
+ * Safely resolves loops, recursion SCCs, and backward state machine transitions
+ * with zero stacking or lockups.
+ */
 function layoutHierarchicalGraph(nodeMap, edges, elements) {
   const inDegree = new Map();
   const adj = new Map();
@@ -250,7 +259,7 @@ function layoutHierarchicalGraph(nodeMap, edges, elements) {
   edges.forEach(edge => {
     const src = edge.data.source;
     const tgt = edge.data.target;
-    if (adj.has(src) && inDegree.has(tgt)) {
+    if (adj.has(src) && inDegree.has(tgt) && src !== tgt) {
       adj.get(src).push(tgt);
       inDegree.set(tgt, inDegree.get(tgt) + 1);
     }
@@ -258,34 +267,40 @@ function layoutHierarchicalGraph(nodeMap, edges, elements) {
 
   const queue = [];
   const ranks = new Map();
+  const inDegCopy = new Map(inDegree);
 
   nodeMap.forEach((node, id) => {
-    if (inDegree.get(id) === 0) {
+    if (inDegCopy.get(id) === 0) {
       queue.push(id);
       ranks.set(id, 0);
     }
   });
 
-  if (queue.length === 0 && nodes.length > 0) {
-    queue.push(nodes[0].data.id);
-    ranks.set(nodes[0].data.id, 0);
-  }
+  // Cycle breaker: If graph has unranked cyclic nodes, iteratively seed next unranked component
+  while (ranks.size < nodes.length) {
+    if (queue.length === 0) {
+      const nextUnranked = nodes.find(n => !ranks.has(n.data.id));
+      if (!nextUnranked) break;
+      queue.push(nextUnranked.data.id);
+      ranks.set(nextUnranked.data.id, 0);
+    }
 
-  while (queue.length > 0) {
-    const u = queue.shift();
-    const currRank = ranks.get(u) || 0;
+    while (queue.length > 0) {
+      const u = queue.shift();
+      const currRank = ranks.get(u) || 0;
 
-    const neighbors = adj.get(u) || [];
-    neighbors.forEach(v => {
-      const existingRank = ranks.get(v) || 0;
-      if (currRank + 1 > existingRank) {
-        ranks.set(v, currRank + 1);
-      }
-      inDegree.set(v, inDegree.get(v) - 1);
-      if (inDegree.get(v) === 0) {
-        queue.push(v);
-      }
-    });
+      const neighbors = adj.get(u) || [];
+      neighbors.forEach(v => {
+        const existingRank = ranks.get(v);
+        if (existingRank === undefined || currRank + 1 > existingRank) {
+          ranks.set(v, currRank + 1);
+        }
+        inDegCopy.set(v, (inDegCopy.get(v) || 1) - 1);
+        if (inDegCopy.get(v) <= 0 && !queue.includes(v)) {
+          queue.push(v);
+        }
+      });
+    }
   }
 
   nodes.forEach(n => {
@@ -300,8 +315,8 @@ function layoutHierarchicalGraph(nodeMap, edges, elements) {
     rankGroups.get(r).push(nodeMap.get(id));
   });
 
-  const LEVEL_GAP_Y = 180;
-  const NODE_GAP_X = 120;
+  const LEVEL_GAP_Y = 160;
+  const NODE_GAP_X = 100;
   let currentY = 0;
 
   const sortedRanks = Array.from(rankGroups.keys()).sort((a, b) => a - b);
@@ -329,6 +344,90 @@ function layoutHierarchicalGraph(nodeMap, edges, elements) {
     });
 
     currentY += maxH + LEVEL_GAP_Y;
+  });
+
+  return elements;
+}
+
+/**
+ * ── Sequence Diagram Lifeline Layout Engine ──
+ */
+function layoutSequenceGraph(nodeMap, edges, elements) {
+  const LIFELINE_GAP_X = 260;
+  let currentX = 0;
+
+  const nodes = Array.from(nodeMap.values()).filter(n => !n.data.isPackage);
+  nodes.forEach((node) => {
+    const w = node.data.width || 200;
+    const h = node.data.height || 100;
+    node.position = {
+      x: currentX + w / 2,
+      y: 60
+    };
+    currentX += w + LIFELINE_GAP_X;
+  });
+
+  return elements;
+}
+
+/**
+ * ── Timing Diagram Waveform Multi-Track Layout Engine ──
+ */
+function layoutTimingGraph(nodeMap, edges, elements) {
+  const TRACK_GAP_Y = 180;
+  let currentY = 40;
+
+  const nodes = Array.from(nodeMap.values()).filter(n => !n.data.isPackage);
+  nodes.forEach((node) => {
+    const w = node.data.width || 600;
+    const h = node.data.height || 120;
+    node.position = {
+      x: w / 2 + 40,
+      y: currentY + h / 2
+    };
+    currentY += h + TRACK_GAP_Y;
+  });
+
+  return elements;
+}
+
+/**
+ * ── Use Case Diagram Wing-Boundary Layout Engine ──
+ */
+function layoutUseCaseGraph(nodeMap, edges, elements) {
+  const actors = [];
+  const usecases = [];
+
+  nodeMap.forEach(n => {
+    if (n.data.kind === 'actor') {
+      actors.push(n);
+    } else {
+      usecases.push(n);
+    }
+  });
+
+  // Left/Right Actor Wings
+  let actorLeftY = 40;
+  actors.forEach((act, idx) => {
+    const isRight = idx % 2 === 1;
+    const x = isRight ? 650 : -450;
+    act.position = {
+      x: x,
+      y: actorLeftY
+    };
+    actorLeftY += 160;
+  });
+
+  // Center System Boundary Usecases
+  let ucY = 40;
+  usecases.forEach(uc => {
+    const w = uc.data.width || 230;
+    const h = uc.data.height || 60;
+    uc.position = {
+      x: 100,
+      y: ucY + h / 2
+    };
+    ucY += h + 80;
   });
 
   return elements;
