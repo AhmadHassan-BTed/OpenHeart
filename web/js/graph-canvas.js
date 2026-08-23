@@ -20,6 +20,8 @@ export class InteractiveGraphCanvas {
     this.selectedNode = null;
     this.onNodeSelectedCallback = null;
     this.onNodeHoverCallback = null;
+    this.onRenderCompleteCallback = null;
+    this.panSensitivity = parseFloat(localStorage.getItem('openheart_pan_sensitivity') || '0.45');
     this.activeHoverId = null;
     this.hoverTimeout = null;
     this.collapsedPackages = new Set();
@@ -37,6 +39,15 @@ export class InteractiveGraphCanvas {
 
   setNodeHoverCallback(cb) {
     this.onNodeHoverCallback = cb;
+  }
+
+  setRenderCompleteCallback(cb) {
+    this.onRenderCompleteCallback = cb;
+  }
+
+  setPanSensitivity(val) {
+    this.panSensitivity = val;
+    localStorage.setItem('openheart_pan_sensitivity', val.toString());
   }
 
   async renderGraph(graphType, customElements = null) {
@@ -94,6 +105,10 @@ export class InteractiveGraphCanvas {
 
     this.attachEventListeners(container);
     this.cy.fit(undefined, 60);
+
+    if (this.onRenderCompleteCallback) {
+      this.onRenderCompleteCallback(elements);
+    }
   }
 
   focusNodeByFile(fileName) {
@@ -132,87 +147,73 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Level 1: Behavioral Domain Tier Container (Soft Violet Layer) ──
+      // ── Level 0: Root Domain Tier Container (Lightest Soft Violet Tint) ──
       {
-        selector: 'node.pkg-domain-tier.pkg-behavioral, node[?isDomainTier][category = "pkg-behavioral"]',
+        selector: 'node.nest-level-0, node[nestLevel = 0]',
         style: {
           'background-color': '#FAF5FF',
-          'background-opacity': 1.0,
+          'background-opacity': 0.85,
           'border-width': 2.5,
           'border-color': '#C084FC',
           'border-style': 'solid',
           'shape': 'roundrectangle',
-          'border-radius': '16px',
+          'border-radius': '14px',
           'text-valign': 'top',
           'text-halign': 'left',
-          'text-margin-x': 24,
-          'text-margin-y': 20,
+          'text-margin-x': 18,
+          'text-margin-y': -16,
+          'text-background-color': '#FFFFFF',
+          'text-background-opacity': 1.0,
+          'text-background-padding': '6px 16px',
+          'text-border-width': 2.0,
+          'text-border-color': '#C084FC',
+          'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
-          'font-size': '13px',
+          'font-size': '12.5px',
           'font-weight': 800,
-          'letter-spacing': '0.04em',
+          'letter-spacing': '0.03em',
           'color': '#6B21A8',
-          'padding': '40px',
+          'padding': '44px',
           'z-index': 1
         }
       },
 
-      // ── Level 1: Creational Domain Tier Container (Soft Emerald Layer) ──
+      // ── Level 1: Subpackage Container (Darker / Richer Violet Tint) ──
       {
-        selector: 'node.pkg-domain-tier.pkg-creational, node[?isDomainTier][category = "pkg-creational"]',
-        style: {
-          'background-color': '#F0FDF4',
-          'background-opacity': 1.0,
-          'border-width': 2.5,
-          'border-color': '#86EFAC',
-          'border-style': 'solid',
-          'shape': 'roundrectangle',
-          'border-radius': '16px',
-          'text-valign': 'top',
-          'text-halign': 'left',
-          'text-margin-x': 24,
-          'text-margin-y': 20,
-          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
-          'font-size': '13px',
-          'font-weight': 800,
-          'letter-spacing': '0.04em',
-          'color': '#065F46',
-          'padding': '40px',
-          'z-index': 1
-        }
-      },
-
-      // ── Level 1: Structural Domain Tier Container (Soft Sky Blue Layer) ──
-      {
-        selector: 'node.pkg-domain-tier.pkg-structural, node[?isDomainTier][category = "pkg-structural"]',
-        style: {
-          'background-color': '#F0F9FF',
-          'background-opacity': 1.0,
-          'border-width': 2.5,
-          'border-color': '#7DD3FC',
-          'border-style': 'solid',
-          'shape': 'roundrectangle',
-          'border-radius': '16px',
-          'text-valign': 'top',
-          'text-halign': 'left',
-          'text-margin-x': 24,
-          'text-margin-y': 20,
-          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
-          'font-size': '13px',
-          'font-weight': 800,
-          'letter-spacing': '0.04em',
-          'color': '#075985',
-          'padding': '40px',
-          'z-index': 1
-        }
-      },
-
-      // ── Level 2: Behavioral Subpackage Container (Richer Violet Tint) ──
-      {
-        selector: 'node.pkg-subpackage.pkg-behavioral, node[!isDomainTier].pkg-behavioral',
+        selector: 'node.nest-level-1, node[nestLevel = 1]',
         style: {
           'background-color': '#F3E8FF',
-          'background-opacity': 1.0,
+          'background-opacity': 0.90,
+          'border-width': 2.2,
+          'border-color': '#A855F7',
+          'border-style': 'dashed',
+          'shape': 'roundrectangle',
+          'border-radius': '12px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 16,
+          'text-margin-y': -14,
+          'text-background-color': '#FAF5FF',
+          'text-background-opacity': 1.0,
+          'text-background-padding': '5px 14px',
+          'text-border-width': 1.8,
+          'text-border-color': '#A855F7',
+          'text-border-opacity': 1.0,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '12px',
+          'font-weight': 700,
+          'color': '#581C87',
+          'padding': '38px',
+          'z-index': 2
+        }
+      },
+
+      // ── Level 2: Subpackage Container (Darker Lilac Tint) ──
+      {
+        selector: 'node.nest-level-2, node[nestLevel = 2]',
+        style: {
+          'background-color': '#E9D5FF',
+          'background-opacity': 0.95,
           'border-width': 2.0,
           'border-color': '#9333EA',
           'border-style': 'dashed',
@@ -220,84 +221,108 @@ export class InteractiveGraphCanvas {
           'border-radius': '10px',
           'text-valign': 'top',
           'text-halign': 'left',
-          'text-margin-x': 18,
-          'text-margin-y': 14,
+          'text-margin-x': 16,
+          'text-margin-y': -14,
+          'text-background-color': '#F3E8FF',
+          'text-background-opacity': 1.0,
+          'text-background-padding': '5px 12px',
+          'text-border-width': 1.8,
+          'text-border-color': '#9333EA',
+          'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11.5px',
           'font-weight': 700,
-          'color': '#581C87',
-          'padding': '30px',
+          'color': '#4C1D95',
+          'padding': '32px',
           'z-index': 3
         }
       },
 
-      // ── Level 2: Creational Subpackage Container (Richer Emerald Tint) ──
+      // ── Level 3: Leaf Subpackage Container (Darkest Deep Purple Tint) ──
       {
-        selector: 'node.pkg-subpackage.pkg-creational, node[!isDomainTier].pkg-creational',
+        selector: 'node.nest-level-3, node[nestLevel = 3]',
         style: {
-          'background-color': '#DCFCE7',
+          'background-color': '#DDD6FE',
           'background-opacity': 1.0,
-          'border-width': 2.0,
-          'border-color': '#059669',
-          'border-style': 'dashed',
+          'border-width': 2.2,
+          'border-color': '#7E22CE',
+          'border-style': 'solid',
           'shape': 'roundrectangle',
-          'border-radius': '10px',
+          'border-radius': '8px',
           'text-valign': 'top',
           'text-halign': 'left',
-          'text-margin-x': 18,
-          'text-margin-y': 14,
+          'text-margin-x': 14,
+          'text-margin-y': -13,
+          'text-background-color': '#EDE9FE',
+          'text-background-opacity': 1.0,
+          'text-background-padding': '4px 10px',
+          'text-border-width': 1.8,
+          'text-border-color': '#7E22CE',
+          'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
-          'font-size': '11.5px',
+          'font-size': '11px',
           'font-weight': 700,
-          'color': '#064E3B',
-          'padding': '30px',
-          'z-index': 3
+          'color': '#3B0764',
+          'padding': '28px',
+          'z-index': 4
         }
       },
 
-      // ── Level 2: Structural Subpackage Container (Richer Sky Blue Tint) ──
+      // ── Level 4+: Deepest Innermost Package Container ──
       {
-        selector: 'node.pkg-subpackage.pkg-structural, node[!isDomainTier].pkg-structural',
+        selector: 'node.nest-level-4, node.nest-level-5, node[nestLevel >= 4]',
         style: {
-          'background-color': '#E0F2FE',
+          'background-color': '#C4B5FD',
           'background-opacity': 1.0,
-          'border-width': 2.0,
-          'border-color': '#0284C7',
-          'border-style': 'dashed',
+          'border-width': 2.5,
+          'border-color': '#6B21A8',
+          'border-style': 'solid',
           'shape': 'roundrectangle',
-          'border-radius': '10px',
+          'border-radius': '8px',
           'text-valign': 'top',
           'text-halign': 'left',
-          'text-margin-x': 18,
-          'text-margin-y': 14,
+          'text-margin-x': 14,
+          'text-margin-y': -13,
+          'text-background-color': '#DDD6FE',
+          'text-background-opacity': 1.0,
+          'text-background-padding': '4px 10px',
+          'text-border-width': 2.0,
+          'text-border-color': '#6B21A8',
+          'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
-          'font-size': '11.5px',
+          'font-size': '11px',
           'font-weight': 700,
-          'color': '#0C4A6E',
-          'padding': '30px',
-          'z-index': 3
+          'color': '#2E1065',
+          'padding': '24px',
+          'z-index': 5
         }
       },
 
       // ── General Package Container Fallback ──
       {
-        selector: 'node.compound-package, node[?isPackage]',
+        selector: 'node[?isPackage]',
         style: {
           'background-color': '#F8FAFC',
-          'background-opacity': 1.0,
+          'background-opacity': 0.9,
           'border-width': 2.0,
-          'border-color': '#64748B',
+          'border-color': '#475569',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
-          'border-radius': '12px',
+          'border-radius': '10px',
           'text-valign': 'top',
           'text-halign': 'left',
-          'text-margin-x': 18,
-          'text-margin-y': 14,
+          'text-margin-x': 16,
+          'text-margin-y': -14,
+          'text-background-color': '#FFFFFF',
+          'text-background-opacity': 1.0,
+          'text-background-padding': '5px 12px',
+          'text-border-width': 1.5,
+          'text-border-color': '#475569',
+          'text-border-opacity': 1.0,
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11px',
           'font-weight': 700,
-          'color': '#334155',
+          'color': '#1E293B',
           'padding': '36px',
           'z-index': 1
         }
@@ -473,7 +498,7 @@ export class InteractiveGraphCanvas {
         });
       } else {
         // Two-Finger Trackpad Swipe -> Pan
-        const panSensitivity = 0.45;
+        const panSensitivity = this.panSensitivity;
         this.cy.panBy({
           x: -e.deltaX * panSensitivity,
           y: -e.deltaY * panSensitivity
@@ -597,6 +622,9 @@ export class InteractiveGraphCanvas {
     const pkgId = pkgNode.id();
     const children = this.cy.nodes(`[parent = "${pkgId}"]`);
     const isCollapsed = this.collapsedPackages.has(pkgId);
+    const rawName = pkgNode.data('rawName') || pkgId.replace(/^pkg_/, '').replace(/_/g, '.');
+    const shortName = rawName.split('.').pop();
+    const isDomainTier = pkgNode.data('isDomainTier');
 
     this.cy.batch(() => {
       if (isCollapsed) {
@@ -605,14 +633,14 @@ export class InteractiveGraphCanvas {
         pkgNode.removeClass('package-collapsed');
         pkgNode.data('width', pkgNode.data('origWidth') || 650);
         pkgNode.data('height', pkgNode.data('origHeight') || 400);
-        pkgNode.data('label', `package [${pkgId.replace(/^pkg_/, '').replace(/_/g, '.')}]`);
+        pkgNode.data('label', isDomainTier ? `📂 [−] DOMAIN LAYER: ${rawName.toUpperCase()}` : `📂 [−] package [${shortName}]`);
         children.style('display', 'element');
         children.connectedEdges().style('display', 'element');
       } else {
         // Collapse (Close)
         this.collapsedPackages.add(pkgId);
         pkgNode.addClass('package-collapsed');
-        pkgNode.data('label', `[+] package [${pkgId.replace(/^pkg_/, '').replace(/_/g, '.')}] (${children.length} classes)`);
+        pkgNode.data('label', isDomainTier ? `📁 [+] DOMAIN LAYER: ${rawName.toUpperCase()} (${children.length} subpackages)` : `📁 [+] package [${shortName}] (${children.length} classes)`);
         children.style('display', 'none');
         children.connectedEdges().style('display', 'none');
       }

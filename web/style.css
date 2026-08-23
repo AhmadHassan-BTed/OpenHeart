@@ -715,3 +715,59 @@ html, body {
   font-size: 11px;
   color: var(--text-faint);
 }
+
+/* ── Pan Sensitivity Slider Control ── */
+.pan-sensitivity-slider-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 20px;
+  padding: 3px 10px;
+  margin-right: 6px;
+}
+
+.pan-slider-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+}
+
+#pan-sensitivity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 75px;
+  height: 4px;
+  border-radius: 2px;
+  background: #CBD5E1;
+  outline: none;
+  cursor: pointer;
+}
+
+#pan-sensitivity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #2563EB;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+
+#pan-sensitivity-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+#pan-sensitivity-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563EB;
+  min-width: 32px;
+}
+

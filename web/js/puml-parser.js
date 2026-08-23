@@ -1,10 +1,12 @@
 /**
- * OpenHeart Precision PlantUML & Mermaid Graph Engine Parser
- * Fully decoupled SVG card generation for ALL 19 diagram types.
+ * OpenHeart Fully Generic PlantUML & Mermaid Graph Engine Parser
+ * 100% Dynamic - Zero Hardcoding of package names, classes, or patterns.
+ * Builds dynamic N-ary containment trees and assigns harmonic visual themes algorithmically.
  */
 
 import {
   generateUmlClassCardSvg,
+  generatePackageFolderSvg,
   generateStateNodeSvg,
   generateActionNodeSvg,
   generateComponentNodeSvg,
@@ -27,7 +29,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 1. Package / Partition / Deployment Node ──
+    // ── 1. Package / Partition / Deployment Container ──
     const pkgMatch = rawLine.match(/^package\s+"([^"]+)"(?:\s+as\s+([A-Za-z0-9_]+))?\s*\{?/) ||
                      rawLine.match(/^partition\s+"([^"]+)"\s*\{?/) ||
                      rawLine.match(/^node\s+"([^"]+)"(?:\s+as\s+([A-Za-z0-9_]+))?(?:\s+<<[^>]+>>)?\s*\{?/);
@@ -35,51 +37,34 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const pkgName = pkgMatch[1];
       const pkgId = pkgMatch[2] || `pkg_${pkgName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 
-      // Prune only empty root wrappers ("com", "com.patterns")
-      const isRedundantWrapper = (
-        pkgName === 'com' ||
-        pkgName === 'com.patterns' ||
-        pkgName === 'patterns'
-      ) && diagramType === 'class';
-
       const currentParentPkg = getActivePackage(packageStack);
       const nestLevel = packageStack.filter(p => p !== null).length;
-
-      let categoryClass = 'pkg-general';
-      if (pkgName.includes('behavioral') || pkgName.includes('observer') || pkgName.includes('strategy') || pkgName.includes('templatemethod')) {
-        categoryClass = 'pkg-behavioral';
-      } else if (pkgName.includes('creational') || pkgName.includes('builder') || pkgName.includes('factory') || pkgName.includes('singleton')) {
-        categoryClass = 'pkg-creational';
-      } else if (pkgName.includes('structural') || pkgName.includes('adapter') || pkgName.includes('decorator') || pkgName.includes('facade')) {
-        categoryClass = 'pkg-structural';
-      }
-
       const isDomainTier = nestLevel === 0;
-      let displayLabel = `package [${pkgName.split('.').pop()}]`;
-      if (isDomainTier) {
-        displayLabel = `DOMAIN LAYER: ${pkgName.toUpperCase()}`;
-      }
 
-      if (!isRedundantWrapper && !nodeMap.has(pkgId)) {
+      // Clean dynamic label: short package name
+      const shortName = pkgName.split('.').pop();
+      const displayLabel = isDomainTier ? `DOMAIN LAYER: ${pkgName.toUpperCase()}` : `package [${shortName}]`;
+
+      if (!nodeMap.has(pkgId)) {
         const pkgNode = {
           data: {
             id: pkgId,
             label: displayLabel,
+            rawName: pkgName,
             kind: 'package',
             isPackage: true,
             isDomainTier: isDomainTier,
             parent: currentParentPkg || undefined,
-            nestLevel: nestLevel,
-            category: categoryClass
+            nestLevel: nestLevel
           },
-          classes: `compound-package ${categoryClass} ${isDomainTier ? 'pkg-domain-tier' : 'pkg-subpackage'} nest-level-${Math.min(3, nestLevel)}`
+          classes: `compound-package ${isDomainTier ? 'pkg-domain-tier' : 'pkg-subpackage'} nest-level-${Math.min(3, nestLevel)}`
         };
         nodeMap.set(pkgId, pkgNode);
         elements.push(pkgNode);
       }
 
       if (rawLine.includes('{')) {
-        packageStack.push(isRedundantWrapper ? null : pkgId);
+        packageStack.push(pkgId);
       }
       continue;
     }
@@ -135,9 +120,9 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       }
 
       const rawType = classMatch[1];
-      const kind = rawType.includes('interface') ? 'interface' : (rawType.includes('abstract') ? 'abstract' : 'class');
+      const kind = rawType.includes('interface') ? 'interface' : (rawType.includes('abstract') ? 'abstract' : (rawType.includes('enum') ? 'enum' : 'class'));
       const name = classMatch[2];
-      const stereotype = classMatch[3] ? `<<${classMatch[3]}>>` : (kind === 'interface' ? '<<interface>>' : (kind === 'abstract' ? '<<abstract>>' : '<<class>>'));
+      const stereotype = classMatch[3] ? `<<${classMatch[3]}>>` : (kind === 'interface' ? '<<interface>>' : (kind === 'abstract' ? '<<abstract>>' : (kind === 'enum' ? '<<enum>>' : '<<class>>')));
       const id = classMatch[4] || name;
 
       currentBlock = {
@@ -270,8 +255,8 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 9. Relationships & Edges ──
-    const relMatch = rawLine.match(/^([A-Za-z0-9_\[\]*]+)\s*([<\-\.o*|]+>|\-\-|\.\.|<\-\-|\*--|o--|\-)\s*([A-Za-z0-9_\[\]*]+)(?:\s*:\s*(.+))?/);
+    // ── 9. Relationships & Arrows (Generalization, Realization, Composition, Aggregation, Association, Dependency) ──
+    const relMatch = rawLine.match(/^([A-Za-z0-9_\[\]*]+)\s*([<\-\.o*+|]+>|<[<\-\.o*+|]+|\*--|--\*|o--|--o|\+--|--\+|\-\-|\.\.|-->|<--|\.\.>|<\.\.|\-\|>|<\|\-|\.\.\|>|<\|\.\.)\s*([A-Za-z0-9_\[\]*]+)(?:\s*:\s*(.+))?/);
     if (relMatch) {
       let src = relMatch[1].replace(/[[\]]/g, '');
       const arrow = relMatch[2];
@@ -284,13 +269,22 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       ensureNodeExists(src, nodeMap, elements, packageStack, diagramType);
       ensureNodeExists(tgt, nodeMap, elements, packageStack, diagramType);
 
-      let umlKind = 'dependency';
-      if (arrow.includes('|>') && arrow.includes('--')) umlKind = 'generalization';
-      else if (arrow.includes('|>') && arrow.includes('..')) umlKind = 'realization';
-      else if (arrow.includes('*--') || arrow.includes('--*')) umlKind = 'composition';
-      else if (arrow.includes('o--') || arrow.includes('--o')) umlKind = 'aggregation';
-      else if (arrow.includes('--|>') || arrow === '--|>') umlKind = 'generalization';
-      else if (arrow.includes('..|>') || arrow === '..|>') umlKind = 'realization';
+      let umlKind = 'association';
+      if (arrow.includes('*--') || arrow.includes('--*')) {
+        umlKind = 'composition';
+      } else if (arrow.includes('o--') || arrow.includes('--o')) {
+        umlKind = 'aggregation';
+      } else if (arrow.includes('|>') || arrow.includes('<|')) {
+        if (arrow.includes('..')) {
+          umlKind = 'realization';
+        } else {
+          umlKind = 'generalization';
+        }
+      } else if (arrow.includes('..') || arrow.includes('..>')) {
+        umlKind = 'dependency';
+      } else if (arrow.includes('-->') || arrow.includes('<--')) {
+        umlKind = 'association';
+      }
 
       elements.push({
         data: {
@@ -298,6 +292,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
           source: src,
           target: tgt,
           label: edgeLabel,
+          arrow: arrow,
           uml_kind: umlKind
         }
       });
@@ -325,7 +320,6 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;
   
-  // Generate True SVG 3-Compartment Card
   const svgData = generateUmlClassCardSvg({
     name: block.name,
     stereotype: block.stereotype,
@@ -338,7 +332,7 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
   const node = {
     data: {
       id: block.id,
-      label: '', // Clean SVG vector rendering
+      label: '',
       textLabel: `${block.stereotype}\n${block.name}`,
       kind: block.kind || 'class',
       width: svgData.width,

@@ -1,10 +1,7 @@
 /**
- * OpenHeart Hierarchical Architectural Layout Engine
- * Computes exact composite bounding boxes across 3 distinct nesting levels:
- *  - Level 1: Domain Tier Containers (Behavioral, Creational, Structural)
- *  - Level 2: Subpackage Containers (observer, strategy, builder, factory, adapter, facade, etc.)
- *  - Level 3: Enclosed 3-Compartment Class Cards
- * Guaranteed 100% collision-free geometry with clear color-tiered depth.
+ * OpenHeart Hierarchical Architectural Layout Engine (Zero Hardcoding)
+ * Recursive bottom-up composite bounding box layout algorithm for arbitrary package trees.
+ * Guarantees zero overlapping, generous arrow routing channels, and clean UML folder tab clearances.
  */
 
 export function computeDeterministicLayout(elements, graphType = 'class') {
@@ -19,8 +16,12 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
       edges.push(el);
     } else if (el.data.isPackage) {
       packageMap.set(el.data.id, {
+        id: el.data.id,
         element: el,
-        children: []
+        parent: el.data.parent,
+        childPackages: [],
+        childClasses: [],
+        bounds: { width: 300, height: 200 }
       });
       nodeMap.set(el.data.id, el);
     } else {
@@ -30,184 +31,202 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
 
   // Link children to their parent packages
   elements.forEach(el => {
-    if (!el.data.source && el.data.parent && packageMap.has(el.data.parent)) {
-      packageMap.get(el.data.parent).children.push(el);
-    } else if (!el.data.source && !el.data.isPackage && !el.data.parent) {
-      standaloneNodes.push(el);
-    }
-  });
-
-  // If this is a hierarchical compiler graph
-  if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'statemachine', 'sequence', 'activity'].includes(graphType)) {
-    return layoutHierarchicalGraph(nodeMap, edges, elements);
-  }
-
-  // 2. Identify Top-Level Domain Packages (Level 1) vs Subpackages (Level 2)
-  const level1Packages = [];
-  const level2Packages = [];
-
-  packageMap.forEach((pkgData, pkgId) => {
-    const parent = pkgData.element.data.parent;
-    if (!parent || !packageMap.has(parent)) {
-      level1Packages.push(pkgData);
-    } else {
-      level2Packages.push(pkgData);
-    }
-  });
-
-  // 3. Layout Constants
-  const CARD_WIDTH = 290;
-  const CARD_GAP_X = 140; // Wide routing channel
-  const CARD_GAP_Y = 120;
-  const SUBPKG_PAD_TOP = 80;
-  const SUBPKG_PAD_BOTTOM = 50;
-  const SUBPKG_PAD_SIDE = 50;
-  const SUBPKG_GUTTER_X = 70;
-  const DOMAIN_PAD_TOP = 90;
-  const DOMAIN_PAD_BOTTOM = 60;
-  const DOMAIN_PAD_SIDE = 50;
-  const DOMAIN_GUTTER_Y = 180;
-
-  // Step A: Calculate Layout for each Level 2 Subpackage
-  const subpkgBounds = new Map();
-
-  packageMap.forEach((pkgData, pkgId) => {
-    const directLeafChildren = pkgData.children.filter(c => !c.data.isPackage);
-    if (directLeafChildren.length > 0) {
-      const colCount = Math.min(2, Math.max(1, directLeafChildren.length));
-      const rowCount = Math.ceil(directLeafChildren.length / colCount);
-
-      let maxChildHeight = 90;
-      directLeafChildren.forEach(child => {
-        const h = child.data.height || 180;
-        if (h > maxChildHeight) maxChildHeight = h;
-      });
-
-      const innerWidth = colCount * CARD_WIDTH + (colCount - 1) * CARD_GAP_X;
-      const innerHeight = rowCount * maxChildHeight + (rowCount - 1) * CARD_GAP_Y;
-
-      const subWidth = innerWidth + SUBPKG_PAD_SIDE * 2;
-      const subHeight = innerHeight + SUBPKG_PAD_TOP + SUBPKG_PAD_BOTTOM;
-
-      subpkgBounds.set(pkgId, {
-        width: subWidth,
-        height: subHeight,
-        colCount,
-        maxChildHeight,
-        children: directLeafChildren
-      });
-
-      pkgData.element.data.width = subWidth;
-      pkgData.element.data.height = subHeight;
-      pkgData.element.data.origWidth = subWidth;
-      pkgData.element.data.origHeight = subHeight;
-    }
-  });
-
-  // Step B: Layout Level 1 Domain Packages & Place Subpackages / Classes Inside
-  let currentDomainY = 0;
-
-  level1Packages.forEach((domainPkg) => {
-    const domainId = domainPkg.element.data.id;
-    const subChildren = domainPkg.children.filter(c => c.data.isPackage);
-
-    if (subChildren.length > 0) {
-      // Place subpackages side by side inside domain
-      let currentSubX = DOMAIN_PAD_SIDE;
-      let maxSubHeight = 0;
-
-      subChildren.forEach((subPkg) => {
-        const subId = subPkg.data.id;
-        const b = subpkgBounds.get(subId) || { width: 400, height: 250, colCount: 1, maxChildHeight: 180, children: [] };
-        
-        if (b.height > maxSubHeight) {
-          maxSubHeight = b.height;
-        }
-
-        const subX = currentSubX;
-        const subY = currentDomainY + DOMAIN_PAD_TOP;
-
-        // Position subpackage container
-        subPkg.position = {
-          x: subX + b.width / 2,
-          y: subY + b.height / 2
-        };
-
-        // Position child classes inside this subpackage
-        b.children.forEach((child, cIdx) => {
-          const cCol = cIdx % b.colCount;
-          const cRow = Math.floor(cIdx / b.colCount);
-
-          const childX = subX + SUBPKG_PAD_SIDE + cCol * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2;
-          const childY = subY + SUBPKG_PAD_TOP + cRow * (b.maxChildHeight + CARD_GAP_Y) + (child.data.height || b.maxChildHeight) / 2;
-
-          child.data.width = CARD_WIDTH;
-          child.position = {
-            x: childX,
-            y: childY
-          };
-        });
-
-        currentSubX += b.width + SUBPKG_GUTTER_X;
-      });
-
-      const totalDomainWidth = currentSubX - SUBPKG_GUTTER_X + DOMAIN_PAD_SIDE;
-      const totalDomainHeight = maxSubHeight + DOMAIN_PAD_TOP + DOMAIN_PAD_BOTTOM;
-
-      domainPkg.element.data.width = totalDomainWidth;
-      domainPkg.element.data.height = totalDomainHeight;
-      domainPkg.element.data.origWidth = totalDomainWidth;
-      domainPkg.element.data.origHeight = totalDomainHeight;
-      domainPkg.element.position = {
-        x: totalDomainWidth / 2,
-        y: currentDomainY + totalDomainHeight / 2
-      };
-
-      currentDomainY += totalDomainHeight + DOMAIN_GUTTER_Y;
-    } else {
-      // Standalone domain package with direct classes
-      const b = subpkgBounds.get(domainId);
-      if (b) {
-        const domainWidth = b.width + DOMAIN_PAD_SIDE * 2;
-        const domainHeight = b.height + DOMAIN_PAD_TOP + DOMAIN_PAD_BOTTOM;
-
-        domainPkg.element.data.width = domainWidth;
-        domainPkg.element.data.height = domainHeight;
-        domainPkg.element.position = {
-          x: domainWidth / 2,
-          y: currentDomainY + domainHeight / 2
-        };
-
-        b.children.forEach((child, cIdx) => {
-          const cCol = cIdx % b.colCount;
-          const cRow = Math.floor(cIdx / b.colCount);
-
-          child.position = {
-            x: DOMAIN_PAD_SIDE + SUBPKG_PAD_SIDE + cCol * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2,
-            y: currentDomainY + DOMAIN_PAD_TOP + SUBPKG_PAD_TOP + cRow * (b.maxChildHeight + CARD_GAP_Y) + (child.data.height || b.maxChildHeight) / 2
-          };
-        });
-
-        currentDomainY += domainHeight + DOMAIN_GUTTER_Y;
+    if (!el.data.source && !el.data.isPackage) {
+      const parentId = el.data.parent;
+      if (parentId && packageMap.has(parentId)) {
+        packageMap.get(parentId).childClasses.push(el);
+      } else {
+        standaloneNodes.push(el);
+      }
+    } else if (!el.data.source && el.data.isPackage) {
+      const parentId = el.data.parent;
+      if (parentId && packageMap.has(parentId)) {
+        packageMap.get(parentId).childPackages.push(packageMap.get(el.data.id));
       }
     }
   });
 
-  // Step C: Standalone nodes shelf
+  // Hierarchical compiler graphs (CFG, ROBDD, Activity, etc.)
+  if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'statemachine', 'sequence', 'activity'].includes(graphType)) {
+    return layoutHierarchicalGraph(nodeMap, edges, elements);
+  }
+
+  // 2. Constants for UML 2.5 Geometry
+  const CARD_WIDTH = 290;
+  const CARD_GAP_X = 120;
+  const CARD_GAP_Y = 100;
+  const PAD_TOP = 80;
+  const PAD_BOTTOM = 50;
+  const PAD_SIDE = 50;
+  const SIBLING_GAP_X = 80;
+  const ROOT_GAP_Y = 180;
+
+  // 3. Step A: Bottom-up recursive bounding box computation
+  function computePackageBounds(pkg) {
+    pkg.childPackages.forEach(cp => computePackageBounds(cp));
+
+    let classesWidth = 0;
+    let classesHeight = 0;
+
+    if (pkg.childClasses.length > 0) {
+      const colCount = Math.min(2, Math.max(1, pkg.childClasses.length));
+      const rowCount = Math.ceil(pkg.childClasses.length / colCount);
+
+      let maxClassH = 140;
+      pkg.childClasses.forEach(c => {
+        const h = c.data.height || 180;
+        if (h > maxClassH) maxClassH = h;
+      });
+
+      classesWidth = colCount * CARD_WIDTH + (colCount - 1) * CARD_GAP_X;
+      classesHeight = rowCount * maxClassH + (rowCount - 1) * CARD_GAP_Y;
+      pkg.maxClassH = maxClassH;
+      pkg.colCount = colCount;
+    }
+
+    let subpackagesWidth = 0;
+    let subpackagesHeight = 0;
+
+    if (pkg.childPackages.length > 0) {
+      pkg.childPackages.forEach(cp => {
+        subpackagesWidth += cp.bounds.width + SIBLING_GAP_X;
+        if (cp.bounds.height > subpackagesHeight) {
+          subpackagesHeight = cp.bounds.height;
+        }
+      });
+      subpackagesWidth -= SIBLING_GAP_X;
+    }
+
+    // If this is a leaf package without children or classes, assign standard folder card dimensions
+    if (pkg.childClasses.length === 0 && pkg.childPackages.length === 0) {
+      pkg.bounds = {
+        width: 240,
+        height: 90,
+        classesWidth: 0,
+        classesHeight: 0,
+        subpackagesWidth: 0,
+        subpackagesHeight: 0
+      };
+      pkg.element.data.width = 240;
+      pkg.element.data.height = 90;
+      pkg.element.data.origWidth = 240;
+      pkg.element.data.origHeight = 90;
+      return;
+    }
+
+    const contentWidth = Math.max(classesWidth, subpackagesWidth);
+    const contentHeight = (classesHeight > 0 && subpackagesHeight > 0)
+      ? classesHeight + CARD_GAP_Y + subpackagesHeight
+      : (classesHeight || subpackagesHeight || 90);
+
+    const totalWidth = contentWidth + PAD_SIDE * 2;
+    const totalHeight = contentHeight + PAD_TOP + PAD_BOTTOM;
+
+    pkg.bounds = {
+      width: Math.max(360, totalWidth),
+      height: Math.max(220, totalHeight),
+      classesWidth,
+      classesHeight,
+      subpackagesWidth,
+      subpackagesHeight
+    };
+
+    pkg.element.data.width = pkg.bounds.width;
+    pkg.element.data.height = pkg.bounds.height;
+    pkg.element.data.origWidth = pkg.bounds.width;
+    pkg.element.data.origHeight = pkg.bounds.height;
+  }
+
+  // 4. Step B: Recursive top-down spatial positioning
+  function positionPackage(pkg, originX, originY) {
+    const pkgCenterX = originX + pkg.bounds.width / 2;
+    const pkgCenterY = originY + pkg.bounds.height / 2;
+
+    pkg.element.position = {
+      x: pkgCenterX,
+      y: pkgCenterY
+    };
+
+    let currentY = originY + PAD_TOP;
+
+    if (pkg.childClasses.length > 0) {
+      const startX = originX + PAD_SIDE;
+      pkg.childClasses.forEach((child, idx) => {
+        const col = idx % pkg.colCount;
+        const row = Math.floor(idx / pkg.colCount);
+
+        const childX = startX + col * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2;
+        const childY = currentY + row * (pkg.maxClassH + CARD_GAP_Y) + (child.data.height || pkg.maxClassH) / 2;
+
+        child.data.width = CARD_WIDTH;
+        child.position = { x: childX, y: childY };
+      });
+
+      currentY += pkg.bounds.classesHeight + CARD_GAP_Y;
+    }
+
+    if (pkg.childPackages.length > 0) {
+      let currentSubX = originX + PAD_SIDE;
+      pkg.childPackages.forEach(cp => {
+        positionPackage(cp, currentSubX, currentY);
+        currentSubX += cp.bounds.width + SIBLING_GAP_X;
+      });
+    }
+  }
+
+  // 5. Find Root Packages (drill down single-child empty root wrappers)
+  const rootPackages = [];
+  const prunedPkgIds = new Set();
+
+  packageMap.forEach(pkg => {
+    if (!pkg.parent || !packageMap.has(pkg.parent)) {
+      let curr = pkg;
+      while (curr.childClasses.length === 0 && curr.childPackages.length === 1) {
+        prunedPkgIds.add(curr.id);
+        curr = curr.childPackages[0];
+        curr.parent = undefined;
+        curr.element.data.parent = undefined;
+      }
+      if (!rootPackages.includes(curr)) {
+        rootPackages.push(curr);
+      }
+    }
+  });
+
+  // Run bottom-up bounds computation on each root
+  rootPackages.forEach(rp => computePackageBounds(rp));
+
+  // Run top-down positioning, stacking roots vertically
+  let currentRootY = 0;
+  rootPackages.forEach(rp => {
+    positionPackage(rp, 0, currentRootY);
+    currentRootY += rp.bounds.height + ROOT_GAP_Y;
+  });
+
+  // Standalone nodes shelf
   if (standaloneNodes.length > 0) {
     let shelfX = 0;
-    standaloneNodes.forEach((node) => {
+    standaloneNodes.forEach(node => {
       const w = node.data.width || CARD_WIDTH;
       const h = node.data.height || 100;
       node.position = {
         x: shelfX + w / 2,
-        y: currentDomainY + h / 2
+        y: currentRootY + h / 2
       };
       shelfX += w + 60;
     });
   }
 
-  return elements;
+  // Filter out single-child empty root wrappers so Cytoscape has no concentric empty boxes
+  const finalElements = [];
+  elements.forEach(el => {
+    if (el.data && el.data.isPackage && prunedPkgIds.has(el.data.id)) {
+      return;
+    }
+    finalElements.push(el);
+  });
+
+  return finalElements;
 }
 
 function layoutHierarchicalGraph(nodeMap, edges, elements) {

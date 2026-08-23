@@ -173,25 +173,33 @@ impl DiagramExporterFactory for JSONFactory {
 
     fn export_diagram(
         &self,
-        _diagram_type: &str,
+        diagram_type: &str,
         uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> Option<String> {
-        Some(JSONExporter::export_class_diagram(&uma.classes))
+        let graph_ir = match diagram_type {
+            "package" => JSONExporter::export_package_diagram(uma, sta, tca),
+            _ => JSONExporter::export_class_diagram(uma, sta, tca),
+        };
+        serde_json::to_string_pretty(&graph_ir).ok()
     }
 
     fn export_all_diagrams(
         &self,
         uma: &UMLMetadataArtifact,
-        _sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
+        sta: &SymbolTableArtifact,
+        tca: &TokenCorpusArtifact,
     ) -> HashMap<String, String> {
         let mut map = HashMap::new();
-        map.insert(
-            "class".to_string(),
-            JSONExporter::export_class_diagram(&uma.classes),
-        );
+        let class_ir = JSONExporter::export_class_diagram(uma, sta, tca);
+        if let Ok(json) = serde_json::to_string_pretty(&class_ir) {
+            map.insert("class".to_string(), json);
+        }
+        let pkg_ir = JSONExporter::export_package_diagram(uma, sta, tca);
+        if let Ok(json) = serde_json::to_string_pretty(&pkg_ir) {
+            map.insert("package".to_string(), json);
+        }
         map
     }
 }

@@ -1,232 +1,200 @@
 /**
- * OpenHeart VS Code / Android Studio Style File Hierarchy Tree Explorer
- * Provides interactive directory tree with folder expansion, type icons, and Monaco sync.
+ * OpenHeart Dynamic File Hierarchy Tree Explorer (Zero Hardcoding)
+ * Dynamically builds the VS Code / Android Studio directory tree from parsed compiler elements.
  */
 
 export class FileTreeExplorer {
   constructor(containerId, onFileSelectCallback) {
     this.container = document.getElementById(containerId);
     this.onFileSelect = onFileSelectCallback;
-    this.activeFile = 'VideoConversionFacade.java';
-
+    this.activeFile = null;
     this.treeData = {
       name: "src/main/java",
       type: "folder",
       expanded: true,
-      children: [
-        {
-          name: "com.patterns.behavioral",
-          type: "folder",
-          expanded: true,
-          children: [
-            {
-              name: "observer",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "NewsAgency.java", type: "class", kind: "C" },
-                { name: "NewsChannel.java", type: "class", kind: "C" },
-                { name: "Observer.java", type: "interface", kind: "I" },
-                { name: "Subject.java", type: "interface", kind: "I" }
-              ]
-            },
-            {
-              name: "strategy",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "CreditCardStrategy.java", type: "class", kind: "C" },
-                { name: "PaymentStrategy.java", type: "interface", kind: "I" },
-                { name: "PaypalStrategy.java", type: "class", kind: "C" },
-                { name: "ShoppingCart.java", type: "class", kind: "C" }
-              ]
-            },
-            {
-              name: "templatemethod",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "CsvDataMiner.java", type: "class", kind: "C" },
-                { name: "DataMiner.java", type: "abstract", kind: "A" },
-                { name: "PdfDataMiner.java", type: "class", kind: "C" }
-              ]
-            }
-          ]
-        },
-        {
-          name: "com.patterns.creational",
-          type: "folder",
-          expanded: true,
-          children: [
-            {
-              name: "builder",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "Computer.java", type: "class", kind: "C" },
-                { name: "ComputerBuilder.java", type: "class", kind: "C" },
-                { name: "Director.java", type: "class", kind: "C" }
-              ]
-            },
-            {
-              name: "factory",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "Logistics.java", type: "abstract", kind: "A" },
-                { name: "RoadLogistics.java", type: "class", kind: "C" },
-                { name: "SeaLogistics.java", type: "class", kind: "C" },
-                { name: "Ship.java", type: "class", kind: "C" },
-                { name: "Transport.java", type: "interface", kind: "I" },
-                { name: "Truck.java", type: "class", kind: "C" }
-              ]
-            },
-            {
-              name: "singleton",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "DatabaseConnectionPool.java", type: "class", kind: "C" }
-              ]
-            }
-          ]
-        },
-        {
-          name: "com.patterns.structural",
-          type: "folder",
-          expanded: true,
-          children: [
-            {
-              name: "adapter",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "AdvancedMediaPlayer.java", type: "interface", kind: "I" },
-                { name: "AudioPlayer.java", type: "class", kind: "C" },
-                { name: "MediaAdapter.java", type: "class", kind: "C" },
-                { name: "MediaPlayer.java", type: "interface", kind: "I" },
-                { name: "Mp4Player.java", type: "class", kind: "C" },
-                { name: "VlcPlayer.java", type: "class", kind: "C" }
-              ]
-            },
-            {
-              name: "decorator",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "Beverage.java", type: "interface", kind: "I" },
-                { name: "CondimentDecorator.java", type: "abstract", kind: "A" },
-                { name: "Espresso.java", type: "class", kind: "C" },
-                { name: "Mocha.java", type: "class", kind: "C" },
-                { name: "Whip.java", type: "class", kind: "C" }
-              ]
-            },
-            {
-              name: "facade",
-              type: "folder",
-              expanded: true,
-              children: [
-                { name: "AudioMixer.java", type: "class", kind: "C" },
-                { name: "BitrateReader.java", type: "class", kind: "C" },
-                { name: "VideoConversionFacade.java", type: "class", kind: "C" }
-              ]
-            }
-          ]
-        }
-      ]
+      children: []
     };
+  }
+
+  /**
+   * Dynamically constructs the file tree from Cytoscape / PlantUML elements
+   */
+  updateFromElements(elements) {
+    if (!elements || elements.length === 0) return;
+
+    const root = {
+      name: "src/main/java",
+      type: "folder",
+      expanded: true,
+      children: []
+    };
+
+    const packageMap = new Map();
+    elements.forEach(el => {
+      if (el.data && el.data.isPackage) {
+        const pkgPath = el.data.rawName || el.data.id.replace(/^pkg_/, '').replace(/_/g, '.');
+        packageMap.set(el.data.id, {
+          path: pkgPath,
+          parent: el.data.parent,
+          children: []
+        });
+      }
+    });
+
+    // Group files by parent package
+    elements.forEach(el => {
+      if (el.data && el.data.file && !el.data.isPackage && !el.data.source) {
+        const fileName = el.data.file;
+        const kind = el.data.kind || 'class';
+        let kindLetter = 'C';
+        if (kind === 'interface') kindLetter = 'I';
+        else if (kind === 'abstract') kindLetter = 'A';
+        else if (kind === 'enum') kindLetter = 'E';
+
+        const fileEntry = {
+          name: fileName,
+          type: kind,
+          kind: kindLetter,
+          nodeId: el.data.id
+        };
+
+        const parentId = el.data.parent;
+        if (parentId && packageMap.has(parentId)) {
+          packageMap.get(parentId).children.push(fileEntry);
+        } else {
+          root.children.push(fileEntry);
+        }
+      }
+    });
+
+    // Build hierarchical folder nodes
+    packageMap.forEach((pkgInfo, pkgId) => {
+      if (pkgInfo.children.length > 0) {
+        const folderNode = {
+          name: pkgInfo.path,
+          type: "folder",
+          expanded: true,
+          children: pkgInfo.children
+        };
+        root.children.push(folderNode);
+      }
+    });
+
+    // Sort folders and files
+    root.children.sort((a, b) => a.name.localeCompare(b.name));
+
+    this.treeData = root;
+    this.render();
   }
 
   render() {
     if (!this.container) return;
     this.container.innerHTML = '';
-    const rootEl = this.renderNode(this.treeData, 0);
+    const rootEl = this.buildNodeElement(this.treeData, 0);
     this.container.appendChild(rootEl);
   }
 
-  renderNode(node, depth) {
-    const el = document.createElement('div');
-    el.className = 'tree-node';
+  buildNodeElement(node, depth) {
+    const isFolder = node.type === 'folder';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tree-item-wrapper';
 
-    if (node.type === 'folder') {
-      const header = document.createElement('div');
-      header.className = 'tree-folder-header';
-      header.style.paddingLeft = `${depth * 14 + 8}px`;
+    const row = document.createElement('div');
+    row.className = isFolder ? 'tree-folder-row' : 'tree-file-row';
+    row.style.paddingLeft = `${depth * 14 + 8}px`;
 
+    if (!isFolder && node.name === this.activeFile) {
+      row.classList.add('active');
+    }
+
+    if (isFolder) {
       const arrow = document.createElement('span');
-      arrow.className = `tree-arrow ${node.expanded ? 'expanded' : ''}`;
+      arrow.className = 'tree-arrow';
       arrow.textContent = node.expanded ? '▼' : '▶';
 
-      const icon = document.createElement('span');
-      icon.className = 'tree-folder-icon';
-      icon.textContent = '📁';
+      const folderIcon = document.createElement('span');
+      folderIcon.className = 'tree-icon folder-icon';
+      folderIcon.textContent = node.expanded ? '📂' : '📁';
 
       const label = document.createElement('span');
       label.className = 'tree-folder-label';
       label.textContent = node.name;
 
-      header.appendChild(arrow);
-      header.appendChild(icon);
-      header.appendChild(label);
+      row.appendChild(arrow);
+      row.appendChild(folderIcon);
+      row.appendChild(label);
 
       const childrenContainer = document.createElement('div');
       childrenContainer.className = 'tree-children';
       childrenContainer.style.display = node.expanded ? 'block' : 'none';
 
-      header.addEventListener('click', () => {
-        node.expanded = !node.expanded;
-        arrow.textContent = node.expanded ? '▼' : '▶';
-        arrow.className = `tree-arrow ${node.expanded ? 'expanded' : ''}`;
-        childrenContainer.style.display = node.expanded ? 'block' : 'none';
-      });
-
       if (node.children) {
         node.children.forEach(child => {
-          childrenContainer.appendChild(this.renderNode(child, depth + 1));
+          childrenContainer.appendChild(this.buildNodeElement(child, depth + 1));
         });
       }
 
-      el.appendChild(header);
-      el.appendChild(childrenContainer);
-    } else {
-      const fileRow = document.createElement('div');
-      fileRow.className = `tree-file-row ${node.name === this.activeFile ? 'active' : ''}`;
-      fileRow.style.paddingLeft = `${depth * 14 + 18}px`;
-      fileRow.setAttribute('data-filename', node.name);
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        node.expanded = !node.expanded;
+        arrow.textContent = node.expanded ? '▼' : '▶';
+        folderIcon.textContent = node.expanded ? '📂' : '📁';
+        childrenContainer.style.display = node.expanded ? 'block' : 'none';
+      });
 
+      wrapper.appendChild(row);
+      wrapper.appendChild(childrenContainer);
+    } else {
       const badge = document.createElement('span');
-      badge.className = `tree-badge badge-${node.kind.toLowerCase()}`;
-      badge.textContent = node.kind;
+      badge.className = `tree-badge badge-${node.kind ? node.kind.toLowerCase() : 'c'}`;
+      badge.textContent = node.kind || 'C';
 
       const label = document.createElement('span');
       label.className = 'tree-file-label';
       label.textContent = node.name;
 
-      fileRow.appendChild(badge);
-      fileRow.appendChild(label);
+      row.appendChild(badge);
+      row.appendChild(label);
 
-      fileRow.addEventListener('click', () => {
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
         this.selectFile(node.name);
         if (this.onFileSelect) {
-          this.onFileSelect(node.name);
+          this.onFileSelect(node.name, node);
         }
       });
 
-      el.appendChild(fileRow);
+      wrapper.appendChild(row);
     }
 
-    return el;
+    return wrapper;
   }
 
   selectFile(fileName) {
     this.activeFile = fileName;
     if (!this.container) return;
-    this.container.querySelectorAll('.tree-file-row').forEach(row => {
-      if (row.getAttribute('data-filename') === fileName) {
-        row.classList.add('active');
-        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    const allFileRows = this.container.querySelectorAll('.tree-file-row');
+    allFileRows.forEach(r => {
+      const label = r.querySelector('.tree-file-label');
+      if (label && label.textContent === fileName) {
+        r.classList.add('active');
+        let parent = r.parentElement;
+        while (parent && parent !== this.container) {
+          if (parent.classList.contains('tree-children')) {
+            parent.style.display = 'block';
+            const folderRow = parent.previousElementSibling;
+            if (folderRow) {
+              const arrow = folderRow.querySelector('.tree-arrow');
+              const icon = folderRow.querySelector('.folder-icon');
+              if (arrow) arrow.textContent = '▼';
+              if (icon) icon.textContent = '📂';
+            }
+          }
+          parent = parent.parentElement;
+        }
       } else {
-        row.classList.remove('active');
+        r.classList.remove('active');
       }
     });
   }

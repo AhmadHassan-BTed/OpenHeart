@@ -476,9 +476,20 @@ skinparam UsecaseFontColor #ffffff\n\n"
                     && src_name != dst_name
                     && class_by_name.contains_key(&dst_name)
                 {
+                    // Pure AST Semantics:
+                    // - Collections (List<T>, Set<T>, arrays) represent Aggregation (o--)
+                    // - Final / Owned fields represent Composition (*--)
+                    // - Standard instance reference fields represent Association (-->)
+                    let rel_arrow = if field.is_collection != 0 {
+                        "o--"
+                    } else if (field.modifiers & 0x02) != 0 {
+                        "*--"
+                    } else {
+                        "-->"
+                    };
                     edges_by_pair
                         .entry((src_name.clone(), dst_name))
-                        .or_insert_with(|| "-->".to_string());
+                        .or_insert_with(|| rel_arrow.to_string());
                 }
             }
 
@@ -646,7 +657,7 @@ skinparam UsecaseFontColor #ffffff\n\n"
 
         for pkg in &uma.packages {
             let pname = Self::resolve_name(sta, tca, pkg.package_sym_id);
-            if !pname.is_empty() && pname != "" {
+            if !pname.is_empty() {
                 all_pkg_paths.insert(pname.to_string());
             }
         }

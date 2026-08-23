@@ -213,6 +213,11 @@
             <span id="hud-status-text">Two-finger scroll to Pan · Two-finger pinch to Zoom · Hover to trace path</span>
           </div>
           <div class="hud-action-controls">
+            <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag)">
+              <span class="pan-slider-label">⚡ Pan</span>
+              <input type="range" id="pan-sensitivity-slider" min="0.1" max="2.0" step="0.05" value="0.45" />
+              <span id="pan-sensitivity-val">0.45x</span>
+            </div>
             <button id="btn-zoom-in" class="hud-round-btn" title="Zoom In (+)">+</button>
             <button id="btn-zoom-out" class="hud-round-btn" title="Zoom Out (−)">−</button>
             <button id="btn-zoom-reset" class="hud-round-btn" title="Fit View (⊡)">⊡</button>
@@ -312,17 +317,40 @@
       const canvas = new InteractiveGraphCanvas('interactive-canvas');
       const editor = new SourceEditorModule('monaco-container');
 
-      // Initialize File Tree Explorer
+      // Initialize Dynamic File Tree Explorer
       const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile) => {
-        editor.highlightLines(selectedFile, [1, 5]);
+        editor.loadFile(selectedFile, null, [1, 5]);
         canvas.focusNodeByFile(selectedFile);
         
-        const pkgPath = filePackageMap[selectedFile] || 'com / patterns / structural / facade';
         document.getElementById('editor-filename').innerText = selectedFile;
-        document.getElementById('breadcrumb-package').innerText = pkgPath;
         document.getElementById('breadcrumb-filename').innerText = selectedFile;
       });
-      fileTree.render();
+
+      // Dynamic tree updater on graph render
+      canvas.setRenderCompleteCallback((elements) => {
+        fileTree.updateFromElements(elements);
+        const countBadge = document.querySelector('.badge-count');
+        if (countBadge) {
+          const fileCount = elements.filter(e => e.data && e.data.file && !e.data.isPackage && !e.data.source).length;
+          countBadge.textContent = fileCount.toString();
+        }
+      });
+
+      // Pan Sensitivity Slider Control
+      const panSlider = document.getElementById('pan-sensitivity-slider');
+      const panValLabel = document.getElementById('pan-sensitivity-val');
+      if (panSlider && panValLabel) {
+        const savedPan = localStorage.getItem('openheart_pan_sensitivity') || '0.45';
+        panSlider.value = savedPan;
+        panValLabel.textContent = `${parseFloat(savedPan).toFixed(2)}x`;
+        canvas.setPanSensitivity(parseFloat(savedPan));
+
+        panSlider.addEventListener('input', (e) => {
+          const val = parseFloat(e.target.value);
+          panValLabel.textContent = `${val.toFixed(2)}x`;
+          canvas.setPanSensitivity(val);
+        });
+      }
 
       // Inspector Tab Switching
       const tabExplorer = document.getElementById('tab-btn-explorer');
@@ -359,68 +387,28 @@
       canvas.init();
       editor.init();
 
-      const filePackageMap = {
-        "NewsAgency.java": "com / patterns / behavioral / observer",
-        "NewsChannel.java": "com / patterns / behavioral / observer",
-        "Observer.java": "com / patterns / behavioral / observer",
-        "Subject.java": "com / patterns / behavioral / observer",
-        "CreditCardStrategy.java": "com / patterns / behavioral / strategy",
-        "PaymentStrategy.java": "com / patterns / behavioral / strategy",
-        "PaypalStrategy.java": "com / patterns / behavioral / strategy",
-        "ShoppingCart.java": "com / patterns / behavioral / strategy",
-        "CsvDataMiner.java": "com / patterns / behavioral / templatemethod",
-        "DataMiner.java": "com / patterns / behavioral / templatemethod",
-        "PdfDataMiner.java": "com / patterns / behavioral / templatemethod",
-        "Computer.java": "com / patterns / creational / builder",
-        "ComputerBuilder.java": "com / patterns / creational / builder",
-        "Director.java": "com / patterns / creational / builder",
-        "Logistics.java": "com / patterns / creational / factory",
-        "RoadLogistics.java": "com / patterns / creational / factory",
-        "SeaLogistics.java": "com / patterns / creational / factory",
-        "Ship.java": "com / patterns / creational / factory",
-        "Transport.java": "com / patterns / creational / factory",
-        "Truck.java": "com / patterns / creational / factory",
-        "DatabaseConnectionPool.java": "com / patterns / creational / singleton",
-        "AdvancedMediaPlayer.java": "com / patterns / structural / adapter",
-        "AudioPlayer.java": "com / patterns / structural / adapter",
-        "MediaAdapter.java": "com / patterns / structural / adapter",
-        "MediaPlayer.java": "com / patterns / structural / adapter",
-        "Mp4Player.java": "com / patterns / structural / adapter",
-        "VlcPlayer.java": "com / patterns / structural / adapter",
-        "Beverage.java": "com / patterns / structural / decorator",
-        "CondimentDecorator.java": "com / patterns / structural / decorator",
-        "Espresso.java": "com / patterns / structural / decorator",
-        "Mocha.java": "com / patterns / structural / decorator",
-        "Whip.java": "com / patterns / structural / decorator",
-        "AudioMixer.java": "com / patterns / structural / facade",
-        "BitrateReader.java": "com / patterns / structural / facade",
-        "VideoConversionFacade.java": "com / patterns / structural / facade"
-      };
-
-      // Hook canvas selection to Monaco editor and File Tree Explorer
+      // Hook canvas selection to Monaco editor and File Tree Explorer dynamically
       canvas.setNodeSelectCallback((nodeData) => {
-        const fileName = nodeData.file || 'VideoConversionFacade.java';
-        const pkgPath = filePackageMap[fileName] || (nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ') : 'com / patterns / structural / facade');
+        const fileName = nodeData.file || (nodeData.id ? `${nodeData.id}.java` : 'Source.java');
+        const pkgPath = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ') : 'default';
 
-        document.getElementById('inspect-headline').innerText = nodeData.label.split('\n')[0];
+        const labelHeader = nodeData.textLabel ? nodeData.textLabel.split('\n')[0] : (nodeData.label ? nodeData.label.split('\n')[0] : nodeData.id);
+        document.getElementById('inspect-headline').innerText = labelHeader;
         document.getElementById('inspect-meta').innerText = `ID: ${nodeData.id} | Kind: ${nodeData.kind}`;
         document.getElementById('prop-kind').innerText = (nodeData.kind || 'CLASS').toUpperCase();
-        document.getElementById('prop-predicate').innerText = nodeData.predicate || 'N/A';
         document.getElementById('editor-filename').innerText = fileName;
         document.getElementById('breadcrumb-package').innerText = pkgPath;
         document.getElementById('breadcrumb-filename').innerText = fileName;
 
         fileTree.selectFile(fileName);
-
-        if (nodeData.lines) {
-          editor.highlightLines(fileName, nodeData.lines);
-        }
+        editor.loadFile(fileName, nodeData, nodeData.lines || [1]);
       });
 
       canvas.setNodeHoverCallback((nodeData) => {
         const hudText = document.getElementById('hud-status-text');
         if (hudText) {
-          hudText.innerHTML = `Path Illuminated: <strong>${nodeData.label.split('\n')[0]}</strong>`;
+          const title = nodeData.textLabel ? nodeData.textLabel.split('\n')[0] : (nodeData.label ? nodeData.label.split('\n')[0] : nodeData.id);
+          hudText.innerHTML = `Path Illuminated: <strong>${title}</strong>`;
         }
       });
 
@@ -441,7 +429,7 @@
       document.getElementById('btn-zoom-out').addEventListener('click', () => canvas.zoomOut());
       document.getElementById('btn-zoom-reset').addEventListener('click', () => canvas.resetView());
 
-      // ── GitHub Import & Analyze Action ──
+      // ── Dynamic GitHub Import & Analyze Action ──
       const importRepo = (repoName) => {
         const hudText = document.getElementById('hud-status-text');
         const hashBadge = document.getElementById('header-hash-badge');
