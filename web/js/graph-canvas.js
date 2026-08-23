@@ -27,6 +27,8 @@ export class InteractiveGraphCanvas {
     this.activeHoverId = null;
     this.hoverTimeout = null;
     this.collapsedPackages = new Set();
+    this.onLayersUpdateCallback = null;
+    this.hiddenEdgeKinds = new Set();
   }
 
   init() {
@@ -121,7 +123,10 @@ export class InteractiveGraphCanvas {
       minZoom: 0.05,
       maxZoom: 4.0,
       pixelRatio: 'auto',
-      textureOnViewport: false,
+      textureOnViewport: true,
+      hideEdgesOnViewport: false,
+      motionBlur: false,
+      wheelSensitivity: 0.18,
       style: this.getModernStyleSheet(),
       layout: {
         name: 'preset',
@@ -135,6 +140,16 @@ export class InteractiveGraphCanvas {
     if (this.onRenderCompleteCallback) {
       this.onRenderCompleteCallback(elements);
     }
+
+    if (this.onLayersUpdateCallback) {
+      this.onLayersUpdateCallback(this.getActiveEdgeKinds());
+    }
+  }
+
+  setTheme(isDark) {
+    if (!this.cy) return;
+    this.cy.style(this.getModernStyleSheet());
+    this.renderGraph(this.currentGraphType);
   }
 
   focusNodeByFile(fileName) {
@@ -512,16 +527,52 @@ export class InteractiveGraphCanvas {
     ];
   }
 
+  setLayersUpdateCallback(cb) {
+    this.onLayersUpdateCallback = cb;
+  }
+
+  setEdgeFilter(umlKind, isVisible) {
+    if (!this.cy) return;
+    if (isVisible) {
+      this.hiddenEdgeKinds.delete(umlKind);
+    } else {
+      this.hiddenEdgeKinds.add(umlKind);
+    }
+
+    this.cy.batch(() => {
+      const edges = this.cy.edges(`[uml_kind = "${umlKind}"]`);
+      if (isVisible) {
+        edges.style('display', 'element');
+      } else {
+        edges.style('display', 'none');
+      }
+    });
+  }
+
+  getActiveEdgeKinds() {
+    if (!this.cy) return [];
+    const counts = new Map();
+    this.cy.edges().forEach(e => {
+      const k = e.data('uml_kind') || 'association';
+      counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    return Array.from(counts.entries()).map(([kind, count]) => ({
+      kind,
+      count,
+      visible: !this.hiddenEdgeKinds.has(kind)
+    }));
+  }
+
   attachEventListeners(container) {
     if (!this.cy || !container) return;
 
-    // ── Two-Finger Trackpad Pan vs Two-Finger Pinch-to-Zoom ──
+    // ── Two-Finger Trackpad Pan vs Pinch-to-Zoom ──
     container.addEventListener('wheel', (e) => {
       e.preventDefault();
 
-      if (e.ctrlKey) {
-        // Trackpad Pinch Gesture -> Zoom
-        const zoomFactor = Math.exp(-e.deltaY * 0.015);
+      if (e.ctrlKey || e.metaKey) {
+        // Pinch gesture or Ctrl+Wheel -> Smooth Zoom centered at cursor
+        const zoomFactor = Math.exp(-e.deltaY * 0.012);
         const currentZoom = this.cy.zoom();
         const newZoom = Math.min(4.0, Math.max(0.05, currentZoom * zoomFactor));
         const rect = container.getBoundingClientRect();
@@ -535,8 +586,8 @@ export class InteractiveGraphCanvas {
           renderedPosition: renderedPos
         });
       } else {
-        // Two-Finger Trackpad Swipe -> Pan
-        const panSensitivity = this.panSensitivity;
+        // Two-Finger Trackpad Gesture / Scroll -> Pan canvas in 2D
+        const panSensitivity = this.panSensitivity || 0.75;
         this.cy.panBy({
           x: -e.deltaX * panSensitivity,
           y: -e.deltaY * panSensitivity
@@ -586,15 +637,15 @@ export class InteractiveGraphCanvas {
           }
         });
 
-        // 2. Damped Two-Finger Pan
-        const deltaX = (currentCenter.x - touchStartCenter.x) * 0.55;
-        const deltaY = (currentCenter.y - touchStartCenter.y) * 0.55;
+        // 2. Pure Two-Finger Pan
+        const deltaX = (currentCenter.x - touchStartCenter.x) * 1.0;
+        const deltaY = (currentCenter.y - touchStartCenter.y) * 1.0;
         this.cy.panBy({ x: deltaX, y: deltaY });
         touchStartCenter = currentCenter;
       }
     }, { passive: false });
 
-    // ── High-Intensity Path Hover Illumination ──
+    // ── High-Performance Local Neighborhood Hover Illumination ──
     this.cy.on('mouseover', 'node, edge', (e) => {
       const target = e.target;
       if (target.data('isPackage')) return;
@@ -608,20 +659,13 @@ export class InteractiveGraphCanvas {
         this.hoverTimeout = null;
       }
 
-      let pathElements;
-      if (target.isNode()) {
-        const predecessors = target.predecessors();
-        const successors = target.successors();
-        pathElements = target.union(predecessors).union(successors);
-      } else if (target.isEdge()) {
-        const sourcePath = target.source().union(target.source().predecessors());
-        const targetPath = target.target().union(target.target().successors());
-        pathElements = target.union(sourcePath).union(targetPath);
-      }
+      const neighborhood = target.isNode()
+        ? target.closedNeighborhood()
+        : target.connectedNodes().union(target);
 
       this.cy.batch(() => {
-        this.cy.elements().not('node[?isPackage]').addClass('dimmed');
-        pathElements.removeClass('dimmed').addClass('path-highlighted');
+        target.addClass('path-highlighted');
+        neighborhood.addClass('path-highlighted');
       });
 
       if (this.onNodeHoverCallback && target.isNode()) {
@@ -629,14 +673,15 @@ export class InteractiveGraphCanvas {
       }
     });
 
-    this.cy.on('mouseout', 'node, edge', () => {
+    this.cy.on('mouseout', 'node, edge', (e) => {
+      const target = e.target;
       if (this.hoverTimeout) clearTimeout(this.hoverTimeout);
       this.hoverTimeout = setTimeout(() => {
         this.activeHoverId = null;
         this.cy.batch(() => {
-          this.cy.elements().removeClass('dimmed').removeClass('path-highlighted');
+          this.cy.elements('.path-highlighted').removeClass('path-highlighted');
         });
-      }, 50);
+      }, 30);
     });
 
     // ── Click to Inspect & Synchronize Monaco ──

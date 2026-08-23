@@ -64,6 +64,7 @@
           <span id="header-hash-badge">SCPG 0x83D202B2 · Verified</span>
         </div>
 
+        <button id="btn-theme-toggle" class="btn-header-action" style="font-weight: 700; cursor: pointer;">🌙 Dark</button>
         <button id="btn-export-svg" class="btn-header-action">Export SVG</button>
         <button id="btn-export-json" class="btn-header-action">Export JSON</button>
         <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn-header-action">GitHub</a>
@@ -226,6 +227,24 @@
 
         <!-- Cytoscape Graph Canvas -->
         <div id="interactive-canvas"></div>
+
+        <!-- Floating Relationship Layers & Visibility Filter Panel -->
+        <div class="canvas-floating-layers-bar" id="canvas-layers-panel">
+          <div class="layers-panel-header">
+            <div class="layers-title">
+              <span class="layers-icon">⚡</span>
+              <span>Relationship Layers</span>
+              <span class="phase-chip" id="layers-total-count">0 EDGES</span>
+            </div>
+            <div class="layers-quick-actions">
+              <button id="btn-layers-all" class="btn-layers-action" title="Show All Relationships">Select All</button>
+              <button id="btn-layers-none" class="btn-layers-action" title="Hide All Relationships">Deselect All</button>
+            </div>
+          </div>
+          <div class="layers-checklist" id="layers-checklist-container">
+            <!-- Dynamic checklist generated dynamically for each diagram type -->
+          </div>
+        </div>
       </section>
 
       <!-- Right Inspector: Floating Card with Code Synchronizer & VS Code Project Tree -->
@@ -412,6 +431,96 @@
         }
       });
 
+      // ── Relationship Layers & Checklist Filter Synchronizer ──
+      const RELATION_CONFIG = {
+        generalization: { label: 'Generalization (--|>)', icon: '▷', color: '#1E293B' },
+        realization: { label: 'Realization (..|>)', icon: '⇢', color: '#2563EB' },
+        composition: { label: 'Composition (*--)', icon: '◆', color: '#0F172A' },
+        aggregation: { label: 'Aggregation (o--)', icon: '◇', color: '#0F172A' },
+        association: { label: 'Association (-->)', icon: '→', color: '#334155' },
+        dependency: { label: 'Dependency (..>)', icon: '⇢', color: '#64748B' },
+        message: { label: 'Sequence Message (->)', icon: '→', color: '#4F46E5' },
+        transition: { label: 'State Transition (-->)', icon: '➔', color: '#0284C7' },
+        control_flow: { label: 'Control Flow (-->)', icon: '➔', color: '#6366F1' },
+        manifestation: { label: 'Manifestation (..>)', icon: '📦', color: '#D97706' }
+      };
+
+      const layersPanel = document.getElementById('canvas-layers-panel');
+      const layersContainer = document.getElementById('layers-checklist-container');
+      const layersTotalCount = document.getElementById('layers-total-count');
+
+      canvas.setLayersUpdateCallback((activeKinds) => {
+        if (!layersContainer) return;
+        layersContainer.innerHTML = '';
+
+        if (!activeKinds || activeKinds.length === 0) {
+          if (layersPanel) layersPanel.style.display = 'none';
+          return;
+        }
+
+        if (layersPanel) layersPanel.style.display = 'flex';
+        let totalEdges = 0;
+
+        activeKinds.forEach(item => {
+          totalEdges += item.count;
+          const conf = RELATION_CONFIG[item.kind] || {
+            label: `${item.kind.toUpperCase()} (-->)`,
+            icon: '→',
+            color: '#334155'
+          };
+
+          const chip = document.createElement('label');
+          chip.className = `layer-chip-label ${item.visible ? '' : 'unchecked'}`;
+          chip.setAttribute('data-kind', item.kind);
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = item.visible;
+
+          checkbox.addEventListener('change', () => {
+            const isChecked = checkbox.checked;
+            canvas.setEdgeFilter(item.kind, isChecked);
+            if (isChecked) {
+              chip.classList.remove('unchecked');
+            } else {
+              chip.classList.add('unchecked');
+            }
+          });
+
+          const span = document.createElement('span');
+          span.innerHTML = `<strong>${conf.icon}</strong> ${conf.label} <span style="opacity: 0.7; font-size: 9px;">(${item.count})</span>`;
+
+          chip.appendChild(checkbox);
+          chip.appendChild(span);
+          layersContainer.appendChild(chip);
+        });
+
+        if (layersTotalCount) {
+          layersTotalCount.innerText = `${totalEdges} RELATIONS`;
+        }
+      });
+
+      // Quick Actions: Select All / Deselect All
+      document.getElementById('btn-layers-all').addEventListener('click', () => {
+        document.querySelectorAll('#layers-checklist-container .layer-chip-label').forEach(chip => {
+          const kind = chip.getAttribute('data-kind');
+          const cb = chip.querySelector('input[type="checkbox"]');
+          if (cb) cb.checked = true;
+          chip.classList.remove('unchecked');
+          canvas.setEdgeFilter(kind, true);
+        });
+      });
+
+      document.getElementById('btn-layers-none').addEventListener('click', () => {
+        document.querySelectorAll('#layers-checklist-container .layer-chip-label').forEach(chip => {
+          const kind = chip.getAttribute('data-kind');
+          const cb = chip.querySelector('input[type="checkbox"]');
+          if (cb) cb.checked = false;
+          chip.classList.add('unchecked');
+          canvas.setEdgeFilter(kind, false);
+        });
+      });
+
       // Graph selection tabs
       document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -423,6 +532,37 @@
           canvas.renderGraph(graphType);
         });
       });
+
+      // Theme toggle handler (Dark / Light Mode)
+      const btnTheme = document.getElementById('btn-theme-toggle');
+      const applyTheme = (theme) => {
+        const isDark = theme === 'dark';
+        if (isDark) {
+          document.body.classList.add('dark-theme');
+          document.documentElement.setAttribute('data-theme', 'dark');
+          if (btnTheme) btnTheme.innerHTML = '☀️ Light';
+        } else {
+          document.body.classList.remove('dark-theme');
+          document.documentElement.removeAttribute('data-theme');
+          if (btnTheme) btnTheme.innerHTML = '🌙 Dark';
+        }
+        localStorage.setItem('openheart_theme', theme);
+        canvas.setTheme(isDark);
+        if (editor && editor.setTheme) {
+          editor.setTheme(isDark);
+        }
+      };
+
+      const initialTheme = localStorage.getItem('openheart_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      applyTheme(initialTheme);
+
+      if (btnTheme) {
+        btnTheme.addEventListener('click', () => {
+          const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+          const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          applyTheme(nextTheme);
+        });
+      }
 
       // HUD Zoom Controls
       document.getElementById('btn-zoom-in').addEventListener('click', () => canvas.zoomIn());

@@ -8,8 +8,8 @@ classDiagram
     class obj_CheckpointManager {
         <<instance: CheckpointManager>>
         TAG: Unknown
-        fun: Unknown
-        fun: Unknown
+        fun: Task
+        fun: Task
         TAG: Unknown
         imageTask: Unknown
         ckptFile: Unknown
@@ -82,8 +82,8 @@ classDiagram
         <<instance: Flusher>>
         TAG: Unknown
         filesDir: Unknown
-        fun: Unknown
-        fun: Unknown
+        fun: Task
+        fun: Task
         TAG: Unknown
         filesDir: Unknown
         imageTask: Unknown
@@ -435,8 +435,8 @@ classDiagram
     }
     class obj_FractalApplication {
         <<instance: FractalApplication>>
-        GlobalState: Unknown
-        GlobalUtils: Unknown
+        GlobalState: GlobalUtils
+        GlobalUtils: app_config
         app_config: Unknown
         startupExecutor: Unknown
         globalState: Unknown

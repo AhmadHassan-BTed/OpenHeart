@@ -54,8 +54,8 @@ object "obj_Image_Trainer_Factory : Image_Trainer_Factory" as obj_Image_Trainer_
 
 object "obj_CheckpointManager : CheckpointManager" as obj_CheckpointManager {
   TAG = "<>"
-  fun = "<>"
-  fun = "<>"
+  fun = "<Task>"
+  fun = "<Task>"
   TAG = "<>"
   imageTask = "<>"
   ckptFile = "<>"
@@ -128,8 +128,8 @@ object "obj_Image_InferenceValidator_Factory : Image_InferenceValidator_Factory"
 object "obj_Flusher : Flusher" as obj_Flusher {
   TAG = "<>"
   filesDir = "<>"
-  fun = "<>"
-  fun = "<>"
+  fun = "<Task>"
+  fun = "<Task>"
   TAG = "<>"
   filesDir = "<>"
   imageTask = "<>"
@@ -481,8 +481,8 @@ object "obj_BootReceiver : BootReceiver" as obj_BootReceiver {
 }
 
 object "obj_FractalApplication : FractalApplication" as obj_FractalApplication {
-  GlobalState = "<>"
-  GlobalUtils = "<>"
+  GlobalState = "<GlobalUtils>"
+  GlobalUtils = "<app_config>"
   app_config = "<>"
   startupExecutor = "<>"
   globalState = "<>"
@@ -1253,10 +1253,16 @@ object "obj_Orchestrator : Orchestrator" as obj_Orchestrator {
   pauseController = "<>"
 }
 
+obj_CheckpointManager --> obj_Task : references (fun)
+obj_CheckpointManager --> obj_Task : references (fun)
+obj_Flusher --> obj_Task : references (fun)
+obj_Flusher --> obj_Task : references (fun)
 obj_HomeFragment --> obj_HomeViewModel : references (homeViewModel)
 obj_HomeViewModel --> obj_TrainingStateRepository : references (repository)
 obj_HomeViewModel --> obj_ResourceManager_Live_DTO : references (resourceManager)
 obj_DeviceInsightsFragment --> obj_DeviceInsightsViewModel : references (viewModel)
 obj_ModelTrainingFragment --> obj_HomeViewModel : references (sharedViewModel)
+obj_FractalApplication --> obj_GlobalUtils : references (GlobalState)
+obj_FractalApplication --> obj_app_config : references (GlobalUtils)
 
 @enduml

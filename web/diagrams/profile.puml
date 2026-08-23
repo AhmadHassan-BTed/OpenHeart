@@ -50,10 +50,10 @@ stereotype "<<Factory>>" as Factory
 Factory --|> Class : <<extends>>
 stereotype "<<Decorator>>" as Decorator
 Decorator --|> Class : <<extends>>
-stereotype "<<Facade>>" as Facade
-Facade --|> Class : <<extends>>
 stereotype "<<Composite>>" as Composite
 Composite --|> Class : <<extends>>
+stereotype "<<Facade>>" as Facade
+Facade --|> Class : <<extends>>
 stereotype "<<Singleton>>" as Singleton
 Singleton --|> Class : <<extends>>
 stereotype "<<State>>" as State

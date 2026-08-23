@@ -463,7 +463,7 @@ impl OpenHeartServer {
         let diag_engine = crate::scpg::diagram::UniversalDiagramEngine::new();
         let all_diagram_types = [
             "class", "object", "component", "deployment", "package", "composite",
-            "profile", "usecase", "activity", "statemachine", "sequence",
+            "profile", "usecase", "use_case", "activity", "state", "statemachine", "sequence",
             "communication", "interaction", "timing", "cfg", "robdd", "dfg", "cdg", "callgraph",
         ];
         for dtype in all_diagram_types {

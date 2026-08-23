@@ -46,8 +46,8 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
     }
   });
 
-  // Hierarchical compiler graphs (CFG, ROBDD, Activity, etc.)
-  if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'statemachine', 'sequence', 'activity'].includes(graphType)) {
+  // Hierarchical compiler graphs (CFG, ROBDD, Activity, State, Sequence, etc.)
+  if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'state', 'statemachine', 'sequence', 'activity'].includes(graphType)) {
     return layoutHierarchicalGraph(nodeMap, edges, elements);
   }
 
@@ -73,14 +73,18 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
       const rowCount = Math.ceil(pkg.childClasses.length / colCount);
 
       let maxClassH = 140;
+      let maxClassW = 290;
       pkg.childClasses.forEach(c => {
         const h = c.data.height || 180;
+        const w = c.data.width || 290;
         if (h > maxClassH) maxClassH = h;
+        if (w > maxClassW) maxClassW = w;
       });
 
-      classesWidth = colCount * CARD_WIDTH + (colCount - 1) * CARD_GAP_X;
+      classesWidth = colCount * maxClassW + (colCount - 1) * CARD_GAP_X;
       classesHeight = rowCount * maxClassH + (rowCount - 1) * CARD_GAP_Y;
       pkg.maxClassH = maxClassH;
+      pkg.maxClassW = maxClassW;
       pkg.colCount = colCount;
     }
 
@@ -151,14 +155,17 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
 
     if (pkg.childClasses.length > 0) {
       const startX = originX + PAD_SIDE;
+      const colWidth = pkg.maxClassW || 290;
       pkg.childClasses.forEach((child, idx) => {
         const col = idx % pkg.colCount;
         const row = Math.floor(idx / pkg.colCount);
 
-        const childX = startX + col * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2;
-        const childY = currentY + row * (pkg.maxClassH + CARD_GAP_Y) + (child.data.height || pkg.maxClassH) / 2;
+        const childW = child.data.width || colWidth;
+        const childH = child.data.height || pkg.maxClassH;
 
-        child.data.width = CARD_WIDTH;
+        const childX = startX + col * (colWidth + CARD_GAP_X) + childW / 2;
+        const childY = currentY + row * (pkg.maxClassH + CARD_GAP_Y) + childH / 2;
+
         child.position = { x: childX, y: childY };
       });
 

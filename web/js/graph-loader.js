@@ -10,6 +10,9 @@ import {
   generateActionNodeSvg,
   generateComponentNodeSvg,
   generateDeploymentNodeSvg,
+  generateSequenceLifelineSvg,
+  generateUseCaseSvg,
+  generateObjectCardSvg,
   generateCfgBlockSvg,
   generateBddGateSvg
 } from './uml-card-renderer.js';
@@ -17,6 +20,7 @@ import {
 export function loadGraphIrToCytoscape(graphIr) {
   if (!graphIr || !graphIr.nodes) return [];
 
+  const isDark = document.body && document.body.classList.contains('dark-theme');
   const elements = [];
   const nodeMap = new Map();
 
@@ -76,6 +80,16 @@ export function loadGraphIrToCytoscape(graphIr) {
       svgData = generateComponentNodeSvg({ name: node.name, width: 230 });
     } else if (node.kind === 'device' || node.kind === 'artifact') {
       svgData = generateDeploymentNodeSvg({ name: node.name, isArtifact: node.kind === 'artifact', width: 230 });
+    } else if (node.kind === 'participant' || node.kind === 'actor') {
+      svgData = generateSequenceLifelineSvg({ name: node.name, isActor: node.kind === 'actor', width: 200 });
+    } else if (node.kind === 'usecase') {
+      svgData = generateUseCaseSvg({ name: node.name, width: 220 });
+    } else if (node.kind === 'object') {
+      svgData = generateObjectCardSvg({
+        name: node.name,
+        fields: (node.fields || []).map(f => f.signature || f.name),
+        width: 260
+      });
     } else {
       // UML Class / Interface / Abstract / Enum Card
       const fieldsFormatted = (node.fields || []).map(f => `${f.visibility} ${f.signature || f.name}`);
@@ -87,7 +101,8 @@ export function loadGraphIrToCytoscape(graphIr) {
         stereotype: node.stereotype || `<<${node.kind || 'class'}>>`,
         fields: fieldsFormatted,
         methods: methodsFormatted,
-        width: 290
+        width: 290,
+        isDark
       });
     }
 
@@ -112,20 +127,23 @@ export function loadGraphIrToCytoscape(graphIr) {
     elements.push(cytoscapeNode);
   });
 
-  // 2. Ingest Edges Directly from Typed Schema (Filter dangling edges to external SDK symbols)
-  (graphIr.edges || []).forEach((edge, idx) => {
+  // 2. Ingest Directed Strongly-Typed Edges
+  graphIr.edges.forEach(edge => {
+    // Prevent dangling edges if either endpoint is absent
     if (!nodeMap.has(edge.source) || !nodeMap.has(edge.target)) {
       return;
     }
+
     elements.push({
       data: {
-        id: edge.id || `edge_${idx}_${edge.source}_${edge.target}`,
+        id: edge.id,
         source: edge.source,
         target: edge.target,
+        uml_kind: edge.kind,
         label: edge.label || '',
-        arrow: edge.arrow || '-->',
-        uml_kind: edge.kind || 'association'
-      }
+        arrow: edge.arrow || '-->'
+      },
+      classes: `edge-${edge.kind}`
     });
   });
 

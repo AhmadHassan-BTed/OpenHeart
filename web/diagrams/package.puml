@@ -202,6 +202,8 @@ package "fractal" as pkg_fractal {
 }
 
 ' Formal UML Package Dependencies
+pkg_AppBackend_LocalTrainingModule_TrainingStateManager ..> pkg_AppBackend_TaskContainer : <<imports>>
+pkg_AppFrontend_Flush ..> pkg_AppBackend_TaskContainer : <<imports>>
 pkg_AppFrontend_Interface_Home ..> pkg_AppBackend_ResourceManagement : <<imports>>
 pkg_AppFrontend_Interface_Home ..> pkg_AppBackend_ResourceManagement_ResourceManager : <<imports>>
 pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppBackend_Network_RegisteredInfo : <<imports>>
@@ -209,5 +211,7 @@ pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppBackend_ResourceMan
 pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppFrontend_Interface_RewardBank : <<imports>>
 pkg_AppFrontend_Interface_Insights_ModelTraining ..> pkg_AppFrontend_Interface_Home : <<imports>>
 pkg_com_example_fractal ..> pkg_AppBackend_ResourceManagement : <<imports>>
+pkg_com_example_fractal ..> pkg_AppGlobal : <<imports>>
+pkg_com_example_fractal ..> pkg_AppGlobal_Utils : <<imports>>
 
 @enduml

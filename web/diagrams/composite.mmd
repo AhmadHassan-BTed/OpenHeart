@@ -9,8 +9,8 @@ graph TD
 
     subgraph Comp_CheckpointManager["Composite: CheckpointManager"]
         Part_CheckpointManager_TAG["part: TAG : Unknown"]
-        Part_CheckpointManager_fun["part: fun : Unknown"]
-        Part_CheckpointManager_fun["part: fun : Unknown"]
+        Part_CheckpointManager_fun["part: fun : Task"]
+        Part_CheckpointManager_fun["part: fun : Task"]
         Part_CheckpointManager_TAG["part: TAG : Unknown"]
         Part_CheckpointManager_imageTask["part: imageTask : Unknown"]
         Part_CheckpointManager_ckptFile["part: ckptFile : Unknown"]
@@ -82,8 +82,8 @@ graph TD
     subgraph Comp_Flusher["Composite: Flusher"]
         Part_Flusher_TAG["part: TAG : Unknown"]
         Part_Flusher_filesDir["part: filesDir : Unknown"]
-        Part_Flusher_fun["part: fun : Unknown"]
-        Part_Flusher_fun["part: fun : Unknown"]
+        Part_Flusher_fun["part: fun : Task"]
+        Part_Flusher_fun["part: fun : Task"]
         Part_Flusher_TAG["part: TAG : Unknown"]
         Part_Flusher_filesDir["part: filesDir : Unknown"]
         Part_Flusher_imageTask["part: imageTask : Unknown"]
@@ -463,8 +463,8 @@ graph TD
     end
 
     subgraph Comp_FractalApplication["Composite: FractalApplication"]
-        Part_FractalApplication_GlobalState["part: GlobalState : Unknown"]
-        Part_FractalApplication_GlobalUtils["part: GlobalUtils : Unknown"]
+        Part_FractalApplication_GlobalState["part: GlobalState : GlobalUtils"]
+        Part_FractalApplication_GlobalUtils["part: GlobalUtils : app_config"]
         Part_FractalApplication_app_config["part: app_config : Unknown"]
         Part_FractalApplication_startupExecutor["part: startupExecutor : Unknown"]
         Part_FractalApplication_globalState["part: globalState : Unknown"]
