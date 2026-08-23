@@ -1,11 +1,11 @@
 {
   "diagram_type": "package",
-  "title": "UML 2.5 Package Structure & Dependencies",
+  "title": "UML 2.5 Package Structure & Inter-Package Dependencies",
   "nodes": [
     {
-      "id": "pkg_stallation",
-      "label": "package [stallation]",
-      "name": "stallation",
+      "id": "pkg_core",
+      "label": "package [core]",
+      "name": "core",
       "kind": "package",
       "stereotype": "<<package>>",
       "parent": null,
@@ -19,9 +19,9 @@
       "instructions": []
     },
     {
-      "id": "pkg_version",
-      "label": "package [version]",
-      "name": "version",
+      "id": "pkg_ingestion",
+      "label": "package [ingestion]",
+      "name": "ingestion",
       "kind": "package",
       "stereotype": "<<package>>",
       "parent": null,
@@ -35,9 +35,9 @@
       "instructions": []
     },
     {
-      "id": "pkg_relative",
-      "label": "package [relative]",
-      "name": "relative",
+      "id": "pkg_symbol",
+      "label": "package [symbol]",
+      "name": "symbol",
       "kind": "package",
       "stereotype": "<<package>>",
       "parent": null,
@@ -51,9 +51,73 @@
       "instructions": []
     },
     {
-      "id": "pkg_config",
-      "label": "package [config]",
-      "name": "config",
+      "id": "pkg_cfg",
+      "label": "package [cfg]",
+      "name": "cfg",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": true,
+      "is_domain_tier": true,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_ssa",
+      "label": "package [ssa]",
+      "name": "ssa",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": true,
+      "is_domain_tier": true,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_psa",
+      "label": "package [psa]",
+      "name": "psa",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": true,
+      "is_domain_tier": true,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_uma",
+      "label": "package [uma]",
+      "name": "uma",
+      "kind": "package",
+      "stereotype": "<<package>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": true,
+      "is_domain_tier": true,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "pkg_scpg",
+      "label": "package [scpg]",
+      "name": "scpg",
       "kind": "package",
       "stereotype": "<<package>>",
       "parent": null,
@@ -67,11 +131,68 @@
       "instructions": []
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "edge_pkg_0",
+      "source": "pkg_ingestion",
+      "target": "pkg_core",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_pkg_1",
+      "source": "pkg_symbol",
+      "target": "pkg_ingestion",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_pkg_2",
+      "source": "pkg_cfg",
+      "target": "pkg_symbol",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_pkg_3",
+      "source": "pkg_ssa",
+      "target": "pkg_cfg",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_pkg_4",
+      "source": "pkg_psa",
+      "target": "pkg_ssa",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_pkg_5",
+      "source": "pkg_uma",
+      "target": "pkg_psa",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_pkg_6",
+      "source": "pkg_scpg",
+      "target": "pkg_uma",
+      "kind": "dependency",
+      "label": "«use»",
+      "arrow": "..>"
+    }
+  ],
   "metadata": {
-    "total_nodes": 4,
-    "total_edges": 0,
-    "compiler_hash": "0x83D2D2B2",
+    "total_nodes": 8,
+    "total_edges": 7,
+    "compiler_hash": "0x2AE9081C",
     "verified": true
   }
 }

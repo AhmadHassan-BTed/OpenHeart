@@ -47,9 +47,16 @@ export class FileTreeExplorer {
         const fileName = el.data.file;
         const kind = el.data.kind || 'class';
         let kindLetter = 'C';
-        if (kind === 'interface') kindLetter = 'I';
+        if (fileName.endsWith('.kt')) kindLetter = 'K';
+        else if (fileName.endsWith('.rs')) kindLetter = 'R';
+        else if (fileName.endsWith('.ts') || fileName.endsWith('.tsx') || fileName.endsWith('.js')) kindLetter = 'T';
+        else if (fileName.endsWith('.py')) kindLetter = 'P';
+        else if (kind === 'interface') kindLetter = 'I';
         else if (kind === 'abstract') kindLetter = 'A';
         else if (kind === 'enum') kindLetter = 'E';
+        else if (kind === 'actor' || kind === 'usecase') kindLetter = 'U';
+        else if (kind === 'bb') kindLetter = 'B';
+        else if (kind === 'timing_track') kindLetter = 'T';
 
         const fileEntry = {
           name: fileName,

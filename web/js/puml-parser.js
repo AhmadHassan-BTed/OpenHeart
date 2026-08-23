@@ -11,8 +11,15 @@ import {
   generateActionNodeSvg,
   generateComponentNodeSvg,
   generateDeploymentNodeSvg,
+  generateSequenceLifelineSvg,
+  generateUseCaseSvg,
+  generateObjectCardSvg,
   generateCfgBlockSvg,
-  generateBddGateSvg
+  generateBddGateSvg,
+  generateCompositeCardSvg,
+  generateProfileCardSvg,
+  generateTimingTrackSvg,
+  generateInteractionFrameSvg
 } from './uml-card-renderer.js';
 import { isDarkMode } from './themes/index.js';
 
@@ -43,7 +50,6 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const nestLevel = packageStack.filter(p => p !== null).length;
       const isDomainTier = nestLevel === 0;
 
-      // Clean dynamic label: short package name with folder icon
       const shortName = pkgName.split('.').pop();
       const displayLabel = isDomainTier ? `📂 DOMAIN: ${pkgName.toUpperCase()}` : `📁 package [${shortName}]`;
 
@@ -71,7 +77,58 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 2. Deployment Artifact: artifact "name.jar" as art_id ──
+    // ── 2. Actor / Use Case Declarations ──
+    const actorMatch = rawLine.match(/^actor\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/) || rawLine.match(/^actor\s+([A-Za-z0-9_]+)/);
+    if (actorMatch) {
+      const label = actorMatch[1];
+      const id = actorMatch[2] || actorMatch[1];
+      if (!nodeMap.has(id)) {
+        const svgData = generateUseCaseSvg({ name: label, isActor: true, width: 120, height: 90, isDark });
+        const node = {
+          data: {
+            id: id,
+            label: '',
+            textLabel: `<<actor>>\n${label}`,
+            kind: 'actor',
+            width: svgData.width,
+            height: svgData.height,
+            svgDataUri: svgData.dataUri,
+            parent: getActivePackage(packageStack)
+          },
+          classes: 'actor-card'
+        };
+        nodeMap.set(id, node);
+        elements.push(node);
+      }
+      continue;
+    }
+
+    const ucMatch = rawLine.match(/^usecase\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/) || rawLine.match(/^usecase\s+([A-Za-z0-9_]+)/);
+    if (ucMatch) {
+      const label = ucMatch[1];
+      const id = ucMatch[2] || ucMatch[1];
+      if (!nodeMap.has(id)) {
+        const svgData = generateUseCaseSvg({ name: label, isActor: false, width: 220, height: 70, isDark });
+        const node = {
+          data: {
+            id: id,
+            label: '',
+            textLabel: `(( ${label} ))`,
+            kind: 'usecase',
+            width: svgData.width,
+            height: svgData.height,
+            svgDataUri: svgData.dataUri,
+            parent: getActivePackage(packageStack)
+          },
+          classes: 'usecase-card'
+        };
+        nodeMap.set(id, node);
+        elements.push(node);
+      }
+      continue;
+    }
+
+    // ── 3. Deployment Artifact: artifact "name.jar" as art_id ──
     const artMatch = rawLine.match(/^artifact\s+"([^"]+)"(?:\s+as\s+([A-Za-z0-9_]+))?/);
     if (artMatch) {
       const artName = artMatch[1];
@@ -80,7 +137,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const nestLevel = packageStack.filter(p => p !== null).length;
 
       if (!nodeMap.has(artId)) {
-        const svgData = generateDeploymentNodeSvg({ name: artName, isArtifact: true, width: 220, height: 65 });
+        const svgData = generateDeploymentNodeSvg({ name: artName, isArtifact: true, width: 220, height: 65, isDark });
         const node = {
           data: {
             id: artId,
@@ -103,7 +160,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 3. Block / Package Closing: } ──
+    // ── 4. Block / Package Closing: } ──
     if (rawLine === '}') {
       if (currentBlock) {
         registerClassNode(currentBlock, nodeMap, elements, packageStack);
@@ -114,8 +171,8 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 4. Class / Interface / Abstract Definition ──
-    const classMatch = rawLine.match(/^(class|interface|abstract\s+class|abstract|enum)\s+([A-Za-z0-9_]+)(?:\s+<<([^>]+)>>)?(?:\s+as\s+([A-Za-z0-9_]+))?\s*\{?/);
+    // ── 5. Class / Interface / Abstract / Stereotype Definition ──
+    const classMatch = rawLine.match(/^(class|interface|abstract\s+class|abstract|enum|card)\s+"?([^"{]+)"?(?:\s+<<([^>]+)>>)?(?:\s+as\s+([A-Za-z0-9_]+))?\s*\{?/);
     if (classMatch) {
       if (currentBlock) {
         registerClassNode(currentBlock, nodeMap, elements, packageStack);
@@ -123,9 +180,9 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
 
       const rawType = classMatch[1];
       const kind = rawType.includes('interface') ? 'interface' : (rawType.includes('abstract') ? 'abstract' : (rawType.includes('enum') ? 'enum' : 'class'));
-      const name = classMatch[2];
+      const name = classMatch[2].trim();
       const stereotype = classMatch[3] ? `<<${classMatch[3]}>>` : (kind === 'interface' ? '<<interface>>' : (kind === 'abstract' ? '<<abstract>>' : (kind === 'enum' ? '<<enum>>' : '<<class>>')));
-      const id = classMatch[4] || name;
+      const id = classMatch[4] || name.replace(/[^a-zA-Z0-9_]/g, '_');
 
       currentBlock = {
         id: id,
@@ -143,7 +200,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 5. Accumulate Members Inside Class Block ──
+    // ── 6. Accumulate Members Inside Block ──
     if (currentBlock) {
       if (rawLine !== '{') {
         if (rawLine.includes('(') || rawLine.includes(')')) {
@@ -155,7 +212,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 6. Component / Interface Socket / Timing Lifeline ──
+    // ── 7. Component / Interface Socket / Timing Lifeline ──
     const compMatch = rawLine.match(/^component\s+\[([^\]]+)\]\s+as\s+([A-Za-z0-9_]+)/) ||
                       rawLine.match(/^component\s+([A-Za-z0-9_]+)/) ||
                       rawLine.match(/^\(\)\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/) ||
@@ -164,17 +221,24 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const id = compMatch[2] || compMatch[1];
       const label = compMatch[1];
       const isIface = rawLine.startsWith('()');
+      const isTiming = rawLine.startsWith('robust') || rawLine.startsWith('concise');
       const activePkg = getActivePackage(packageStack);
       const nestLevel = packageStack.filter(p => p !== null).length;
 
       if (!nodeMap.has(id)) {
-        const svgData = generateComponentNodeSvg({ name: label, isInterface: isIface, width: isIface ? 180 : 230 });
+        let svgData;
+        if (isTiming) {
+          svgData = generateTimingTrackSvg({ name: label, width: 600, height: 120, isDark });
+        } else {
+          svgData = generateComponentNodeSvg({ name: label, isInterface: isIface, width: isIface ? 180 : 230, isDark });
+        }
+
         const node = {
           data: {
             id: id,
             label: '',
             textLabel: isIface ? `<<interface>>\n${label}` : `<<component>>\n${label}`,
-            kind: isIface ? 'interface' : 'entry',
+            kind: isIface ? 'interface' : (isTiming ? 'timing_track' : 'entry'),
             width: svgData.width,
             height: svgData.height,
             svgDataUri: svgData.dataUri,
@@ -191,7 +255,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 7. Activity Actions ──
+    // ── 8. Activity Actions ──
     const actMatch = rawLine.match(/^:([^;]+);/) || rawLine.match(/^(start|stop)/);
     if (actMatch) {
       const label = actMatch[1];
@@ -202,7 +266,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const nestLevel = packageStack.filter(p => p !== null).length;
 
       if (!nodeMap.has(id)) {
-        const svgData = generateActionNodeSvg({ name: label, isStart, isStop, width: isStart || isStop ? 48 : 230 });
+        const svgData = generateActionNodeSvg({ name: label, isStart, isStop, width: isStart || isStop ? 48 : 230, isDark });
         const node = {
           data: {
             id: id,
@@ -225,7 +289,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 8. State Machine ──
+    // ── 9. State Machine ──
     const stateMatch = rawLine.match(/^state\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/) || rawLine.match(/^state\s+([A-Za-z0-9_]+)/);
     if (stateMatch) {
       const id = stateMatch[2] || stateMatch[1];
@@ -234,7 +298,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const nestLevel = packageStack.filter(p => p !== null).length;
 
       if (!nodeMap.has(id)) {
-        const svgData = generateStateNodeSvg({ name: label, width: 230 });
+        const svgData = generateStateNodeSvg({ name: label, width: 230, isDark });
         const node = {
           data: {
             id: id,
@@ -257,7 +321,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 9. Relationships & Arrows (Generalization, Realization, Composition, Aggregation, Association, Dependency) ──
+    // ── 10. Relationships & Arrows ──
     const relMatch = rawLine.match(/^([A-Za-z0-9_\[\]*]+)\s*([<\-\.o*+|]+>|<[<\-\.o*+|]+|\*--|--\*|o--|--o|\+--|--\+|\-\-|\.\.|-->|<--|\.\.>|<\.\.|\-\|>|<\|\-|\.\.\|>|<\|\.\.)\s*([A-Za-z0-9_\[\]*]+)(?:\s*:\s*(.+))?/);
     if (relMatch) {
       let src = relMatch[1].replace(/[[\]]/g, '');
@@ -344,7 +408,6 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
   if (nodeMap.has(block.id)) return;
 
   const isDark = isDarkMode();
-
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;
   
@@ -383,7 +446,6 @@ function ensureNodeExists(id, nodeMap, elements, packageStack, diagramType) {
   if (!id || nodeMap.has(id)) return;
 
   const isDark = isDarkMode();
-
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;
   const label = id.replace(/_/g, ' ');
@@ -395,6 +457,8 @@ function ensureNodeExists(id, nodeMap, elements, packageStack, diagramType) {
     svgData = generateCfgBlockSvg({ id: id, label: label, instructions: [], isDark });
   } else if (diagramType === 'robdd') {
     svgData = generateBddGateSvg({ varName: label, isTerminal: id === '0' || id === '1', terminalValue: id === '1' ? 1 : 0, isDark });
+  } else if (diagramType === 'usecase') {
+    svgData = generateUseCaseSvg({ name: label, isActor: id.startsWith('act_'), isDark });
   } else {
     svgData = generateUmlClassCardSvg({
       name: label,

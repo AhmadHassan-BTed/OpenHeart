@@ -12,55 +12,22 @@ skinparam packageStyle rectangle
 skinparam PackageBorderColor #facc15
 skinparam PackageBackgroundColor #0f141c
 skinparam PackageFontColor #facc15
-skinparam ClassBorderColor #38bdf8
-skinparam ClassBackgroundColor #14171f
-skinparam ClassHeaderBackgroundColor #1e2433
-skinparam ClassFontColor #ffffff
-skinparam ObjectBorderColor #38bdf8
-skinparam ObjectBackgroundColor #14171f
-skinparam ObjectFontColor #ffffff
-skinparam ComponentBorderColor #38bdf8
-skinparam ComponentBackgroundColor #14171f
-skinparam ComponentFontColor #ffffff
-skinparam NodeBorderColor #38bdf8
-skinparam NodeBackgroundColor #14171f
-skinparam NodeFontColor #ffffff
-skinparam StateBorderColor #38bdf8
-skinparam StateBackgroundColor #14171f
-skinparam StateFontColor #ffffff
-skinparam ActivityBorderColor #38bdf8
-skinparam ActivityBackgroundColor #14171f
-skinparam ActivityFontColor #ffffff
-skinparam SequenceLifeLineBorderColor #38bdf8
-skinparam SequenceLifeLineBackgroundColor #14171f
-skinparam SequenceGroupBorderColor #facc15
-skinparam SequenceGroupBackgroundColor #0f141c
-skinparam SequenceGroupFontColor #facc15
-skinparam ParticipantBorderColor #38bdf8
-skinparam ParticipantBackgroundColor #14171f
-skinparam ParticipantFontColor #ffffff
-skinparam ActorBorderColor #facc15
-skinparam ActorBackgroundColor #14171f
-skinparam ActorFontColor #ffffff
-skinparam UsecaseBorderColor #38bdf8
-skinparam UsecaseBackgroundColor #14171f
-skinparam UsecaseFontColor #ffffff
 
-package "Lets" as pkg_Lets {
-}
-package "config" as pkg_config {
-}
-package "json" as pkg_json {
-}
-package "owns" as pkg_owns {
-}
-package "relative" as pkg_relative {
-}
-package "stallation" as pkg_stallation {
-}
-package "terface" as pkg_terface {
-}
-package "version" as pkg_version {
-}
+package "com.openheart.core" as core
+package "com.openheart.ingestion" as ingestion
+package "com.openheart.symbol" as symbol
+package "com.openheart.cfg" as cfg
+package "com.openheart.ssa" as ssa
+package "com.openheart.psa" as psa
+package "com.openheart.uma" as uma
+package "com.openheart.scpg" as scpg
+
+ingestion ..> core : <<use>>
+symbol ..> ingestion : <<use>>
+cfg ..> symbol : <<use>>
+ssa ..> cfg : <<use>>
+psa ..> ssa : <<use>>
+uma ..> psa : <<use>>
+scpg ..> uma : <<use>>
 
 @enduml

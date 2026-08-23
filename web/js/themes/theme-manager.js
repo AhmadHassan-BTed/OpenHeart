@@ -526,6 +526,80 @@ export function buildCytoscapeStylesheet(theme = null) {
       }
     },
 
+    // ── 12. ROBDD Low Branch (..>) [Dashed / 0-branch] ──
+    {
+      selector: 'edge[uml_kind = "low_branch"], edge.edge-low_branch',
+      style: {
+        'target-arrow-shape': 'vee',
+        'line-style': 'dashed',
+        'line-dash-pattern': [5, 4],
+        'line-color': theme.isDark ? '#EF4444' : '#DC2626',
+        'target-arrow-color': theme.isDark ? '#EF4444' : '#DC2626',
+        'width': 2.2,
+        'arrow-scale': 1.8,
+        'z-index': 999
+      }
+    },
+
+    // ── 13. ROBDD High Branch (-->) [Solid / 1-branch] ──
+    {
+      selector: 'edge[uml_kind = "high_branch"], edge.edge-high_branch',
+      style: {
+        'target-arrow-shape': 'triangle',
+        'target-arrow-fill': 'filled',
+        'line-style': 'solid',
+        'line-color': theme.isDark ? '#10B981' : '#059669',
+        'target-arrow-color': theme.isDark ? '#10B981' : '#059669',
+        'width': 2.5,
+        'arrow-scale': 1.8,
+        'z-index': 999
+      }
+    },
+
+    // ── 14. Data Flow Def-Use (-->) ──
+    {
+      selector: 'edge[uml_kind = "data_flow"], edge.edge-data_flow',
+      style: {
+        'target-arrow-shape': 'vee',
+        'line-style': 'solid',
+        'line-color': theme.isDark ? '#38BDF8' : '#0284C7',
+        'target-arrow-color': theme.isDark ? '#38BDF8' : '#0284C7',
+        'width': 2.2,
+        'arrow-scale': 1.8,
+        'z-index': 999
+      }
+    },
+
+    // ── 15. Profile Metamodel Extension (--|>) ──
+    {
+      selector: 'edge[uml_kind = "extension"], edge.edge-extension',
+      style: {
+        'target-arrow-shape': 'triangle',
+        'target-arrow-fill': 'filled',
+        'line-style': 'solid',
+        'line-color': theme.isDark ? '#C084FC' : '#9333EA',
+        'target-arrow-color': theme.isDark ? '#C084FC' : '#9333EA',
+        'width': 2.5,
+        'arrow-scale': 2.0,
+        'z-index': 999
+      }
+    },
+
+    // ── 16. Composite Assembly Connector (-->) ──
+    {
+      selector: 'edge[uml_kind = "assembly_connector"], edge.edge-assembly_connector',
+      style: {
+        'target-arrow-shape': 'circle',
+        'target-arrow-fill': 'hollow',
+        'line-style': 'solid',
+        'line-color': theme.isDark ? '#FACC15' : '#D97706',
+        'target-arrow-color': theme.isDark ? '#FACC15' : '#D97706',
+        'width': 2.4,
+        'arrow-scale': 1.6,
+        'z-index': 999
+      }
+    },
+
     // ── VIBRANT PATH ILLUMINATION: Highlighted Nodes ──
     {
       selector: 'node.path-highlighted',

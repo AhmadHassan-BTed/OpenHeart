@@ -1,6 +1,7 @@
 /**
  * OpenHeart Official Direct Typed Graph IR Ingestion Engine
  * Ingests typed JSON Graph IR directly from the Rust compiler with ZERO intermediate text parsing.
+ * Supports all 19 diagram types with authentic vector card generation and styling.
  */
 
 import {
@@ -14,7 +15,11 @@ import {
   generateUseCaseSvg,
   generateObjectCardSvg,
   generateCfgBlockSvg,
-  generateBddGateSvg
+  generateBddGateSvg,
+  generateCompositeCardSvg,
+  generateProfileCardSvg,
+  generateTimingTrackSvg,
+  generateInteractionFrameSvg
 } from './uml-card-renderer.js';
 import { isDarkMode } from './themes/index.js';
 
@@ -108,13 +113,58 @@ export function loadGraphIrToCytoscape(graphIr) {
         isDark
       });
     } else if (node.kind === 'state') {
-      svgData = generateStateNodeSvg({ name: node.name, width: 230, isDark });
-    } else if (node.kind === 'action') {
-      svgData = generateActionNodeSvg({
+      let entry = null, doAct = null, exit = null;
+      (node.instructions || []).forEach(inst => {
+        if (inst.startsWith('entry /')) entry = inst.replace('entry /', '').trim();
+        if (inst.startsWith('do /')) doAct = inst.replace('do /', '').trim();
+        if (inst.startsWith('exit /')) exit = inst.replace('exit /', '').trim();
+      });
+      svgData = generateStateNodeSvg({
         name: node.name,
-        isStart: node.name === 'start',
-        isStop: node.name === 'stop',
-        width: 230,
+        entryAction: entry,
+        doActivity: doAct,
+        exitAction: exit,
+        width: 240,
+        isDark
+      });
+    } else if (node.kind === 'action') {
+      if (node.stereotype === '<<interaction_use>>') {
+        svgData = generateInteractionFrameSvg({
+          name: node.label || node.name,
+          instructions: node.instructions || [],
+          width: 280,
+          isDark
+        });
+      } else {
+        svgData = generateActionNodeSvg({
+          name: node.label || node.name,
+          isStart: node.name === 'start' || node.name === '[*]',
+          isStop: node.name === 'stop',
+          width: 230,
+          isDark
+        });
+      }
+    } else if (node.kind === 'timing_track') {
+      svgData = generateTimingTrackSvg({
+        name: node.label || node.name,
+        instructions: node.instructions || [],
+        width: 600,
+        isDark
+      });
+    } else if (node.kind === 'part' || node.kind === 'composite_classifier') {
+      svgData = generateCompositeCardSvg({
+        name: node.label || node.name,
+        fields: node.fields || [],
+        methods: node.methods || [],
+        width: 270,
+        isDark
+      });
+    } else if (node.kind === 'metaclass' || node.kind === 'stereotype') {
+      svgData = generateProfileCardSvg({
+        name: node.name,
+        stereotype: node.stereotype || `<<${node.kind}>>`,
+        fields: node.fields || [],
+        width: 270,
         isDark
       });
     } else if (node.kind === 'component') {
@@ -124,11 +174,11 @@ export function loadGraphIrToCytoscape(graphIr) {
     } else if (node.kind === 'participant' || node.kind === 'actor') {
       svgData = generateSequenceLifelineSvg({ name: node.name, isActor: node.kind === 'actor', width: 200, isDark });
     } else if (node.kind === 'usecase') {
-      svgData = generateUseCaseSvg({ name: node.name, width: 220, isDark });
-    } else if (node.kind === 'object') {
+      svgData = generateUseCaseSvg({ name: node.label || node.name, width: 220, isDark });
+    } else if (node.kind === 'object' || node.kind === 'data_node') {
       svgData = generateObjectCardSvg({
-        name: node.name,
-        fields: (node.fields || []).map(f => f.signature || f.name),
+        name: node.label || node.name,
+        fields: (node.fields || []).map(f => typeof f === 'string' ? f : (f.signature || f.name)),
         width: 260,
         isDark
       });
@@ -168,7 +218,10 @@ export function loadGraphIrToCytoscape(graphIr) {
         rawUrl: node.raw_url || undefined,
         lines: node.lines || [1],
         parent: node.parent || undefined,
-        nestLevel: node.nest_level || 0
+        nestLevel: node.nest_level || 0,
+        cyclomatic: node.cyclomatic || undefined,
+        idomRank: node.idom_rank || undefined,
+        bddSatCount: node.sat_count || undefined
       },
       classes: `class-card kind-${node.kind || 'class'}`
     };
@@ -177,9 +230,8 @@ export function loadGraphIrToCytoscape(graphIr) {
     elements.push(cytoscapeNode);
   });
 
-  // 2. Ingest Directed Strongly-Typed Edges
-  graphIr.edges.forEach(edge => {
-    // Prevent dangling edges if either endpoint is absent
+  // 3. Ingest Directed Strongly-Typed Edges
+  (graphIr.edges || []).forEach(edge => {
     if (!nodeMap.has(edge.source) || !nodeMap.has(edge.target)) {
       return;
     }
@@ -200,4 +252,3 @@ export function loadGraphIrToCytoscape(graphIr) {
 
   return elements;
 }
-

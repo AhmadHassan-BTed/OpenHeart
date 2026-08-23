@@ -8,37 +8,6 @@ skinparam defaultFontColor #e5e5e5
 skinparam defaultFontSize 12
 skinparam ArrowColor #38bdf8
 skinparam ArrowThickness 1.5
-skinparam packageStyle rectangle
-skinparam PackageBorderColor #facc15
-skinparam PackageBackgroundColor #0f141c
-skinparam PackageFontColor #facc15
-skinparam ClassBorderColor #38bdf8
-skinparam ClassBackgroundColor #14171f
-skinparam ClassHeaderBackgroundColor #1e2433
-skinparam ClassFontColor #ffffff
-skinparam ObjectBorderColor #38bdf8
-skinparam ObjectBackgroundColor #14171f
-skinparam ObjectFontColor #ffffff
-skinparam ComponentBorderColor #38bdf8
-skinparam ComponentBackgroundColor #14171f
-skinparam ComponentFontColor #ffffff
-skinparam NodeBorderColor #38bdf8
-skinparam NodeBackgroundColor #14171f
-skinparam NodeFontColor #ffffff
-skinparam StateBorderColor #38bdf8
-skinparam StateBackgroundColor #14171f
-skinparam StateFontColor #ffffff
-skinparam ActivityBorderColor #38bdf8
-skinparam ActivityBackgroundColor #14171f
-skinparam ActivityFontColor #ffffff
-skinparam SequenceLifeLineBorderColor #38bdf8
-skinparam SequenceLifeLineBackgroundColor #14171f
-skinparam SequenceGroupBorderColor #facc15
-skinparam SequenceGroupBackgroundColor #0f141c
-skinparam SequenceGroupFontColor #facc15
-skinparam ParticipantBorderColor #38bdf8
-skinparam ParticipantBackgroundColor #14171f
-skinparam ParticipantFontColor #ffffff
 skinparam ActorBorderColor #facc15
 skinparam ActorBackgroundColor #14171f
 skinparam ActorFontColor #ffffff
@@ -46,9 +15,31 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-actor "LLMClient" as act_LLMClient
+actor "Software Engineer" as Dev
+actor "Enterprise Architect" as Arch
+actor "CI / CD Automation Agent" as CI
 
-rectangle "System Boundary: Domain Services" {
+package "OpenHeart Web Studio System Boundary" {
+  usecase "Ingest Public Repository" as UC_Ingest
+  usecase "Compile SCPG Program Graph" as UC_Compile
+  usecase "Render Deterministic UML 2.5" as UC_Render
+  usecase "Trace Bidirectional AST Code" as UC_Trace
+  usecase "Verify ROBDD Path Invariants" as UC_Verify
+  usecase "Filter Relationship Layers" as UC_Filter
+  usecase "Export Verified UML 2.5 Bundle" as UC_Export
 }
+
+Dev --> UC_Ingest
+Dev --> UC_Trace
+Arch --> UC_Render
+Arch --> UC_Filter
+CI --> UC_Verify
+CI --> UC_Export
+
+UC_Compile ..> UC_Ingest : <<include>>
+UC_Render ..> UC_Compile : <<include>>
+UC_Verify ..> UC_Compile : <<include>>
+UC_Trace ..> UC_Render : <<extend>>
+UC_Filter ..> UC_Render : <<extend>>
 
 @enduml

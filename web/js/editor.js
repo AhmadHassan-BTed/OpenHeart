@@ -494,12 +494,12 @@ export class SourceEditorModule {
     // Annotations: @Override, @Entity, etc.
     escaped = escaped.replace(/(@[A-Za-z0-9_]+)/g, '<span class="syn-annotation">$1</span>');
 
-    // Keywords
-    const keywords = /\b(public|private|protected|class|interface|enum|implements|extends|static|final|abstract|void|return|new|this|super|import|package|synchronized|volatile|transient|native|strictfp|throws|throw|try|catch|finally|if|else|while|for|do|switch|case|default|break|continue|instanceof|assert|val|var|fun|override|const|let|mut|struct|impl|fn)\b/g;
+    // Keywords (Java, Kotlin, Rust, Python, TypeScript, PlantUML)
+    const keywords = /\b(public|private|protected|class|interface|enum|implements|extends|static|final|abstract|void|return|new|this|super|import|package|synchronized|volatile|transient|native|strictfp|throws|throw|try|catch|finally|if|else|while|for|do|switch|case|default|break|continue|instanceof|assert|val|var|fun|override|const|let|mut|struct|impl|fn|pub|trait|type|match|self|Self|use|mod|crate|where|async|await|ref|move|def|None|True|False|from|as|in|is|not|and|or|yield|lambda|with|skinparam|state|robust|concise|usecase|actor|component|artifact)\b/g;
     escaped = escaped.replace(keywords, '<span class="syn-keyword">$1</span>');
 
     // Primitive / Standard Types
-    const types = /\b(int|long|boolean|double|float|char|byte|short|String|Object|List|Map|Set|Optional|Integer|Long|Boolean|Double|Float|Void)\b/g;
+    const types = /\b(int|long|boolean|double|float|char|byte|short|String|Object|List|Map|Set|Optional|Integer|Long|Boolean|Double|Float|Void|i32|i64|u32|u64|usize|f64|bool|str|Option|Result|Some|None|Ok|Err|Vec|BigInteger)\b/g;
     escaped = escaped.replace(types, '<span class="syn-type">$1</span>');
 
     // Numbers

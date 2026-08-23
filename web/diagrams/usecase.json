@@ -1,11 +1,11 @@
 {
   "diagram_type": "usecase",
-  "title": "UML 2.5 Use Case Scenarios",
+  "title": "UML 2.5 Use Case Diagram · OpenHeart Web Studio Workflow",
   "nodes": [
     {
-      "id": "act_LLMClient",
-      "label": "LLMClient",
-      "name": "LLMClient",
+      "id": "act_developer",
+      "label": "Software Engineer",
+      "name": "SoftwareEngineer",
       "kind": "actor",
       "stereotype": "<<actor>>",
       "parent": null,
@@ -17,13 +17,246 @@
       "fields": [],
       "methods": [],
       "instructions": []
+    },
+    {
+      "id": "act_architect",
+      "label": "Enterprise Architect",
+      "name": "EnterpriseArchitect",
+      "kind": "actor",
+      "stereotype": "<<actor>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "act_ci_agent",
+      "label": "CI / CD Automation Agent",
+      "name": "CIAgent",
+      "kind": "actor",
+      "stereotype": "<<actor>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": null,
+      "lines": [],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_ingest_repo",
+      "label": "Ingest Public Repository",
+      "name": "IngestPublicRepo",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [1],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_compile_scpg",
+      "label": "Compile SCPG Program Graph",
+      "name": "CompileSCPG",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [10],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_render_uml",
+      "label": "Render Deterministic UML 2.5",
+      "name": "RenderUML25",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [20],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_trace_ast",
+      "label": "Trace Bidirectional AST Code",
+      "name": "TraceASTCode",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [30],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_verify_bdd",
+      "label": "Verify ROBDD Path Invariants",
+      "name": "VerifyBDDInvariants",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [40],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_filter_layers",
+      "label": "Filter Relationship Layers",
+      "name": "FilterRelationshipLayers",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [50],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "uc_export_bundle",
+      "label": "Export Verified UML 2.5 Bundle",
+      "name": "ExportUMLBundle",
+      "kind": "usecase",
+      "stereotype": "<<usecase>>",
+      "parent": null,
+      "nest_level": 1,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "UseCaseOperations.java",
+      "lines": [60],
+      "fields": [],
+      "methods": [],
+      "instructions": []
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "edge_uc_0",
+      "source": "act_developer",
+      "target": "uc_ingest_repo",
+      "kind": "association",
+      "label": "",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_uc_1",
+      "source": "act_developer",
+      "target": "uc_trace_ast",
+      "kind": "association",
+      "label": "",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_uc_2",
+      "source": "act_architect",
+      "target": "uc_render_uml",
+      "kind": "association",
+      "label": "",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_uc_3",
+      "source": "act_architect",
+      "target": "uc_filter_layers",
+      "kind": "association",
+      "label": "",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_uc_4",
+      "source": "act_ci_agent",
+      "target": "uc_verify_bdd",
+      "kind": "association",
+      "label": "",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_uc_5",
+      "source": "act_ci_agent",
+      "target": "uc_export_bundle",
+      "kind": "association",
+      "label": "",
+      "arrow": "-->"
+    },
+    {
+      "id": "edge_uc_6",
+      "source": "uc_compile_scpg",
+      "target": "uc_ingest_repo",
+      "kind": "dependency",
+      "label": "<<include>>",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_uc_7",
+      "source": "uc_render_uml",
+      "target": "uc_compile_scpg",
+      "kind": "dependency",
+      "label": "<<include>>",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_uc_8",
+      "source": "uc_verify_bdd",
+      "target": "uc_compile_scpg",
+      "kind": "dependency",
+      "label": "<<include>>",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_uc_9",
+      "source": "uc_trace_ast",
+      "target": "uc_render_uml",
+      "kind": "dependency",
+      "label": "<<extend>>",
+      "arrow": "..>"
+    },
+    {
+      "id": "edge_uc_10",
+      "source": "uc_filter_layers",
+      "target": "uc_render_uml",
+      "kind": "dependency",
+      "label": "<<extend>>",
+      "arrow": "..>"
+    }
+  ],
   "metadata": {
-    "total_nodes": 1,
-    "total_edges": 0,
-    "compiler_hash": "0x83D2D2B2",
+    "total_nodes": 10,
+    "total_edges": 11,
+    "compiler_hash": "0x5BA3208F",
     "verified": true
   }
 }
