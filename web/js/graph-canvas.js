@@ -54,6 +54,26 @@ export class InteractiveGraphCanvas {
     localStorage.setItem('openheart_pan_sensitivity', val.toString());
   }
 
+  getNodeDataById(nodeId) {
+    if (!this.cy || !nodeId) return null;
+    const node = this.cy.getElementById(nodeId);
+    return node && node.length > 0 ? node.data() : null;
+  }
+
+  getNodeDataByFile(fileName) {
+    if (!this.cy || !fileName) return null;
+    const nodes = this.cy.nodes();
+    const cleanFile = fileName.replace(/\.java$/, '').replace(/\.kt$/, '');
+    for (let i = 0; i < nodes.length; i++) {
+      const d = nodes[i].data();
+      if (!d) continue;
+      if (d.file === fileName || d.id === fileName || d.id === cleanFile || d.name === cleanFile) {
+        return d;
+      }
+    }
+    return null;
+  }
+
   async renderGraph(graphType, customElements = null) {
     this.currentGraphType = graphType;
     const container = document.getElementById(this.containerId);

@@ -55,7 +55,8 @@ export class FileTreeExplorer {
           name: fileName,
           type: kind,
           kind: kindLetter,
-          nodeId: el.data.id
+          nodeId: el.data.id,
+          data: el.data
         };
 
         const parentId = el.data.parent;

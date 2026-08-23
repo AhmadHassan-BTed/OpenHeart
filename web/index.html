@@ -336,13 +336,18 @@
       const canvas = new InteractiveGraphCanvas('interactive-canvas');
       const editor = new SourceEditorModule('monaco-container');
 
-      // Initialize Dynamic File Tree Explorer
-      const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile) => {
-        editor.loadFile(selectedFile, null, [1, 5]);
+      const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile, fileEntry) => {
+        const nodeData = fileEntry?.data || canvas.getNodeDataByFile(selectedFile) || canvas.getNodeDataById(fileEntry?.nodeId);
+        editor.loadFile(selectedFile, nodeData, [1, 5]);
         canvas.focusNodeByFile(selectedFile);
         
         document.getElementById('editor-filename').innerText = selectedFile;
         document.getElementById('breadcrumb-filename').innerText = selectedFile;
+        if (nodeData) {
+          const pkgPath = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ') : 'default';
+          document.getElementById('breadcrumb-package').innerText = pkgPath;
+          document.getElementById('prop-kind').innerText = (nodeData.kind || 'CLASS').toUpperCase();
+        }
       });
 
       // Dynamic tree updater on graph render
