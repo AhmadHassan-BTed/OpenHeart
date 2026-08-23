@@ -134,8 +134,14 @@ export function loadGraphIrToCytoscape(graphIr) {
       });
     } else {
       // UML Class / Interface / Abstract / Enum Card
-      const fieldsFormatted = (node.fields || []).map(f => `${f.visibility} ${f.signature || f.name}`);
-      const methodsFormatted = (node.methods || []).map(m => `${m.visibility} ${m.signature || m.name}`);
+      const fieldsFormatted = (node.fields || []).map(f => {
+        if (typeof f === 'string') return f;
+        return `${f.visibility || '-'} ${f.signature || f.name || 'field'}`;
+      });
+      const methodsFormatted = (node.methods || []).map(m => {
+        if (typeof m === 'string') return m;
+        return `${m.visibility || '+'} ${m.signature || (m.name ? `${m.name}()` : 'method()')}`;
+      });
 
       svgData = generateUmlClassCardSvg({
         name: node.name,
@@ -158,6 +164,8 @@ export function loadGraphIrToCytoscape(graphIr) {
         height: svgData.height,
         svgDataUri: svgData.dataUri,
         file: node.file || `${node.name}.java`,
+        raw_url: node.raw_url || undefined,
+        rawUrl: node.raw_url || undefined,
         lines: node.lines || [1],
         parent: node.parent || undefined,
         nestLevel: node.nest_level || 0
@@ -176,18 +184,20 @@ export function loadGraphIrToCytoscape(graphIr) {
       return;
     }
 
+    const edgeKind = edge.kind || edge.uml_kind || 'association';
     elements.push({
       data: {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        uml_kind: edge.kind,
+        uml_kind: edgeKind,
         label: edge.label || '',
         arrow: edge.arrow || '-->'
       },
-      classes: `edge-${edge.kind}`
+      classes: `edge-${edgeKind}`
     });
   });
 
   return elements;
 }
+

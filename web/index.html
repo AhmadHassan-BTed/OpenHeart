@@ -349,6 +349,7 @@
     import { InteractiveGraphCanvas } from './js/graph-canvas.js';
     import { SourceEditorModule } from './js/editor.js';
     import { FileTreeExplorer } from './js/file-tree.js';
+    import { GitHubEngine } from './js/github-engine.js';
     import { initTheme, toggleTheme, onThemeChange } from './js/themes/index.js';
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -615,7 +616,7 @@
         let phaseIdx = 0;
         hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${phases[0].label} <span style="opacity:0.75; font-size:10px;">(0.0s)</span>`;
 
-        const progressInterval = setInterval(() => {
+        let progressInterval = setInterval(() => {
           const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
           if (phaseIdx < phases.length) {
             const curPhase = phases[phaseIdx];
@@ -636,46 +637,76 @@
         }, 120);
 
         try {
-          const res = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              repo_url: repoUrl,
-              diagram_types: ['class', 'package', 'component', 'activity', 'sequence', 'statemachine']
-            })
-          });
+          // Attempt 1: Connect to local or cloud Rust backend daemon
+          let backendSucceeded = false;
+          let backendData = null;
+
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+            const res = await fetch('/api/analyze', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                repo_url: repoUrl,
+                diagram_types: ['class', 'package', 'component', 'activity', 'sequence', 'statemachine']
+              }),
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              backendData = await res.json();
+              if (backendData.status === 'success' || !backendData.errors || backendData.errors.length === 0) {
+                backendSucceeded = true;
+              }
+            }
+          } catch (backendFetchErr) {
+            // Local backend not reachable — fallback to GitHub Engine
+            console.log('[OpenHeart Studio] Backend daemon offline, activating in-browser GitHub Engine.');
+          }
 
           clearInterval(progressInterval);
-          if (progressFill) progressFill.style.width = '100%';
 
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          if (backendSucceeded && backendData) {
+            if (progressFill) progressFill.style.width = '100%';
+            const scpgHash = '0x' + (backendData.session_id ? backendData.session_id.slice(-8).toUpperCase() : '9BAF8700');
+            hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
+            
+            const filesCount = backendData.stats ? backendData.stats.files_processed : 0;
+            const classesCount = backendData.stats ? backendData.stats.total_classes : 0;
+            const timeMs = backendData.stats ? backendData.stats.execution_time_ms : 0;
+            const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            hudText.innerHTML = `✅ [5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
+            await canvas.renderGraph(canvas.currentGraphType);
+          } else {
+            // Attempt 2: Zero-Backend In-Browser GitHub Engine (GitHub Pages Native)
+            hudText.innerHTML = `⚡ Activating GitHub Client Engine for <strong>${repoName}</strong>...`;
+            
+            const ghResult = await GitHubEngine.analyzeGitHubRepo(repoUrl, (pct, msg) => {
+              if (progressFill) progressFill.style.width = `${pct}%`;
+              if (btnImport) btnImport.innerHTML = `<span class="btn-spinner"></span> ${pct}%`;
+              hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${msg}`;
+            });
+
+            if (progressFill) progressFill.style.width = '100%';
+            const scpgHash = '0x' + (ghResult.session_id ? ghResult.session_id.slice(-8).toUpperCase() : '9BAF8700');
+            hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
+            
+            const filesCount = ghResult.stats ? ghResult.stats.files_processed : 0;
+            const classesCount = ghResult.stats ? ghResult.stats.total_classes : 0;
+            const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+            hudText.innerHTML = `✅ [5/5] In-Browser Graph Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
+            await canvas.renderCustomGraphIr(ghResult.graph_ir);
           }
-
-          const data = await res.json();
-          if (data.status === 'error' || (data.errors && data.errors.length > 0)) {
-            const errStr = (data.errors && data.errors.length) ? data.errors.join('; ') : 'Analysis failed';
-            hudText.innerHTML = `<span style="color: #ef4444;">Pipeline Error: ${errStr}</span>`;
-            return;
-          }
-
-          const scpgHash = '0x' + (data.session_id ? data.session_id.slice(-8).toUpperCase() : '9BAF8700');
-          hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
-          
-          const filesCount = data.stats ? data.stats.files_processed : 0;
-          const classesCount = data.stats ? data.stats.total_classes : 0;
-          const timeMs = data.stats ? data.stats.execution_time_ms : 0;
-          const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-          hudText.innerHTML = `✅ [5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
-
-          // Re-render current active diagram from fresh compiler Graph IR
-          await canvas.renderGraph(canvas.currentGraphType);
 
         } catch (err) {
           clearInterval(progressInterval);
           console.error('[OpenHeart Studio] Repo analysis error:', err);
-          hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}. OpenHeart server running?</span>`;
+          hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}</span>`;
         } finally {
           setTimeout(() => {
             if (progressTrack) progressTrack.classList.remove('active');
@@ -687,6 +718,7 @@
           }
         }
       };
+
 
       document.getElementById('btn-import-repo').addEventListener('click', () => {
         const url = document.getElementById('input-repo-url').value.trim();
