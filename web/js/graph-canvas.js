@@ -24,7 +24,7 @@ export class InteractiveGraphCanvas {
     this.onNodeSelectedCallback = null;
     this.onNodeHoverCallback = null;
     this.onRenderCompleteCallback = null;
-    this.panSensitivity = parseFloat(localStorage.getItem('openheart_pan_sensitivity') || '0.45');
+    this.panSensitivity = parseFloat(localStorage.getItem('openheart_pan_sensitivity') || '0.10');
     this.activeHoverId = null;
     this.hoverTimeout = null;
     this.collapsedPackages = new Set();
@@ -151,7 +151,7 @@ export class InteractiveGraphCanvas {
       textureOnViewport: true,
       hideEdgesOnViewport: false,
       motionBlur: false,
-      wheelSensitivity: 0.18,
+      wheelSensitivity: 0.05,
       style: this.getModernStyleSheet(),
       layout: {
         name: 'preset',
@@ -243,8 +243,8 @@ export class InteractiveGraphCanvas {
       e.preventDefault();
 
       if (e.ctrlKey || e.metaKey) {
-        // Pinch gesture or Ctrl+Wheel -> Smooth Zoom centered at cursor
-        const zoomFactor = Math.exp(-e.deltaY * 0.012);
+        // Pinch gesture or Ctrl+Wheel -> Gentle, ultra-smooth zoom centered at cursor
+        const zoomFactor = Math.exp(-e.deltaY * 0.003);
         const currentZoom = this.cy.zoom();
         const newZoom = Math.min(4.0, Math.max(0.05, currentZoom * zoomFactor));
         const rect = container.getBoundingClientRect();
@@ -259,7 +259,7 @@ export class InteractiveGraphCanvas {
         });
       } else {
         // Two-Finger Trackpad Gesture / Scroll -> Pan canvas in 2D
-        const panSensitivity = this.panSensitivity || 0.75;
+        const panSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
         this.cy.panBy({
           x: -e.deltaX * panSensitivity,
           y: -e.deltaY * panSensitivity
@@ -296,8 +296,8 @@ export class InteractiveGraphCanvas {
           y: (t1.clientY + t2.clientY) / 2
         };
 
-        // 1. Pinch to Zoom
-        const scale = currentDist / touchStartDist;
+        // 1. Pinch to Zoom with gentle damping
+        const scale = 1 + (currentDist / touchStartDist - 1) * 0.5;
         const newZoom = Math.min(4.0, Math.max(0.05, touchStartZoom * scale));
         const rect = container.getBoundingClientRect();
 
@@ -310,8 +310,9 @@ export class InteractiveGraphCanvas {
         });
 
         // 2. Pure Two-Finger Pan
-        const deltaX = (currentCenter.x - touchStartCenter.x) * 1.0;
-        const deltaY = (currentCenter.y - touchStartCenter.y) * 1.0;
+        const panSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
+        const deltaX = (currentCenter.x - touchStartCenter.x) * panSensitivity;
+        const deltaY = (currentCenter.y - touchStartCenter.y) * panSensitivity;
         this.cy.panBy({ x: deltaX, y: deltaY });
         touchStartCenter = currentCenter;
       }

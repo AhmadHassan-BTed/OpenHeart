@@ -221,10 +221,10 @@
             <span id="hud-status-text">Two-finger scroll to Pan · Two-finger pinch to Zoom · Hover to trace path</span>
           </div>
           <div class="hud-action-controls">
-            <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag)">
+            <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag: 1% to 50%)">
               <span class="pan-slider-label">⚡ Pan</span>
-              <input type="range" id="pan-sensitivity-slider" min="0.1" max="2.0" step="0.05" value="0.45" />
-              <span id="pan-sensitivity-val">0.45x</span>
+              <input type="range" id="pan-sensitivity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
+              <span id="pan-sensitivity-val">10%</span>
             </div>
             <button id="btn-zoom-in" class="hud-round-btn" title="Zoom In (+)">+</button>
             <button id="btn-zoom-out" class="hud-round-btn" title="Zoom Out (−)">−</button>
@@ -379,18 +379,20 @@
         }
       });
 
-      // Pan Sensitivity Slider Control
+      // Pan Sensitivity Slider Control (1% - 50%, Default: 10%)
       const panSlider = document.getElementById('pan-sensitivity-slider');
       const panValLabel = document.getElementById('pan-sensitivity-val');
       if (panSlider && panValLabel) {
-        const savedPan = localStorage.getItem('openheart_pan_sensitivity') || '0.45';
+        const savedPan = localStorage.getItem('openheart_pan_sensitivity') || '0.10';
         panSlider.value = savedPan;
-        panValLabel.textContent = `${parseFloat(savedPan).toFixed(2)}x`;
+        const pct = Math.round(parseFloat(savedPan) * 100);
+        panValLabel.textContent = `${pct}%`;
         canvas.setPanSensitivity(parseFloat(savedPan));
 
         panSlider.addEventListener('input', (e) => {
           const val = parseFloat(e.target.value);
-          panValLabel.textContent = `${val.toFixed(2)}x`;
+          const percent = Math.round(val * 100);
+          panValLabel.textContent = `${percent}%`;
           canvas.setPanSensitivity(val);
         });
       }
