@@ -20,7 +20,7 @@ import {
 export function loadGraphIrToCytoscape(graphIr) {
   if (!graphIr || !graphIr.nodes) return [];
 
-  const isDark = document.body && document.body.classList.contains('dark-theme');
+  const isDark = typeof document !== 'undefined' && document.body && document.body.classList.contains('dark-theme');
   const elements = [];
   const nodeMap = new Map();
 
