@@ -1,0 +1,14 @@
+gantt
+    title Target Codebase Execution Timeline
+    dateFormat  s
+    axisFormat %S s
+    section NewsAgency
+    setNews() :m_NewsAgency_0, 0, 1s
+    attach() :m_NewsAgency_1, 0, 1s
+    section NewsChannel
+    update() :m_NewsChannel_0, 0, 1s
+    section Observer
+    update() :m_Observer_0, 0, 1s
+    section Subject
+    attach() :m_Subject_0, 0, 1s
+    detach() :m_Subject_1, 0, 1s

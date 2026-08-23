@@ -1,0 +1,24 @@
+flowchart TD
+    %% Inter-procedural Call Graph & Tarjan SCC Recursion Supergraph
+    CG_NewsAgency_setNews["NewsAgency.setNews()<br/>V(G)=1"]
+    CG_NewsAgency_attach["NewsAgency.attach()<br/>V(G)=1"]
+    CG_NewsAgency_detach["NewsAgency.detach()<br/>V(G)=1"]
+    CG_NewsChannel_update["NewsChannel.update()<br/>V(G)=1"]
+    CG_Observer_update["Observer.update()<br/>V(G)=1"]
+    CG_Subject_attach["Subject.attach()<br/>V(G)=1"]
+    CG_Subject_detach["Subject.detach()<br/>V(G)=1"]
+    CG_Subject_notifyObservers["Subject.notifyObservers()<br/>V(G)=1"]
+    CG_CreditCardStrategy_CreditCardStrategy["CreditCardStrategy.CreditCardStrategy()<br/>V(G)=1"]
+    CG_CreditCardStrategy_pay["CreditCardStrategy.pay()<br/>V(G)=1"]
+    CG_PaymentStrategy_pay["PaymentStrategy.pay()<br/>V(G)=1"]
+    CG_NewsAgency_detach -->|CHA/1-CFA dispatch| CG_PaymentStrategy_pay
+    CG_PaymentStrategy_pay -->|CHA/1-CFA dispatch| CG_CreditCardStrategy_CreditCardStrategy
+    CG_CreditCardStrategy_CreditCardStrategy -->|CHA/1-CFA dispatch| CG_NewsAgency_setNews
+    CG_NewsAgency_setNews -->|CHA/1-CFA dispatch| CG_NewsAgency_attach
+    CG_NewsAgency_attach -->|CHA/1-CFA dispatch| CG_CreditCardStrategy_pay
+    CG_CreditCardStrategy_pay -->|CHA/1-CFA dispatch| CG_NewsChannel_update
+    CG_NewsChannel_update -->|CHA/1-CFA dispatch| CG_Subject_attach
+    CG_Subject_attach -->|CHA/1-CFA dispatch| CG_Subject_detach
+    CG_Subject_detach -->|CHA/1-CFA dispatch| CG_Subject_notifyObservers
+    CG_Subject_notifyObservers -->|CHA/1-CFA dispatch| CG_Observer_update
+    CG_NewsAgency_detach -.->|Tarjan SCC cycle (Recursive)| CG_NewsAgency_detach

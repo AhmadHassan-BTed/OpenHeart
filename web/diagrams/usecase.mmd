@@ -1,0 +1,24 @@
+graph LR
+    Act_VideoConversionFacade["Actor: VideoConversionFacade"]
+    UC_NewsAgency_setNews["usecase: NewsAgency.setNews()"]
+    Act_VideoConversionFacade --> UC_NewsAgency_setNews
+    UC_NewsAgency_attach["usecase: NewsAgency.attach()"]
+    Act_VideoConversionFacade --> UC_NewsAgency_attach
+    UC_NewsAgency_detach["usecase: NewsAgency.detach()"]
+    Act_VideoConversionFacade --> UC_NewsAgency_detach
+    UC_NewsChannel_update["usecase: NewsChannel.update()"]
+    Act_VideoConversionFacade --> UC_NewsChannel_update
+    UC_Observer_update["usecase: Observer.update()"]
+    Act_VideoConversionFacade --> UC_Observer_update
+    UC_Subject_attach["usecase: Subject.attach()"]
+    Act_VideoConversionFacade --> UC_Subject_attach
+    UC_Subject_detach["usecase: Subject.detach()"]
+    Act_VideoConversionFacade --> UC_Subject_detach
+    UC_Subject_notifyObservers["usecase: Subject.notifyObservers()"]
+    Act_VideoConversionFacade --> UC_Subject_notifyObservers
+    UC_CreditCardStrategy_CreditCardStrategy["usecase: CreditCardStrategy.CreditCardStrategy()"]
+    Act_VideoConversionFacade --> UC_CreditCardStrategy_CreditCardStrategy
+    UC_CreditCardStrategy_pay["usecase: CreditCardStrategy.pay()"]
+    Act_VideoConversionFacade --> UC_CreditCardStrategy_pay
+    UC_PaymentStrategy_pay["usecase: PaymentStrategy.pay()"]
+    Act_VideoConversionFacade --> UC_PaymentStrategy_pay
