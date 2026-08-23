@@ -126,18 +126,32 @@ export class SourceEditorModule {
 
     let content = this.sourceCache.get(fileName);
     if (!content) {
-      // 1. Try to fetch from server /api/source endpoint dynamically
-      try {
-        const filePathParam = encodeURIComponent(nodeData?.file || fileName);
-        const apiRes = await fetch(`/api/source?file=${filePathParam}`);
-        if (apiRes.ok) {
-          const resJson = await apiRes.json();
-          if (resJson && resJson.found && resJson.content) {
-            content = resJson.content;
+      // 0. Direct Raw GitHub URL if available
+      if (nodeData && (nodeData.raw_url || nodeData.rawUrl)) {
+        try {
+          const rawUrl = nodeData.raw_url || nodeData.rawUrl;
+          const rResp = await fetch(rawUrl);
+          if (rResp.ok) {
+            content = await rResp.text();
             this.sourceCache.set(fileName, content);
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
+
+      // 1. Try to fetch from server /api/source endpoint dynamically
+      if (!content) {
+        try {
+          const filePathParam = encodeURIComponent(nodeData?.file || fileName);
+          const apiRes = await fetch(`/api/source?file=${filePathParam}`);
+          if (apiRes.ok) {
+            const resJson = await apiRes.json();
+            if (resJson && resJson.found && resJson.content) {
+              content = resJson.content;
+              this.sourceCache.set(fileName, content);
+            }
+          }
+        } catch (_) {}
+      }
 
       // 2. Try static candidate paths
       if (!content) {

@@ -79,6 +79,13 @@ export class InteractiveGraphCanvas {
     return null;
   }
 
+  async renderCustomGraphIr(graphIr) {
+    if (!graphIr) return;
+    this.customGraphIr = graphIr;
+    const elements = loadGraphIrToCytoscape(graphIr);
+    await this.renderGraph(graphIr.diagram_type || 'class', elements);
+  }
+
   async renderGraph(graphType, customElements = null) {
     this.currentGraphType = graphType;
     const container = document.getElementById(this.containerId);
