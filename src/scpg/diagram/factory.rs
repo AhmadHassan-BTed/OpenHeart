@@ -181,7 +181,9 @@ impl DiagramExporterFactory for JSONFactory {
         let graph_ir = match diagram_type {
             "package" => JSONExporter::export_package_diagram(uma, sta, tca),
             "sequence" => JSONExporter::export_sequence_diagram(uma, sta, tca),
-            "state" | "statemachine" | "state_machine" => JSONExporter::export_state_diagram(uma, sta, tca),
+            "state" | "statemachine" | "state_machine" => {
+                JSONExporter::export_state_diagram(uma, sta, tca)
+            }
             "activity" => JSONExporter::export_activity_diagram(uma, sta, tca),
             "component" => JSONExporter::export_component_diagram(uma, sta, tca),
             "deployment" => JSONExporter::export_deployment_diagram(uma, sta, tca),
@@ -203,13 +205,31 @@ impl DiagramExporterFactory for JSONFactory {
         let mut map = HashMap::new();
         let types = [
             ("class", JSONExporter::export_class_diagram(uma, sta, tca)),
-            ("package", JSONExporter::export_package_diagram(uma, sta, tca)),
-            ("sequence", JSONExporter::export_sequence_diagram(uma, sta, tca)),
+            (
+                "package",
+                JSONExporter::export_package_diagram(uma, sta, tca),
+            ),
+            (
+                "sequence",
+                JSONExporter::export_sequence_diagram(uma, sta, tca),
+            ),
             ("state", JSONExporter::export_state_diagram(uma, sta, tca)),
-            ("activity", JSONExporter::export_activity_diagram(uma, sta, tca)),
-            ("component", JSONExporter::export_component_diagram(uma, sta, tca)),
-            ("deployment", JSONExporter::export_deployment_diagram(uma, sta, tca)),
-            ("usecase", JSONExporter::export_usecase_diagram(uma, sta, tca)),
+            (
+                "activity",
+                JSONExporter::export_activity_diagram(uma, sta, tca),
+            ),
+            (
+                "component",
+                JSONExporter::export_component_diagram(uma, sta, tca),
+            ),
+            (
+                "deployment",
+                JSONExporter::export_deployment_diagram(uma, sta, tca),
+            ),
+            (
+                "usecase",
+                JSONExporter::export_usecase_diagram(uma, sta, tca),
+            ),
             ("object", JSONExporter::export_object_diagram(uma, sta, tca)),
         ];
 
