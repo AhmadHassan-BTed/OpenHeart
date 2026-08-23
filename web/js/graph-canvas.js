@@ -158,17 +158,17 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Folder-Tab Compound Package Container ──
+      // ── Level 0 Package Container (Outer Namespace) ──
       {
-        selector: 'node:parent, node.compound-package, node[?isPackage]',
+        selector: 'node.compound-package, node[?isPackage]',
         style: {
           'background-color': '#F8FAFC',
           'background-opacity': 0.85,
           'border-width': 1.5,
-          'border-color': '#64748B',
+          'border-color': '#94A3B8',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
-          'border-radius': '10px',
+          'border-radius': '12px',
           'text-valign': 'top',
           'text-halign': 'left',
           'text-margin-x': 18,
@@ -176,8 +176,47 @@ export class InteractiveGraphCanvas {
           'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11px',
           'font-weight': 700,
-          'color': '#1E293B',
+          'color': '#334155',
           'padding': '36px'
+        }
+      },
+
+      // ── Level 1 Sub-Package Container (Deeper Slate Tint) ──
+      {
+        selector: 'node.nest-level-1, node[nestLevel = 1]',
+        style: {
+          'background-color': '#F1F5F9',
+          'background-opacity': 0.92,
+          'border-color': '#64748B',
+          'border-width': 1.5,
+          'color': '#1E293B',
+          'padding': '30px'
+        }
+      },
+
+      // ── Level 2 Nested Sub-Module Container (Blue-Gray Tint) ──
+      {
+        selector: 'node.nest-level-2, node[nestLevel = 2]',
+        style: {
+          'background-color': '#E2E8F0',
+          'background-opacity': 0.95,
+          'border-color': '#475569',
+          'border-width': 2.0,
+          'color': '#0F172A',
+          'padding': '26px'
+        }
+      },
+
+      // ── Level 3+ Deep Nested Container (Rich Slate Frame) ──
+      {
+        selector: 'node.nest-level-3, node[nestLevel = 3]',
+        style: {
+          'background-color': '#CBD5E1',
+          'background-opacity': 1.0,
+          'border-color': '#334155',
+          'border-width': 2.0,
+          'color': '#020617',
+          'padding': '22px'
         }
       },
 
