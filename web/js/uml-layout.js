@@ -210,11 +210,30 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
 
   rootPackages.forEach(rp => computePackageBounds(rp));
 
-  let currentRootY = 0;
-  rootPackages.forEach(rp => {
-    positionPackage(rp, 0, currentRootY);
-    currentRootY += rp.bounds.height + ROOT_GAP_Y;
+  // ── Multi-Root Package Grid Alignment ──
+  const ROOT_GAP_X = 160;
+  const ROOT_GAP_Y = 160;
+  const COLS = rootPackages.length > 2 ? 2 : 1;
+  let col = 0;
+  let rowX = 0;
+  let rowY = 0;
+  let maxRowHeight = 0;
+
+  rootPackages.forEach((rp) => {
+    if (col >= COLS) {
+      col = 0;
+      rowX = 0;
+      rowY += maxRowHeight + ROOT_GAP_Y;
+      maxRowHeight = 0;
+    }
+    positionPackage(rp, rowX, rowY);
+    rowX += rp.bounds.width + ROOT_GAP_X;
+    if (rp.bounds.height > maxRowHeight) {
+      maxRowHeight = rp.bounds.height;
+    }
+    col++;
   });
+  let currentRootY = rowY + maxRowHeight + ROOT_GAP_Y;
 
   if (standaloneNodes.length > 0) {
     let shelfX = 0;
@@ -406,16 +425,22 @@ function layoutUseCaseGraph(nodeMap, edges, elements) {
     }
   });
 
-  // Left/Right Actor Wings
+  // Left and Right Actor Wings with Independent Column Offsets
   let actorLeftY = 40;
+  let actorRightY = 40;
   actors.forEach((act, idx) => {
     const isRight = idx % 2 === 1;
     const x = isRight ? 650 : -450;
+    const y = isRight ? actorRightY : actorLeftY;
     act.position = {
       x: x,
-      y: actorLeftY
+      y: y
     };
-    actorLeftY += 160;
+    if (isRight) {
+      actorRightY += 160;
+    } else {
+      actorLeftY += 160;
+    }
   });
 
   // Center System Boundary Usecases

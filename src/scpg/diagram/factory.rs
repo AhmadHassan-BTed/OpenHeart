@@ -186,11 +186,23 @@ impl DiagramExporterFactory for JSONFactory {
             }
             "activity" => JSONExporter::export_activity_diagram(uma, sta, tca),
             "component" => JSONExporter::export_component_diagram(uma, sta, tca),
+            "composite" | "composite_structure" => {
+                JSONExporter::export_composite_diagram(uma, sta, tca)
+            }
             "deployment" => JSONExporter::export_deployment_diagram(uma, sta, tca),
+            "profile" => JSONExporter::export_profile_diagram(uma, sta, tca),
             "usecase" | "use_case" => JSONExporter::export_usecase_diagram(uma, sta, tca),
             "object" => JSONExporter::export_object_diagram(uma, sta, tca),
-            "communication" => JSONExporter::export_sequence_diagram(uma, sta, tca),
-            "timing" => JSONExporter::export_state_diagram(uma, sta, tca),
+            "communication" => JSONExporter::export_communication_diagram(uma, sta, tca),
+            "interaction" | "interaction_overview" => {
+                JSONExporter::export_interaction_diagram(uma, sta, tca)
+            }
+            "timing" => JSONExporter::export_timing_diagram(uma, sta, tca),
+            "cfg" => JSONExporter::export_cfg_diagram(uma, sta, tca),
+            "dfg" => JSONExporter::export_dfg_diagram(uma, sta, tca),
+            "cdg" => JSONExporter::export_cdg_diagram(uma, sta, tca),
+            "callgraph" | "cg" => JSONExporter::export_callgraph_diagram(uma, sta, tca),
+            "robdd" => JSONExporter::export_robdd_diagram(uma, sta, tca),
             _ => JSONExporter::export_class_diagram(uma, sta, tca),
         };
         serde_json::to_string_pretty(&graph_ir).ok()
@@ -210,6 +222,23 @@ impl DiagramExporterFactory for JSONFactory {
                 JSONExporter::export_package_diagram(uma, sta, tca),
             ),
             (
+                "component",
+                JSONExporter::export_component_diagram(uma, sta, tca),
+            ),
+            (
+                "composite",
+                JSONExporter::export_composite_diagram(uma, sta, tca),
+            ),
+            ("object", JSONExporter::export_object_diagram(uma, sta, tca)),
+            (
+                "deployment",
+                JSONExporter::export_deployment_diagram(uma, sta, tca),
+            ),
+            (
+                "profile",
+                JSONExporter::export_profile_diagram(uma, sta, tca),
+            ),
+            (
                 "sequence",
                 JSONExporter::export_sequence_diagram(uma, sta, tca),
             ),
@@ -219,18 +248,26 @@ impl DiagramExporterFactory for JSONFactory {
                 JSONExporter::export_activity_diagram(uma, sta, tca),
             ),
             (
-                "component",
-                JSONExporter::export_component_diagram(uma, sta, tca),
-            ),
-            (
-                "deployment",
-                JSONExporter::export_deployment_diagram(uma, sta, tca),
-            ),
-            (
                 "usecase",
                 JSONExporter::export_usecase_diagram(uma, sta, tca),
             ),
-            ("object", JSONExporter::export_object_diagram(uma, sta, tca)),
+            (
+                "communication",
+                JSONExporter::export_communication_diagram(uma, sta, tca),
+            ),
+            (
+                "interaction",
+                JSONExporter::export_interaction_diagram(uma, sta, tca),
+            ),
+            ("timing", JSONExporter::export_timing_diagram(uma, sta, tca)),
+            ("cfg", JSONExporter::export_cfg_diagram(uma, sta, tca)),
+            ("dfg", JSONExporter::export_dfg_diagram(uma, sta, tca)),
+            ("cdg", JSONExporter::export_cdg_diagram(uma, sta, tca)),
+            (
+                "callgraph",
+                JSONExporter::export_callgraph_diagram(uma, sta, tca),
+            ),
+            ("robdd", JSONExporter::export_robdd_diagram(uma, sta, tca)),
         ];
 
         for (name, ir) in types {

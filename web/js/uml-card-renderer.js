@@ -519,12 +519,13 @@ export function generateCfgBlockSvg(data) {
 
 /** ── 11. ROBDD Decision Gate Node ── */
 export function generateBddGateSvg(data) {
-  const { varName = "var", isTerminal = false, terminalValue = 1, isDark = false } = data;
+  const { varName = "var", id = "", isTerminal = false, terminalValue = 1, isDark = false } = data;
   const theme = getTheme(isDark);
   const t = theme.cards.bdd;
 
-  if (isTerminal) {
-    const isTrue = terminalValue === 1;
+  const isTerm = isTerminal || id === '0' || id === '1' || id.includes('terminal') || id.includes('sink');
+  if (isTerm) {
+    const isTrue = terminalValue === 1 || id === '1' || id.includes('1') || id.includes('true');
     const bg = isTrue ? t.trueBg : t.falseBg;
     const text = isTrue ? "TRUE (1)" : "FALSE (0)";
     const svg = `
@@ -532,7 +533,7 @@ export function generateBddGateSvg(data) {
   <rect x="1" y="1" width="88" height="36" rx="18" fill="${bg}" />
   <text x="45" y="23" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="800" fill="#FFFFFF" text-anchor="middle">${text}</text>
 </svg>`;
-    return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 90, height: 38 };
+    return { svg, dataUri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, width: 90, height: 38 };
   }
 
   const cardBg = t.bg;
@@ -547,7 +548,7 @@ export function generateBddGateSvg(data) {
   <text x="65" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(varName)}</text>
 </svg>`;
 
-  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+  return { svg, dataUri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, width, height };
 }
 
 /** ── 12. Composite Structure Part Node ── */
@@ -566,9 +567,9 @@ export function generateCompositeCardSvg(data) {
   <rect x="1" y="1" width="${width - 2}" height="32" rx="6" fill="${headerBg}" />
   <line x1="1" y1="32" x2="${width - 1}" y2="32" stroke="${strokeColor}" stroke-width="1.2" />
   <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">⚙️ ${escapeXml(name)}</text>
-  <!-- Port Pins on left and right borders -->
-  <rect x="-4" y="20" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
-  <rect x="${width - 4}" y="20" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
+  <!-- Port Pins on left and right borders with center alignment -->
+  <rect x="-4" y="24" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
+  <rect x="${width - 4}" y="24" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
 `;
 
   let y = 48;
@@ -579,7 +580,7 @@ export function generateCompositeCardSvg(data) {
   });
 
   svg += `\n</svg>`;
-  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+  return { svg, dataUri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, width, height };
 }
 
 /** ── 13. Profile Metaclass / Stereotype Node ── */
@@ -610,7 +611,7 @@ export function generateProfileCardSvg(data) {
   });
 
   svg += `\n</svg>`;
-  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+  return { svg, dataUri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, width, height };
 }
 
 /** ── 14. Timing Diagram Multi-State Waveform Track ── */
@@ -635,14 +636,15 @@ export function generateTimingTrackSvg(data) {
 `;
 
   let x = 200;
-  instructions.slice(0, 5).forEach((inst, idx) => {
+  const timeSlices = instructions.length > 0 ? instructions : ["@0ms: Idle", "@50ms: Active", "@150ms: Complete"];
+  timeSlices.slice(0, 5).forEach((inst, idx) => {
     svg += `\n  <circle cx="${x}" cy="40" r="4" fill="${pulseColor}" />`;
     svg += `\n  <text x="${x}" y="98" font-family="JetBrains Mono, monospace" font-size="8.5" fill="${textColor}" text-anchor="middle">${escapeXml(inst.split(':')[0] || `@${idx * 50}ms`)}</text>`;
     x += 80;
   });
 
   svg += `\n</svg>`;
-  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+  return { svg, dataUri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, width, height };
 }
 
 /** ── 15. Interaction Overview Frame Node ── */
