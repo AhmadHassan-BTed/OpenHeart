@@ -106,14 +106,14 @@ export function buildCytoscapeStylesheet(theme = null) {
 
     // ── Level 0: Root Domain Tier Container ──
     {
-      selector: 'node[?isPackage].nest-level-0, node[?isPackage][nestLevel = 0]',
+      selector: 'node.compound-package.nest-level-0, node:parent[?isPackage].nest-level-0, node[?isPackage][!svgDataUri].nest-level-0, node[?isPackage][!svgDataUri][nestLevel = 0]',
       style: {
         'label': 'data(label)',
         'background-color': pkgs.tier0.bg,
         'background-opacity': pkgs.tier0.opacity,
         'border-width': pkgs.tier0.borderWidth,
         'border-color': pkgs.tier0.borderColor,
-        'border-style': pkgs.tier0.borderStyle,
+        'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier0.borderRadius,
         'text-valign': 'top',
@@ -139,14 +139,14 @@ export function buildCytoscapeStylesheet(theme = null) {
 
     // ── Level 1: Subpackage Container ──
     {
-      selector: 'node[?isPackage].nest-level-1, node[?isPackage][nestLevel = 1]',
+      selector: 'node.compound-package.nest-level-1, node:parent[?isPackage].nest-level-1, node[?isPackage][!svgDataUri].nest-level-1, node[?isPackage][!svgDataUri][nestLevel = 1]',
       style: {
         'label': 'data(label)',
         'background-color': pkgs.tier1.bg,
         'background-opacity': pkgs.tier1.opacity,
         'border-width': pkgs.tier1.borderWidth,
         'border-color': pkgs.tier1.borderColor,
-        'border-style': pkgs.tier1.borderStyle,
+        'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier1.borderRadius,
         'text-valign': 'top',
@@ -171,14 +171,14 @@ export function buildCytoscapeStylesheet(theme = null) {
 
     // ── Level 2: Subpackage Container ──
     {
-      selector: 'node[?isPackage].nest-level-2, node[?isPackage][nestLevel = 2]',
+      selector: 'node.compound-package.nest-level-2, node:parent[?isPackage].nest-level-2, node[?isPackage][!svgDataUri].nest-level-2, node[?isPackage][!svgDataUri][nestLevel = 2]',
       style: {
         'label': 'data(label)',
         'background-color': pkgs.tier2.bg,
         'background-opacity': pkgs.tier2.opacity,
         'border-width': pkgs.tier2.borderWidth,
         'border-color': pkgs.tier2.borderColor,
-        'border-style': pkgs.tier2.borderStyle,
+        'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier2.borderRadius,
         'text-valign': 'top',
@@ -203,14 +203,14 @@ export function buildCytoscapeStylesheet(theme = null) {
 
     // ── Level 3: Leaf Subpackage Container ──
     {
-      selector: 'node[?isPackage].nest-level-3, node[?isPackage][nestLevel = 3]',
+      selector: 'node.compound-package.nest-level-3, node:parent[?isPackage].nest-level-3, node[?isPackage][!svgDataUri].nest-level-3, node[?isPackage][!svgDataUri][nestLevel = 3]',
       style: {
         'label': 'data(label)',
         'background-color': pkgs.tier3.bg,
         'background-opacity': pkgs.tier3.opacity,
         'border-width': pkgs.tier3.borderWidth,
         'border-color': pkgs.tier3.borderColor,
-        'border-style': pkgs.tier3.borderStyle,
+        'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier3.borderRadius,
         'text-valign': 'top',
@@ -235,14 +235,14 @@ export function buildCytoscapeStylesheet(theme = null) {
 
     // ── Level 4+: Deepest Innermost Package Container ──
     {
-      selector: 'node[?isPackage].nest-level-4, node[?isPackage].nest-level-5, node[?isPackage][nestLevel >= 4]',
+      selector: 'node.compound-package.nest-level-4, node.compound-package.nest-level-5, node:parent[?isPackage].nest-level-4, node[?isPackage][!svgDataUri].nest-level-4, node[?isPackage][!svgDataUri][nestLevel >= 4]',
       style: {
         'label': 'data(label)',
         'background-color': pkgs.tier4.bg,
         'background-opacity': pkgs.tier4.opacity,
         'border-width': pkgs.tier4.borderWidth,
         'border-color': pkgs.tier4.borderColor,
-        'border-style': pkgs.tier4.borderStyle,
+        'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier4.borderRadius,
         'text-valign': 'top',
@@ -267,14 +267,14 @@ export function buildCytoscapeStylesheet(theme = null) {
 
     // ── General Package Container Fallback ──
     {
-      selector: 'node[?isPackage]',
+      selector: 'node.compound-package, node:parent[?isPackage], node[?isPackage][!svgDataUri]',
       style: {
         'label': 'data(label)',
         'background-color': pkgs.fallback.bg,
         'background-opacity': pkgs.fallback.opacity,
         'border-width': pkgs.fallback.borderWidth,
         'border-color': pkgs.fallback.borderColor,
-        'border-style': pkgs.fallback.borderStyle,
+        'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.fallback.borderRadius,
         'text-valign': 'top',
@@ -294,6 +294,26 @@ export function buildCytoscapeStylesheet(theme = null) {
         'color': pkgs.fallback.textColor,
         'padding': '36px',
         'z-index': 1
+      }
+    },
+
+    // ── SVG Vector Cards (Zero Outer Border, Zero Extra Padding, Zero Duplicate Label) ──
+    {
+      selector: 'node[?svgDataUri], node.leaf-package, node.class-card, node.state-card, node.action-card',
+      style: {
+        'background-image': 'data(svgDataUri)',
+        'background-fit': 'contain',
+        'background-clip': 'node',
+        'background-color': 'transparent',
+        'background-opacity': 0,
+        'border-width': 0,
+        'border-color': 'transparent',
+        'padding': 0,
+        'width': 'data(width)',
+        'height': 'data(height)',
+        'shape': 'roundrectangle',
+        'label': '',
+        'z-index': 10
       }
     },
 
