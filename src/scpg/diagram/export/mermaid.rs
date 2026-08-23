@@ -667,6 +667,11 @@ impl MermaidExporter {
                 PATTERN_BUILDER => "<<Builder>>",
                 PATTERN_STATE => "<<State>>",
                 PATTERN_TEMPLATE_METHOD => "<<TemplateMethod>>",
+                PATTERN_DECORATOR => "<<Decorator>>",
+                PATTERN_STRATEGY => "<<Strategy>>",
+                PATTERN_ADAPTER => "<<Adapter>>",
+                PATTERN_FACADE => "<<Facade>>",
+                PATTERN_COMPOSITE => "<<Composite>>",
                 _ => "",
             };
 
