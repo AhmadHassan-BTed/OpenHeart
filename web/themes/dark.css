@@ -1,0 +1,56 @@
+/**
+ * OpenHeart Dark Theme CSS Tokens
+ */
+body.dark-theme, [data-theme="dark"] {
+  --bg-app: #0B0F19;
+  --bg-surface: #111827;
+  --bg-subtle: #1F2937;
+  --bg-muted: #374151;
+  --bg-card: #111827;
+  --bg-header: rgba(17, 24, 39, 0.95);
+  --bg-footer: rgba(17, 24, 39, 0.95);
+  --bg-canvas: #0B0F19;
+  --bg-tree: #111827;
+  --bg-tree-header: #1F2937;
+  --bg-tree-hover: #1F2937;
+  --bg-tree-active: #1E3A8A;
+  --bg-tabs: #1F2937;
+  --bg-tab-active: #111827;
+  --bg-badge: #374151;
+  --bg-breadcrumb: #1F2937;
+  --bg-slider: #1F2937;
+  --bg-floating: rgba(17, 24, 39, 0.96);
+
+  --border-light: #1F2937;
+  --border-medium: #374151;
+  --border-focus: #60A5FA;
+  --border-slider: #374151;
+
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --text-faint: #6B7280;
+  --text-inverse: #0F172A;
+  --text-badge: #D1D5DB;
+  --text-tree-folder: #E5E7EB;
+  --text-tree-file: #F3F4F6;
+  --text-tree-active: #93C5FD;
+  --text-breadcrumb-root: #9CA3AF;
+  --text-breadcrumb-pkg: #60A5FA;
+  --text-breadcrumb-file: #F9FAFB;
+
+  --accent-blue: #60A5FA;
+  --accent-blue-subtle: #1E3A8A;
+  --accent-purple: #A78BFA;
+  --accent-emerald: #34D399;
+  --accent-emerald-subtle: #064E3B;
+  --accent-amber: #FBBF24;
+  --accent-rose: #F87171;
+
+  --canvas-grid-dot: rgba(255, 255, 255, 0.12);
+  --canvas-grid-line: rgba(255, 255, 255, 0.03);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 20px 40px -8px rgba(0, 0, 0, 0.7);
+}
