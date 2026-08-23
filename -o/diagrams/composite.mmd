@@ -1,0 +1,57 @@
+graph TD
+    subgraph Comp_NewsAgency["Composite: NewsAgency"]
+        Part_NewsAgency_news["part: news : Unknown"]
+        Part_NewsAgency_observers["part: observers : Unknown"]
+    end
+
+    subgraph Comp_NewsChannel["Composite: NewsChannel"]
+        Part_NewsChannel_news["part: news : Unknown"]
+    end
+
+    subgraph Comp_CreditCardStrategy["Composite: CreditCardStrategy"]
+        Part_CreditCardStrategy_name["part: name : Unknown"]
+        Part_CreditCardStrategy_cardNumber["part: cardNumber : Unknown"]
+    end
+
+    subgraph Comp_PaypalStrategy["Composite: PaypalStrategy"]
+        Part_PaypalStrategy_emailId["part: emailId : Unknown"]
+    end
+
+    subgraph Comp_ShoppingCart["Composite: ShoppingCart"]
+        Part_ShoppingCart_paymentStrategy["part: paymentStrategy : PaymentStrategy"]
+    end
+
+    subgraph Comp_Computer["Composite: Computer"]
+        Part_Computer_cpu["part: cpu : Unknown"]
+        Part_Computer_ram["part: ram : Unknown"]
+        Part_Computer_storage["part: storage : Unknown"]
+        Part_Computer_graphicsCardEnabled["part: graphicsCardEnabled : Unknown"]
+    end
+
+    subgraph Comp_ComputerBuilder["Composite: ComputerBuilder"]
+        Part_ComputerBuilder_computer["part: computer : Computer"]
+    end
+
+    subgraph Comp_DatabaseConnectionPool["Composite: DatabaseConnectionPool"]
+        Part_DatabaseConnectionPool_instance["part: instance : DatabaseConnectionPool"]
+        Part_DatabaseConnectionPool_maxConnections["part: maxConnections : Unknown"]
+        Part_DatabaseConnectionPool_isInitialized["part: isInitialized : Unknown"]
+    end
+
+    subgraph Comp_AudioPlayer["Composite: AudioPlayer"]
+        Part_AudioPlayer_mediaAdapter["part: mediaAdapter : MediaAdapter"]
+    end
+
+    subgraph Comp_MediaAdapter["Composite: MediaAdapter"]
+        Part_MediaAdapter_advancedMusicPlayer["part: advancedMusicPlayer : AdvancedMediaPlayer"]
+    end
+
+    subgraph Comp_CondimentDecorator["Composite: CondimentDecorator"]
+        Part_CondimentDecorator_beverage["part: beverage : Beverage"]
+    end
+
+    subgraph Comp_VideoConversionFacade["Composite: VideoConversionFacade"]
+        Part_VideoConversionFacade_audioMixer["part: audioMixer : AudioMixer"]
+        Part_VideoConversionFacade_bitrateReader["part: bitrateReader : BitrateReader"]
+    end
+

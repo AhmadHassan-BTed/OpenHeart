@@ -1,12 +1,20 @@
 //! DiagramGenerator — top-level UML diagram generation and multi-format export interface (§10.4).
 
+pub mod common;
 pub mod export;
+pub mod factory;
 pub mod renderers;
+
+pub use common::DiagramUtils;
 
 pub use export::json::JSONExporter;
 pub use export::mermaid::{MermaidDiagramStrategy, MermaidExporter};
 pub use export::plantuml::{PlantUMLDiagramStrategy, PlantUMLExporter};
 pub use export::xmi::XMIExporter;
+pub use factory::{
+    DiagramExporterFactory, DiagramFormat, JSONFactory, MermaidFactory, PlantUMLFactory,
+    UniversalDiagramEngine, XMIFactory,
+};
 pub use renderers::DiagramRenderers;
 
 use crate::uma::types::UMLMetadataArtifact;

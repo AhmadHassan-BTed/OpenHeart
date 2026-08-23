@@ -1,0 +1,38 @@
+flowchart TD
+    %% Reduced Ordered BDD & Shannon Decision Gates
+    subgraph BDD_NewsAgency_setNews["ROBDD Path Summary: NewsAgency.setNews()<br/>#SAT Paths: 2 | Cyclomatic V(G): 1"]
+        Node_x0_NewsAgency_setNews{"Gate x₀ (Branch 0)"}
+        Node_x1_NewsAgency_setNews{"Gate x₁ (Branch 1)"}
+        Term_1_NewsAgency_setNews["1 (Feasible Path)"]
+        Term_0_NewsAgency_setNews["0 (Infeasible Sink)"]
+
+        Node_x0_NewsAgency_setNews -->|x₀ = 1 (solid)| Node_x1_NewsAgency_setNews
+        Node_x0_NewsAgency_setNews -.->|x₀ = 0 (dashed)| Term_0_NewsAgency_setNews
+        Node_x1_NewsAgency_setNews -->|x₁ = 1 (feasible)| Term_1_NewsAgency_setNews
+        Node_x1_NewsAgency_setNews -.->|x₁ = 0 (infeasible)| Term_0_NewsAgency_setNews
+    end
+
+    subgraph BDD_NewsAgency_attach["ROBDD Path Summary: NewsAgency.attach()<br/>#SAT Paths: 2 | Cyclomatic V(G): 1"]
+        Node_x0_NewsAgency_attach{"Gate x₀ (Branch 0)"}
+        Node_x1_NewsAgency_attach{"Gate x₁ (Branch 1)"}
+        Term_1_NewsAgency_attach["1 (Feasible Path)"]
+        Term_0_NewsAgency_attach["0 (Infeasible Sink)"]
+
+        Node_x0_NewsAgency_attach -->|x₀ = 1 (solid)| Node_x1_NewsAgency_attach
+        Node_x0_NewsAgency_attach -.->|x₀ = 0 (dashed)| Term_0_NewsAgency_attach
+        Node_x1_NewsAgency_attach -->|x₁ = 1 (feasible)| Term_1_NewsAgency_attach
+        Node_x1_NewsAgency_attach -.->|x₁ = 0 (infeasible)| Term_0_NewsAgency_attach
+    end
+
+    subgraph BDD_NewsChannel_update["ROBDD Path Summary: NewsChannel.update()<br/>#SAT Paths: 2 | Cyclomatic V(G): 1"]
+        Node_x0_NewsChannel_update{"Gate x₀ (Branch 0)"}
+        Node_x1_NewsChannel_update{"Gate x₁ (Branch 1)"}
+        Term_1_NewsChannel_update["1 (Feasible Path)"]
+        Term_0_NewsChannel_update["0 (Infeasible Sink)"]
+
+        Node_x0_NewsChannel_update -->|x₀ = 1 (solid)| Node_x1_NewsChannel_update
+        Node_x0_NewsChannel_update -.->|x₀ = 0 (dashed)| Term_0_NewsChannel_update
+        Node_x1_NewsChannel_update -->|x₁ = 1 (feasible)| Term_1_NewsChannel_update
+        Node_x1_NewsChannel_update -.->|x₁ = 0 (infeasible)| Term_0_NewsChannel_update
+    end
+

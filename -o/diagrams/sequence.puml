@@ -1,0 +1,316 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Space Grotesk", "Segoe UI", sans-serif
+skinparam defaultFontColor #e5e5e5
+skinparam defaultFontSize 12
+skinparam ArrowColor #38bdf8
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #facc15
+skinparam PackageBackgroundColor #0f141c
+skinparam PackageFontColor #facc15
+skinparam ClassBorderColor #38bdf8
+skinparam ClassBackgroundColor #14171f
+skinparam ClassHeaderBackgroundColor #1e2433
+skinparam ClassFontColor #ffffff
+skinparam ObjectBorderColor #38bdf8
+skinparam ObjectBackgroundColor #14171f
+skinparam ObjectFontColor #ffffff
+skinparam ComponentBorderColor #38bdf8
+skinparam ComponentBackgroundColor #14171f
+skinparam ComponentFontColor #ffffff
+skinparam NodeBorderColor #38bdf8
+skinparam NodeBackgroundColor #14171f
+skinparam NodeFontColor #ffffff
+skinparam StateBorderColor #38bdf8
+skinparam StateBackgroundColor #14171f
+skinparam StateFontColor #ffffff
+skinparam ActivityBorderColor #38bdf8
+skinparam ActivityBackgroundColor #14171f
+skinparam ActivityFontColor #ffffff
+skinparam SequenceLifeLineBorderColor #38bdf8
+skinparam SequenceLifeLineBackgroundColor #14171f
+skinparam SequenceGroupBorderColor #facc15
+skinparam SequenceGroupBackgroundColor #0f141c
+skinparam SequenceGroupFontColor #facc15
+skinparam ParticipantBorderColor #38bdf8
+skinparam ParticipantBackgroundColor #14171f
+skinparam ParticipantFontColor #ffffff
+skinparam ActorBorderColor #facc15
+skinparam ActorBackgroundColor #14171f
+skinparam ActorFontColor #ffffff
+skinparam UsecaseBorderColor #38bdf8
+skinparam UsecaseBackgroundColor #14171f
+skinparam UsecaseFontColor #ffffff
+
+participant "Observer" as part_Observer
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Observer : update()
+activate part_Observer
+part_Observer --> part_Actor : return
+deactivate part_Observer
+actor "ExternalActor" as act_ExternalActor
+participant "Subject" as part_Subject
+
+part_Actor -> part_Subject : attach()
+activate part_Subject
+part_Subject --> part_Actor : return
+deactivate part_Subject
+actor "ExternalActor" as act_ExternalActor
+participant "Subject" as part_Subject
+
+part_Actor -> part_Subject : detach()
+activate part_Subject
+part_Subject --> part_Actor : return
+deactivate part_Subject
+participant "Subject" as part_Subject
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Subject : notifyObservers()
+activate part_Subject
+part_Subject --> part_Actor : return
+deactivate part_Subject
+participant "CreditCardStrategy" as part_CreditCardStrategy
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_CreditCardStrategy : CreditCardStrategy()
+activate part_CreditCardStrategy
+part_CreditCardStrategy --> part_Actor : return
+deactivate part_CreditCardStrategy
+participant "PaymentStrategy" as part_PaymentStrategy
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_PaymentStrategy : pay()
+activate part_PaymentStrategy
+part_PaymentStrategy --> part_Actor : return
+deactivate part_PaymentStrategy
+actor "ExternalActor" as act_ExternalActor
+participant "PaypalStrategy" as part_PaypalStrategy
+
+part_Actor -> part_PaypalStrategy : PaypalStrategy()
+activate part_PaypalStrategy
+part_PaypalStrategy --> part_Actor : return
+deactivate part_PaypalStrategy
+actor "ExternalActor" as act_ExternalActor
+participant "ShoppingCart" as part_ShoppingCart
+
+part_Actor -> part_ShoppingCart : setPaymentStrategy()
+activate part_ShoppingCart
+part_ShoppingCart --> part_Actor : return
+deactivate part_ShoppingCart
+participant "DataMiner" as part_DataMiner
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_DataMiner : openFile()
+activate part_DataMiner
+part_DataMiner --> part_Actor : return
+deactivate part_DataMiner
+actor "ExternalActor" as act_ExternalActor
+participant "DataMiner" as part_DataMiner
+
+part_Actor -> part_DataMiner : extractData()
+activate part_DataMiner
+part_DataMiner --> part_Actor : return
+deactivate part_DataMiner
+participant "DataMiner" as part_DataMiner
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_DataMiner : parseData()
+activate part_DataMiner
+part_DataMiner --> part_Actor : return
+deactivate part_DataMiner
+actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
+
+part_Actor -> part_Computer : setCpu()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
+
+part_Actor -> part_Computer : setRam()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
+
+part_Actor -> part_Computer : setStorage()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+participant "Computer" as part_Computer
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Computer : setGraphicsCardEnabled()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
+
+part_Actor -> part_Computer : getCpu()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+actor "ExternalActor" as act_ExternalActor
+participant "Computer" as part_Computer
+
+part_Actor -> part_Computer : getRam()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+participant "Computer" as part_Computer
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Computer : getStorage()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+participant "Computer" as part_Computer
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Computer : isGraphicsCardEnabled()
+activate part_Computer
+part_Computer --> part_Actor : return
+deactivate part_Computer
+participant "ComputerBuilder" as part_ComputerBuilder
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_ComputerBuilder : ComputerBuilder()
+activate part_ComputerBuilder
+part_ComputerBuilder --> part_Actor : return
+deactivate part_ComputerBuilder
+participant "ComputerBuilder" as part_ComputerBuilder
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_ComputerBuilder : build()
+activate part_ComputerBuilder
+part_ComputerBuilder --> part_Actor : return
+deactivate part_ComputerBuilder
+participant "Logistics" as part_Logistics
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Logistics : createTransport()
+activate part_Logistics
+part_Logistics --> part_Actor : return
+deactivate part_Logistics
+participant "Transport" as part_Transport
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Transport : deliver()
+activate part_Transport
+part_Transport --> part_Actor : return
+deactivate part_Transport
+actor "ExternalActor" as act_ExternalActor
+participant "DatabaseConnectionPool" as part_DatabaseConnectionPool
+
+part_Actor -> part_DatabaseConnectionPool : DatabaseConnectionPool()
+activate part_DatabaseConnectionPool
+part_DatabaseConnectionPool --> part_Actor : return
+deactivate part_DatabaseConnectionPool
+actor "ExternalActor" as act_ExternalActor
+participant "AdvancedMediaPlayer" as part_AdvancedMediaPlayer
+
+part_Actor -> part_AdvancedMediaPlayer : playVlc()
+activate part_AdvancedMediaPlayer
+part_AdvancedMediaPlayer --> part_Actor : return
+deactivate part_AdvancedMediaPlayer
+actor "ExternalActor" as act_ExternalActor
+participant "AdvancedMediaPlayer" as part_AdvancedMediaPlayer
+
+part_Actor -> part_AdvancedMediaPlayer : playMp4()
+activate part_AdvancedMediaPlayer
+part_AdvancedMediaPlayer --> part_Actor : return
+deactivate part_AdvancedMediaPlayer
+actor "ExternalActor" as act_ExternalActor
+participant "MediaAdapter" as part_MediaAdapter
+
+part_Actor -> part_MediaAdapter : MediaAdapter()
+activate part_MediaAdapter
+part_MediaAdapter --> part_Actor : return
+deactivate part_MediaAdapter
+actor "ExternalActor" as act_ExternalActor
+participant "MediaPlayer" as part_MediaPlayer
+
+part_Actor -> part_MediaPlayer : play()
+activate part_MediaPlayer
+part_MediaPlayer --> part_Actor : return
+deactivate part_MediaPlayer
+participant "Mp4Player" as part_Mp4Player
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Mp4Player : playVlc()
+activate part_Mp4Player
+part_Mp4Player --> part_Actor : return
+deactivate part_Mp4Player
+participant "VlcPlayer" as part_VlcPlayer
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_VlcPlayer : playMp4()
+activate part_VlcPlayer
+part_VlcPlayer --> part_Actor : return
+deactivate part_VlcPlayer
+actor "ExternalActor" as act_ExternalActor
+participant "Beverage" as part_Beverage
+
+part_Actor -> part_Beverage : getDescription()
+activate part_Beverage
+part_Beverage --> part_Actor : return
+deactivate part_Beverage
+actor "ExternalActor" as act_ExternalActor
+participant "Beverage" as part_Beverage
+
+part_Actor -> part_Beverage : cost()
+activate part_Beverage
+part_Beverage --> part_Actor : return
+deactivate part_Beverage
+participant "CondimentDecorator" as part_CondimentDecorator
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_CondimentDecorator : CondimentDecorator()
+activate part_CondimentDecorator
+part_CondimentDecorator --> part_Actor : return
+deactivate part_CondimentDecorator
+participant "CondimentDecorator" as part_CondimentDecorator
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_CondimentDecorator : getDescription()
+activate part_CondimentDecorator
+part_CondimentDecorator --> part_Actor : return
+deactivate part_CondimentDecorator
+actor "ExternalActor" as act_ExternalActor
+participant "Espresso" as part_Espresso
+
+part_Actor -> part_Espresso : getDescription()
+activate part_Espresso
+part_Espresso --> part_Actor : return
+deactivate part_Espresso
+participant "Espresso" as part_Espresso
+actor "ExternalActor" as act_ExternalActor
+
+part_Actor -> part_Espresso : cost()
+activate part_Espresso
+part_Espresso --> part_Actor : return
+deactivate part_Espresso
+actor "ExternalActor" as act_ExternalActor
+participant "Mocha" as part_Mocha
+
+part_Actor -> part_Mocha : Mocha()
+activate part_Mocha
+part_Mocha --> part_Actor : return
+deactivate part_Mocha
+actor "ExternalActor" as act_ExternalActor
+participant "Whip" as part_Whip
+
+part_Actor -> part_Whip : Whip()
+activate part_Whip
+part_Whip --> part_Actor : return
+deactivate part_Whip
+
+@enduml

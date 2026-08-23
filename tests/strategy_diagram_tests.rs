@@ -41,23 +41,25 @@ impl PlantUMLDiagramStrategy for CustomSubsystemDiagramStrategy {
 fn test_plantuml_strategy_pattern_registration_and_subtraction() {
     let mut exporter = PlantUMLExporter::new();
 
-    // 1. Verify default 14 strategies are registered
+    // 1. Verify default 19 strategies (14 UML + 5 Advanced) are registered
     assert!(exporter.has_strategy("class"));
     assert!(exporter.has_strategy("sequence"));
     assert!(exporter.has_strategy("activity"));
     assert!(exporter.has_strategy("statemachine"));
-    assert_eq!(exporter.strategy_types().len(), 14);
+    assert!(exporter.has_strategy("cfg"));
+    assert!(exporter.has_strategy("robdd"));
+    assert_eq!(exporter.strategy_types().len(), 19);
 
     // 2. Test subtracting a strategy
     let removed = exporter.unregister_strategy("timing");
     assert!(removed.is_some());
     assert!(!exporter.has_strategy("timing"));
-    assert_eq!(exporter.strategy_types().len(), 13);
+    assert_eq!(exporter.strategy_types().len(), 18);
 
     // 3. Test adding / registering a custom strategy
     exporter.register_strategy(Box::new(CustomSubsystemDiagramStrategy));
     assert!(exporter.has_strategy("custom_subsystem"));
-    assert_eq!(exporter.strategy_types().len(), 14);
+    assert_eq!(exporter.strategy_types().len(), 19);
 
     // 4. Test dynamic strategy execution with real artifacts
     let dir = tempdir().unwrap();
@@ -134,22 +136,24 @@ impl openheart::scpg::diagram::export::MermaidDiagramStrategy for CustomMermaidS
 fn test_mermaid_strategy_pattern_registration_and_subtraction() {
     let mut exporter = openheart::scpg::diagram::export::MermaidExporter::new();
 
-    // 1. Verify 14 default strategies
+    // 1. Verify 19 default strategies (14 UML + 5 Advanced)
     assert!(exporter.has_strategy("class"));
     assert!(exporter.has_strategy("sequence"));
     assert!(exporter.has_strategy("activity"));
-    assert_eq!(exporter.strategy_types().len(), 14);
+    assert!(exporter.has_strategy("cfg"));
+    assert!(exporter.has_strategy("robdd"));
+    assert_eq!(exporter.strategy_types().len(), 19);
 
     // 2. Subtract strategy
     let removed = exporter.unregister_strategy("timing");
     assert!(removed.is_some());
     assert!(!exporter.has_strategy("timing"));
-    assert_eq!(exporter.strategy_types().len(), 13);
+    assert_eq!(exporter.strategy_types().len(), 18);
 
     // 3. Add custom strategy
     exporter.register_strategy(Box::new(CustomMermaidStrategy));
     assert!(exporter.has_strategy("custom_mermaid"));
-    assert_eq!(exporter.strategy_types().len(), 14);
+    assert_eq!(exporter.strategy_types().len(), 19);
 
     // 4. Test dynamic strategy execution with real artifacts
     let dir = tempdir().unwrap();

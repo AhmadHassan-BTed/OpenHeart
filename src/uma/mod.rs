@@ -14,10 +14,12 @@ pub mod patterns;
 pub mod serializer;
 pub mod structural;
 pub mod types;
+pub mod visitor;
 
 pub use builder::UMABuilder;
 pub use serializer::UMASerializer;
 pub use types::{UMLMetadataArtifact, UMA_MAGIC};
+pub use visitor::{ArchitecturalMetricsVisitor, AttackSurfaceVisitor, UMAVisitor, VisitableUMA};
 
 use std::path::Path;
 

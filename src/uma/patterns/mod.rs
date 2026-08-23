@@ -2,18 +2,23 @@
 
 pub mod adapter;
 pub mod builder;
+pub mod chain;
 pub mod composite;
 pub mod decorator;
 pub mod facade;
 pub mod factory;
 pub mod observer;
+pub mod query;
 pub mod singleton;
 pub mod state;
 pub mod strategy;
 pub mod template_method;
 
+pub use query::PatternInspector;
+
 pub use adapter::is_adapter;
 pub use builder::is_builder;
+pub use chain::{PatternDetectionChain, PatternDetectionRule};
 pub use composite::is_composite;
 pub use decorator::is_decorator;
 pub use facade::is_facade;

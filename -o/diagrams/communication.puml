@@ -1,0 +1,87 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Space Grotesk", "Segoe UI", sans-serif
+skinparam defaultFontColor #e5e5e5
+skinparam defaultFontSize 12
+skinparam ArrowColor #38bdf8
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #facc15
+skinparam PackageBackgroundColor #0f141c
+skinparam PackageFontColor #facc15
+skinparam ClassBorderColor #38bdf8
+skinparam ClassBackgroundColor #14171f
+skinparam ClassHeaderBackgroundColor #1e2433
+skinparam ClassFontColor #ffffff
+skinparam ObjectBorderColor #38bdf8
+skinparam ObjectBackgroundColor #14171f
+skinparam ObjectFontColor #ffffff
+skinparam ComponentBorderColor #38bdf8
+skinparam ComponentBackgroundColor #14171f
+skinparam ComponentFontColor #ffffff
+skinparam NodeBorderColor #38bdf8
+skinparam NodeBackgroundColor #14171f
+skinparam NodeFontColor #ffffff
+skinparam StateBorderColor #38bdf8
+skinparam StateBackgroundColor #14171f
+skinparam StateFontColor #ffffff
+skinparam ActivityBorderColor #38bdf8
+skinparam ActivityBackgroundColor #14171f
+skinparam ActivityFontColor #ffffff
+skinparam SequenceLifeLineBorderColor #38bdf8
+skinparam SequenceLifeLineBackgroundColor #14171f
+skinparam SequenceGroupBorderColor #facc15
+skinparam SequenceGroupBackgroundColor #0f141c
+skinparam SequenceGroupFontColor #facc15
+skinparam ParticipantBorderColor #38bdf8
+skinparam ParticipantBackgroundColor #14171f
+skinparam ParticipantFontColor #ffffff
+skinparam ActorBorderColor #facc15
+skinparam ActorBackgroundColor #14171f
+skinparam ActorFontColor #ffffff
+skinparam UsecaseBorderColor #38bdf8
+skinparam UsecaseBackgroundColor #14171f
+skinparam UsecaseFontColor #ffffff
+
+obj_Actor -- obj_Observer : 1: update() >
+obj_Actor -- obj_Subject : 1: attach() >
+obj_Actor -- obj_Subject : 1: detach() >
+obj_Actor -- obj_Subject : 1: notifyObservers() >
+obj_Actor -- obj_CreditCardStrategy : 1: CreditCardStrategy() >
+obj_Actor -- obj_PaymentStrategy : 1: pay() >
+obj_Actor -- obj_PaypalStrategy : 1: PaypalStrategy() >
+obj_Actor -- obj_ShoppingCart : 1: setPaymentStrategy() >
+obj_Actor -- obj_DataMiner : 1: openFile() >
+obj_Actor -- obj_DataMiner : 1: extractData() >
+obj_Actor -- obj_DataMiner : 1: parseData() >
+obj_Actor -- obj_Computer : 1: setCpu() >
+obj_Actor -- obj_Computer : 1: setRam() >
+obj_Actor -- obj_Computer : 1: setStorage() >
+obj_Actor -- obj_Computer : 1: setGraphicsCardEnabled() >
+obj_Actor -- obj_Computer : 1: getCpu() >
+obj_Actor -- obj_Computer : 1: getRam() >
+obj_Actor -- obj_Computer : 1: getStorage() >
+obj_Actor -- obj_Computer : 1: isGraphicsCardEnabled() >
+obj_Actor -- obj_ComputerBuilder : 1: ComputerBuilder() >
+obj_Actor -- obj_ComputerBuilder : 1: build() >
+obj_Actor -- obj_Logistics : 1: createTransport() >
+obj_Actor -- obj_Transport : 1: deliver() >
+obj_Actor -- obj_DatabaseConnectionPool : 1: DatabaseConnectionPool() >
+obj_Actor -- obj_AdvancedMediaPlayer : 1: playVlc() >
+obj_Actor -- obj_AdvancedMediaPlayer : 1: playMp4() >
+obj_Actor -- obj_MediaAdapter : 1: MediaAdapter() >
+obj_Actor -- obj_MediaPlayer : 1: play() >
+obj_Actor -- obj_Mp4Player : 1: playVlc() >
+obj_Actor -- obj_VlcPlayer : 1: playMp4() >
+obj_Actor -- obj_Beverage : 1: getDescription() >
+obj_Actor -- obj_Beverage : 1: cost() >
+obj_Actor -- obj_CondimentDecorator : 1: CondimentDecorator() >
+obj_Actor -- obj_CondimentDecorator : 1: getDescription() >
+obj_Actor -- obj_Espresso : 1: getDescription() >
+obj_Actor -- obj_Espresso : 1: cost() >
+obj_Actor -- obj_Mocha : 1: Mocha() >
+obj_Actor -- obj_Whip : 1: Whip() >
+@enduml
