@@ -48,7 +48,7 @@ skinparam UsecaseFontColor #ffffff
 
 title Control Flow Graph (CFG) & Dominator Frontiers
 
-state "Function CFG: setNews()" as CFG_setNews {
+state "Function CFG: createDataInitializer()" as CFG_createDataInitializer {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f
@@ -64,7 +64,7 @@ state "Function CFG: setNews()" as CFG_setNews {
   BB3 --> [*] : return
 }
 
-state "Function CFG: attach()" as CFG_attach {
+state "Function CFG: build()" as CFG_build {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f
@@ -80,7 +80,7 @@ state "Function CFG: attach()" as CFG_attach {
   BB3 --> [*] : return
 }
 
-state "Function CFG: detach()" as CFG_detach {
+state "Function CFG: if()" as CFG_if {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f
@@ -96,7 +96,7 @@ state "Function CFG: detach()" as CFG_detach {
   BB3 --> [*] : return
 }
 
-state "Function CFG: notifyObservers()" as CFG_notifyObservers {
+state "Function CFG: setUpTrainer()" as CFG_setUpTrainer {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f

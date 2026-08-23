@@ -1,24 +1,31 @@
 graph LR
-    Act_VideoConversionFacade["Actor: VideoConversionFacade"]
-    UC_NewsAgency_setNews["usecase: NewsAgency.setNews()"]
-    Act_VideoConversionFacade --> UC_NewsAgency_setNews
-    UC_NewsAgency_attach["usecase: NewsAgency.attach()"]
-    Act_VideoConversionFacade --> UC_NewsAgency_attach
-    UC_NewsAgency_detach["usecase: NewsAgency.detach()"]
-    Act_VideoConversionFacade --> UC_NewsAgency_detach
-    UC_NewsChannel_update["usecase: NewsChannel.update()"]
-    Act_VideoConversionFacade --> UC_NewsChannel_update
-    UC_Observer_update["usecase: Observer.update()"]
-    Act_VideoConversionFacade --> UC_Observer_update
-    UC_Subject_attach["usecase: Subject.attach()"]
-    Act_VideoConversionFacade --> UC_Subject_attach
-    UC_Subject_detach["usecase: Subject.detach()"]
-    Act_VideoConversionFacade --> UC_Subject_detach
-    UC_Subject_notifyObservers["usecase: Subject.notifyObservers()"]
-    Act_VideoConversionFacade --> UC_Subject_notifyObservers
-    UC_CreditCardStrategy_CreditCardStrategy["usecase: CreditCardStrategy.CreditCardStrategy()"]
-    Act_VideoConversionFacade --> UC_CreditCardStrategy_CreditCardStrategy
-    UC_CreditCardStrategy_pay["usecase: CreditCardStrategy.pay()"]
-    Act_VideoConversionFacade --> UC_CreditCardStrategy_pay
-    UC_PaymentStrategy_pay["usecase: PaymentStrategy.pay()"]
-    Act_VideoConversionFacade --> UC_PaymentStrategy_pay
+    Act_PauseController["Actor: PauseController"]
+    Act_FractalApplication["Actor: FractalApplication"]
+    Act_OvernightManagerService["Actor: OvernightManagerService"]
+    Act_FractalTrainingService["Actor: FractalTrainingService"]
+    UC_Image_DataInitializer_Factory_createDataInitializer["usecase: Image_DataInitializer_Factory.createDataInitializer()"]
+    Act_PauseController --> UC_Image_DataInitializer_Factory_createDataInitializer
+    UC_Image_DataInitializer_Factory_createDataInitializer["usecase: Image_DataInitializer_Factory.createDataInitializer()"]
+    Act_PauseController --> UC_Image_DataInitializer_Factory_createDataInitializer
+    UC_Image_Trainer_Factory_createTrainer["usecase: Image_Trainer_Factory.createTrainer()"]
+    Act_PauseController --> UC_Image_Trainer_Factory_createTrainer
+    UC_Image_Trainer_Factory_createTrainer["usecase: Image_Trainer_Factory.createTrainer()"]
+    Act_PauseController --> UC_Image_Trainer_Factory_createTrainer
+    UC_CheckpointManager_createCheckpoint["usecase: CheckpointManager.createCheckpoint()"]
+    Act_PauseController --> UC_CheckpointManager_createCheckpoint
+    UC_CheckpointManager_loadCheckpoint["usecase: CheckpointManager.loadCheckpoint()"]
+    Act_PauseController --> UC_CheckpointManager_loadCheckpoint
+    UC_CheckpointManager_createCheckpoint["usecase: CheckpointManager.createCheckpoint()"]
+    Act_PauseController --> UC_CheckpointManager_createCheckpoint
+    UC_networkConfig_ini_getBaseUrl["usecase: networkConfig_ini.getBaseUrl()"]
+    Act_PauseController --> UC_networkConfig_ini_getBaseUrl
+    UC_DataDownloader_naf_downloadFiles["usecase: DataDownloader_naf.downloadFiles()"]
+    Act_PauseController --> UC_DataDownloader_naf_downloadFiles
+    UC_DataDownloader_naf_downloadFiles["usecase: DataDownloader_naf.downloadFiles()"]
+    Act_PauseController --> UC_DataDownloader_naf_downloadFiles
+    UC_DataDownloader_naf_getFileSize["usecase: DataDownloader_naf.getFileSize()"]
+    Act_PauseController --> UC_DataDownloader_naf_getFileSize
+    UC_PauseController_isPaused["usecase: PauseController.isPaused()"]
+    Act_PauseController --> UC_PauseController_isPaused
+    UC_PauseController_isCancelled["usecase: PauseController.isCancelled()"]
+    Act_PauseController --> UC_PauseController_isCancelled

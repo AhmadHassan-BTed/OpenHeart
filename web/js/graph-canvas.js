@@ -102,9 +102,18 @@ export class InteractiveGraphCanvas {
     // Compute exact collision-free coordinates across all 3 tiers
     const layoutElements = computeDeterministicLayout(elements, graphType);
 
+    // Safety filter: Guarantee zero orphan edges so Cytoscape never crashes on external SDK symbols
+    const nodeIds = new Set(layoutElements.filter(e => e.data && !e.data.source).map(e => e.data.id));
+    const safeElements = layoutElements.filter(e => {
+      if (e.data && e.data.source) {
+        return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
+      }
+      return true;
+    });
+
     this.cy = cytoscape({
       container: container,
-      elements: layoutElements,
+      elements: safeElements,
       boxSelectionEnabled: false,
       autounselectify: false,
       userZoomingEnabled: false,
@@ -358,31 +367,28 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Default Edge (Orthogonal Clean Taxi Routing) ──
+      // ── Default Edge (Clean Smooth Routing & Visible Arrowheads) ──
       {
         selector: 'edge',
         style: {
-          'width': 1.5,
-          'line-color': '#64748B',
-          'target-arrow-color': '#64748B',
+          'width': 2.0,
+          'line-color': '#475569',
+          'target-arrow-color': '#475569',
           'target-arrow-shape': 'triangle',
-          'arrow-scale': 1.0,
-          'curve-style': 'taxi',
-          'taxi-direction': 'auto',
-          'taxi-turn': '28px',
-          'taxi-turn-min-distance': '12px',
+          'arrow-scale': 1.3,
+          'curve-style': 'bezier',
           'label': 'data(label)',
           'font-family': 'JetBrains Mono, monospace',
-          'font-size': '10px',
-          'font-weight': 600,
-          'color': '#334155',
+          'font-size': '10.5px',
+          'font-weight': 700,
+          'color': '#1E293B',
           'text-background-color': '#FFFFFF',
-          'text-background-opacity': 1.0,
-          'text-background-padding': '4px',
+          'text-background-opacity': 0.95,
+          'text-background-padding': '4px 6px',
           'text-border-width': 1,
           'text-border-color': '#CBD5E1',
           'text-border-opacity': 1,
-          'z-index': 5
+          'z-index': 999
         }
       },
 
@@ -392,9 +398,12 @@ export class InteractiveGraphCanvas {
         style: {
           'target-arrow-shape': 'triangle',
           'target-arrow-fill': 'hollow',
-          'line-color': '#1E293B',
-          'target-arrow-color': '#1E293B',
-          'line-style': 'solid'
+          'line-color': '#0F172A',
+          'target-arrow-color': '#0F172A',
+          'line-style': 'solid',
+          'arrow-scale': 1.5,
+          'width': 2.2,
+          'z-index': 999
         }
       },
 
@@ -405,8 +414,11 @@ export class InteractiveGraphCanvas {
           'target-arrow-shape': 'triangle',
           'target-arrow-fill': 'hollow',
           'line-style': 'dashed',
-          'line-color': '#1E293B',
-          'target-arrow-color': '#1E293B'
+          'line-color': '#0F172A',
+          'target-arrow-color': '#0F172A',
+          'arrow-scale': 1.5,
+          'width': 2.2,
+          'z-index': 999
         }
       },
 
@@ -418,7 +430,10 @@ export class InteractiveGraphCanvas {
           'source-arrow-fill': 'filled',
           'source-arrow-color': '#0F172A',
           'line-color': '#0F172A',
-          'target-arrow-shape': 'none'
+          'target-arrow-shape': 'none',
+          'arrow-scale': 1.4,
+          'width': 2.0,
+          'z-index': 999
         }
       },
 
@@ -430,7 +445,10 @@ export class InteractiveGraphCanvas {
           'source-arrow-fill': 'hollow',
           'source-arrow-color': '#0F172A',
           'line-color': '#0F172A',
-          'target-arrow-shape': 'none'
+          'target-arrow-shape': 'none',
+          'arrow-scale': 1.4,
+          'width': 2.0,
+          'z-index': 999
         }
       },
 
@@ -440,8 +458,11 @@ export class InteractiveGraphCanvas {
         style: {
           'target-arrow-shape': 'vee',
           'line-style': 'dashed',
-          'line-color': '#64748B',
-          'target-arrow-color': '#64748B'
+          'line-color': '#334155',
+          'target-arrow-color': '#334155',
+          'arrow-scale': 1.3,
+          'width': 1.8,
+          'z-index': 999
         }
       },
 

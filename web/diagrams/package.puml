@@ -46,59 +46,168 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-package "adapter" as pkg_adapter {
+package "AboutUs" as pkg_AboutUs {
 }
-package "behavioral" as pkg_behavioral {
-}
-package "builder" as pkg_builder {
-}
-package "com" as pkg_com {
-  package "com.patterns" as pkg_com_patterns {
-    package "com.patterns.behavioral" as pkg_com_patterns_behavioral {
-      package "com.patterns.behavioral.observer" as pkg_com_patterns_behavioral_observer {
-      }
-      package "com.patterns.behavioral.strategy" as pkg_com_patterns_behavioral_strategy {
-      }
-      package "com.patterns.behavioral.templatemethod" as pkg_com_patterns_behavioral_templatemethod {
-      }
+package "AppBackend" as pkg_AppBackend {
+  package "DataManager" as pkg_AppBackend_DataManager {
+    package "DataLoaderAndInitializer" as pkg_AppBackend_DataManager_DataLoaderAndInitializer {
     }
-    package "com.patterns.creational" as pkg_com_patterns_creational {
-      package "com.patterns.creational.builder" as pkg_com_patterns_creational_builder {
-      }
-      package "com.patterns.creational.factory" as pkg_com_patterns_creational_factory {
-      }
-      package "com.patterns.creational.singleton" as pkg_com_patterns_creational_singleton {
-      }
+  }
+  package "Factory" as pkg_AppBackend_Factory {
+    package "PackageTypeTrainer" as pkg_AppBackend_Factory_PackageTypeTrainer {
     }
-    package "com.patterns.structural" as pkg_com_patterns_structural {
-      package "com.patterns.structural.adapter" as pkg_com_patterns_structural_adapter {
-      }
-      package "com.patterns.structural.decorator" as pkg_com_patterns_structural_decorator {
-      }
-      package "com.patterns.structural.facade" as pkg_com_patterns_structural_facade {
-      }
+  }
+  package "LocalTrainingModule" as pkg_AppBackend_LocalTrainingModule {
+    package "TrainingExecutor" as pkg_AppBackend_LocalTrainingModule_TrainingExecutor {
+    }
+    package "TrainingStateManager" as pkg_AppBackend_LocalTrainingModule_TrainingStateManager {
+    }
+  }
+  package "Network" as pkg_AppBackend_Network {
+    package "ModelUpdateTransmission" as pkg_AppBackend_Network_ModelUpdateTransmission {
+    }
+    package "RegisteredInfo" as pkg_AppBackend_Network_RegisteredInfo {
+    }
+    package "Server_DAO" as pkg_AppBackend_Network_Server_DAO {
+    }
+  }
+  package "ResourceManagement" as pkg_AppBackend_ResourceManagement {
+    package "OperationControl" as pkg_AppBackend_ResourceManagement_OperationControl {
+    }
+    package "ResourceManager" as pkg_AppBackend_ResourceManagement_ResourceManager {
+    }
+  }
+  package "TaskContainer" as pkg_AppBackend_TaskContainer {
+  }
+  package "Validator" as pkg_AppBackend_Validator {
+    package "ModelInferenceValidator" as pkg_AppBackend_Validator_ModelInferenceValidator {
     }
   }
 }
-package "creational" as pkg_creational {
+package "AppFrontend" as pkg_AppFrontend {
+  package "Flush" as pkg_AppFrontend_Flush {
+  }
+  package "Interface" as pkg_AppFrontend_Interface {
+    package "AboutUs" as pkg_AppFrontend_Interface_AboutUs {
+    }
+    package "Auth" as pkg_AppFrontend_Interface_Auth {
+      package "DeviceAuthorization" as pkg_AppFrontend_Interface_Auth_DeviceAuthorization {
+      }
+      package "DeviceUnregister" as pkg_AppFrontend_Interface_Auth_DeviceUnregister {
+      }
+      package "ForgetPassword" as pkg_AppFrontend_Interface_Auth_ForgetPassword {
+      }
+    }
+    package "GetStarted" as pkg_AppFrontend_Interface_GetStarted {
+    }
+    package "Home" as pkg_AppFrontend_Interface_Home {
+    }
+    package "Insights" as pkg_AppFrontend_Interface_Insights {
+      package "DeviceInsights" as pkg_AppFrontend_Interface_Insights_DeviceInsights {
+      }
+      package "ModelTraining" as pkg_AppFrontend_Interface_Insights_ModelTraining {
+      }
+      package "UsageInsights" as pkg_AppFrontend_Interface_Insights_UsageInsights {
+      }
+    }
+    package "RegisteredInfo" as pkg_AppFrontend_Interface_RegisteredInfo {
+    }
+    package "RewardBank" as pkg_AppFrontend_Interface_RewardBank {
+    }
+    package "Settings" as pkg_AppFrontend_Interface_Settings {
+    }
+    package "TrainingLogsDisplay" as pkg_AppFrontend_Interface_TrainingLogsDisplay {
+    }
+  }
 }
-package "decorator" as pkg_decorator {
+package "AppGlobal" as pkg_AppGlobal {
+  package "Utils" as pkg_AppGlobal_Utils {
+  }
 }
-package "facade" as pkg_facade {
+package "Auth" as pkg_Auth {
 }
-package "factory" as pkg_factory {
+package "DataLoaderAndInitializer" as pkg_DataLoaderAndInitializer {
 }
-package "observer" as pkg_observer {
+package "DataManager" as pkg_DataManager {
 }
-package "patterns" as pkg_patterns {
+package "DeviceAuthorization" as pkg_DeviceAuthorization {
 }
-package "singleton" as pkg_singleton {
+package "DeviceInsights" as pkg_DeviceInsights {
 }
-package "strategy" as pkg_strategy {
+package "DeviceUnregister" as pkg_DeviceUnregister {
 }
-package "structural" as pkg_structural {
+package "Factory" as pkg_Factory {
 }
-package "templatemethod" as pkg_templatemethod {
+package "Flush" as pkg_Flush {
 }
+package "ForgetPassword" as pkg_ForgetPassword {
+}
+package "GetStarted" as pkg_GetStarted {
+}
+package "Home" as pkg_Home {
+}
+package "Insights" as pkg_Insights {
+}
+package "Interface" as pkg_Interface {
+}
+package "LocalTrainingModule" as pkg_LocalTrainingModule {
+}
+package "ModelInferenceValidator" as pkg_ModelInferenceValidator {
+}
+package "ModelTraining" as pkg_ModelTraining {
+}
+package "ModelUpdateTransmission" as pkg_ModelUpdateTransmission {
+}
+package "Network" as pkg_Network {
+}
+package "OperationControl" as pkg_OperationControl {
+}
+package "PackageTypeTrainer" as pkg_PackageTypeTrainer {
+}
+package "RegisteredInfo" as pkg_RegisteredInfo {
+}
+package "ResourceManagement" as pkg_ResourceManagement {
+}
+package "ResourceManager" as pkg_ResourceManager {
+}
+package "RewardBank" as pkg_RewardBank {
+}
+package "Server_DAO" as pkg_Server_DAO {
+}
+package "Settings" as pkg_Settings {
+}
+package "TaskContainer" as pkg_TaskContainer {
+}
+package "TrainingExecutor" as pkg_TrainingExecutor {
+}
+package "TrainingLogsDisplay" as pkg_TrainingLogsDisplay {
+}
+package "TrainingStateManager" as pkg_TrainingStateManager {
+}
+package "UsageInsights" as pkg_UsageInsights {
+}
+package "Utils" as pkg_Utils {
+}
+package "Validator" as pkg_Validator {
+}
+package "com" as pkg_com {
+  package "example" as pkg_com_example {
+    package "fractal" as pkg_com_example_fractal {
+    }
+  }
+}
+package "example" as pkg_example {
+}
+package "fractal" as pkg_fractal {
+}
+
+' Formal UML Package Dependencies
+pkg_AppFrontend_Interface_Home ..> pkg_AppBackend_ResourceManagement : <<imports>>
+pkg_AppFrontend_Interface_Home ..> pkg_AppBackend_ResourceManagement_ResourceManager : <<imports>>
+pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppBackend_Network_RegisteredInfo : <<imports>>
+pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppBackend_ResourceManagement : <<imports>>
+pkg_AppFrontend_Interface_Insights_DeviceInsights ..> pkg_AppFrontend_Interface_RewardBank : <<imports>>
+pkg_AppFrontend_Interface_Insights_ModelTraining ..> pkg_AppFrontend_Interface_Home : <<imports>>
+pkg_com_example_fractal ..> pkg_AppBackend_ResourceManagement : <<imports>>
 
 @enduml

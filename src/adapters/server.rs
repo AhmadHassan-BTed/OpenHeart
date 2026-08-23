@@ -457,6 +457,45 @@ impl OpenHeartServer {
             PlantUMLExporter::export_interaction_overview_diagram(&uma, &sta, &tca);
         let puml_timing = PlantUMLExporter::export_timing_diagram(&uma, &sta, &tca);
 
+        // Write out all 19 diagram formats (PUML, Mermaid, JSON Graph IR) to web/diagrams
+        let diag_dir = Path::new("web").join("diagrams");
+        let _ = fs::create_dir_all(&diag_dir);
+        let diag_engine = crate::scpg::diagram::UniversalDiagramEngine::new();
+        let all_diagram_types = [
+            "class", "object", "component", "deployment", "package", "composite",
+            "profile", "usecase", "activity", "statemachine", "sequence",
+            "communication", "interaction", "timing", "cfg", "robdd", "dfg", "cdg", "callgraph",
+        ];
+        for dtype in all_diagram_types {
+            if let Some(puml) = diag_engine.export_diagram(
+                crate::scpg::diagram::DiagramFormat::PlantUML,
+                dtype,
+                &uma,
+                &sta,
+                &tca,
+            ) {
+                let _ = fs::write(diag_dir.join(format!("{}.puml", dtype)), puml);
+            }
+            if let Some(mmd) = diag_engine.export_diagram(
+                crate::scpg::diagram::DiagramFormat::Mermaid,
+                dtype,
+                &uma,
+                &sta,
+                &tca,
+            ) {
+                let _ = fs::write(diag_dir.join(format!("{}.mmd", dtype)), mmd);
+            }
+            if let Some(json) = diag_engine.export_diagram(
+                crate::scpg::diagram::DiagramFormat::JSON,
+                dtype,
+                &uma,
+                &sta,
+                &tca,
+            ) {
+                let _ = fs::write(diag_dir.join(format!("{}.json", dtype)), json);
+            }
+        }
+
         let _ = fs::remove_dir_all(&tmp_path);
 
         let elapsed_ms = start_time.elapsed().as_millis();

@@ -430,49 +430,79 @@
       document.getElementById('btn-zoom-reset').addEventListener('click', () => canvas.resetView());
 
       // ── Dynamic GitHub Import & Analyze Action ──
-      const importRepo = (repoName) => {
+      const importRepo = async (repoUrl) => {
         const hudText = document.getElementById('hud-status-text');
         const hashBadge = document.getElementById('header-hash-badge');
-        
-        hudText.innerHTML = `Cloning &amp; Ingesting <strong>${repoName}</strong>...`;
-        
-        setTimeout(() => {
-          hudText.innerHTML = `Building CFG &amp; Dominators for <strong>${repoName}</strong>...`;
-        }, 300);
+        const btnImport = document.getElementById('btn-import-repo');
 
-        setTimeout(() => {
-          hudText.innerHTML = `Synthesizing ROBDD &amp; UML Projections...`;
-        }, 600);
+        const parts = repoUrl.trim().split('/');
+        const repoName = parts[parts.length - 1] || 'repository';
 
-        setTimeout(() => {
-          const newHash = '0x' + Math.floor(Math.random() * 0xFFFFFFFF).toString(16).toUpperCase();
-          hashBadge.innerText = `SCPG ${newHash} · Verified`;
-          hudText.innerHTML = `SCPG Generated for <strong>${repoName}</strong> · Ready`;
-          canvas.renderGraph(canvas.currentGraphType);
-        }, 900);
+        hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong> via Rust Compiler Pipeline...`;
+        if (btnImport) btnImport.disabled = true;
+
+        try {
+          const res = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repo_url: repoUrl,
+              diagram_types: ['class', 'package', 'component', 'activity', 'sequence', 'statemachine']
+            })
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+
+          const data = await res.json();
+          if (data.status === 'error' || (data.errors && data.errors.length > 0)) {
+            const errStr = (data.errors && data.errors.length) ? data.errors.join('; ') : 'Analysis failed';
+            hudText.innerHTML = `<span style="color: #ef4444;">Pipeline Error: ${errStr}</span>`;
+            return;
+          }
+
+          const scpgHash = '0x' + (data.session_id ? data.session_id.slice(-8).toUpperCase() : '9BAF8700');
+          hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
+          
+          const filesCount = data.stats ? data.stats.files_processed : 0;
+          const classesCount = data.stats ? data.stats.total_classes : 0;
+          const timeMs = data.stats ? data.stats.execution_time_ms : 0;
+
+          hudText.innerHTML = `SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms) · Ready`;
+
+          // Re-render current active diagram from fresh compiler Graph IR
+          await canvas.renderGraph(canvas.currentGraphType);
+
+        } catch (err) {
+          console.error('[OpenHeart Studio] Repo analysis error:', err);
+          hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}. OpenHeart server running?</span>`;
+        } finally {
+          if (btnImport) btnImport.disabled = false;
+        }
       };
 
       document.getElementById('btn-import-repo').addEventListener('click', () => {
         const url = document.getElementById('input-repo-url').value.trim();
-        const parts = url.split('/');
-        const repoName = parts[parts.length - 1] || 'imported-repository';
-        importRepo(repoName);
+        if (url) {
+          importRepo(url);
+        }
       });
 
       document.querySelectorAll('.preset-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
           const chipEl = e.currentTarget;
           const repo = chipEl.getAttribute('data-repo');
-          if (repo === 'petclinic') {
-            document.getElementById('input-repo-url').value = 'https://github.com/spring-projects/spring-petclinic';
-            importRepo('spring-petclinic');
-          } else if (repo === 'patterns') {
-            document.getElementById('input-repo-url').value = 'https://github.com/iluwatar/java-design-patterns';
-            importRepo('java-design-patterns');
-          } else {
-            document.getElementById('input-repo-url').value = 'https://github.com/example/payment-service';
-            importRepo('payment-service');
+          let targetUrl = 'https://github.com/spring-projects/spring-petclinic';
+          if (repo === 'patterns') {
+            targetUrl = 'https://github.com/iluwatar/java-design-patterns';
+          } else if (repo === 'fractal') {
+            targetUrl = 'https://github.com/Fractal-Compute-Orchestrations/FractalAndroid';
+          } else if (repo !== 'petclinic') {
+            targetUrl = 'https://github.com/example/payment-service';
           }
+          document.getElementById('input-repo-url').value = targetUrl;
+          importRepo(targetUrl);
         });
       });
     });
