@@ -17,9 +17,9 @@ export function generateUmlClassCardSvg(classData) {
     isDark = false
   } = classData;
 
-  const HEADER_HEIGHT = 44;
+  const HEADER_HEIGHT = 50;
   const ROW_HEIGHT = 22;
-  const PADDING_X = 16;
+  const PADDING_X = 18;
 
   let badgeText = stereotype.replace(/[<>]/g, '').trim();
   if (!badgeText) badgeText = kind;
@@ -35,11 +35,11 @@ export function generateUmlClassCardSvg(classData) {
     if (len > maxLineChars) maxLineChars = len;
   });
 
-  const dynamicWidth = Math.max(width, Math.min(950, Math.round(maxLineChars * 8.0 + 56)));
+  const dynamicWidth = Math.max(width, Math.min(950, Math.round(maxLineChars * 8.5 + 64)));
 
   const fieldsCount = Math.max(1, fields.length);
   const methodsCount = Math.max(1, methods.length);
-  const calculatedHeight = HEADER_HEIGHT + (fieldsCount * ROW_HEIGHT) + (methodsCount * ROW_HEIGHT) + 42;
+  const calculatedHeight = HEADER_HEIGHT + (fieldsCount * ROW_HEIGHT) + (methodsCount * ROW_HEIGHT) + 56;
   const cardHeight = Math.max(height, calculatedHeight);
 
   // Dynamic theme determination based strictly on AST kind
@@ -87,12 +87,12 @@ export function generateUmlClassCardSvg(classData) {
   <path d="M 1,9 Q 1,1 9,1 L ${dynamicWidth - 9},1 Q ${dynamicWidth - 1},1 ${dynamicWidth - 1},9 L ${dynamicWidth - 1},${HEADER_HEIGHT} L 1,${HEADER_HEIGHT} Z" fill="${headerBg}" />
   <line x1="1" y1="${HEADER_HEIGHT}" x2="${dynamicWidth - 1}" y2="${HEADER_HEIGHT}" stroke="${borderStroke}" stroke-width="1.2" />
 
-  <rect x="${dynamicWidth / 2 - 45}" y="5" width="90" height="13" rx="6.5" ry="6.5" fill="${stereotypeBg}" />
-  <text x="${dynamicWidth / 2}" y="14.5" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${stereotypeColor}" text-anchor="middle">&lt;&lt;${escapeXml(badgeText)}&gt;&gt;</text>
-  <text x="${dynamicWidth / 2}" y="33" font-family="JetBrains Mono, -apple-system, sans-serif" font-size="12" font-weight="700" fill="${titleColor}" text-anchor="middle">${escapeXml(name)}</text>
+  <rect x="${dynamicWidth / 2 - 50}" y="6" width="100" height="14" rx="7" ry="7" fill="${stereotypeBg}" />
+  <text x="${dynamicWidth / 2}" y="16.5" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${stereotypeColor}" text-anchor="middle">&lt;&lt;${escapeXml(badgeText)}&gt;&gt;</text>
+  <text x="${dynamicWidth / 2}" y="38" font-family="JetBrains Mono, -apple-system, sans-serif" font-size="12.5" font-weight="700" fill="${titleColor}" text-anchor="middle">${escapeXml(name)}</text>
 `;
 
-  let currentY = HEADER_HEIGHT + 14;
+  let currentY = HEADER_HEIGHT + 18;
   if (fields.length > 0) {
     fields.forEach((field) => {
       const { vis, text, color } = parseMemberRow(field);
@@ -114,9 +114,9 @@ export function generateUmlClassCardSvg(classData) {
     currentY += ROW_HEIGHT;
   }
 
-  currentY += 4;
+  currentY += 6;
   svg += `<line x1="1" y1="${currentY}" x2="${dynamicWidth - 1}" y2="${currentY}" stroke="${separatorColor}" stroke-width="1" stroke-dasharray="3 3"/>`;
-  currentY += 14;
+  currentY += 18;
 
   if (methods.length > 0) {
     methods.forEach((method) => {

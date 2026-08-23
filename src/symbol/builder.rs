@@ -110,11 +110,120 @@ impl SymbolTableBuilder {
     }
 
     pub fn add_th_edge(&mut self, from_sym: u32, to_sym: u32, relation: THRelation) {
+        if from_sym == to_sym {
+            return;
+        }
+
+        if self.th_edges.iter().any(|e| e.from_sym == from_sym && e.to_sym == to_sym && e.relation == relation) {
+            return;
+        }
+
         self.th_edges.push(TypeHierarchyEdge {
             from_sym,
             to_sym,
             relation,
         });
+    }
+
+    pub fn is_th_reachable(&self, start: u32, target: u32) -> bool {
+        if start == target {
+            return true;
+        }
+
+        let mut visited = std::collections::HashSet::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(start);
+        visited.insert(start);
+
+        while let Some(curr) = queue.pop_front() {
+            for edge in &self.th_edges {
+                if (edge.relation == THRelation::TH_EXTENDS || edge.relation == THRelation::TH_IMPLEMENTS)
+                    && edge.from_sym == curr
+                {
+                    if edge.to_sym == target {
+                        return true;
+                    }
+                    if visited.insert(edge.to_sym) {
+                        queue.push_back(edge.to_sym);
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Sanitizes the TH graph by removing any back-edges that create cycles,
+    /// mathematically guaranteeing that Kahn's topological sort visits 100% of nodes.
+    pub fn sanitize_th_graph(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.th_edges.retain(|edge| {
+            if edge.from_sym == edge.to_sym {
+                return false;
+            }
+            let key = (edge.from_sym, edge.to_sym, edge.relation as u8);
+            seen.insert(key)
+        });
+
+        loop {
+            let mut in_degree: HashMap<u32, usize> = HashMap::new();
+            let mut adj: HashMap<u32, Vec<u32>> = HashMap::new();
+
+            for edge in &self.th_edges {
+                if edge.relation == THRelation::TH_EXTENDS || edge.relation == THRelation::TH_IMPLEMENTS {
+                    in_degree.entry(edge.to_sym).or_insert(0);
+                    *in_degree.entry(edge.from_sym).or_insert(0) += 1;
+                    adj.entry(edge.to_sym).or_default().push(edge.from_sym);
+                }
+            }
+
+            let total_nodes = in_degree.len();
+            if total_nodes == 0 {
+                break;
+            }
+
+            let mut queue: Vec<u32> = in_degree
+                .iter()
+                .filter(|&(_, &deg)| deg == 0)
+                .map(|(&node, _)| node)
+                .collect();
+
+            let mut visited = std::collections::HashSet::new();
+
+            while let Some(node) = queue.pop() {
+                visited.insert(node);
+                if let Some(neighbors) = adj.get(&node) {
+                    for &neighbor in neighbors {
+                        if let Some(deg) = in_degree.get_mut(&neighbor) {
+                            *deg -= 1;
+                            if *deg == 0 {
+                                queue.push(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if visited.len() == total_nodes {
+                break;
+            }
+
+            let unvisited_nodes: std::collections::HashSet<u32> = in_degree
+                .keys()
+                .copied()
+                .filter(|n| !visited.contains(n))
+                .collect();
+
+            if let Some(idx) = self.th_edges.iter().position(|e| {
+                (e.relation == THRelation::TH_EXTENDS || e.relation == THRelation::TH_IMPLEMENTS)
+                    && unvisited_nodes.contains(&e.from_sym)
+                    && unvisited_nodes.contains(&e.to_sym)
+            }) {
+                self.th_edges.remove(idx);
+            } else {
+                break;
+            }
+        }
     }
 
     pub fn add_association(&mut self, assoc: UMLAssociationRecord) {

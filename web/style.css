@@ -460,6 +460,116 @@ html, body {
   background-size: 24px 24px;
 }
 
+/* ── Floating Relationship Layers & Filter Bar ── */
+.canvas-floating-layers-bar {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  padding: 8px 12px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100% - 28px);
+  pointer-events: auto;
+  transition: all 0.15s ease;
+}
+
+body.dark-theme .canvas-floating-layers-bar {
+  background: rgba(17, 24, 39, 0.96);
+  border-color: var(--border-medium);
+}
+
+.layers-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.layers-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.layers-quick-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-layers-action {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.btn-layers-action:hover {
+  background: var(--bg-muted);
+  color: var(--text-main);
+}
+
+.layers-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.layer-chip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.layer-chip-label:hover {
+  background: var(--bg-subtle);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.layer-chip-label input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.layer-chip-label.unchecked {
+  opacity: 0.38;
+  background: transparent !important;
+  border-style: dashed !important;
+  border-left-style: dashed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* Right Inspector Panel */
 .inspector-card {
   background: var(--bg-surface);

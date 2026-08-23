@@ -46,16 +46,16 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-participant "plugins" as part_plugins
 actor "ExternalActor" as act_ExternalActor
+participant "plugins" as part_plugins
 
 part_Actor -> part_plugins : onUploadSuccess()
 activate part_plugins
 part_plugins --> part_Actor : return
 deactivate part_plugins
+actor "ExternalActor" as act_ExternalActor
 participant "startLiveUpdates" as part_startLiveUpdates
 participant "plugins" as part_plugins
-actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_startLiveUpdates : run()
 activate part_startLiveUpdates
@@ -81,8 +81,8 @@ part_plugins -> part_plugins : startLiveUpdates()
 activate part_plugins
 part_plugins --> part_plugins : return
 deactivate part_plugins
-actor "ExternalActor" as act_ExternalActor
 participant "plugins" as part_plugins
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_plugins : POST_Ping()
 activate part_plugins
@@ -95,29 +95,29 @@ part_Actor -> part_PauseController : isPaused()
 activate part_PauseController
 part_PauseController --> part_Actor : return
 deactivate part_PauseController
-participant "PauseController" as part_PauseController
 actor "ExternalActor" as act_ExternalActor
+participant "PauseController" as part_PauseController
 
 part_Actor -> part_PauseController : isCancelled()
 activate part_PauseController
 part_PauseController --> part_Actor : return
 deactivate part_PauseController
-participant "DownloadListener" as part_DownloadListener
 actor "ExternalActor" as act_ExternalActor
+participant "DownloadListener" as part_DownloadListener
 
 part_Actor -> part_DownloadListener : onDownloadFinished()
 activate part_DownloadListener
 part_DownloadListener --> part_Actor : return
 deactivate part_DownloadListener
-actor "ExternalActor" as act_ExternalActor
 participant "DownloadListener" as part_DownloadListener
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DownloadListener : onError()
 activate part_DownloadListener
 part_DownloadListener --> part_Actor : return
 deactivate part_DownloadListener
-participant "DownloadListener" as part_DownloadListener
 actor "ExternalActor" as act_ExternalActor
+participant "DownloadListener" as part_DownloadListener
 
 part_Actor -> part_DownloadListener : onProgressUpdate()
 activate part_DownloadListener
@@ -144,22 +144,22 @@ part_Actor -> part_AppFrontend : withContext()
 activate part_AppFrontend
 part_AppFrontend --> part_Actor : return
 deactivate part_AppFrontend
-actor "ExternalActor" as act_ExternalActor
 participant "DiamondTrainingView" as part_DiamondTrainingView
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DiamondTrainingView : DiamondTrainingView()
 activate part_DiamondTrainingView
 part_DiamondTrainingView --> part_Actor : return
 deactivate part_DiamondTrainingView
-actor "ExternalActor" as act_ExternalActor
 participant "HomeViewModel" as part_HomeViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_HomeViewModel : HomeViewModel()
 activate part_HomeViewModel
 part_HomeViewModel --> part_Actor : return
 deactivate part_HomeViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "HomeViewModel" as part_HomeViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_HomeViewModel : getArchitectureModel()
 activate part_HomeViewModel
@@ -186,8 +186,8 @@ part_Actor -> part_HomeViewModel : getDetailedStats()
 activate part_HomeViewModel
 part_HomeViewModel --> part_Actor : return
 deactivate part_HomeViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "HomeViewModel" as part_HomeViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_HomeViewModel : getLiveStats()
 activate part_HomeViewModel
@@ -200,8 +200,8 @@ part_Actor -> part_TrainingStateRepository : TrainingStateRepository()
 activate part_TrainingStateRepository
 part_TrainingStateRepository --> part_Actor : return
 deactivate part_TrainingStateRepository
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceInsightsViewModel : DeviceInsightsViewModel()
 activate part_DeviceInsightsViewModel
@@ -214,8 +214,8 @@ part_Actor -> part_DeviceInsightsViewModel : getBatteryPercent()
 activate part_DeviceInsightsViewModel
 part_DeviceInsightsViewModel --> part_Actor : return
 deactivate part_DeviceInsightsViewModel
-participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
 actor "ExternalActor" as act_ExternalActor
+participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
 
 part_Actor -> part_DeviceInsightsViewModel : getIsCharging()
 activate part_DeviceInsightsViewModel
@@ -242,8 +242,8 @@ part_Actor -> part_DeviceInsightsViewModel : getIsCellular()
 activate part_DeviceInsightsViewModel
 part_DeviceInsightsViewModel --> part_Actor : return
 deactivate part_DeviceInsightsViewModel
-participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
 actor "ExternalActor" as act_ExternalActor
+participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
 
 part_Actor -> part_DeviceInsightsViewModel : getDeviceStandby()
 activate part_DeviceInsightsViewModel
@@ -277,9 +277,9 @@ part_Actor -> part_DeviceInsightsViewModel : getBgTasks()
 activate part_DeviceInsightsViewModel
 part_DeviceInsightsViewModel --> part_Actor : return
 deactivate part_DeviceInsightsViewModel
-participant "startLiveUpdates" as part_startLiveUpdates
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
+actor "ExternalActor" as act_ExternalActor
+participant "startLiveUpdates" as part_startLiveUpdates
 
 part_Actor -> part_startLiveUpdates : onReceive()
 activate part_startLiveUpdates
@@ -429,9 +429,9 @@ part_DeviceInsightsViewModel -> part_DeviceInsightsViewModel : startLiveUpdates(
 activate part_DeviceInsightsViewModel
 part_DeviceInsightsViewModel --> part_DeviceInsightsViewModel : return
 deactivate part_DeviceInsightsViewModel
-participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
 actor "ExternalActor" as act_ExternalActor
 participant "startLiveUpdates" as part_startLiveUpdates
+participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
 
 part_Actor -> part_startLiveUpdates : onCapabilitiesChanged()
 activate part_startLiveUpdates
@@ -597,9 +597,9 @@ part_DeviceInsightsViewModel -> part_DeviceInsightsViewModel : startLiveUpdates(
 activate part_DeviceInsightsViewModel
 part_DeviceInsightsViewModel --> part_DeviceInsightsViewModel : return
 deactivate part_DeviceInsightsViewModel
+actor "ExternalActor" as act_ExternalActor
 participant "startLiveUpdates" as part_startLiveUpdates
 participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
-actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_startLiveUpdates : onLost()
 activate part_startLiveUpdates
@@ -749,9 +749,9 @@ part_DeviceInsightsViewModel -> part_DeviceInsightsViewModel : startLiveUpdates(
 activate part_DeviceInsightsViewModel
 part_DeviceInsightsViewModel --> part_DeviceInsightsViewModel : return
 deactivate part_DeviceInsightsViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "startLiveUpdates" as part_startLiveUpdates
 participant "DeviceInsightsViewModel" as part_DeviceInsightsViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_startLiveUpdates : run()
 activate part_startLiveUpdates
@@ -892,8 +892,8 @@ part_Actor -> part_ModelTrainingViewModel : ModelTrainingViewModel()
 activate part_ModelTrainingViewModel
 part_ModelTrainingViewModel --> part_Actor : return
 deactivate part_ModelTrainingViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "ModelTrainingViewModel" as part_ModelTrainingViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ModelTrainingViewModel : getText()
 activate part_ModelTrainingViewModel
@@ -913,8 +913,8 @@ part_Actor -> part_HeartBeatView : updateStats()
 activate part_HeartBeatView
 part_HeartBeatView --> part_Actor : return
 deactivate part_HeartBeatView
-actor "ExternalActor" as act_ExternalActor
 participant "plugins" as part_plugins
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_plugins : generateRandomTargets()
 activate part_plugins
@@ -927,16 +927,16 @@ part_Actor -> part_FluidWaveLayout : set()
 activate part_FluidWaveLayout
 part_FluidWaveLayout --> part_Actor : return
 deactivate part_FluidWaveLayout
-participant "FluidWaveLayout" as part_FluidWaveLayout
 actor "ExternalActor" as act_ExternalActor
+participant "FluidWaveLayout" as part_FluidWaveLayout
 
 part_Actor -> part_FluidWaveLayout : set()
 activate part_FluidWaveLayout
 part_FluidWaveLayout --> part_Actor : return
 deactivate part_FluidWaveLayout
+participant "finalizeReset" as part_finalizeReset
 actor "ExternalActor" as act_ExternalActor
 participant "plugins" as part_plugins
-participant "finalizeReset" as part_finalizeReset
 
 part_Actor -> part_finalizeReset : withContext()
 activate part_finalizeReset
@@ -1098,16 +1098,16 @@ part_plugins -> part_plugins : finalizeReset()
 activate part_plugins
 part_plugins --> part_plugins : return
 deactivate part_plugins
-actor "ExternalActor" as act_ExternalActor
 participant "AppGlobal" as part_AppGlobal
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_AppGlobal : pingStatusCalculatorAndDispatcher()
 activate part_AppGlobal
 part_AppGlobal --> part_Actor : return
 deactivate part_AppGlobal
 participant "while" as part_while
-actor "ExternalActor" as act_ExternalActor
 participant "plugins" as part_plugins
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_while : onDownloadFinished()
 activate part_while
@@ -1317,9 +1317,9 @@ part_plugins -> part_plugins : while()
 activate part_plugins
 part_plugins --> part_plugins : return
 deactivate part_plugins
+participant "while" as part_while
 actor "ExternalActor" as act_ExternalActor
 participant "plugins" as part_plugins
-participant "while" as part_while
 
 part_Actor -> part_while : onError()
 activate part_while
@@ -1529,15 +1529,15 @@ part_plugins -> part_plugins : while()
 activate part_plugins
 part_plugins --> part_plugins : return
 deactivate part_plugins
-participant "while" as part_while
 actor "ExternalActor" as act_ExternalActor
+participant "while" as part_while
 
 part_Actor -> part_while : ()
 activate part_while
 part_while --> part_Actor : return
 deactivate part_while
-participant "while" as part_while
 participant "com" as part_com
+participant "while" as part_while
 actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_while : if()
@@ -1620,9 +1620,9 @@ part_com -> part_com : while()
 activate part_com
 part_com --> part_com : return
 deactivate part_com
-participant "com" as part_com
 actor "ExternalActor" as act_ExternalActor
 participant "while" as part_while
+participant "com" as part_com
 
 part_Actor -> part_while : if()
 activate part_while
@@ -1720,8 +1720,8 @@ part_Actor -> part_Image_DataInitializer : locadBatch()
 activate part_Image_DataInitializer
 part_Image_DataInitializer --> part_Actor : return
 deactivate part_Image_DataInitializer
-participant "Image_DataInitializer" as part_Image_DataInitializer
 actor "ExternalActor" as act_ExternalActor
+participant "Image_DataInitializer" as part_Image_DataInitializer
 
 part_Actor -> part_Image_DataInitializer : preprocess()
 activate part_Image_DataInitializer
@@ -1734,8 +1734,8 @@ part_Actor -> part_Image_DataInitializer_Factory : createDataInitializer()
 activate part_Image_DataInitializer_Factory
 part_Image_DataInitializer_Factory --> part_Actor : return
 deactivate part_Image_DataInitializer_Factory
-actor "ExternalActor" as act_ExternalActor
 participant "Builder" as part_Builder
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Builder : build()
 activate part_Builder
@@ -1748,8 +1748,8 @@ part_Actor -> part_Builder : make()
 activate part_Builder
 part_Builder --> part_Actor : return
 deactivate part_Builder
-actor "ExternalActor" as act_ExternalActor
 participant "PackageTypeTrainer" as part_PackageTypeTrainer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_PackageTypeTrainer : run()
 activate part_PackageTypeTrainer
@@ -1762,8 +1762,8 @@ part_Actor -> part_PackageTypeTrainerBuilder : build()
 activate part_PackageTypeTrainerBuilder
 part_PackageTypeTrainerBuilder --> part_Actor : return
 deactivate part_PackageTypeTrainerBuilder
-actor "ExternalActor" as act_ExternalActor
 participant "PackageTypeTrainerBuilder" as part_PackageTypeTrainerBuilder
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_PackageTypeTrainerBuilder : make()
 activate part_PackageTypeTrainerBuilder
@@ -1797,43 +1797,43 @@ part_Actor -> part_PackageTypeTrainerBuilder : addValidator()
 activate part_PackageTypeTrainerBuilder
 part_PackageTypeTrainerBuilder --> part_Actor : return
 deactivate part_PackageTypeTrainerBuilder
-actor "ExternalActor" as act_ExternalActor
 participant "PackageTypeTrainerBuilder" as part_PackageTypeTrainerBuilder
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_PackageTypeTrainerBuilder : buildFinal()
 activate part_PackageTypeTrainerBuilder
 part_PackageTypeTrainerBuilder --> part_Actor : return
 deactivate part_PackageTypeTrainerBuilder
-actor "ExternalActor" as act_ExternalActor
 participant "ImageTrainer" as part_ImageTrainer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ImageTrainer : setUpTrainer()
 activate part_ImageTrainer
 part_ImageTrainer --> part_Actor : return
 deactivate part_ImageTrainer
-actor "ExternalActor" as act_ExternalActor
 participant "ImageTrainer" as part_ImageTrainer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ImageTrainer : loadModelFile()
 activate part_ImageTrainer
 part_ImageTrainer --> part_Actor : return
 deactivate part_ImageTrainer
-participant "ImageTrainer" as part_ImageTrainer
 actor "ExternalActor" as act_ExternalActor
+participant "ImageTrainer" as part_ImageTrainer
 
 part_Actor -> part_ImageTrainer : loadModel()
 activate part_ImageTrainer
 part_ImageTrainer --> part_Actor : return
 deactivate part_ImageTrainer
-participant "ImageTrainer" as part_ImageTrainer
 actor "ExternalActor" as act_ExternalActor
+participant "ImageTrainer" as part_ImageTrainer
 
 part_Actor -> part_ImageTrainer : initializeWeights()
 activate part_ImageTrainer
 part_ImageTrainer --> part_Actor : return
 deactivate part_ImageTrainer
-participant "ImageTrainer" as part_ImageTrainer
 actor "ExternalActor" as act_ExternalActor
+participant "ImageTrainer" as part_ImageTrainer
 
 part_Actor -> part_ImageTrainer : trainModel()
 activate part_ImageTrainer
@@ -1867,15 +1867,15 @@ part_Actor -> part_Trainer : loadModel()
 activate part_Trainer
 part_Trainer --> part_Actor : return
 deactivate part_Trainer
-actor "ExternalActor" as act_ExternalActor
 participant "Trainer" as part_Trainer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Trainer : initializeWeights()
 activate part_Trainer
 part_Trainer --> part_Actor : return
 deactivate part_Trainer
-actor "ExternalActor" as act_ExternalActor
 participant "Trainer" as part_Trainer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Trainer : trainModel()
 activate part_Trainer
@@ -1895,8 +1895,8 @@ part_Actor -> part_TrainingCallback : onProgress()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-participant "TrainingCallback" as part_TrainingCallback
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingCallback" as part_TrainingCallback
 
 part_Actor -> part_TrainingCallback : onStatusUpdate()
 activate part_TrainingCallback
@@ -1909,8 +1909,8 @@ part_Actor -> part_TrainingCallback : onValidationUpdate()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-participant "TrainingCallback" as part_TrainingCallback
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingCallback" as part_TrainingCallback
 
 part_Actor -> part_TrainingCallback : onEpochUpdate()
 activate part_TrainingCallback
@@ -1930,8 +1930,8 @@ part_Actor -> part_TrainingCallback : isCancelled()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingCallback" as part_TrainingCallback
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingCallback : onWaitingStateChanged()
 activate part_TrainingCallback
@@ -1944,8 +1944,8 @@ part_Actor -> part_TrainingCallback : checkLiveConditions()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-participant "TrainingCallback" as part_TrainingCallback
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingCallback" as part_TrainingCallback
 
 part_Actor -> part_TrainingCallback : onTaskAcquired()
 activate part_TrainingCallback
@@ -1965,8 +1965,8 @@ part_Actor -> part_ModelTransmitter : transmitModel()
 activate part_ModelTransmitter
 part_ModelTransmitter --> part_Actor : return
 deactivate part_ModelTransmitter
-participant "RegistrationManager" as part_RegistrationManager
 actor "ExternalActor" as act_ExternalActor
+participant "RegistrationManager" as part_RegistrationManager
 
 part_Actor -> part_RegistrationManager : startLiveUpdates()
 activate part_RegistrationManager
@@ -1979,29 +1979,29 @@ part_Actor -> part_Runnable : run()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-actor "ExternalActor" as act_ExternalActor
 participant "Runnable" as part_Runnable
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Runnable : stopLiveUpdates()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-actor "ExternalActor" as act_ExternalActor
 participant "Runnable" as part_Runnable
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Runnable : generateNewRegistrationData()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-actor "ExternalActor" as act_ExternalActor
 participant "Runnable" as part_Runnable
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Runnable : getHardwareId()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-actor "ExternalActor" as act_ExternalActor
 participant "Runnable" as part_Runnable
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Runnable : getSerial()
 activate part_Runnable
@@ -2014,8 +2014,8 @@ part_Actor -> part_Runnable : getTotalRAM()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-participant "Runnable" as part_Runnable
 actor "ExternalActor" as act_ExternalActor
+participant "Runnable" as part_Runnable
 
 part_Actor -> part_Runnable : getTotalInternalMemorySize()
 activate part_Runnable
@@ -2028,57 +2028,57 @@ part_Actor -> part_Runnable : getProcessorName()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-actor "ExternalActor" as act_ExternalActor
 participant "Runnable" as part_Runnable
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Runnable : getMacAddress()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-actor "ExternalActor" as act_ExternalActor
 participant "Runnable" as part_Runnable
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Runnable : formatSize()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-participant "Runnable" as part_Runnable
 actor "ExternalActor" as act_ExternalActor
+participant "Runnable" as part_Runnable
 
 part_Actor -> part_Runnable : loadRegistrationData()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-participant "Runnable" as part_Runnable
 actor "ExternalActor" as act_ExternalActor
+participant "Runnable" as part_Runnable
 
 part_Actor -> part_Runnable : saveRegistrationData()
 activate part_Runnable
 part_Runnable --> part_Actor : return
 deactivate part_Runnable
-participant "Auth" as part_Auth
 actor "ExternalActor" as act_ExternalActor
+participant "Auth" as part_Auth
 
 part_Actor -> part_Auth : POST_RegisterLogin()
 activate part_Auth
 part_Auth --> part_Actor : return
 deactivate part_Auth
-participant "Auth" as part_Auth
 actor "ExternalActor" as act_ExternalActor
+participant "Auth" as part_Auth
 
 part_Actor -> part_Auth : GET_RegisteredInfo()
 activate part_Auth
 part_Auth --> part_Actor : return
 deactivate part_Auth
-actor "ExternalActor" as act_ExternalActor
 participant "Auth" as part_Auth
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Auth : POST_ForgetPassword_sendEmail()
 activate part_Auth
 part_Auth --> part_Actor : return
 deactivate part_Auth
-participant "Auth" as part_Auth
 actor "ExternalActor" as act_ExternalActor
+participant "Auth" as part_Auth
 
 part_Actor -> part_Auth : POST_Forgetpassword_verifyEmail()
 activate part_Auth
@@ -2112,8 +2112,8 @@ part_Actor -> part_Server_DAO : GET_Task()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-participant "Server_DAO" as part_Server_DAO
 actor "ExternalActor" as act_ExternalActor
+participant "Server_DAO" as part_Server_DAO
 
 part_Actor -> part_Server_DAO : POST_UploadModelToServer()
 activate part_Server_DAO
@@ -2133,22 +2133,22 @@ part_Actor -> part_Server_DAO : POST_RegisterLogin()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-actor "ExternalActor" as act_ExternalActor
 participant "Server_DAO" as part_Server_DAO
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Server_DAO : GET_RegisteredInfo()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-actor "ExternalActor" as act_ExternalActor
 participant "Server_DAO" as part_Server_DAO
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Server_DAO : POST_Forgetpassword_verifyEmail()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-participant "Server_DAO" as part_Server_DAO
 actor "ExternalActor" as act_ExternalActor
+participant "Server_DAO" as part_Server_DAO
 
 part_Actor -> part_Server_DAO : POST_ForgetPassword_sendEmail()
 activate part_Server_DAO
@@ -2161,22 +2161,22 @@ part_Actor -> part_Server_DAO : GET_VerifiedLiquidMBs()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-actor "ExternalActor" as act_ExternalActor
 participant "Server_DAO" as part_Server_DAO
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Server_DAO : POST_Unregister()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-actor "ExternalActor" as act_ExternalActor
 participant "Server_DAO" as part_Server_DAO
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Server_DAO : POST_SendRegisteredInfo()
 activate part_Server_DAO
 part_Server_DAO --> part_Actor : return
 deactivate part_Server_DAO
-participant "TaskPopulate" as part_TaskPopulate
 actor "ExternalActor" as act_ExternalActor
+participant "TaskPopulate" as part_TaskPopulate
 
 part_Actor -> part_TaskPopulate : GET_Task()
 activate part_TaskPopulate
@@ -2189,15 +2189,15 @@ part_Actor -> part_networkConfig_ini : getBaseUrl()
 activate part_networkConfig_ini
 part_networkConfig_ini --> part_Actor : return
 deactivate part_networkConfig_ini
-participant "Parser" as part_Parser
 actor "ExternalActor" as act_ExternalActor
+participant "Parser" as part_Parser
 
 part_Actor -> part_Parser : read()
 activate part_Parser
 part_Parser --> part_Actor : return
 deactivate part_Parser
-actor "ExternalActor" as act_ExternalActor
 participant "Parser" as part_Parser
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Parser : fullScan()
 activate part_Parser
@@ -2217,29 +2217,29 @@ part_Actor -> part_Parser : discoverProcGpuNodes()
 activate part_Parser
 part_Parser --> part_Actor : return
 deactivate part_Parser
-actor "ExternalActor" as act_ExternalActor
 participant "Parser" as part_Parser
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Parser : tryCandidate()
 activate part_Parser
 part_Parser --> part_Actor : return
 deactivate part_Parser
-actor "ExternalActor" as act_ExternalActor
 participant "Parser" as part_Parser
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Parser : tryParseFile()
 activate part_Parser
 part_Parser --> part_Actor : return
 deactivate part_Parser
-actor "ExternalActor" as act_ExternalActor
 participant "Parser" as part_Parser
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Parser : parseRaw()
 activate part_Parser
 part_Parser --> part_Actor : return
 deactivate part_Parser
-participant "OperationControl" as part_OperationControl
 actor "ExternalActor" as act_ExternalActor
+participant "OperationControl" as part_OperationControl
 
 part_Actor -> part_OperationControl : waitForOptimalConditions()
 activate part_OperationControl
@@ -2252,15 +2252,15 @@ part_Actor -> part_OperationControl : waitForNetworkToUpload()
 activate part_OperationControl
 part_OperationControl --> part_Actor : return
 deactivate part_OperationControl
-actor "ExternalActor" as act_ExternalActor
 participant "OperationControl" as part_OperationControl
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_OperationControl : evaluateNetworkOnly()
 activate part_OperationControl
 part_OperationControl --> part_Actor : return
 deactivate part_OperationControl
-participant "OperationControl" as part_OperationControl
 actor "ExternalActor" as act_ExternalActor
+participant "OperationControl" as part_OperationControl
 
 part_Actor -> part_OperationControl : evaluateDeviceState()
 activate part_OperationControl
@@ -2301,8 +2301,8 @@ part_Actor -> part_Image_Task : save_data()
 activate part_Image_Task
 part_Image_Task --> part_Actor : return
 deactivate part_Image_Task
-participant "Image_Task_Factory" as part_Image_Task_Factory
 actor "ExternalActor" as act_ExternalActor
+participant "Image_Task_Factory" as part_Image_Task_Factory
 
 part_Actor -> part_Image_Task_Factory : createTask()
 activate part_Image_Task_Factory
@@ -2315,15 +2315,15 @@ part_Actor -> part_Task : save_data()
 activate part_Task
 part_Task --> part_Actor : return
 deactivate part_Task
-participant "Task_Factory" as part_Task_Factory
 actor "ExternalActor" as act_ExternalActor
+participant "Task_Factory" as part_Task_Factory
 
 part_Actor -> part_Task_Factory : createTask()
 activate part_Task_Factory
 part_Task_Factory --> part_Actor : return
 deactivate part_Task_Factory
-actor "ExternalActor" as act_ExternalActor
 participant "Image_InferenceValidator" as part_Image_InferenceValidator
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Image_InferenceValidator : infer()
 activate part_Image_InferenceValidator
@@ -2336,8 +2336,8 @@ part_Actor -> part_Image_InferenceValidator : inferImageInferenceValidate()
 activate part_Image_InferenceValidator
 part_Image_InferenceValidator --> part_Actor : return
 deactivate part_Image_InferenceValidator
-actor "ExternalActor" as act_ExternalActor
 participant "Image_InferenceValidator_Factory" as part_Image_InferenceValidator_Factory
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Image_InferenceValidator_Factory : createInferenceValidator()
 activate part_Image_InferenceValidator_Factory
@@ -2350,8 +2350,8 @@ part_Actor -> part_InferenceValidator : infer()
 activate part_InferenceValidator
 part_InferenceValidator --> part_Actor : return
 deactivate part_InferenceValidator
-actor "ExternalActor" as act_ExternalActor
 participant "InferenceValidator_Factory" as part_InferenceValidator_Factory
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_InferenceValidator_Factory : createInferenceValidator()
 activate part_InferenceValidator_Factory
@@ -2371,8 +2371,8 @@ part_Actor -> part_AboutUs_Fragment : onViewCreated()
 activate part_AboutUs_Fragment
 part_AboutUs_Fragment --> part_Actor : return
 deactivate part_AboutUs_Fragment
-participant "AboutUs_Fragment" as part_AboutUs_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "AboutUs_Fragment" as part_AboutUs_Fragment
 
 part_Actor -> part_AboutUs_Fragment : setupClickListeners()
 activate part_AboutUs_Fragment
@@ -2392,8 +2392,8 @@ part_Actor -> part_AboutUs_Fragment : onDestroyView()
 activate part_AboutUs_Fragment
 part_AboutUs_Fragment --> part_Actor : return
 deactivate part_AboutUs_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceAuthorization_Fragment" as part_DeviceAuthorization_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceAuthorization_Fragment : onCreateView()
 activate part_DeviceAuthorization_Fragment
@@ -2406,8 +2406,8 @@ part_Actor -> part_DeviceAuthorization_Fragment : onViewCreated()
 activate part_DeviceAuthorization_Fragment
 part_DeviceAuthorization_Fragment --> part_Actor : return
 deactivate part_DeviceAuthorization_Fragment
-participant "DeviceAuthorization_Fragment" as part_DeviceAuthorization_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "DeviceAuthorization_Fragment" as part_DeviceAuthorization_Fragment
 
 part_Actor -> part_DeviceAuthorization_Fragment : onResume()
 activate part_DeviceAuthorization_Fragment
@@ -2441,8 +2441,8 @@ part_Actor -> part_DeviceAuthorization_Fragment : fixPasswordFont()
 activate part_DeviceAuthorization_Fragment
 part_DeviceAuthorization_Fragment --> part_Actor : return
 deactivate part_DeviceAuthorization_Fragment
-participant "DeviceAuthorization_Fragment" as part_DeviceAuthorization_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "DeviceAuthorization_Fragment" as part_DeviceAuthorization_Fragment
 
 part_Actor -> part_DeviceAuthorization_Fragment : button_LoginRegister()
 activate part_DeviceAuthorization_Fragment
@@ -2455,15 +2455,15 @@ part_Actor -> part_DeviceAuthorization_Fragment : onDestroyView()
 activate part_DeviceAuthorization_Fragment
 part_DeviceAuthorization_Fragment --> part_Actor : return
 deactivate part_DeviceAuthorization_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceAuthorization_ViewModel" as part_DeviceAuthorization_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceAuthorization_ViewModel : loginRegister()
 activate part_DeviceAuthorization_ViewModel
 part_DeviceAuthorization_ViewModel --> part_Actor : return
 deactivate part_DeviceAuthorization_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceAuthorization_ViewModel" as part_DeviceAuthorization_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceAuthorization_ViewModel : startPollingForVerification()
 activate part_DeviceAuthorization_ViewModel
@@ -2476,8 +2476,8 @@ part_Actor -> part_DeviceAuthorization_ViewModel : updateAuthStatus()
 activate part_DeviceAuthorization_ViewModel
 part_DeviceAuthorization_ViewModel --> part_Actor : return
 deactivate part_DeviceAuthorization_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceAuthorization_ViewModel" as part_DeviceAuthorization_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceAuthorization_ViewModel : onCleared()
 activate part_DeviceAuthorization_ViewModel
@@ -2490,8 +2490,8 @@ part_Actor -> part_DeviceUnregister_Fragment : onCreateView()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceUnregister_Fragment : onViewCreated()
 activate part_DeviceUnregister_Fragment
@@ -2504,29 +2504,29 @@ part_Actor -> part_DeviceUnregister_Fragment : onStart()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
 
 part_Actor -> part_DeviceUnregister_Fragment : onStop()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
 
 part_Actor -> part_DeviceUnregister_Fragment : onResume()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceUnregister_Fragment : enforceAuthenticationUI()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceUnregister_Fragment : setupObservers()
 activate part_DeviceUnregister_Fragment
@@ -2539,8 +2539,8 @@ part_Actor -> part_DeviceUnregister_Fragment : setupClickListeners()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceUnregister_Fragment" as part_DeviceUnregister_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceUnregister_Fragment : button_unregister()
 activate part_DeviceUnregister_Fragment
@@ -2560,15 +2560,15 @@ part_Actor -> part_DeviceUnregister_Fragment : onDestroyView()
 activate part_DeviceUnregister_Fragment
 part_DeviceUnregister_Fragment --> part_Actor : return
 deactivate part_DeviceUnregister_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "DeviceUnregister_ViewModel" as part_DeviceUnregister_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DeviceUnregister_ViewModel : unregister()
 activate part_DeviceUnregister_ViewModel
 part_DeviceUnregister_ViewModel --> part_Actor : return
 deactivate part_DeviceUnregister_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "ForgetPassword_Fragment" as part_ForgetPassword_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ForgetPassword_Fragment : onCreateView()
 activate part_ForgetPassword_Fragment
@@ -2637,8 +2637,8 @@ part_Actor -> part_ForgetPassword_ViewModel : recover()
 activate part_ForgetPassword_ViewModel
 part_ForgetPassword_ViewModel --> part_Actor : return
 deactivate part_ForgetPassword_ViewModel
-participant "GetStarted_Fragment" as part_GetStarted_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "GetStarted_Fragment" as part_GetStarted_Fragment
 
 part_Actor -> part_GetStarted_Fragment : onCreateView()
 activate part_GetStarted_Fragment
@@ -2679,15 +2679,15 @@ part_Actor -> part_ModelTrainer : loadBatch()
 activate part_ModelTrainer
 part_ModelTrainer --> part_Actor : return
 deactivate part_ModelTrainer
-actor "ExternalActor" as act_ExternalActor
 participant "ModelTrainer" as part_ModelTrainer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ModelTrainer : initializeWeights()
 activate part_ModelTrainer
 part_ModelTrainer --> part_Actor : return
 deactivate part_ModelTrainer
-participant "ModelTrainer" as part_ModelTrainer
 actor "ExternalActor" as act_ExternalActor
+participant "ModelTrainer" as part_ModelTrainer
 
 part_Actor -> part_ModelTrainer : trainModel()
 activate part_ModelTrainer
@@ -2721,8 +2721,8 @@ part_Actor -> part_ModelTrainer : cleanup()
 activate part_ModelTrainer
 part_ModelTrainer --> part_Actor : return
 deactivate part_ModelTrainer
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingCallback" as part_TrainingCallback
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingCallback : onProgress()
 activate part_TrainingCallback
@@ -2735,22 +2735,22 @@ part_Actor -> part_TrainingCallback : onLog()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingCallback" as part_TrainingCallback
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingCallback : initializeInterpreter()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingCallback" as part_TrainingCallback
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingCallback : trainModel()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingCallback" as part_TrainingCallback
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingCallback : loadBatchFromFile()
 activate part_TrainingCallback
@@ -2763,8 +2763,8 @@ part_Actor -> part_TrainingCallback : inferModel()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-participant "InsightsPagerAdapter" as part_InsightsPagerAdapter
 actor "ExternalActor" as act_ExternalActor
+participant "InsightsPagerAdapter" as part_InsightsPagerAdapter
 
 part_Actor -> part_InsightsPagerAdapter : createFragment()
 activate part_InsightsPagerAdapter
@@ -2777,8 +2777,8 @@ part_Actor -> part_InsightsPagerFragment : onCreateView()
 activate part_InsightsPagerFragment
 part_InsightsPagerFragment --> part_Actor : return
 deactivate part_InsightsPagerFragment
-participant "InsightsPagerFragment" as part_InsightsPagerFragment
 actor "ExternalActor" as act_ExternalActor
+participant "InsightsPagerFragment" as part_InsightsPagerFragment
 
 part_Actor -> part_InsightsPagerFragment : onViewCreated()
 activate part_InsightsPagerFragment
@@ -2805,15 +2805,15 @@ part_Actor -> part_ViewPager2 : setIndicatorState()
 activate part_ViewPager2
 part_ViewPager2 --> part_Actor : return
 deactivate part_ViewPager2
-participant "ViewPager2" as part_ViewPager2
 actor "ExternalActor" as act_ExternalActor
+participant "ViewPager2" as part_ViewPager2
 
 part_Actor -> part_ViewPager2 : onDestroyView()
 activate part_ViewPager2
 part_ViewPager2 --> part_Actor : return
 deactivate part_ViewPager2
-participant "TrainingWaveView" as part_TrainingWaveView
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingWaveView" as part_TrainingWaveView
 
 part_Actor -> part_TrainingWaveView : setActive()
 activate part_TrainingWaveView
@@ -2826,15 +2826,15 @@ part_Actor -> part_WaveLayer : onDraw()
 activate part_WaveLayer
 part_WaveLayer --> part_Actor : return
 deactivate part_WaveLayer
-participant "WaveLayer" as part_WaveLayer
 actor "ExternalActor" as act_ExternalActor
+participant "WaveLayer" as part_WaveLayer
 
 part_Actor -> part_WaveLayer : drawWave()
 activate part_WaveLayer
 part_WaveLayer --> part_Actor : return
 deactivate part_WaveLayer
-actor "ExternalActor" as act_ExternalActor
 participant "HeartBeatView" as part_HeartBeatView
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_HeartBeatView : setActive()
 activate part_HeartBeatView
@@ -2854,8 +2854,8 @@ part_Actor -> part_HeartBeatView : onDraw()
 activate part_HeartBeatView
 part_HeartBeatView --> part_Actor : return
 deactivate part_HeartBeatView
-participant "ResourceStatsChartView" as part_ResourceStatsChartView
 actor "ExternalActor" as act_ExternalActor
+participant "ResourceStatsChartView" as part_ResourceStatsChartView
 
 part_Actor -> part_ResourceStatsChartView : updateStats()
 activate part_ResourceStatsChartView
@@ -2868,8 +2868,8 @@ part_Actor -> part_ResourceStatsChartView : onDraw()
 activate part_ResourceStatsChartView
 part_ResourceStatsChartView --> part_Actor : return
 deactivate part_ResourceStatsChartView
-actor "ExternalActor" as act_ExternalActor
 participant "ResourceStatsChartView" as part_ResourceStatsChartView
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_ResourceStatsChartView : generateRandomTargets()
 activate part_ResourceStatsChartView
@@ -2882,8 +2882,8 @@ part_Actor -> part_ResourceStatsChartView : onAttachedToWindow()
 activate part_ResourceStatsChartView
 part_ResourceStatsChartView --> part_Actor : return
 deactivate part_ResourceStatsChartView
-participant "ResourceStatsChartView" as part_ResourceStatsChartView
 actor "ExternalActor" as act_ExternalActor
+participant "ResourceStatsChartView" as part_ResourceStatsChartView
 
 part_Actor -> part_ResourceStatsChartView : onDetachedFromWindow()
 activate part_ResourceStatsChartView
@@ -2896,8 +2896,8 @@ part_Actor -> part_UsageInsights_Fragment : onCreateView()
 activate part_UsageInsights_Fragment
 part_UsageInsights_Fragment --> part_Actor : return
 deactivate part_UsageInsights_Fragment
-participant "UsageInsights_Fragment" as part_UsageInsights_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "UsageInsights_Fragment" as part_UsageInsights_Fragment
 
 part_Actor -> part_UsageInsights_Fragment : onViewCreated()
 activate part_UsageInsights_Fragment
@@ -2910,29 +2910,29 @@ part_Actor -> part_UsageInsights_Fragment : onDestroyView()
 activate part_UsageInsights_Fragment
 part_UsageInsights_Fragment --> part_Actor : return
 deactivate part_UsageInsights_Fragment
-participant "UsageInsights_ViewModel" as part_UsageInsights_ViewModel
 actor "ExternalActor" as act_ExternalActor
+participant "UsageInsights_ViewModel" as part_UsageInsights_ViewModel
 
 part_Actor -> part_UsageInsights_ViewModel : transformLiveStats()
 activate part_UsageInsights_ViewModel
 part_UsageInsights_ViewModel --> part_Actor : return
 deactivate part_UsageInsights_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "UsageInsights_ViewModel" as part_UsageInsights_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_UsageInsights_ViewModel : getRomUsagePercentage()
 activate part_UsageInsights_ViewModel
 part_UsageInsights_ViewModel --> part_Actor : return
 deactivate part_UsageInsights_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "RegisteredInfo_Fragment" as part_RegisteredInfo_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_RegisteredInfo_Fragment : onCreateView()
 activate part_RegisteredInfo_Fragment
 part_RegisteredInfo_Fragment --> part_Actor : return
 deactivate part_RegisteredInfo_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "RegisteredInfo_Fragment" as part_RegisteredInfo_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_RegisteredInfo_Fragment : onViewCreated()
 activate part_RegisteredInfo_Fragment
@@ -2959,15 +2959,15 @@ part_Actor -> part_RegisteredInfo_Fragment : updateUiStats()
 activate part_RegisteredInfo_Fragment
 part_RegisteredInfo_Fragment --> part_Actor : return
 deactivate part_RegisteredInfo_Fragment
-participant "RegisteredInfo_Fragment" as part_RegisteredInfo_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "RegisteredInfo_Fragment" as part_RegisteredInfo_Fragment
 
 part_Actor -> part_RegisteredInfo_Fragment : onDestroyView()
 activate part_RegisteredInfo_Fragment
 part_RegisteredInfo_Fragment --> part_Actor : return
 deactivate part_RegisteredInfo_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "RegisteredInfo_ViewModel" as part_RegisteredInfo_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_RegisteredInfo_ViewModel : refreshFirebaseData()
 activate part_RegisteredInfo_ViewModel
@@ -2994,8 +2994,8 @@ part_Actor -> part_RegisteredInfo_ViewModel : stopLiveHardwareUpdates()
 activate part_RegisteredInfo_ViewModel
 part_RegisteredInfo_ViewModel --> part_Actor : return
 deactivate part_RegisteredInfo_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "Choreographer" as part_Choreographer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Choreographer : doFrame()
 activate part_Choreographer
@@ -3015,8 +3015,8 @@ part_Actor -> part_Choreographer : onDetachedFromWindow()
 activate part_Choreographer
 part_Choreographer --> part_Actor : return
 deactivate part_Choreographer
-participant "Choreographer" as part_Choreographer
 actor "ExternalActor" as act_ExternalActor
+participant "Choreographer" as part_Choreographer
 
 part_Actor -> part_Choreographer : updatePhysics()
 activate part_Choreographer
@@ -3043,22 +3043,22 @@ part_Actor -> part_Choreographer : spawnSplatters()
 activate part_Choreographer
 part_Choreographer --> part_Actor : return
 deactivate part_Choreographer
-participant "Choreographer" as part_Choreographer
 actor "ExternalActor" as act_ExternalActor
+participant "Choreographer" as part_Choreographer
 
 part_Actor -> part_Choreographer : getLocalPercentage()
 activate part_Choreographer
 part_Choreographer --> part_Actor : return
 deactivate part_Choreographer
-actor "ExternalActor" as act_ExternalActor
 participant "Choreographer" as part_Choreographer
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Choreographer : getSurgeCrest()
 activate part_Choreographer
 part_Choreographer --> part_Actor : return
 deactivate part_Choreographer
-participant "Choreographer" as part_Choreographer
 actor "ExternalActor" as act_ExternalActor
+participant "Choreographer" as part_Choreographer
 
 part_Actor -> part_Choreographer : buildWavePath()
 activate part_Choreographer
@@ -3071,8 +3071,8 @@ part_Actor -> part_Choreographer : onDraw()
 activate part_Choreographer
 part_Choreographer --> part_Actor : return
 deactivate part_Choreographer
-participant "Choreographer" as part_Choreographer
 actor "ExternalActor" as act_ExternalActor
+participant "Choreographer" as part_Choreographer
 
 part_Actor -> part_Choreographer : dispatchDraw()
 activate part_Choreographer
@@ -3099,8 +3099,8 @@ part_Actor -> part_RewardBank_Fragment : checkAuthStatus()
 activate part_RewardBank_Fragment
 part_RewardBank_Fragment --> part_Actor : return
 deactivate part_RewardBank_Fragment
-participant "RewardBank_Fragment" as part_RewardBank_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "RewardBank_Fragment" as part_RewardBank_Fragment
 
 part_Actor -> part_RewardBank_Fragment : setupObservers()
 activate part_RewardBank_Fragment
@@ -3113,22 +3113,22 @@ part_Actor -> part_RewardBank_Fragment : setupClickListeners()
 activate part_RewardBank_Fragment
 part_RewardBank_Fragment --> part_Actor : return
 deactivate part_RewardBank_Fragment
-participant "RewardBank_Fragment" as part_RewardBank_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "RewardBank_Fragment" as part_RewardBank_Fragment
 
 part_Actor -> part_RewardBank_Fragment : onDestroyView()
 activate part_RewardBank_Fragment
 part_RewardBank_Fragment --> part_Actor : return
 deactivate part_RewardBank_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "RewardBank_ViewModel" as part_RewardBank_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_RewardBank_ViewModel : getInstance()
 activate part_RewardBank_ViewModel
 part_RewardBank_ViewModel --> part_Actor : return
 deactivate part_RewardBank_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "BroadcastReceiver" as part_BroadcastReceiver
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_BroadcastReceiver : onReceive()
 activate part_BroadcastReceiver
@@ -3141,15 +3141,15 @@ part_Actor -> part_BroadcastReceiver : startLiveSync()
 activate part_BroadcastReceiver
 part_BroadcastReceiver --> part_Actor : return
 deactivate part_BroadcastReceiver
-actor "ExternalActor" as act_ExternalActor
 participant "BroadcastReceiver" as part_BroadcastReceiver
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_BroadcastReceiver : stopLiveSync()
 activate part_BroadcastReceiver
 part_BroadcastReceiver --> part_Actor : return
 deactivate part_BroadcastReceiver
-participant "BroadcastReceiver" as part_BroadcastReceiver
 actor "ExternalActor" as act_ExternalActor
+participant "BroadcastReceiver" as part_BroadcastReceiver
 
 part_Actor -> part_BroadcastReceiver : animateToNewValues()
 activate part_BroadcastReceiver
@@ -3169,22 +3169,22 @@ part_Actor -> part_BroadcastReceiver : getCurrentDateStr()
 activate part_BroadcastReceiver
 part_BroadcastReceiver --> part_Actor : return
 deactivate part_BroadcastReceiver
-actor "ExternalActor" as act_ExternalActor
 participant "BroadcastReceiver" as part_BroadcastReceiver
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_BroadcastReceiver : checkAndResetIfNewDay()
 activate part_BroadcastReceiver
 part_BroadcastReceiver --> part_Actor : return
 deactivate part_BroadcastReceiver
-actor "ExternalActor" as act_ExternalActor
 participant "BroadcastReceiver" as part_BroadcastReceiver
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_BroadcastReceiver : animateFlushToZero()
 activate part_BroadcastReceiver
 part_BroadcastReceiver --> part_Actor : return
 deactivate part_BroadcastReceiver
-actor "ExternalActor" as act_ExternalActor
 participant "BroadcastReceiver" as part_BroadcastReceiver
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_BroadcastReceiver : finalizeReset()
 activate part_BroadcastReceiver
@@ -3204,8 +3204,8 @@ part_Actor -> part_BroadcastReceiver : verifyVaporToLiquid()
 activate part_BroadcastReceiver
 part_BroadcastReceiver --> part_Actor : return
 deactivate part_BroadcastReceiver
-actor "ExternalActor" as act_ExternalActor
 participant "BroadcastReceiver" as part_BroadcastReceiver
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_BroadcastReceiver : refreshUI()
 activate part_BroadcastReceiver
@@ -3225,22 +3225,22 @@ part_Actor -> part_Settings_Fragment : onViewCreated()
 activate part_Settings_Fragment
 part_Settings_Fragment --> part_Actor : return
 deactivate part_Settings_Fragment
-participant "Settings_Fragment" as part_Settings_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "Settings_Fragment" as part_Settings_Fragment
 
 part_Actor -> part_Settings_Fragment : onResume()
 activate part_Settings_Fragment
 part_Settings_Fragment --> part_Actor : return
 deactivate part_Settings_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "Settings_Fragment" as part_Settings_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Settings_Fragment : setupInitialState()
 activate part_Settings_Fragment
 part_Settings_Fragment --> part_Actor : return
 deactivate part_Settings_Fragment
-participant "Settings_Fragment" as part_Settings_Fragment
 actor "ExternalActor" as act_ExternalActor
+participant "Settings_Fragment" as part_Settings_Fragment
 
 part_Actor -> part_Settings_Fragment : setupListeners()
 activate part_Settings_Fragment
@@ -3295,8 +3295,8 @@ part_Actor -> part_SeekBar : event_updateSettings()
 activate part_SeekBar
 part_SeekBar --> part_Actor : return
 deactivate part_SeekBar
-actor "ExternalActor" as act_ExternalActor
 participant "Settings_ViewModel" as part_Settings_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Settings_ViewModel : getConfig()
 activate part_Settings_ViewModel
@@ -3309,29 +3309,29 @@ part_Actor -> part_Settings_ViewModel : saveConfig()
 activate part_Settings_ViewModel
 part_Settings_ViewModel --> part_Actor : return
 deactivate part_Settings_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "Settings_ViewModel" as part_Settings_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Settings_ViewModel : toggleWifi()
 activate part_Settings_ViewModel
 part_Settings_ViewModel --> part_Actor : return
 deactivate part_Settings_ViewModel
-participant "Settings_ViewModel" as part_Settings_ViewModel
 actor "ExternalActor" as act_ExternalActor
+participant "Settings_ViewModel" as part_Settings_ViewModel
 
 part_Actor -> part_Settings_ViewModel : toggleData()
 activate part_Settings_ViewModel
 part_Settings_ViewModel --> part_Actor : return
 deactivate part_Settings_ViewModel
-participant "Settings_ViewModel" as part_Settings_ViewModel
 actor "ExternalActor" as act_ExternalActor
+participant "Settings_ViewModel" as part_Settings_ViewModel
 
 part_Actor -> part_Settings_ViewModel : toggleOvernight()
 activate part_Settings_ViewModel
 part_Settings_ViewModel --> part_Actor : return
 deactivate part_Settings_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "Settings_ViewModel" as part_Settings_ViewModel
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Settings_ViewModel : toggleIdle()
 activate part_Settings_ViewModel
@@ -3344,22 +3344,22 @@ part_Actor -> part_Settings_ViewModel : toggleChargingExclusive()
 activate part_Settings_ViewModel
 part_Settings_ViewModel --> part_Actor : return
 deactivate part_Settings_ViewModel
-participant "Settings_ViewModel" as part_Settings_ViewModel
 actor "ExternalActor" as act_ExternalActor
+participant "Settings_ViewModel" as part_Settings_ViewModel
 
 part_Actor -> part_Settings_ViewModel : updateChargeLimit()
 activate part_Settings_ViewModel
 part_Settings_ViewModel --> part_Actor : return
 deactivate part_Settings_ViewModel
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingLogger" as part_TrainingLogger
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingLogger : appendLog()
 activate part_TrainingLogger
 part_TrainingLogger --> part_Actor : return
 deactivate part_TrainingLogger
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingLogsDisplay_Fragment" as part_TrainingLogsDisplay_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingLogsDisplay_Fragment : onCreateView()
 activate part_TrainingLogsDisplay_Fragment
@@ -3372,8 +3372,8 @@ part_Actor -> part_TrainingLogsDisplay_Fragment : onViewCreated()
 activate part_TrainingLogsDisplay_Fragment
 part_TrainingLogsDisplay_Fragment --> part_Actor : return
 deactivate part_TrainingLogsDisplay_Fragment
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingLogsDisplay_Fragment" as part_TrainingLogsDisplay_Fragment
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingLogsDisplay_Fragment : onDestroyView()
 activate part_TrainingLogsDisplay_Fragment
@@ -3393,8 +3393,8 @@ part_Actor -> part_FileOperations : T()
 activate part_FileOperations
 part_FileOperations --> part_Actor : return
 deactivate part_FileOperations
-participant "FileOperations" as part_FileOperations
 actor "ExternalActor" as act_ExternalActor
+participant "FileOperations" as part_FileOperations
 
 part_Actor -> part_FileOperations : reified()
 activate part_FileOperations
@@ -3407,8 +3407,8 @@ part_Actor -> part_Log : deleteFile()
 activate part_Log
 part_Log --> part_Actor : return
 deactivate part_Log
-actor "ExternalActor" as act_ExternalActor
 participant "Log" as part_Log
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Log : fileExists()
 activate part_Log
@@ -3428,15 +3428,15 @@ part_Actor -> part_FractalTrainingService : onCreate()
 activate part_FractalTrainingService
 part_FractalTrainingService --> part_Actor : return
 deactivate part_FractalTrainingService
-actor "ExternalActor" as act_ExternalActor
 participant "FractalTrainingService" as part_FractalTrainingService
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_FractalTrainingService : isSystemInDarkMode()
 activate part_FractalTrainingService
 part_FractalTrainingService --> part_Actor : return
 deactivate part_FractalTrainingService
-actor "ExternalActor" as act_ExternalActor
 participant "FractalTrainingService" as part_FractalTrainingService
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_FractalTrainingService : onStartCommand()
 activate part_FractalTrainingService
@@ -3449,15 +3449,15 @@ part_Actor -> part_FractalTrainingService : startPipelineThread()
 activate part_FractalTrainingService
 part_FractalTrainingService --> part_Actor : return
 deactivate part_FractalTrainingService
-participant "TrainingCallback" as part_TrainingCallback
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingCallback" as part_TrainingCallback
 
 part_Actor -> part_TrainingCallback : onTaskAcquired()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-actor "ExternalActor" as act_ExternalActor
 participant "TrainingCallback" as part_TrainingCallback
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_TrainingCallback : onEpochUpdate()
 activate part_TrainingCallback
@@ -3470,15 +3470,15 @@ part_Actor -> part_TrainingCallback : onUploadSuccess()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-participant "TrainingCallback" as part_TrainingCallback
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingCallback" as part_TrainingCallback
 
 part_Actor -> part_TrainingCallback : onProgress()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-participant "TrainingCallback" as part_TrainingCallback
 actor "ExternalActor" as act_ExternalActor
+participant "TrainingCallback" as part_TrainingCallback
 
 part_Actor -> part_TrainingCallback : onValidationUpdate()
 activate part_TrainingCallback
@@ -3498,8 +3498,8 @@ part_Actor -> part_TrainingCallback : updateNotification()
 activate part_TrainingCallback
 part_TrainingCallback --> part_Actor : return
 deactivate part_TrainingCallback
-actor "ExternalActor" as act_ExternalActor
 participant "NOTIFICATION_ID" as part_NOTIFICATION_ID
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_NOTIFICATION_ID : createNotification()
 activate part_NOTIFICATION_ID
@@ -3519,36 +3519,36 @@ part_Actor -> part_NOTIFICATION_ID : onBind()
 activate part_NOTIFICATION_ID
 part_NOTIFICATION_ID --> part_Actor : return
 deactivate part_NOTIFICATION_ID
-actor "ExternalActor" as act_ExternalActor
 participant "Orchestrator" as part_Orchestrator
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_Orchestrator : executeTrainingPipeline()
 activate part_Orchestrator
 part_Orchestrator --> part_Actor : return
 deactivate part_Orchestrator
-participant "DataDownloader_naf" as part_DataDownloader_naf
 actor "ExternalActor" as act_ExternalActor
+participant "DataDownloader_naf" as part_DataDownloader_naf
 
 part_Actor -> part_DataDownloader_naf : isPaused()
 activate part_DataDownloader_naf
 part_DataDownloader_naf --> part_Actor : return
 deactivate part_DataDownloader_naf
-participant "DataDownloader_naf" as part_DataDownloader_naf
 actor "ExternalActor" as act_ExternalActor
+participant "DataDownloader_naf" as part_DataDownloader_naf
 
 part_Actor -> part_DataDownloader_naf : isCancelled()
 activate part_DataDownloader_naf
 part_DataDownloader_naf --> part_Actor : return
 deactivate part_DataDownloader_naf
-actor "ExternalActor" as act_ExternalActor
 participant "DataDownloader_naf" as part_DataDownloader_naf
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_DataDownloader_naf : onDownloadFinished()
 activate part_DataDownloader_naf
 part_DataDownloader_naf --> part_Actor : return
 deactivate part_DataDownloader_naf
-participant "DataDownloader_naf" as part_DataDownloader_naf
 actor "ExternalActor" as act_ExternalActor
+participant "DataDownloader_naf" as part_DataDownloader_naf
 
 part_Actor -> part_DataDownloader_naf : onError()
 activate part_DataDownloader_naf
@@ -3568,8 +3568,8 @@ part_Actor -> part_OvernightManagerService : onStartCommand()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-participant "OvernightManagerService" as part_OvernightManagerService
 actor "ExternalActor" as act_ExternalActor
+participant "OvernightManagerService" as part_OvernightManagerService
 
 part_Actor -> part_OvernightManagerService : onDestroy()
 activate part_OvernightManagerService
@@ -3589,8 +3589,8 @@ part_Actor -> part_OvernightManagerService : runOvernightLoop()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-actor "ExternalActor" as act_ExternalActor
 participant "OvernightManagerService" as part_OvernightManagerService
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_OvernightManagerService : startGeneration()
 activate part_OvernightManagerService
@@ -3603,36 +3603,36 @@ part_Actor -> part_OvernightManagerService : resumeGeneration()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-actor "ExternalActor" as act_ExternalActor
 participant "OvernightManagerService" as part_OvernightManagerService
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_OvernightManagerService : pauseForDaytime()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-participant "OvernightManagerService" as part_OvernightManagerService
 actor "ExternalActor" as act_ExternalActor
+participant "OvernightManagerService" as part_OvernightManagerService
 
 part_Actor -> part_OvernightManagerService : createNotificationChannel()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-actor "ExternalActor" as act_ExternalActor
 participant "OvernightManagerService" as part_OvernightManagerService
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_OvernightManagerService : buildNotification()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-actor "ExternalActor" as act_ExternalActor
 participant "OvernightManagerService" as part_OvernightManagerService
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_OvernightManagerService : updateNotification()
 activate part_OvernightManagerService
 part_OvernightManagerService --> part_Actor : return
 deactivate part_OvernightManagerService
-actor "ExternalActor" as act_ExternalActor
 participant "NOTIFICATION_ID" as part_NOTIFICATION_ID
+actor "ExternalActor" as act_ExternalActor
 
 part_Actor -> part_NOTIFICATION_ID : minutesUntil()
 activate part_NOTIFICATION_ID
