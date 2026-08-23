@@ -1,0 +1,73 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Space Grotesk", "Segoe UI", sans-serif
+skinparam defaultFontColor #e5e5e5
+skinparam defaultFontSize 12
+skinparam ArrowColor #38bdf8
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #facc15
+skinparam PackageBackgroundColor #0f141c
+skinparam PackageFontColor #facc15
+skinparam ClassBorderColor #38bdf8
+skinparam ClassBackgroundColor #14171f
+skinparam ClassHeaderBackgroundColor #1e2433
+skinparam ClassFontColor #ffffff
+skinparam ObjectBorderColor #38bdf8
+skinparam ObjectBackgroundColor #14171f
+skinparam ObjectFontColor #ffffff
+skinparam ComponentBorderColor #38bdf8
+skinparam ComponentBackgroundColor #14171f
+skinparam ComponentFontColor #ffffff
+skinparam NodeBorderColor #38bdf8
+skinparam NodeBackgroundColor #14171f
+skinparam NodeFontColor #ffffff
+skinparam StateBorderColor #38bdf8
+skinparam StateBackgroundColor #14171f
+skinparam StateFontColor #ffffff
+skinparam ActivityBorderColor #38bdf8
+skinparam ActivityBackgroundColor #14171f
+skinparam ActivityFontColor #ffffff
+skinparam SequenceLifeLineBorderColor #38bdf8
+skinparam SequenceLifeLineBackgroundColor #14171f
+skinparam SequenceGroupBorderColor #facc15
+skinparam SequenceGroupBackgroundColor #0f141c
+skinparam SequenceGroupFontColor #facc15
+skinparam ParticipantBorderColor #38bdf8
+skinparam ParticipantBackgroundColor #14171f
+skinparam ParticipantFontColor #ffffff
+skinparam ActorBorderColor #facc15
+skinparam ActorBackgroundColor #14171f
+skinparam ActorFontColor #ffffff
+skinparam UsecaseBorderColor #38bdf8
+skinparam UsecaseBackgroundColor #14171f
+skinparam UsecaseFontColor #ffffff
+
+title Inter-procedural Call Graph & Tarjan SCC Recursion Supergraph
+
+rectangle "NewsAgency.setNews()\n[V(G)=1]" as CG_NewsAgency_setNews #14171f
+rectangle "NewsAgency.attach()\n[V(G)=1]" as CG_NewsAgency_attach #14171f
+rectangle "NewsAgency.detach()\n[V(G)=1]" as CG_NewsAgency_detach #14171f
+rectangle "NewsChannel.update()\n[V(G)=1]" as CG_NewsChannel_update #14171f
+rectangle "Observer.update()\n[V(G)=1]" as CG_Observer_update #14171f
+rectangle "Subject.attach()\n[V(G)=1]" as CG_Subject_attach #14171f
+rectangle "Subject.detach()\n[V(G)=1]" as CG_Subject_detach #14171f
+rectangle "Subject.notifyObservers()\n[V(G)=1]" as CG_Subject_notifyObservers #14171f
+rectangle "CreditCardStrategy.CreditCardStrategy()\n[V(G)=1]" as CG_CreditCardStrategy_CreditCardStrategy #14171f
+rectangle "CreditCardStrategy.pay()\n[V(G)=1]" as CG_CreditCardStrategy_pay #14171f
+rectangle "PaymentStrategy.pay()\n[V(G)=1]" as CG_PaymentStrategy_pay #14171f
+CG_NewsAgency_setNews --> CG_NewsChannel_update : CHA/1-CFA dispatch
+CG_NewsChannel_update --> CG_Subject_attach : CHA/1-CFA dispatch
+CG_Subject_attach --> CG_Subject_notifyObservers : CHA/1-CFA dispatch
+CG_Subject_notifyObservers --> CG_CreditCardStrategy_pay : CHA/1-CFA dispatch
+CG_CreditCardStrategy_pay --> CG_PaymentStrategy_pay : CHA/1-CFA dispatch
+CG_PaymentStrategy_pay --> CG_NewsAgency_detach : CHA/1-CFA dispatch
+CG_NewsAgency_detach --> CG_Observer_update : CHA/1-CFA dispatch
+CG_Observer_update --> CG_NewsAgency_attach : CHA/1-CFA dispatch
+CG_NewsAgency_attach --> CG_CreditCardStrategy_CreditCardStrategy : CHA/1-CFA dispatch
+CG_CreditCardStrategy_CreditCardStrategy --> CG_Subject_detach : CHA/1-CFA dispatch
+CG_NewsAgency_setNews ..> CG_NewsAgency_setNews : Tarjan SCC cycle <<Recursive>> #ef4444
+@enduml

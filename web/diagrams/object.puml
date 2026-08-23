@@ -1,0 +1,182 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Space Grotesk", "Segoe UI", sans-serif
+skinparam defaultFontColor #e5e5e5
+skinparam defaultFontSize 12
+skinparam ArrowColor #38bdf8
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #facc15
+skinparam PackageBackgroundColor #0f141c
+skinparam PackageFontColor #facc15
+skinparam ClassBorderColor #38bdf8
+skinparam ClassBackgroundColor #14171f
+skinparam ClassHeaderBackgroundColor #1e2433
+skinparam ClassFontColor #ffffff
+skinparam ObjectBorderColor #38bdf8
+skinparam ObjectBackgroundColor #14171f
+skinparam ObjectFontColor #ffffff
+skinparam ComponentBorderColor #38bdf8
+skinparam ComponentBackgroundColor #14171f
+skinparam ComponentFontColor #ffffff
+skinparam NodeBorderColor #38bdf8
+skinparam NodeBackgroundColor #14171f
+skinparam NodeFontColor #ffffff
+skinparam StateBorderColor #38bdf8
+skinparam StateBackgroundColor #14171f
+skinparam StateFontColor #ffffff
+skinparam ActivityBorderColor #38bdf8
+skinparam ActivityBackgroundColor #14171f
+skinparam ActivityFontColor #ffffff
+skinparam SequenceLifeLineBorderColor #38bdf8
+skinparam SequenceLifeLineBackgroundColor #14171f
+skinparam SequenceGroupBorderColor #facc15
+skinparam SequenceGroupBackgroundColor #0f141c
+skinparam SequenceGroupFontColor #facc15
+skinparam ParticipantBorderColor #38bdf8
+skinparam ParticipantBackgroundColor #14171f
+skinparam ParticipantFontColor #ffffff
+skinparam ActorBorderColor #facc15
+skinparam ActorBackgroundColor #14171f
+skinparam ActorFontColor #ffffff
+skinparam UsecaseBorderColor #38bdf8
+skinparam UsecaseBackgroundColor #14171f
+skinparam UsecaseFontColor #ffffff
+
+object "obj_NewsAgency : NewsAgency" as obj_NewsAgency {
+  news = "<>"
+  observers = "<>"
+}
+
+object "obj_NewsChannel : NewsChannel" as obj_NewsChannel {
+  news = "<>"
+}
+
+object "obj_Observer : Observer" as obj_Observer {
+}
+
+object "obj_Subject : Subject" as obj_Subject {
+}
+
+object "obj_CreditCardStrategy : CreditCardStrategy" as obj_CreditCardStrategy {
+  name = "<>"
+  cardNumber = "<>"
+}
+
+object "obj_PaymentStrategy : PaymentStrategy" as obj_PaymentStrategy {
+}
+
+object "obj_PaypalStrategy : PaypalStrategy" as obj_PaypalStrategy {
+  emailId = "<>"
+}
+
+object "obj_ShoppingCart : ShoppingCart" as obj_ShoppingCart {
+  paymentStrategy = "<PaymentStrategy>"
+}
+
+object "obj_CsvDataMiner : CsvDataMiner" as obj_CsvDataMiner {
+}
+
+object "obj_DataMiner : DataMiner" as obj_DataMiner {
+}
+
+object "obj_PdfDataMiner : PdfDataMiner" as obj_PdfDataMiner {
+}
+
+object "obj_Computer : Computer" as obj_Computer {
+  cpu = "<>"
+  ram = "<>"
+  storage = "<>"
+  graphicsCardEnabled = "<>"
+}
+
+object "obj_ComputerBuilder : ComputerBuilder" as obj_ComputerBuilder {
+  computer = "<Computer>"
+}
+
+object "obj_Director : Director" as obj_Director {
+}
+
+object "obj_Logistics : Logistics" as obj_Logistics {
+}
+
+object "obj_RoadLogistics : RoadLogistics" as obj_RoadLogistics {
+}
+
+object "obj_SeaLogistics : SeaLogistics" as obj_SeaLogistics {
+}
+
+object "obj_Ship : Ship" as obj_Ship {
+}
+
+object "obj_Transport : Transport" as obj_Transport {
+}
+
+object "obj_Truck : Truck" as obj_Truck {
+}
+
+object "obj_DatabaseConnectionPool : DatabaseConnectionPool" as obj_DatabaseConnectionPool {
+  instance = "<DatabaseConnectionPool>"
+  maxConnections = "<>"
+  isInitialized = "<>"
+}
+
+object "obj_AdvancedMediaPlayer : AdvancedMediaPlayer" as obj_AdvancedMediaPlayer {
+}
+
+object "obj_AudioPlayer : AudioPlayer" as obj_AudioPlayer {
+  mediaAdapter = "<MediaAdapter>"
+}
+
+object "obj_MediaAdapter : MediaAdapter" as obj_MediaAdapter {
+  advancedMusicPlayer = "<AdvancedMediaPlayer>"
+}
+
+object "obj_MediaPlayer : MediaPlayer" as obj_MediaPlayer {
+}
+
+object "obj_Mp4Player : Mp4Player" as obj_Mp4Player {
+}
+
+object "obj_VlcPlayer : VlcPlayer" as obj_VlcPlayer {
+}
+
+object "obj_Beverage : Beverage" as obj_Beverage {
+}
+
+object "obj_CondimentDecorator : CondimentDecorator" as obj_CondimentDecorator {
+  beverage = "<Beverage>"
+}
+
+object "obj_Espresso : Espresso" as obj_Espresso {
+}
+
+object "obj_Mocha : Mocha" as obj_Mocha {
+}
+
+object "obj_Whip : Whip" as obj_Whip {
+}
+
+object "obj_AudioMixer : AudioMixer" as obj_AudioMixer {
+}
+
+object "obj_BitrateReader : BitrateReader" as obj_BitrateReader {
+}
+
+object "obj_VideoConversionFacade : VideoConversionFacade" as obj_VideoConversionFacade {
+  audioMixer = "<AudioMixer>"
+  bitrateReader = "<BitrateReader>"
+}
+
+obj_ShoppingCart --> obj_PaymentStrategy : references (paymentStrategy)
+obj_ComputerBuilder --> obj_Computer : references (computer)
+obj_AudioPlayer --> obj_MediaAdapter : references (mediaAdapter)
+obj_MediaAdapter --> obj_AdvancedMediaPlayer : references (advancedMusicPlayer)
+obj_CondimentDecorator --> obj_Beverage : references (beverage)
+obj_VideoConversionFacade --> obj_AudioMixer : references (audioMixer)
+obj_VideoConversionFacade --> obj_BitrateReader : references (bitrateReader)
+
+@enduml

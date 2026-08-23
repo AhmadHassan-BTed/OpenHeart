@@ -1,0 +1,126 @@
+classDiagram
+    class obj_NewsAgency {
+        <<instance: NewsAgency>>
+        news: Unknown
+        observers: Unknown
+    }
+    class obj_NewsChannel {
+        <<instance: NewsChannel>>
+        news: Unknown
+    }
+    class obj_Observer {
+        <<instance: Observer>>
+    }
+    class obj_Subject {
+        <<instance: Subject>>
+    }
+    class obj_CreditCardStrategy {
+        <<instance: CreditCardStrategy>>
+        name: Unknown
+        cardNumber: Unknown
+    }
+    class obj_PaymentStrategy {
+        <<instance: PaymentStrategy>>
+    }
+    class obj_PaypalStrategy {
+        <<instance: PaypalStrategy>>
+        emailId: Unknown
+    }
+    class obj_ShoppingCart {
+        <<instance: ShoppingCart>>
+        paymentStrategy: PaymentStrategy
+    }
+    class obj_CsvDataMiner {
+        <<instance: CsvDataMiner>>
+    }
+    class obj_DataMiner {
+        <<instance: DataMiner>>
+    }
+    class obj_PdfDataMiner {
+        <<instance: PdfDataMiner>>
+    }
+    class obj_Computer {
+        <<instance: Computer>>
+        cpu: Unknown
+        ram: Unknown
+        storage: Unknown
+        graphicsCardEnabled: Unknown
+    }
+    class obj_ComputerBuilder {
+        <<instance: ComputerBuilder>>
+        computer: Computer
+    }
+    class obj_Director {
+        <<instance: Director>>
+    }
+    class obj_Logistics {
+        <<instance: Logistics>>
+    }
+    class obj_RoadLogistics {
+        <<instance: RoadLogistics>>
+    }
+    class obj_SeaLogistics {
+        <<instance: SeaLogistics>>
+    }
+    class obj_Ship {
+        <<instance: Ship>>
+    }
+    class obj_Transport {
+        <<instance: Transport>>
+    }
+    class obj_Truck {
+        <<instance: Truck>>
+    }
+    class obj_DatabaseConnectionPool {
+        <<instance: DatabaseConnectionPool>>
+        instance: DatabaseConnectionPool
+        maxConnections: Unknown
+        isInitialized: Unknown
+    }
+    class obj_AdvancedMediaPlayer {
+        <<instance: AdvancedMediaPlayer>>
+    }
+    class obj_AudioPlayer {
+        <<instance: AudioPlayer>>
+        mediaAdapter: MediaAdapter
+    }
+    class obj_MediaAdapter {
+        <<instance: MediaAdapter>>
+        advancedMusicPlayer: AdvancedMediaPlayer
+    }
+    class obj_MediaPlayer {
+        <<instance: MediaPlayer>>
+    }
+    class obj_Mp4Player {
+        <<instance: Mp4Player>>
+    }
+    class obj_VlcPlayer {
+        <<instance: VlcPlayer>>
+    }
+    class obj_Beverage {
+        <<instance: Beverage>>
+    }
+    class obj_CondimentDecorator {
+        <<instance: CondimentDecorator>>
+        beverage: Beverage
+    }
+    class obj_Espresso {
+        <<instance: Espresso>>
+    }
+    class obj_Mocha {
+        <<instance: Mocha>>
+    }
+    class obj_Whip {
+        <<instance: Whip>>
+    }
+    class obj_AudioMixer {
+        <<instance: AudioMixer>>
+    }
+    class obj_BitrateReader {
+        <<instance: BitrateReader>>
+    }
+    class obj_VideoConversionFacade {
+        <<instance: VideoConversionFacade>>
+        audioMixer: AudioMixer
+        bitrateReader: BitrateReader
+    }

@@ -1,0 +1,108 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Space Grotesk", "Segoe UI", sans-serif
+skinparam defaultFontColor #e5e5e5
+skinparam defaultFontSize 12
+skinparam ArrowColor #38bdf8
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #facc15
+skinparam PackageBackgroundColor #0f141c
+skinparam PackageFontColor #facc15
+skinparam ClassBorderColor #38bdf8
+skinparam ClassBackgroundColor #14171f
+skinparam ClassHeaderBackgroundColor #1e2433
+skinparam ClassFontColor #ffffff
+skinparam ObjectBorderColor #38bdf8
+skinparam ObjectBackgroundColor #14171f
+skinparam ObjectFontColor #ffffff
+skinparam ComponentBorderColor #38bdf8
+skinparam ComponentBackgroundColor #14171f
+skinparam ComponentFontColor #ffffff
+skinparam NodeBorderColor #38bdf8
+skinparam NodeBackgroundColor #14171f
+skinparam NodeFontColor #ffffff
+skinparam StateBorderColor #38bdf8
+skinparam StateBackgroundColor #14171f
+skinparam StateFontColor #ffffff
+skinparam ActivityBorderColor #38bdf8
+skinparam ActivityBackgroundColor #14171f
+skinparam ActivityFontColor #ffffff
+skinparam SequenceLifeLineBorderColor #38bdf8
+skinparam SequenceLifeLineBackgroundColor #14171f
+skinparam SequenceGroupBorderColor #facc15
+skinparam SequenceGroupBackgroundColor #0f141c
+skinparam SequenceGroupFontColor #facc15
+skinparam ParticipantBorderColor #38bdf8
+skinparam ParticipantBackgroundColor #14171f
+skinparam ParticipantFontColor #ffffff
+skinparam ActorBorderColor #facc15
+skinparam ActorBackgroundColor #14171f
+skinparam ActorFontColor #ffffff
+skinparam UsecaseBorderColor #38bdf8
+skinparam UsecaseBackgroundColor #14171f
+skinparam UsecaseFontColor #ffffff
+
+title Static Single Assignment (SSA) Def-Use Data Flow Graph
+
+package "SSA Scope: NewsAgency" {
+  class "SSA Def: v₀" as v0_0 <<SSA_Def>> {
+    +var_name: retries
+    +version: 0
+    +def_block: Block_0
+  }
+  class "SSA Def: v₁" as v1_0 <<SSA_Def>> {
+    +var_name: retries
+    +version: 1
+    +def_block: Block_1
+  }
+  class "SSA φ-Node: v₂ = φ(v₀, v₁)" as v2_0 <<SSA_Phi>> {
+    +join_block: Block_2
+  }
+  v0_0 --> v1_0 : def_use_chain
+  v0_0 --> v2_0 : reaching_def_0
+  v1_0 --> v2_0 : reaching_def_1
+}
+
+package "SSA Scope: NewsChannel" {
+  class "SSA Def: v₀" as v0_1 <<SSA_Def>> {
+    +var_name: retries
+    +version: 0
+    +def_block: Block_0
+  }
+  class "SSA Def: v₁" as v1_1 <<SSA_Def>> {
+    +var_name: retries
+    +version: 1
+    +def_block: Block_1
+  }
+  class "SSA φ-Node: v₂ = φ(v₀, v₁)" as v2_1 <<SSA_Phi>> {
+    +join_block: Block_2
+  }
+  v0_1 --> v1_1 : def_use_chain
+  v0_1 --> v2_1 : reaching_def_0
+  v1_1 --> v2_1 : reaching_def_1
+}
+
+package "SSA Scope: Observer" {
+  class "SSA Def: v₀" as v0_2 <<SSA_Def>> {
+    +var_name: retries
+    +version: 0
+    +def_block: Block_0
+  }
+  class "SSA Def: v₁" as v1_2 <<SSA_Def>> {
+    +var_name: retries
+    +version: 1
+    +def_block: Block_1
+  }
+  class "SSA φ-Node: v₂ = φ(v₀, v₁)" as v2_2 <<SSA_Phi>> {
+    +join_block: Block_2
+  }
+  v0_2 --> v1_2 : def_use_chain
+  v0_2 --> v2_2 : reaching_def_0
+  v1_2 --> v2_2 : reaching_def_1
+}
+
+@enduml
