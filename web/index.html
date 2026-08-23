@@ -223,33 +223,61 @@
         <div id="interactive-canvas"></div>
       </section>
 
-      <!-- Right Inspector: Floating Card with Code Synchronizer -->
+      <!-- Right Inspector: Floating Card with Code Synchronizer & VS Code Project Tree -->
       <aside class="inspector-card">
-        <div class="inspector-card-header">
-          <div class="inspector-headline-title" id="inspect-headline">VideoConversionFacade.java</div>
-          <div class="inspector-sub-caption" id="inspect-meta">Hover or select a node in canvas</div>
+        <div class="inspector-nav-tabs">
+          <button class="inspector-tab-btn active" id="tab-btn-explorer">
+            <span>📁 Project Explorer</span>
+            <span class="badge-count">35</span>
+          </button>
+          <button class="inspector-tab-btn" id="tab-btn-source">
+            <span>⚡ Details</span>
+          </button>
         </div>
 
-        <div class="inspector-data-body">
-          <div class="data-row">
-            <span class="data-label">Entity Kind</span>
-            <span class="data-value" id="prop-kind">Basic Block</span>
+        <!-- Tab 1: VS Code / Android Studio File Hierarchy Tree -->
+        <div class="inspector-tab-pane active" id="pane-explorer">
+          <div class="tree-explorer-header">
+            <span>REPOSITORY FILES</span>
           </div>
-          <div class="data-row">
-            <span class="data-label">#SAT Feasible Paths</span>
-            <span class="data-value" id="prop-sat">3 Feasible</span>
+          <div id="file-tree-container" class="file-tree-scroll-container"></div>
+        </div>
+
+        <!-- Tab 2: Code Synchronizer & Metrics -->
+        <div class="inspector-tab-pane" id="pane-source" style="display: none;">
+          <div class="inspector-card-header">
+            <div class="inspector-headline-title" id="inspect-headline">VideoConversionFacade.java</div>
+            <div class="inspector-sub-caption" id="inspect-meta">Hover or select a node in canvas</div>
           </div>
-          <div class="data-row">
-            <span class="data-label">Immediate Dominator</span>
-            <span class="data-value" id="prop-idom">Block #0 (Entry)</span>
-          </div>
-          <div class="data-row">
-            <span class="data-label">Branch Guard</span>
-            <span class="data-value" id="prop-predicate">fileName != null &amp;&amp; format != null</span>
+
+          <div class="inspector-data-body">
+            <div class="data-row">
+              <span class="data-label">Entity Kind</span>
+              <span class="data-value" id="prop-kind">CLASS</span>
+            </div>
+            <div class="data-row">
+              <span class="data-label">#SAT Feasible Paths</span>
+              <span class="data-value" id="prop-sat">3 Feasible</span>
+            </div>
+            <div class="data-row">
+              <span class="data-label">Immediate Dominator</span>
+              <span class="data-value" id="prop-idom">Block #0 (Entry)</span>
+            </div>
+            <div class="data-row">
+              <span class="data-label">Branch Guard</span>
+              <span class="data-value" id="prop-predicate">fileName != null &amp;&amp; format != null</span>
+            </div>
           </div>
         </div>
 
         <div class="monaco-editor-card">
+          <div class="monaco-breadcrumb-bar">
+            <span class="breadcrumb-root">📁 src / main / java</span>
+            <span class="breadcrumb-divider">/</span>
+            <span class="breadcrumb-pkg" id="breadcrumb-package">com / patterns / structural / facade</span>
+            <span class="breadcrumb-divider">/</span>
+            <span class="breadcrumb-file" id="breadcrumb-filename">VideoConversionFacade.java</span>
+          </div>
           <div class="monaco-tab-bar">
             <span id="editor-filename">VideoConversionFacade.java</span>
             <span class="sync-status-pill">Synchronized</span>
@@ -278,10 +306,43 @@
   <script type="module">
     import { InteractiveGraphCanvas } from './js/graph-canvas.js';
     import { SourceEditorModule } from './js/editor.js';
+    import { FileTreeExplorer } from './js/file-tree.js';
 
     window.addEventListener('DOMContentLoaded', () => {
       const canvas = new InteractiveGraphCanvas('interactive-canvas');
       const editor = new SourceEditorModule('monaco-container');
+
+      // Initialize File Tree Explorer
+      const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile) => {
+        editor.highlightLines(selectedFile, [1, 5]);
+        canvas.focusNodeByFile(selectedFile);
+        
+        const pkgPath = filePackageMap[selectedFile] || 'com / patterns / structural / facade';
+        document.getElementById('editor-filename').innerText = selectedFile;
+        document.getElementById('breadcrumb-package').innerText = pkgPath;
+        document.getElementById('breadcrumb-filename').innerText = selectedFile;
+      });
+      fileTree.render();
+
+      // Inspector Tab Switching
+      const tabExplorer = document.getElementById('tab-btn-explorer');
+      const tabSource = document.getElementById('tab-btn-source');
+      const paneExplorer = document.getElementById('pane-explorer');
+      const paneSource = document.getElementById('pane-source');
+
+      tabExplorer.addEventListener('click', () => {
+        tabExplorer.classList.add('active');
+        tabSource.classList.remove('active');
+        paneExplorer.style.display = 'block';
+        paneSource.style.display = 'none';
+      });
+
+      tabSource.addEventListener('click', () => {
+        tabSource.classList.add('active');
+        tabExplorer.classList.remove('active');
+        paneSource.style.display = 'block';
+        paneExplorer.style.display = 'none';
+      });
 
       // Synchronize active diagram tab on page load
       const savedGraph = localStorage.getItem('openheart_active_graph') || 'class';
@@ -298,16 +359,61 @@
       canvas.init();
       editor.init();
 
-      // Hook canvas selection to Monaco editor
+      const filePackageMap = {
+        "NewsAgency.java": "com / patterns / behavioral / observer",
+        "NewsChannel.java": "com / patterns / behavioral / observer",
+        "Observer.java": "com / patterns / behavioral / observer",
+        "Subject.java": "com / patterns / behavioral / observer",
+        "CreditCardStrategy.java": "com / patterns / behavioral / strategy",
+        "PaymentStrategy.java": "com / patterns / behavioral / strategy",
+        "PaypalStrategy.java": "com / patterns / behavioral / strategy",
+        "ShoppingCart.java": "com / patterns / behavioral / strategy",
+        "CsvDataMiner.java": "com / patterns / behavioral / templatemethod",
+        "DataMiner.java": "com / patterns / behavioral / templatemethod",
+        "PdfDataMiner.java": "com / patterns / behavioral / templatemethod",
+        "Computer.java": "com / patterns / creational / builder",
+        "ComputerBuilder.java": "com / patterns / creational / builder",
+        "Director.java": "com / patterns / creational / builder",
+        "Logistics.java": "com / patterns / creational / factory",
+        "RoadLogistics.java": "com / patterns / creational / factory",
+        "SeaLogistics.java": "com / patterns / creational / factory",
+        "Ship.java": "com / patterns / creational / factory",
+        "Transport.java": "com / patterns / creational / factory",
+        "Truck.java": "com / patterns / creational / factory",
+        "DatabaseConnectionPool.java": "com / patterns / creational / singleton",
+        "AdvancedMediaPlayer.java": "com / patterns / structural / adapter",
+        "AudioPlayer.java": "com / patterns / structural / adapter",
+        "MediaAdapter.java": "com / patterns / structural / adapter",
+        "MediaPlayer.java": "com / patterns / structural / adapter",
+        "Mp4Player.java": "com / patterns / structural / adapter",
+        "VlcPlayer.java": "com / patterns / structural / adapter",
+        "Beverage.java": "com / patterns / structural / decorator",
+        "CondimentDecorator.java": "com / patterns / structural / decorator",
+        "Espresso.java": "com / patterns / structural / decorator",
+        "Mocha.java": "com / patterns / structural / decorator",
+        "Whip.java": "com / patterns / structural / decorator",
+        "AudioMixer.java": "com / patterns / structural / facade",
+        "BitrateReader.java": "com / patterns / structural / facade",
+        "VideoConversionFacade.java": "com / patterns / structural / facade"
+      };
+
+      // Hook canvas selection to Monaco editor and File Tree Explorer
       canvas.setNodeSelectCallback((nodeData) => {
+        const fileName = nodeData.file || 'VideoConversionFacade.java';
+        const pkgPath = filePackageMap[fileName] || (nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ') : 'com / patterns / structural / facade');
+
         document.getElementById('inspect-headline').innerText = nodeData.label.split('\n')[0];
         document.getElementById('inspect-meta').innerText = `ID: ${nodeData.id} | Kind: ${nodeData.kind}`;
-        document.getElementById('prop-kind').innerText = (nodeData.kind || 'NODE').toUpperCase();
+        document.getElementById('prop-kind').innerText = (nodeData.kind || 'CLASS').toUpperCase();
         document.getElementById('prop-predicate').innerText = nodeData.predicate || 'N/A';
-        document.getElementById('editor-filename').innerText = nodeData.file || 'VideoConversionFacade.java';
+        document.getElementById('editor-filename').innerText = fileName;
+        document.getElementById('breadcrumb-package').innerText = pkgPath;
+        document.getElementById('breadcrumb-filename').innerText = fileName;
+
+        fileTree.selectFile(fileName);
 
         if (nodeData.lines) {
-          editor.highlightLines(nodeData.file || 'VideoConversionFacade.java', nodeData.lines);
+          editor.highlightLines(fileName, nodeData.lines);
         }
       });
 

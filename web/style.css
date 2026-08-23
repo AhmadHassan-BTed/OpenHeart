@@ -437,8 +437,159 @@ html, body {
   overflow: hidden;
 }
 
+/* ── Inspector Tab Switcher ── */
+.inspector-nav-tabs {
+  display: flex;
+  background: #F8FAFC;
+  border-bottom: 1px solid var(--border-light);
+  padding: 4px 6px 0;
+  gap: 4px;
+}
+
+.inspector-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.12s ease;
+}
+
+.inspector-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.inspector-tab-btn.active {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+  background: #FFFFFF;
+  border-top-left-radius: var(--radius-xs);
+  border-top-right-radius: var(--radius-xs);
+}
+
+.badge-count {
+  font-size: 9.5px;
+  background: #E2E8F0;
+  color: #475569;
+  padding: 1px 5px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* ── VS Code / Android Studio File Tree ── */
+.tree-explorer-header {
+  padding: 6px 12px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  background: #F8FAFC;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.file-tree-scroll-container {
+  max-height: 180px;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.tree-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  user-select: none;
+  color: #334155;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.tree-folder-header:hover {
+  background: #F1F5F9;
+}
+
+.tree-arrow {
+  font-size: 8px;
+  color: #64748B;
+  width: 10px;
+  display: inline-block;
+}
+
+.tree-folder-icon {
+  font-size: 11px;
+}
+
+.tree-folder-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  color: #1E293B;
+  font-size: 11px;
+  user-select: none;
+}
+
+.tree-file-row:hover {
+  background: #F1F5F9;
+}
+
+.tree-file-row.active {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-weight: 600;
+  border-left: 2.5px solid #2563EB;
+}
+
+.tree-badge {
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  display: inline-block;
+  line-height: 1;
+}
+
+.badge-c {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.badge-i {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.badge-a {
+  background: #F3E8FF;
+  color: #7E22CE;
+}
+
+.tree-file-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inspector-card-header {
-  padding: 14px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-surface);
 }
@@ -486,6 +637,40 @@ html, body {
   flex-direction: column;
   background: var(--bg-surface);
   overflow: hidden;
+}
+
+.monaco-breadcrumb-bar {
+  padding: 6px 14px;
+  background: #F1F5F9;
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.breadcrumb-root {
+  color: #475569;
+  font-weight: 600;
+}
+
+.breadcrumb-divider {
+  color: #94A3B8;
+  font-weight: 400;
+}
+
+.breadcrumb-pkg {
+  color: #2563EB;
+  font-weight: 600;
+}
+
+.breadcrumb-file {
+  color: #0F172A;
+  font-weight: 700;
 }
 
 .monaco-tab-bar {
