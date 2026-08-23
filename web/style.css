@@ -20,11 +20,38 @@
   --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
-/* ── Reset & Core ── */
+/* ── Reset & Global Precision Scrollbars (2D X & Y) ── */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--bg-surface);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-medium) var(--bg-surface);
 }
 
 html, body {
@@ -753,7 +780,7 @@ html, body {
 }
 
 .monaco-tab-bar {
-  padding: 8px 14px;
+  padding: 6px 12px;
   background: var(--bg-subtle);
   border-bottom: 1px solid var(--border-light);
   font-family: var(--font-mono);
@@ -763,22 +790,239 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+}
+
+.editor-tab-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-tab-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.code-font-controls {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xs);
+  padding: 1px 3px;
+  gap: 2px;
+}
+
+.code-tool-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  padding: 0 4px;
+  min-width: 38px;
+  text-align: center;
+}
+
+.btn-code-tool {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  line-height: 1.2;
+}
+
+.btn-code-tool:hover {
+  background: var(--bg-muted);
+  color: var(--text-main);
+}
+
+.btn-code-tool.active {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  font-weight: 800;
+}
+
+.btn-code-tool.copied {
+  background: var(--accent-emerald-subtle);
+  color: var(--accent-emerald);
 }
 
 .sync-status-pill {
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--accent-emerald);
   background: var(--accent-emerald-subtle);
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: var(--radius-pill);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 #monaco-container {
   flex: 1;
   width: 100%;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Precision Native Code Engine Viewport (2D Bidirectional Scrolling) ── */
+.code-editor-viewport {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  font-family: var(--font-mono);
+  font-size: var(--code-font-size, 11.5px);
+  line-height: 20px;
+  display: flex;
+  position: relative;
+  user-select: text;
+  scroll-behavior: smooth;
+}
+
+.code-gutter {
+  position: sticky;
+  left: 0;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border-light);
+  padding: 8px 0;
+  user-select: none;
+  z-index: 5;
+  min-width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.code-gutter-line {
+  padding: 0 8px 0 6px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  height: 20px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+.code-gutter-line:hover {
+  color: var(--text-main);
+  background: var(--bg-muted);
+}
+
+.code-gutter-line.highlighted {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  font-weight: 800;
+}
+
+.code-content-body {
+  flex: 1;
+  padding: 8px 14px;
+  margin: 0;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  line-height: 20px;
+  color: var(--text-main);
+  min-width: max-content;
+}
+
+.code-content-body.wrap-lines {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: unset;
+}
+
+.code-line-row {
+  height: 20px;
+  line-height: 20px;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.code-line-row.highlighted {
+  background: rgba(37, 99, 235, 0.12);
+  box-shadow: inset 2px 0 0 var(--accent-blue);
+  border-radius: 2px;
+}
+
+/* Syntax Highlighting Colors */
+.syn-keyword {
+  color: #7C3AED;
+  font-weight: 700;
+}
+body.dark-theme .syn-keyword, [data-theme="dark"] .syn-keyword {
+  color: #C084FC;
+}
+
+.syn-type {
+  color: #0284C7;
+  font-weight: 600;
+}
+body.dark-theme .syn-type, [data-theme="dark"] .syn-type {
+  color: #38BDF8;
+}
+
+.syn-string {
+  color: #059669;
+}
+body.dark-theme .syn-string, [data-theme="dark"] .syn-string {
+  color: #34D399;
+}
+
+.syn-comment {
+  color: #94A3B8;
+  font-style: italic;
+}
+body.dark-theme .syn-comment, [data-theme="dark"] .syn-comment {
+  color: #6B7280;
+}
+
+.syn-annotation {
+  color: #D97706;
+  font-weight: 700;
+}
+body.dark-theme .syn-annotation, [data-theme="dark"] .syn-annotation {
+  color: #FBBF24;
+}
+
+.syn-number {
+  color: #EA580C;
+}
+body.dark-theme .syn-number, [data-theme="dark"] .syn-number {
+  color: #FB923C;
+}
+
+/* ── Projection PlantUML Code Editor ── */
+.plantuml-code-editor {
+  margin: 0;
+  padding: 16px 20px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  overflow: auto;
+  height: 100%;
+  white-space: pre;
 }
 
 /* ── Modern Footer Status Bar ── */

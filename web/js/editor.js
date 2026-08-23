@@ -1,7 +1,8 @@
 /**
- * OpenHeart Dynamic Source Editor & Line Synchronizer (Zero Hardcoding)
- * Powered by Monaco Editor API with Modern Light theme.
- * Dynamically fetches and decompiles source code on demand.
+ * OpenHeart Precision Source Code Engine & Line Synchronizer
+ * High-performance, zero-dependency code viewer with sticky line numbers,
+ * full bidirectional 2D scrolling (vertical & horizontal), dynamic syntax
+ * highlighting, configurable font scaling, word-wrap toggling, and theme reactivity.
  */
 
 import { isDarkMode, onThemeChange } from './themes/index.js';
@@ -9,61 +10,119 @@ import { isDarkMode, onThemeChange } from './themes/index.js';
 export class SourceEditorModule {
   constructor(containerId = "monaco-container") {
     this.containerId = containerId;
-    this.editor = null;
-    this.currentDecorations = [];
     this.currentFile = null;
+    this.currentContent = "";
+    this.targetLines = [];
     this.sourceCache = new Map();
+    this.fontSize = parseFloat(localStorage.getItem('openheart_code_fontsize') || '11.5');
+    this.wordWrap = localStorage.getItem('openheart_code_wrap') === 'true';
+    this.isDark = isDarkMode();
   }
 
   init() {
     const container = document.getElementById(this.containerId);
     if (!container) return;
 
-    if (window.monaco) {
-      this.createMonacoInstance(container);
-    }
+    this.bindToolbarControls();
 
     onThemeChange((theme, isDark) => {
-      this.setTheme(isDark);
+      this.isDark = isDark;
+      this.render();
     });
+
+    // Initial placeholder render
+    this.renderInitialPlaceholder();
   }
 
-  createMonacoInstance(container) {
-    if (this.editor) {
-      this.editor.dispose();
-      this.editor = null;
+  bindToolbarControls() {
+    const btnFontDec = document.getElementById('btn-code-font-dec');
+    const btnFontInc = document.getElementById('btn-code-font-inc');
+    const fontValLabel = document.getElementById('code-font-val');
+    const btnWrap = document.getElementById('btn-code-wrap');
+    const btnCopy = document.getElementById('btn-code-copy');
+
+    if (fontValLabel) {
+      fontValLabel.textContent = `${this.fontSize}px`;
     }
 
-    const isDark = isDarkMode();
+    if (btnFontDec) {
+      btnFontDec.addEventListener('click', () => {
+        this.fontSize = Math.max(9.5, +(this.fontSize - 0.5).toFixed(1));
+        localStorage.setItem('openheart_code_fontsize', this.fontSize.toString());
+        if (fontValLabel) fontValLabel.textContent = `${this.fontSize}px`;
+        this.updateFontAndLayout();
+      });
+    }
 
-    this.editor = window.monaco.editor.create(container, {
-      value: "// OpenHeart Dynamic Code Synchronizer\n// Select any file or diagram node to view source",
-      language: "java",
-      theme: isDark ? "vs-dark" : "vs",
-      readOnly: true,
-      automaticLayout: true,
-      lineNumbers: "on",
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      fontSize: 12,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-      lineHeight: 20,
-      renderLineHighlight: "all",
-      scrollbar: {
-        verticalScrollbarSize: 8,
-        horizontalScrollbarSize: 8
+    if (btnFontInc) {
+      btnFontInc.addEventListener('click', () => {
+        this.fontSize = Math.min(18.0, +(this.fontSize + 0.5).toFixed(1));
+        localStorage.setItem('openheart_code_fontsize', this.fontSize.toString());
+        if (fontValLabel) fontValLabel.textContent = `${this.fontSize}px`;
+        this.updateFontAndLayout();
+      });
+    }
+
+    if (btnWrap) {
+      if (this.wordWrap) btnWrap.classList.add('active');
+      btnWrap.addEventListener('click', () => {
+        this.wordWrap = !this.wordWrap;
+        localStorage.setItem('openheart_code_wrap', this.wordWrap.toString());
+        btnWrap.classList.toggle('active', this.wordWrap);
+        this.updateFontAndLayout();
+      });
+    }
+
+    if (btnCopy) {
+      btnCopy.addEventListener('click', async () => {
+        if (!this.currentContent) return;
+        try {
+          await navigator.clipboard.writeText(this.currentContent);
+          const orig = btnCopy.innerHTML;
+          btnCopy.innerHTML = '✓ Copied';
+          btnCopy.classList.add('copied');
+          setTimeout(() => {
+            btnCopy.innerHTML = orig;
+            btnCopy.classList.remove('copied');
+          }, 1800);
+        } catch (_) {}
+      });
+    }
+  }
+
+  updateFontAndLayout() {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+
+    const viewport = container.querySelector('.code-editor-viewport');
+    if (viewport) {
+      viewport.style.setProperty('--code-font-size', `${this.fontSize}px`);
+      const body = viewport.querySelector('.code-content-body');
+      if (body) {
+        body.classList.toggle('wrap-lines', this.wordWrap);
       }
-    });
+    }
   }
 
   setTheme(isDark) {
-    if (window.monaco && window.monaco.editor) {
-      window.monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
-    }
+    this.isDark = isDark;
+    this.render();
+  }
+
+  renderInitialPlaceholder() {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+
+    this.currentContent = `// OpenHeart Precision Code Engine & AST Synchronizer
+// ─────────────────────────────────────────────────────────────
+// Select any class, interface, or edge in the diagram
+// or choose a file from Project Explorer to view complete source.`;
+    this.render();
   }
 
   async loadFile(fileName, nodeData = null, targetLines = []) {
     this.currentFile = fileName;
+    this.targetLines = Array.isArray(targetLines) ? targetLines : [];
 
     let content = this.sourceCache.get(fileName);
     if (!content) {
@@ -119,15 +178,9 @@ export class SourceEditorModule {
       content = `// Source file: ${fileName}\n// Package: ${nodeData?.parent || 'default'}\n\npublic class ${fileName.replace(/\.java$/, '')} {\n    // Compiled SCPG AST Node\n}\n`;
     }
 
-    if (this.editor) {
-      this.editor.setValue(content);
-      this.highlightLines(targetLines);
-    } else {
-      const container = document.getElementById(this.containerId);
-      if (container) {
-        container.innerHTML = `<pre class="fallback-code-block"><code>${this.escapeHtml(content)}</code></pre>`;
-      }
-    }
+    this.currentContent = content;
+    this.render();
+    this.scrollToHighlightedLine();
   }
 
   synthesizeSourceFromNode(fileName, nodeData) {
@@ -158,214 +211,181 @@ export class SourceEditorModule {
           name: name,
           type: type,
           visibility: f.visibility === '-' ? 'private' : f.visibility === '#' ? 'protected' : 'public',
-          is_static: !!f.is_static,
-          is_final: !!f.is_final
+          isStatic: f.is_static || false,
+          isFinal: f.is_final || false
         });
       }
     });
 
-    // Parse methods
-    const rawMethods = nodeData.methods || [];
+    // Parse methods with smart signature inference
+    const rawMethods = nodeData.methods || nodeData.operations || [];
     const methods = [];
     rawMethods.forEach(m => {
       if (typeof m === 'string') {
         const clean = m.replace(/^[+\-#~]\s*/, '').trim();
-        const parts = clean.split(':').map(s => s.trim());
-        const sig = parts[0] || 'action()';
-        const retType = parts[1] || 'void';
+        const parenIdx = clean.indexOf('(');
+        let name = clean;
+        let params = '';
+        let returnType = 'void';
+
+        if (parenIdx !== -1) {
+          name = clean.substring(0, parenIdx).trim();
+          const closeParenIdx = clean.indexOf(')', parenIdx);
+          if (closeParenIdx !== -1) {
+            params = clean.substring(parenIdx + 1, closeParenIdx).trim();
+            const rest = clean.substring(closeParenIdx + 1).replace(/^:\s*/, '').trim();
+            if (rest) returnType = rest;
+          }
+        } else if (clean.includes(':')) {
+          const parts = clean.split(':').map(s => s.trim());
+          name = parts[0];
+          returnType = parts[1] || 'void';
+        }
+
         const vis = m.startsWith('-') ? 'private' : m.startsWith('#') ? 'protected' : 'public';
-        methods.push({ signature: sig, returnType: retType || 'void', visibility: vis });
-      } else if (typeof m === 'object' && m !== null) {
-        const paramStr = (m.params || []).map(p => `${p.type || 'Object'} ${p.name}`).join(', ');
         methods.push({
-          signature: `${m.name || 'execute'}(${paramStr})`,
-          returnType: m.return_type || 'void',
-          visibility: m.visibility === '-' ? 'private' : m.visibility === '#' ? 'protected' : 'public'
+          name,
+          params: this.formatParams(params),
+          returnType: this.normalizeType(returnType),
+          visibility: vis,
+          isAbstract: kind === 'interface' || kind === 'abstract'
+        });
+      } else if (typeof m === 'object' && m !== null) {
+        const name = m.name || 'method';
+        const returnType = this.normalizeType(m.return_type || m.returnType || 'void');
+        const vis = m.visibility === '-' ? 'private' : m.visibility === '#' ? 'protected' : 'public';
+        const params = (m.parameters || []).map(p => `${p.type_name || 'Object'} ${p.name || 'param'}`).join(', ');
+        methods.push({
+          name,
+          params,
+          returnType,
+          visibility: vis,
+          isAbstract: kind === 'interface' || (kind === 'abstract' && (m.is_abstract || false)),
+          isStatic: m.is_static || false
         });
       }
     });
 
-    let code = `package ${pkg};\n\n`;
-    code += `import java.io.Serializable;\n`;
-    code += `import java.util.*;\n\n`;
+    // Generate Java/Kotlin AST code with full signatures
+    let out = `package ${pkg};\n\n`;
+    out += `import java.util.*;\n`;
+    out += `import java.io.*;\n`;
+    out += `import java.util.concurrent.*;\n\n`;
 
-    code += `/**\n`;
-    code += ` * ${className} Data Transfer Object / Architectural Component\n`;
-    code += ` * Grounded from SCPG Phase 3 AST Symbol Table.\n`;
-    code += ` */\n`;
+    out += `/**\n`;
+    out += ` * OpenHeart Generated AST Representation\n`;
+    out += ` * Entity: ${className}\n`;
+    out += ` * Stereotype: <<${kind}>>\n`;
+    out += ` * Source: Grounded from Deep Program Graph Analysis\n`;
+    out += ` */\n`;
 
-    if (kind === 'interface') {
-      code += `public interface ${className} {\n`;
-      methods.forEach(m => {
-        code += `    ${m.returnType} ${m.signature};\n`;
+    const kindKeyword = kind === 'interface' ? 'interface' : kind === 'enum' ? 'enum' : kind === 'abstract' ? 'abstract class' : 'class';
+    out += `public ${kindKeyword} ${className} {\n\n`;
+
+    if (fields.length > 0) {
+      out += `    // ── Fields & Member Attributes ──\n`;
+      fields.forEach(f => {
+        out += `    ${f.visibility} ${f.type} ${f.name};\n`;
       });
-      code += `}\n`;
-      return code;
-    } else if (kind === 'abstract') {
-      code += `public abstract class ${className} implements Serializable {\n`;
-    } else if (kind === 'enum') {
-      code += `public enum ${className} {\n`;
+      out += `\n`;
+    }
+
+    if (kind === 'class' || kind === 'abstract') {
+      out += `    // ── Constructors ──\n`;
       if (fields.length > 0) {
-        code += `    ` + fields.map(f => f.name.toUpperCase()).join(', ') + `;\n`;
+        const ctorParams = fields.slice(0, 3).map(f => `${f.type} ${f.name}`).join(', ');
+        out += `    public ${className}(${ctorParams}) {\n`;
+        fields.slice(0, 3).forEach(f => {
+          out += `        this.${f.name} = ${f.name};\n`;
+        });
+        out += `    }\n\n`;
       } else {
-        code += `    DEFAULT_INSTANCE;\n`;
-      }
-      code += `}\n`;
-      return code;
-    } else {
-      code += `public class ${className} implements Serializable {\n`;
-    }
-
-    code += `    private static final long serialVersionUID = 1L;\n\n`;
-
-    // 1. Member Fields
-    if (fields.length > 0) {
-      code += `    // ── Member Fields & Attributes ──\n`;
-      fields.forEach(f => {
-        const mod = f.is_static ? 'static ' : '';
-        const fin = f.is_final ? 'final ' : '';
-        code += `    ${f.visibility} ${mod}${fin}${f.type} ${f.name};\n`;
-      });
-      code += `\n`;
-    }
-
-    // 2. Default Zero-Arg Constructor
-    code += `    // ── Default Constructor ──\n`;
-    code += `    public ${className}() {\n`;
-    code += `        super();\n`;
-    code += `    }\n\n`;
-
-    // 3. Parameterized Constructor
-    if (fields.length > 0) {
-      const paramList = fields.map(f => `${f.type} ${f.name}`).join(', ');
-      code += `    // ── Parameterized Constructor ──\n`;
-      code += `    public ${className}(${paramList}) {\n`;
-      fields.forEach(f => {
-        code += `        this.${f.name} = ${f.name};\n`;
-      });
-      code += `    }\n\n`;
-    }
-
-    // 4. Accessors & Mutators (Getters / Setters)
-    const existingMethodNames = new Set(methods.map(m => m.signature.split('(')[0].trim()));
-    const generatedAccessors = [];
-
-    if (fields.length > 0) {
-      fields.forEach(f => {
-        const capitalized = f.name.charAt(0).toUpperCase() + f.name.slice(1);
-        const getterName = `get${capitalized}`;
-        const setterName = `set${capitalized}`;
-
-        if (!existingMethodNames.has(getterName)) {
-          generatedAccessors.push(`    public ${f.type} ${getterName}() {\n        return this.${f.name};\n    }\n`);
-        }
-        if (!existingMethodNames.has(setterName)) {
-          generatedAccessors.push(`    public void ${setterName}(${f.type} ${f.name}) {\n        this.${f.name} = ${f.name};\n    }\n`);
-        }
-      });
-
-      if (generatedAccessors.length > 0) {
-        code += `    // ── Accessors & Mutators ──\n`;
-        code += generatedAccessors.join('\n') + `\n`;
+        out += `    public ${className}() {\n`;
+        out += `        // Default constructor\n`;
+        out += `    }\n\n`;
       }
     }
 
-    // 5. Domain Methods with Real Function Invocations
     if (methods.length > 0) {
-      code += `    // ── Domain Methods & Handlers ──\n`;
+      out += `    // ── Member Methods & Behaviors ──\n`;
       methods.forEach(m => {
-        code += `    ${m.visibility} ${m.returnType} ${m.signature} {\n`;
-        code += this.synthesizeMethodBody(className, m, methods, fields);
-        code += `    }\n\n`;
+        if (kind === 'interface' || m.isAbstract) {
+          out += `    ${m.visibility} ${m.returnType} ${m.name}(${m.params});\n\n`;
+        } else {
+          out += `    ${m.visibility} ${m.returnType} ${m.name}(${m.params}) {\n`;
+          out += this.generateMethodBody(m, className);
+          out += `    }\n\n`;
+        }
       });
     }
 
-    // 6. toString()
-    if (fields.length > 0) {
-      code += `    @Override\n`;
-      code += `    public String toString() {\n`;
-      code += `        return "${className}{" +\n`;
-      const toStringFields = fields.map((f, i) => {
-        const prefix = i === 0 ? `               "` : `               ", `;
-        return `${prefix}${f.name}=" + ${f.name} +`;
-      });
-      code += toStringFields.join('\n') + `\n               '}';\n`;
-      code += `    }\n`;
-    }
-
-    code += `}\n`;
-    return code;
+    out += `}\n`;
+    return out;
   }
 
   inferFieldType(name, rawType) {
-    if (rawType && rawType !== 'Object' && rawType !== 'Unknown' && rawType !== '') {
-      return rawType;
+    if (rawType && rawType !== 'void') {
+      return this.normalizeType(rawType);
     }
-    const n = (name || '').toLowerCase();
-    if (n.startsWith('is') || n.startsWith('has') || n.endsWith('ing') || n === 'active' || n === 'enabled') return 'boolean';
-    if (n.includes('time') || n.includes('millis') || n.includes('delta') || n.includes('timestamp') || n === 'totalram') return 'long';
-    if (n === 'width' || n === 'height' || n === 'layer' || n === 'direction' || n === 'count' || n === 'id' || n === 'port') return 'int';
-    if (n.includes('freq') || n.includes('speed') || n.includes('amp') || n.includes('offset') || n.includes('thickness') || n.includes('max') || n.includes('xf') || n.includes('normalized') || n.includes('sum') || n.includes('centery') || n.includes('density') || n.includes('ratio')) return 'float';
-    if (n.includes('paint')) return 'Paint';
-    if (n.includes('canvas')) return 'Canvas';
-    if (n.includes('task')) return 'Task';
-    if (n.includes('dao') || n.includes('server')) return 'Server_DAO';
-    if (n.includes('name') || n.includes('title') || n.includes('url') || n.includes('path') || n.includes('email') || n.includes('token') || n.includes('carrier') || n.includes('platform') || n.includes('hardware') || n.includes('version') || n.includes('serial') || n.includes('processor') || n.includes('storage') || n === 'tag') return 'String';
-    return 'String';
+    const lower = name.toLowerCase();
+    if (lower.startsWith('is') || lower.startsWith('has') || lower.startsWith('can') || lower.endsWith('enabled') || lower.endsWith('active')) return 'boolean';
+    if (lower.endsWith('id') || lower.endsWith('count') || lower.endsWith('size') || lower.endsWith('index') || lower.endsWith('port') || lower.endsWith('age') || lower.endsWith('length')) return 'int';
+    if (lower.endsWith('timestamp') || lower.endsWith('time') || lower.endsWith('millis')) return 'long';
+    if (lower.endsWith('price') || lower.endsWith('rate') || lower.endsWith('score') || lower.endsWith('weight') || lower.endsWith('ratio')) return 'double';
+    if (lower.endsWith('list') || lower.endsWith('items') || lower.endsWith('nodes') || lower.endsWith('records')) return 'List<String>';
+    if (lower.endsWith('map') || lower.endsWith('cache') || lower.endsWith('lookup')) return 'Map<String, Object>';
+    if (lower.endsWith('set')) return 'Set<String>';
+    if (lower.endsWith('name') || lower.endsWith('title') || lower.endsWith('label') || lower.endsWith('description') || lower.endsWith('url') || lower.endsWith('path') || lower.endsWith('msg') || lower.endsWith('message') || lower.endsWith('key') || lower.endsWith('token') || lower.endsWith('status') || lower.endsWith('type')) return 'String';
+    return 'Object';
   }
 
-  synthesizeMethodBody(className, m, allMethods, allFields) {
-    const rawName = m.signature.split('(')[0].trim();
-    const otherMethods = allMethods.filter(om => om.signature.split('(')[0].trim() !== rawName);
+  normalizeType(t) {
+    if (!t) return 'void';
+    const clean = t.trim();
+    if (clean === 'int' || clean === 'Integer') return 'int';
+    if (clean === 'long' || clean === 'Long') return 'long';
+    if (clean === 'boolean' || clean === 'Boolean' || clean === 'bool') return 'boolean';
+    if (clean === 'double' || clean === 'Double') return 'double';
+    if (clean === 'float' || clean === 'Float') return 'float';
+    if (clean === 'string' || clean === 'String') return 'String';
+    if (clean === 'void') return 'void';
+    return clean;
+  }
 
-    let lines = [];
+  formatParams(raw) {
+    if (!raw) return '';
+    const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
+    return parts.map((p, idx) => {
+      if (p.includes(' ')) return p;
+      if (p.includes(':')) {
+        const [n, t] = p.split(':').map(s => s.trim());
+        return `${this.normalizeType(t || 'Object')} ${n || `param${idx}`}`;
+      }
+      return `Object ${p}`;
+    }).join(', ');
+  }
 
-    if (rawName === 'onDraw') {
-      lines.push('// Handle frame render cycle and sub-component drawing');
-      if (allFields.some(f => f.name === 'isAnimating')) {
-        lines.push('if (this.isAnimating) {');
-        lines.push('    this.updateAnimation();');
-        lines.push('}');
+  generateMethodBody(m, className) {
+    const rawName = m.name.toLowerCase();
+    const lines = [];
+
+    if (rawName.startsWith('get') || rawName.startsWith('is')) {
+      const prop = m.name.replace(/^(get|is)/i, '');
+      const propName = prop.length > 0 ? prop.charAt(0).toLowerCase() + prop.slice(1) : 'value';
+      if (m.returnType === 'boolean') {
+        lines.push(`return this.${propName} != null;`);
+      } else if (m.returnType === 'int' || m.returnType === 'long') {
+        lines.push(`return this.${propName} != 0 ? this.${propName} : 1;`);
+      } else if (m.returnType === 'String') {
+        lines.push(`return this.${propName} != null ? this.${propName} : "${className}";`);
       } else {
-        lines.push('this.updateAnimation();');
+        lines.push(`return this.${propName};`);
       }
-      lines.push('this.drawWave(canvas);');
-    } else if (rawName === 'drawWave') {
-      lines.push('// Compute sinusoidal wave coordinates and render to canvas');
-      lines.push('float computedSine = this.calculateSineSum(this.xf, this.normalizedX);');
-      lines.push('this.applyLayerTransformation(canvas, computedSine);');
-    } else if (rawName === 'updateAnimation') {
-      lines.push('this.currentTime += this.deltaTime;');
-      lines.push('this.offset += this.speed;');
-    } else if (rawName === 'calculateSineSum') {
-      lines.push('return (float) (Math.sin(xf * this.freq + this.offset) * this.targetAmp);');
-    } else if (rawName === 'applyLayerTransformation') {
-      lines.push('// Transform path along layer matrix');
-    } else if (rawName.startsWith('transmit') || rawName.startsWith('send')) {
-      lines.push('// Validate network state and transmit payload to backend endpoint');
-      lines.push('this.validateTransmissionState();');
-      if (allFields.some(f => f.name.includes('server') || f.name.includes('dao') || f.type.includes('DAO'))) {
-        lines.push('if (this.serverDao != null) {');
-        lines.push('    this.serverDao.send(this.task);');
-        lines.push('}');
-      }
-      if (m.returnType === 'boolean') lines.push('return true;');
-    } else if (rawName.startsWith('validate') || rawName.startsWith('check')) {
-      lines.push('// Enforce invariant preconditions');
-      if (m.returnType === 'boolean') lines.push('return true;');
-    } else if (rawName.startsWith('execute') || rawName.startsWith('process') || rawName.startsWith('run')) {
-      lines.push('// Execute pipeline transaction');
-      if (otherMethods.length > 0) {
-        const nextMethod = otherMethods[0].signature.split('(')[0].trim();
-        lines.push(`this.${nextMethod}();`);
-      }
-      if (m.returnType === 'boolean') lines.push('return true;');
-    } else if (otherMethods.length > 0) {
-      const nextMethod = otherMethods[0].signature.split('(')[0].trim();
-      lines.push(`this.${nextMethod}();`);
-    }
-
-    if (lines.length === 0) {
+    } else if (rawName.startsWith('set')) {
+      const prop = m.name.replace(/^set/i, '');
+      const propName = prop.length > 0 ? prop.charAt(0).toLowerCase() + prop.slice(1) : 'value';
+      lines.push(`this.${propName} = param;`);
+    } else {
       if (m.returnType === 'void') {
         lines.push('// Domain operation execution');
       } else if (m.returnType === 'boolean') {
@@ -385,26 +405,93 @@ export class SourceEditorModule {
   }
 
   highlightLines(lines = []) {
-    if (!this.editor || !lines || lines.length === 0) {
-      if (this.editor && this.currentDecorations) {
-        this.currentDecorations = this.editor.deltaDecorations(this.currentDecorations, []);
+    this.targetLines = Array.isArray(lines) ? lines : [];
+    this.render();
+    this.scrollToHighlightedLine();
+  }
+
+  scrollToHighlightedLine() {
+    if (!this.targetLines || this.targetLines.length === 0) return;
+    const targetLineNum = this.targetLines[0];
+    setTimeout(() => {
+      const container = document.getElementById(this.containerId);
+      if (!container) return;
+      const targetRow = container.querySelector(`.code-line-row[data-line="${targetLineNum}"]`);
+      if (targetRow) {
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-      return;
+    }, 40);
+  }
+
+  render() {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+
+    const rawLines = (this.currentContent || '').split('\n');
+    const totalLines = Math.max(1, rawLines.length);
+
+    let gutterHtml = '';
+    let codeHtml = '';
+
+    for (let i = 0; i < totalLines; i++) {
+      const lineNum = i + 1;
+      const isHighlighted = this.targetLines.includes(lineNum);
+      const rawText = rawLines[i] !== undefined ? rawLines[i] : '';
+
+      gutterHtml += `<div class="code-gutter-line ${isHighlighted ? 'highlighted' : ''}" data-line="${lineNum}">${lineNum}</div>`;
+      
+      const highlightedCode = this.highlightSyntax(rawText);
+      codeHtml += `<div class="code-line-row ${isHighlighted ? 'highlighted' : ''}" data-line="${lineNum}">${highlightedCode || '&nbsp;'}</div>`;
     }
 
-    const decorations = lines.map(line => ({
-      range: new window.monaco.Range(line, 1, line, 1),
-      options: {
-        isWholeLine: true,
-        className: 'monaco-line-highlight',
-        linesDecorationsClassName: 'monaco-line-glyph'
-      }
-    }));
+    container.innerHTML = `
+      <div class="code-editor-viewport" style="--code-font-size: ${this.fontSize}px;">
+        <div class="code-gutter">${gutterHtml}</div>
+        <pre class="code-content-body ${this.wordWrap ? 'wrap-lines' : ''}"><code>${codeHtml}</code></pre>
+      </div>
+    `;
 
-    this.currentDecorations = this.editor.deltaDecorations(this.currentDecorations, decorations);
-    if (lines[0]) {
-      this.editor.revealLineInCenter(lines[0]);
+    // Click gutter line to jump / highlight
+    container.querySelectorAll('.code-gutter-line').forEach(el => {
+      el.addEventListener('click', () => {
+        const line = parseInt(el.getAttribute('data-line'), 10);
+        this.highlightLines([line]);
+      });
+    });
+  }
+
+  highlightSyntax(text) {
+    if (!text) return '';
+
+    // Quick regex token replacement for Java/Kotlin/TypeScript
+    // 1. Comments
+    if (text.trim().startsWith('//')) {
+      return `<span class="syn-comment">${this.escapeHtml(text)}</span>`;
     }
+    if (text.trim().startsWith('/*') || text.trim().startsWith('*')) {
+      return `<span class="syn-comment">${this.escapeHtml(text)}</span>`;
+    }
+
+    let escaped = this.escapeHtml(text);
+
+    // Strings: "..." or '...'
+    escaped = escaped.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="syn-string">$&</span>');
+
+    // Annotations: @Override, @Entity, etc.
+    escaped = escaped.replace(/(@[A-Za-z0-9_]+)/g, '<span class="syn-annotation">$1</span>');
+
+    // Keywords
+    const keywords = /\b(public|private|protected|class|interface|enum|implements|extends|static|final|abstract|void|return|new|this|super|import|package|synchronized|volatile|transient|native|strictfp|throws|throw|try|catch|finally|if|else|while|for|do|switch|case|default|break|continue|instanceof|assert|val|var|fun|override|const|let|mut|struct|impl|fn)\b/g;
+    escaped = escaped.replace(keywords, '<span class="syn-keyword">$1</span>');
+
+    // Primitive / Standard Types
+    const types = /\b(int|long|boolean|double|float|char|byte|short|String|Object|List|Map|Set|Optional|Integer|Long|Boolean|Double|Float|Void)\b/g;
+    escaped = escaped.replace(types, '<span class="syn-type">$1</span>');
+
+    // Numbers
+    escaped = escaped.replace(/\b(\d+(?:\.\d+)?[fFdDlL]?)\b/g, '<span class="syn-number">$1</span>');
+
+    return escaped;
   }
 
   escapeHtml(str) {
