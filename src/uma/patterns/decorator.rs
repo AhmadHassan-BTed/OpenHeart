@@ -3,40 +3,24 @@
 
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
+use crate::uma::patterns::PatternInspector;
 
 pub fn is_decorator(
     sym_id: u32,
     sta: &SymbolTableArtifact,
     tca: &TokenCorpusArtifact,
 ) -> (bool, u16) {
-    let sym = match sta.symbol(sym_id) {
-        Some(s) => s,
-        None => return (false, 0),
-    };
+    let is_name_match = PatternInspector::name_matches(sta, tca, sym_id, &["Decorator"]);
+    let parent_types: Vec<u32> = sta
+        .th_edges
+        .iter()
+        .filter(|e| e.from_sym == sym_id)
+        .map(|e| e.to_sym)
+        .collect();
 
-    let name = std::str::from_utf8(tca.interner.lookup_text(sym.name_id)).unwrap_or("");
-    let is_name_match = name.ends_with("Decorator") || name.contains("Decorator");
-
-    // Check if class implements an interface/superclass AND has a field of that same type
-    let mut parent_types = Vec::new();
-    for edge in &sta.th_edges {
-        if edge.from_sym == sym_id {
-            parent_types.push(edge.to_sym);
-        }
-    }
-
-    let mut has_wrapped_parent_field = false;
-    let mut child_id = sym.first_child;
-    while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
-        let child = &sta.symbol_records[child_id as usize];
-        if child.kind == crate::core::types::symbol::SymbolKind::SK_FIELD as u8 {
-            if parent_types.contains(&child.type_id) {
-                has_wrapped_parent_field = true;
-                break;
-            }
-        }
-        child_id = child.next_sibling;
-    }
+    let has_wrapped_parent_field = PatternInspector::get_fields(sta, sym_id)
+        .iter()
+        .any(|f| parent_types.contains(&f.type_id));
 
     if has_wrapped_parent_field && is_name_match {
         (true, 95)

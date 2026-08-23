@@ -1,0 +1,29 @@
+flowchart LR
+    %% Static Single Assignment Def-Use Data Flow Graph
+    subgraph SSA_0["SSA Scope: NewsAgency"]
+        v0_0["SSA Def: v₀<br/>var: retries (Block 0)"]
+        v1_0["SSA Def: v₁<br/>var: retries (Block 1)"]
+        v2_0["SSA φ-Node: v₂ = φ(v₀, v₁)<br/>join: Block 2"]"]
+        v0_0 -->|def-use chain| v1_0
+        v0_0 -->|reaching def 0| v2_0
+        v1_0 -->|reaching def 1| v2_0
+    end
+
+    subgraph SSA_1["SSA Scope: NewsChannel"]
+        v0_1["SSA Def: v₀<br/>var: retries (Block 0)"]
+        v1_1["SSA Def: v₁<br/>var: retries (Block 1)"]
+        v2_1["SSA φ-Node: v₂ = φ(v₀, v₁)<br/>join: Block 2"]"]
+        v0_1 -->|def-use chain| v1_1
+        v0_1 -->|reaching def 0| v2_1
+        v1_1 -->|reaching def 1| v2_1
+    end
+
+    subgraph SSA_2["SSA Scope: Observer"]
+        v0_2["SSA Def: v₀<br/>var: retries (Block 0)"]
+        v1_2["SSA Def: v₁<br/>var: retries (Block 1)"]
+        v2_2["SSA φ-Node: v₂ = φ(v₀, v₁)<br/>join: Block 2"]"]
+        v0_2 -->|def-use chain| v1_2
+        v0_2 -->|reaching def 0| v2_2
+        v1_2 -->|reaching def 1| v2_2
+    end
+

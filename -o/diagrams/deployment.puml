@@ -1,0 +1,105 @@
+@startuml
+skinparam backgroundColor transparent
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Space Grotesk", "Segoe UI", sans-serif
+skinparam defaultFontColor #e5e5e5
+skinparam defaultFontSize 12
+skinparam ArrowColor #38bdf8
+skinparam ArrowThickness 1.5
+skinparam packageStyle rectangle
+skinparam PackageBorderColor #facc15
+skinparam PackageBackgroundColor #0f141c
+skinparam PackageFontColor #facc15
+skinparam ClassBorderColor #38bdf8
+skinparam ClassBackgroundColor #14171f
+skinparam ClassHeaderBackgroundColor #1e2433
+skinparam ClassFontColor #ffffff
+skinparam ObjectBorderColor #38bdf8
+skinparam ObjectBackgroundColor #14171f
+skinparam ObjectFontColor #ffffff
+skinparam ComponentBorderColor #38bdf8
+skinparam ComponentBackgroundColor #14171f
+skinparam ComponentFontColor #ffffff
+skinparam NodeBorderColor #38bdf8
+skinparam NodeBackgroundColor #14171f
+skinparam NodeFontColor #ffffff
+skinparam StateBorderColor #38bdf8
+skinparam StateBackgroundColor #14171f
+skinparam StateFontColor #ffffff
+skinparam ActivityBorderColor #38bdf8
+skinparam ActivityBackgroundColor #14171f
+skinparam ActivityFontColor #ffffff
+skinparam SequenceLifeLineBorderColor #38bdf8
+skinparam SequenceLifeLineBackgroundColor #14171f
+skinparam SequenceGroupBorderColor #facc15
+skinparam SequenceGroupBackgroundColor #0f141c
+skinparam SequenceGroupFontColor #facc15
+skinparam ParticipantBorderColor #38bdf8
+skinparam ParticipantBackgroundColor #14171f
+skinparam ParticipantFontColor #ffffff
+skinparam ActorBorderColor #facc15
+skinparam ActorBackgroundColor #14171f
+skinparam ActorFontColor #ffffff
+skinparam UsecaseBorderColor #38bdf8
+skinparam UsecaseBackgroundColor #14171f
+skinparam UsecaseFontColor #ffffff
+
+node "Host Environment: com" as node_com <<executionEnvironment>> {
+  artifact "art_com.jar" as art_com <<artifact>>
+}
+
+node "Host Environment: patterns" as node_patterns <<executionEnvironment>> {
+  artifact "art_patterns.jar" as art_patterns <<artifact>>
+}
+
+node "Host Environment: behavioral" as node_behavioral <<executionEnvironment>> {
+  artifact "art_behavioral.jar" as art_behavioral <<artifact>>
+}
+
+node "Host Environment: observer" as node_observer <<executionEnvironment>> {
+  artifact "art_observer.jar" as art_observer <<artifact>>
+}
+
+node "Host Environment: strategy" as node_strategy <<executionEnvironment>> {
+  artifact "art_strategy.jar" as art_strategy <<artifact>>
+}
+
+node "Host Environment: templatemethod" as node_templatemethod <<executionEnvironment>> {
+  artifact "art_templatemethod.jar" as art_templatemethod <<artifact>>
+}
+
+node "Host Environment: creational" as node_creational <<executionEnvironment>> {
+  artifact "art_creational.jar" as art_creational <<artifact>>
+}
+
+node "Host Environment: builder" as node_builder <<executionEnvironment>> {
+  artifact "art_builder.jar" as art_builder <<artifact>>
+}
+
+node "Host Environment: factory" as node_factory <<executionEnvironment>> {
+  artifact "art_factory.jar" as art_factory <<artifact>>
+}
+
+node "Host Environment: singleton" as node_singleton <<executionEnvironment>> {
+  artifact "art_singleton.jar" as art_singleton <<artifact>>
+}
+
+node "Host Environment: structural" as node_structural <<executionEnvironment>> {
+  artifact "art_structural.jar" as art_structural <<artifact>>
+}
+
+node "Host Environment: adapter" as node_adapter <<executionEnvironment>> {
+  artifact "art_adapter.jar" as art_adapter <<artifact>>
+}
+
+node "Host Environment: decorator" as node_decorator <<executionEnvironment>> {
+  artifact "art_decorator.jar" as art_decorator <<artifact>>
+}
+
+node "Host Environment: facade" as node_facade <<executionEnvironment>> {
+  artifact "art_facade.jar" as art_facade <<artifact>>
+}
+
+@enduml

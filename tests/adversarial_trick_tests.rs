@@ -261,12 +261,12 @@ public class SystemFacade {
         "Must detect GoF patterns"
     );
 
-    // ── Test 2: Verify All 14 PlantUML Strategies ─────────────────────────────
+    // ── Test 2: Verify All 14 UML + 5 Advanced PlantUML Strategies ──────────
     let puml_exporter = PlantUMLExporter::new();
-    assert_eq!(puml_exporter.strategy_types().len(), 14);
+    assert_eq!(puml_exporter.strategy_types().len(), 19);
 
     let all_puml = puml_exporter.export_all(&uma, &sta, &tca);
-    assert_eq!(all_puml.len(), 14);
+    assert_eq!(all_puml.len(), 19);
 
     for (dtype, puml_text) in &all_puml {
         assert!(
@@ -286,12 +286,12 @@ public class SystemFacade {
         );
     }
 
-    // ── Test 3: Verify All 14 Mermaid Strategies ──────────────────────────────
+    // ── Test 3: Verify All 14 UML + 5 Advanced Mermaid Strategies ──────────
     let mermaid_exporter = MermaidExporter::new();
-    assert_eq!(mermaid_exporter.strategy_types().len(), 14);
+    assert_eq!(mermaid_exporter.strategy_types().len(), 19);
 
     let all_mmd = mermaid_exporter.export_all(&uma, &sta, &tca);
-    assert_eq!(all_mmd.len(), 14);
+    assert_eq!(all_mmd.len(), 19);
 
     for (dtype, mmd_text) in &all_mmd {
         assert!(

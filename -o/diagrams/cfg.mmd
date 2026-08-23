@@ -1,0 +1,44 @@
+flowchart TD
+    %% Control Flow Graph & Dominator Frontiers
+    subgraph CFG_setNews["Function CFG: setNews()"]
+        BB0_setNews["Entry Block 0<br/>[Cooper idom: entry]"]
+        Gate1_setNews{"Branch Gate: condition"}
+        BB1_setNews["Then Block 1<br/>Statements Execution"]
+        BB2_setNews["Else/Merge Block 2<br/>Dominance Frontier"]
+        BB3_setNews["Exit Return Block 3"]
+
+        BB0_setNews --> Gate1_setNews
+        Gate1_setNews -->|true branch| BB1_setNews
+        Gate1_setNews -->|false branch| BB2_setNews
+        BB1_setNews --> BB2_setNews
+        BB2_setNews --> BB3_setNews
+    end
+
+    subgraph CFG_attach["Function CFG: attach()"]
+        BB0_attach["Entry Block 0<br/>[Cooper idom: entry]"]
+        Gate1_attach{"Branch Gate: condition"}
+        BB1_attach["Then Block 1<br/>Statements Execution"]
+        BB2_attach["Else/Merge Block 2<br/>Dominance Frontier"]
+        BB3_attach["Exit Return Block 3"]
+
+        BB0_attach --> Gate1_attach
+        Gate1_attach -->|true branch| BB1_attach
+        Gate1_attach -->|false branch| BB2_attach
+        BB1_attach --> BB2_attach
+        BB2_attach --> BB3_attach
+    end
+
+    subgraph CFG_detach["Function CFG: detach()"]
+        BB0_detach["Entry Block 0<br/>[Cooper idom: entry]"]
+        Gate1_detach{"Branch Gate: condition"}
+        BB1_detach["Then Block 1<br/>Statements Execution"]
+        BB2_detach["Else/Merge Block 2<br/>Dominance Frontier"]
+        BB3_detach["Exit Return Block 3"]
+
+        BB0_detach --> Gate1_detach
+        Gate1_detach -->|true branch| BB1_detach
+        Gate1_detach -->|false branch| BB2_detach
+        BB1_detach --> BB2_detach
+        BB2_detach --> BB3_detach
+    end
+

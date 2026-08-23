@@ -61,6 +61,12 @@ mod library {
             TRUE_ID
         }
 
+        /// Look up an allocated ROBDD node by its identifier.
+        #[inline]
+        pub fn node(&self, id: u32) -> &ROBDDNode {
+            &self.nodes[id as usize]
+        }
+
         /// Construct the ROBDD node for a single variable xᵢ: `make_node(i, FALSE, TRUE)`.
         pub fn var(&mut self, var_idx: u16) -> u32 {
             self.unique_table

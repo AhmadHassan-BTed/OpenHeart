@@ -1,0 +1,5 @@
+flowchart TD
+    %% Control Dependence Graph & Condition Gates
+    CDG_Root["Entry Root Gate (START)"] --> Gate_1{"Condition Gate 1: (amount > 0)"}
+    Gate_1 -->|true_guard| Stmt_1["Controlled Block: repository.saveOrder()"]
+    CDG_Root --> Stmt_2["Controlled Block: return response"]

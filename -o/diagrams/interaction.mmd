@@ -1,0 +1,17 @@
+graph TD
+    subgraph Scenario_PaymentStrategy["Scenario: PaymentStrategy"]
+        Disp_update["dispatch update()"]
+    end
+
+    subgraph Scenario_String["Scenario: String"]
+        Disp_attach["dispatch attach()"]
+    end
+
+    subgraph Scenario_pay["Scenario: pay"]
+        Disp_detach["dispatch detach()"]
+    end
+
+    subgraph Scenario_name["Scenario: name"]
+        Disp_notifyObservers["dispatch notifyObservers()"]
+    end
+

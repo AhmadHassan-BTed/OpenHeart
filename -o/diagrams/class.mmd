@@ -1,0 +1,234 @@
+classDiagram
+    namespace com {
+        namespace patterns {
+            namespace structural {
+                namespace decorator {
+                    class Beverage {
+                        <<interface>> 
+                        +getDescription() Unknown
+                        +cost() Unknown
+                    }
+                    class CondimentDecorator {
+                        <<Decorator>>
+                        +beverage Beverage
+                        +CondimentDecorator() Unknown
+                        +getDescription() Unknown
+                    }
+                    class Espresso {
+                        +getDescription() Unknown
+                        +cost() Unknown
+                    }
+                    class Mocha {
+                        +Mocha() Unknown
+                        +getDescription() Unknown
+                        +cost() Unknown
+                    }
+                    class Whip {
+                        +Whip() Unknown
+                        +getDescription() Unknown
+                        +cost() Unknown
+                    }
+                    CondimentDecorator --|> Beverage
+                    Espresso --|> Beverage
+                    Mocha --|> CondimentDecorator
+                    Whip --|> CondimentDecorator
+                }
+                namespace adapter {
+                    class AdvancedMediaPlayer {
+                        <<interface>> 
+                        +playVlc() Unknown
+                        +playMp4() Unknown
+                    }
+                    class AudioPlayer {
+                        <<Decorator>>
+                        +mediaAdapter MediaAdapter
+                        +play() Unknown
+                    }
+                    class MediaAdapter {
+                        <<Decorator>>
+                        +advancedMusicPlayer AdvancedMediaPlayer
+                        +MediaAdapter() Unknown
+                        +play() Unknown
+                    }
+                    class MediaPlayer {
+                        <<interface>> 
+                        +play() Unknown
+                    }
+                    class Mp4Player {
+                        +playVlc() Unknown
+                        +playMp4() Unknown
+                    }
+                    class VlcPlayer {
+                        +playVlc() Unknown
+                        +playMp4() Unknown
+                    }
+                    AudioPlayer --|> MediaPlayer
+                    MediaAdapter --|> MediaPlayer
+                    Mp4Player --|> AdvancedMediaPlayer
+                    VlcPlayer --|> AdvancedMediaPlayer
+                }
+                namespace facade {
+                    class AudioMixer {
+                        +fix() Unknown
+                    }
+                    class BitrateReader {
+                        +read() Unknown
+                    }
+                    class VideoConversionFacade {
+                        <<Decorator>>
+                        +audioMixer AudioMixer
+                        +bitrateReader BitrateReader
+                        +convertVideo() Unknown
+                    }
+                }
+            }
+            namespace creational {
+                namespace builder {
+                    class Computer {
+                        <<Decorator>>
+                        +cpu Unknown
+                        +ram Unknown
+                        +storage Unknown
+                        +graphicsCardEnabled Unknown
+                        +setCpu() Unknown
+                        +setRam() Unknown
+                        +setStorage() Unknown
+                        +setGraphicsCardEnabled() Unknown
+                        +getCpu() Unknown
+                        +getRam() Unknown
+                        +getStorage() Unknown
+                        +isGraphicsCardEnabled() Unknown
+                    }
+                    class ComputerBuilder {
+                        <<Builder>>
+                        +computer Computer
+                        +ComputerBuilder() Unknown
+                        +buildCpu() ComputerBuilder
+                        +buildRam() ComputerBuilder
+                        +buildStorage() ComputerBuilder
+                        +setGraphicsCard() ComputerBuilder
+                        +build() Computer
+                    }
+                    class Director {
+                        +constructGamingComputer() Computer
+                    }
+                }
+                namespace singleton {
+                    class DatabaseConnectionPool {
+                        <<Singleton>>
+                        +instance DatabaseConnectionPool
+                        +maxConnections Unknown
+                        +isInitialized Unknown
+                        +DatabaseConnectionPool() Unknown
+                        +getInstance() DatabaseConnectionPool
+                        +executeQuery() Unknown
+                    }
+                }
+                namespace factory {
+                    class Logistics {
+                        +planDelivery() Unknown
+                        +createTransport() Transport
+                    }
+                    class RoadLogistics {
+                        +createTransport() Transport
+                    }
+                    class SeaLogistics {
+                        +createTransport() Transport
+                    }
+                    class Ship {
+                        +deliver() Unknown
+                    }
+                    class Transport {
+                        <<interface>> 
+                        +deliver() Unknown
+                    }
+                    class Truck {
+                        +deliver() Unknown
+                    }
+                    RoadLogistics --|> Logistics
+                    SeaLogistics --|> Logistics
+                    Ship --|> Transport
+                    Truck --|> Transport
+                }
+            }
+            namespace behavioral {
+                namespace templatemethod {
+                    class CsvDataMiner {
+                        +openFile() Unknown
+                        +extractData() Unknown
+                        +parseData() Unknown
+                    }
+                    class DataMiner {
+                        +mine() Unknown
+                        +openFile() Unknown
+                        +extractData() Unknown
+                        +parseData() Unknown
+                        +closeFile() Unknown
+                    }
+                    class PdfDataMiner {
+                        +openFile() Unknown
+                        +extractData() Unknown
+                        +parseData() Unknown
+                    }
+                    CsvDataMiner --|> DataMiner
+                    PdfDataMiner --|> DataMiner
+                }
+                namespace observer {
+                    class NewsAgency {
+                        <<Decorator>>
+                        +news Unknown
+                        +observers Unknown
+                        +setNews() Unknown
+                        +attach() Unknown
+                        +detach() Unknown
+                        +notifyObservers() Unknown
+                    }
+                    class NewsChannel {
+                        <<Decorator>>
+                        +news Unknown
+                        +update() Unknown
+                    }
+                    class Observer {
+                        <<interface>> 
+                        +update() Unknown
+                    }
+                    class Subject {
+                        <<interface>> 
+                        +attach() Unknown
+                        +detach() Unknown
+                        +notifyObservers() Unknown
+                    }
+                    NewsAgency --|> Subject
+                    NewsChannel --|> Observer
+                }
+                namespace strategy {
+                    class CreditCardStrategy {
+                        <<State>>
+                        +name Unknown
+                        +cardNumber Unknown
+                        +CreditCardStrategy() Unknown
+                        +pay() Unknown
+                    }
+                    class PaymentStrategy {
+                        <<interface>> 
+                        <<State>>
+                        +pay() Unknown
+                    }
+                    class PaypalStrategy {
+                        <<State>>
+                        +emailId Unknown
+                        +PaypalStrategy() Unknown
+                        +pay() Unknown
+                    }
+                    class ShoppingCart {
+                        <<Decorator>>
+                        +paymentStrategy PaymentStrategy
+                        +setPaymentStrategy() Unknown
+                        +checkout() Unknown
+                    }
+                    CreditCardStrategy --|> PaymentStrategy
+                    PaypalStrategy --|> PaymentStrategy
+                }
+            }
+        }
+    }

@@ -39,13 +39,18 @@ USAGE:
 SUBCOMMANDS:
     analyze <SOURCE_PATH> [OUTPUT_DIR] [--verbose | --debug | --trace]
         Recursively scans <SOURCE_PATH> for .java source files and executes
-        the complete 6-phase static analysis pipeline with structured logging:
-          • Phase 1: Lexical Ingestion          ─► corpus.tca
-          • Phase 2: CST Reduction & BP AST     ─► ast.bpa
-          • Phase 3: Symbol Table & Hierarchy   ─► symbols.sta
-          • Phase 4: Control Flow & Dominators  ─► cfg.cfa
-          • Phase 5: SSA Form & Data Flow Graph ─► ssa.ssa
-          • Phase 6: Call Graph & Points-To     ─► callgraph.cga
+        the complete 10-phase static analysis pipeline with structured logging:
+          • Phase 1:  Lexical Ingestion          ─► corpus.tca
+          • Phase 2:  CST Reduction & BP AST     ─► ast.bpa
+          • Phase 3:  Symbol Table & Hierarchy   ─► symbols.sta
+          • Phase 4:  Control Flow & Dominators  ─► cfg.cfa
+          • Phase 5:  SSA Form & Data Flow Graph ─► ssa.ssa
+          • Phase 6:  Call Graph & Points-To     ─► callgraph.cga
+          • Phase 7:  Traceability Index         ─► traceability.tra
+          • Phase 8:  ROBDD Path Summaries       ─► paths.psa
+          • Phase 9:  UML Semantic Extraction    ─► metadata.uma
+          • Phase 10: SCPG Unified Binary        ─► unified.scpg
+          • Auto-exports all 14 UML Diagrams     ─► diagrams/*.puml, *.mmd
 
     inspect <ARTIFACT_PATH>
         Inspects and validates the CRC-64 integrity of a binary artifact (.tca, .bpa, .sta, .cfa, .ssa, .cga).
@@ -247,6 +252,52 @@ fn cmd_analyze(source_path_str: &str, out_dir_str: Option<&str>) -> Result<(), S
         &psa_artifact,
         &scpg_path,
     );
+
+    // ── AUTO-EXPORT ALL 14 UML + 5 ADVANCED EXECUTION DIAGRAMS ──
+    let diag_dir = out_dir.join("diagrams");
+    fs::create_dir_all(&diag_dir).ok();
+    let diag_engine = openheart::scpg::diagram::UniversalDiagramEngine::new();
+    let all_diagram_types = [
+        "class",
+        "object",
+        "component",
+        "deployment",
+        "package",
+        "composite",
+        "profile",
+        "usecase",
+        "activity",
+        "statemachine",
+        "sequence",
+        "communication",
+        "interaction",
+        "timing",
+        "cfg",
+        "robdd",
+        "dfg",
+        "cdg",
+        "callgraph",
+    ];
+    for diag_type in all_diagram_types {
+        if let Some(puml) = diag_engine.export_diagram(
+            openheart::scpg::diagram::DiagramFormat::PlantUML,
+            diag_type,
+            &uma_artifact,
+            &sta_artifact,
+            &tca_artifact,
+        ) {
+            fs::write(diag_dir.join(format!("{}.puml", diag_type)), puml).ok();
+        }
+        if let Some(mmd) = diag_engine.export_diagram(
+            openheart::scpg::diagram::DiagramFormat::Mermaid,
+            diag_type,
+            &uma_artifact,
+            &sta_artifact,
+            &tca_artifact,
+        ) {
+            fs::write(diag_dir.join(format!("{}.mmd", diag_type)), mmd).ok();
+        }
+    }
 
     log_info("================================================================================");
     log_info(&format!(

@@ -3,40 +3,18 @@
 
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
+use crate::uma::patterns::PatternInspector;
 
 pub fn is_adapter(
     sym_id: u32,
     sta: &SymbolTableArtifact,
     tca: &TokenCorpusArtifact,
 ) -> (bool, u16) {
-    let sym = match sta.symbol(sym_id) {
-        Some(s) => s,
-        None => return (false, 0),
-    };
-
-    let name = std::str::from_utf8(tca.interner.lookup_text(sym.name_id)).unwrap_or("");
-    let is_name_match = name.ends_with("Adapter") || name.contains("Adapter");
-
-    let mut implements_any = false;
-    for edge in &sta.th_edges {
-        if edge.from_sym == sym_id {
-            implements_any = true;
-            break;
-        }
-    }
-
-    let mut has_adaptee_field = false;
-    let mut child_id = sym.first_child;
-    while child_id != u32::MAX && (child_id as usize) < sta.symbol_records.len() {
-        let child = &sta.symbol_records[child_id as usize];
-        if child.kind == crate::core::types::symbol::SymbolKind::SK_FIELD as u8 {
-            if child.type_id != u32::MAX && child.type_id != sym_id {
-                has_adaptee_field = true;
-                break;
-            }
-        }
-        child_id = child.next_sibling;
-    }
+    let is_name_match = PatternInspector::name_matches(sta, tca, sym_id, &["Adapter"]);
+    let implements_any = PatternInspector::has_type_hierarchy_edge(sta, sym_id);
+    let has_adaptee_field = PatternInspector::get_fields(sta, sym_id)
+        .iter()
+        .any(|f| f.type_id != u32::MAX && f.type_id != sym_id);
 
     if is_name_match && implements_any && has_adaptee_field {
         (true, 95)
