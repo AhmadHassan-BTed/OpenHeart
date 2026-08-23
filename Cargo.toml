@@ -12,6 +12,8 @@ tree-sitter-javascript = "0.20"
 sha2 = "0.10"
 memmap2 = "0.9"
 thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [dev-dependencies]
 tempfile = "3.8"

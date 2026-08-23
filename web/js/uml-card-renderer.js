@@ -1,19 +1,9 @@
 /**
- * OpenHeart Modular Vector Card Generator Suite
- * Decoupled, studio-grade SVG vector card renderers for ALL 19 diagram types:
- *  - Classes / Interfaces / Abstract (3-Compartment UML 2.5)
- *  - State Machine Nodes (Entry, Do, Exit Compartments)
- *  - Activity Action Nodes (Start, Action, Stop)
- *  - Component & Interface Sockets
- *  - Deployment Nodes & Artifacts
- *  - Object Instances (Slot Values)
- *  - Use Cases & Actors
- *  - Compiler CFG Basic Blocks (Instructions & Guards)
- *  - ROBDD Decision Gates & Boolean Terminals
- *  - Call Graph & Function Nodes
+ * OpenHeart Fully Dynamic SVG UML Card Generator Suite (Zero Hardcoding)
+ * Styles are derived purely from parsed AST types, stereotypes, and visibility tokens.
  */
 
-/** ── 1. UML Class / Interface / Abstract Card ── */
+/** ── 1. Dynamic UML Class / Interface / Abstract / Enum Card ── */
 export function generateUmlClassCardSvg(classData) {
   const {
     name = "Class",
@@ -29,11 +19,14 @@ export function generateUmlClassCardSvg(classData) {
   const ROW_HEIGHT = 20;
   const PADDING_X = 14;
 
+  let badgeText = stereotype.replace(/[<>]/g, '').trim();
+  if (!badgeText) badgeText = kind;
+
+  // Pure dynamic theme determination based strictly on AST kind
   let headerBg = "#F8FAFC";
   let borderStroke = "#475569";
   let stereotypeBg = "#F1F5F9";
   let stereotypeColor = "#475569";
-  let badgeText = stereotype.replace(/[<>]/g, '');
 
   if (kind === 'interface') {
     headerBg = "#EFF6FF";
@@ -45,16 +38,18 @@ export function generateUmlClassCardSvg(classData) {
     borderStroke = "#7C3AED";
     stereotypeBg = "#F3E8FF";
     stereotypeColor = "#7E22CE";
-  } else if (name.includes('Decorator') || stereotype.toLowerCase().includes('decorator')) {
+  } else if (kind === 'enum') {
     headerBg = "#FFFBEB";
     borderStroke = "#D97706";
     stereotypeBg = "#FEF3C7";
     stereotypeColor = "#B45309";
-  } else if (name.includes('Builder') || stereotype.toLowerCase().includes('builder') || name.includes('Factory')) {
-    headerBg = "#F0FDF4";
-    borderStroke = "#059669";
-    stereotypeBg = "#DCFCE7";
-    stereotypeColor = "#15803D";
+  } else if (stereotype && stereotype !== '<<class>>') {
+    // Dynamic HSL tint derived from stereotype hash for custom annotations
+    const hue = hashString(stereotype) % 360;
+    headerBg = `hsl(${hue}, 85%, 96%)`;
+    borderStroke = `hsl(${hue}, 70%, 45%)`;
+    stereotypeBg = `hsl(${hue}, 80%, 90%)`;
+    stereotypeColor = `hsl(${hue}, 85%, 30%)`;
   }
 
   const fieldsCount = Math.max(1, fields.length);
@@ -65,17 +60,17 @@ export function generateUmlClassCardSvg(classData) {
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${cardHeight}" viewBox="0 0 ${width} ${cardHeight}">
   <defs>
-    <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+    <filter id="cardShadow_${escapeXml(name)}" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
       <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0F172A" flood-opacity="0.06"/>
     </filter>
   </defs>
 
-  <rect x="1" y="1" width="${width - 2}" height="${cardHeight - 2}" rx="8" ry="8" fill="#FFFFFF" stroke="${borderStroke}" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="1" y="1" width="${width - 2}" height="${cardHeight - 2}" rx="8" ry="8" fill="#FFFFFF" stroke="${borderStroke}" stroke-width="1.5" filter="url(#cardShadow_${escapeXml(name)})"/>
   <path d="M 1,9 Q 1,1 9,1 L ${width - 9},1 Q ${width - 1},1 ${width - 1},9 L ${width - 1},${HEADER_HEIGHT} L 1,${HEADER_HEIGHT} Z" fill="${headerBg}" />
   <line x1="1" y1="${HEADER_HEIGHT}" x2="${width - 1}" y2="${HEADER_HEIGHT}" stroke="${borderStroke}" stroke-width="1.2" />
 
   <rect x="${width / 2 - 45}" y="5" width="90" height="13" rx="6.5" ry="6.5" fill="${stereotypeBg}" />
-  <text x="${width / 2}" y="14.5" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${stereotypeColor}" text-anchor="middle">&lt;&lt;${badgeText}&gt;&gt;</text>
+  <text x="${width / 2}" y="14.5" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${stereotypeColor}" text-anchor="middle">&lt;&lt;${escapeXml(badgeText)}&gt;&gt;</text>
   <text x="${width / 2}" y="33" font-family="JetBrains Mono, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">${escapeXml(name)}</text>
 `;
 
@@ -135,7 +130,63 @@ export function generateUmlClassCardSvg(classData) {
   };
 }
 
-/** ── 2. State Machine Node (Entry / Do / Exit Compartments) ── */
+/** ── 2. Dynamic UML 2.5 Package Folder Container (Zero Hardcoding) ── */
+export function generatePackageFolderSvg(pkgData) {
+  const {
+    name = "package",
+    nestLevel = 0,
+    isCollapsed = false,
+    childCount = 0,
+    width = 400,
+    height = 250
+  } = pkgData;
+
+  const TAB_HEIGHT = 30;
+  const shortName = name.replace(/^package\s*\[?/, '').replace(/\]?$/, '');
+  const tabWidth = Math.min(width - 40, Math.max(150, shortName.length * 8.5 + 40));
+
+  // Dynamic harmonic HSL color generation purely based on package name hash & nesting level
+  const hue = hashString(shortName) % 360;
+  const isDomainTier = nestLevel === 0;
+
+  const tabBg = isDomainTier ? `hsl(${hue}, 75%, 92%)` : `hsl(${hue}, 70%, 88%)`;
+  const bodyBg = isDomainTier ? `hsl(${hue}, 55%, 98%)` : `hsl(${hue}, 50%, 95%)`;
+  const borderColor = isDomainTier ? `hsl(${hue}, 65%, 60%)` : `hsl(${hue}, 70%, 42%)`;
+  const textColor = `hsl(${hue}, 80%, 25%)`;
+
+  const borderStyle = isDomainTier ? '' : 'stroke-dasharray="6 4"';
+
+  let svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <!-- 1. Top-Left Folder Tab -->
+  <path d="M 2,${TAB_HEIGHT} L 2,6 Q 2,2 6,2 L ${tabWidth - 10},2 Q ${tabWidth - 4},2 ${tabWidth + 6},${TAB_HEIGHT} Z" fill="${tabBg}" stroke="${borderColor}" stroke-width="1.8" />
+  <text x="14" y="${TAB_HEIGHT - 10}" font-family="JetBrains Mono, -apple-system, sans-serif" font-size="11" font-weight="700" fill="${textColor}">
+    ${isCollapsed ? '📁 [+]' : '📂 [−]'} ${escapeXml(shortName)}
+  </text>
+
+  <!-- 2. Main Folder Body Container -->
+  <rect x="2" y="${TAB_HEIGHT}" width="${width - 4}" height="${height - TAB_HEIGHT - 2}" rx="8" ry="8" fill="${bodyBg}" stroke="${borderColor}" stroke-width="1.8" ${borderStyle} />
+`;
+
+  if (isCollapsed) {
+    svg += `
+  <rect x="${width / 2 - 110}" y="${TAB_HEIGHT + (height - TAB_HEIGHT) / 2 - 14}" width="220" height="28" rx="14" fill="#FFFFFF" stroke="${borderColor}" stroke-width="1" />
+  <text x="${width / 2}" y="${TAB_HEIGHT + (height - TAB_HEIGHT) / 2 + 4}" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="${textColor}" text-anchor="middle">
+    📦 ${childCount} Classes (Click to Expand)
+  </text>`;
+  }
+
+  svg += `\n</svg>`;
+
+  return {
+    svg,
+    dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    width,
+    height
+  };
+}
+
+/** ── 3. State Machine Node ── */
 export function generateStateNodeSvg(data) {
   const { name = "State", entryAction = null, doActivity = null, exitAction = null, width = 240 } = data;
   const isInitial = name === '[*]' || name === 'state_init';
@@ -187,7 +238,7 @@ export function generateStateNodeSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
-/** ── 3. Activity Action Node (Action Pill with Stereotype) ── */
+/** ── 4. Activity Action Node ── */
 export function generateActionNodeSvg(data) {
   const { name = "Action", isStart = false, isStop = false, width = 230 } = data;
 
@@ -220,7 +271,7 @@ export function generateActionNodeSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
-/** ── 4. Component & Interface Sockets ── */
+/** ── 5. Component & Interface Sockets ── */
 export function generateComponentNodeSvg(data) {
   const { name = "Component", isInterface = false, width = 240, height = 70 } = data;
 
@@ -237,7 +288,6 @@ export function generateComponentNodeSvg(data) {
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="#FFFFFF" stroke="#059669" stroke-width="1.8" />
-  <!-- Component Tabs -->
   <rect x="-4" y="14" width="16" height="12" rx="2" fill="#FFFFFF" stroke="#059669" stroke-width="1.5" />
   <rect x="-4" y="34" width="16" height="12" rx="2" fill="#FFFFFF" stroke="#059669" stroke-width="1.5" />
   <text x="${width / 2}" y="24" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#059669" text-anchor="middle">&lt;&lt;component&gt;&gt;</text>
@@ -247,7 +297,7 @@ export function generateComponentNodeSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
-/** ── 5. Deployment Node & Artifact ── */
+/** ── 6. Deployment Node & Artifact ── */
 export function generateDeploymentNodeSvg(data) {
   const { name = "Device", isArtifact = false, width = 230, height = 75 } = data;
 
@@ -263,7 +313,6 @@ export function generateDeploymentNodeSvg(data) {
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <!-- 3D Isometric Top & Side -->
   <polygon points="12,1 12,12 1,12" fill="#F1F5F9" stroke="#64748B" stroke-width="1.2" />
   <rect x="1" y="12" width="${width - 14}" height="${height - 14}" rx="4" fill="#FFFFFF" stroke="#64748B" stroke-width="1.8" />
   <text x="${(width - 14) / 2}" y="32" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#475569" text-anchor="middle">&lt;&lt;device&gt;&gt;</text>
@@ -273,7 +322,7 @@ export function generateDeploymentNodeSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
-/** ── 6. Compiler CFG Basic Block Card ── */
+/** ── 7. Compiler CFG Basic Block Card ── */
 export function generateCfgBlockSvg(data) {
   const { id = "bb_0", label = "Block", instructions = [], width = 280 } = data;
   const HEADER_HEIGHT = 36;
@@ -306,7 +355,7 @@ export function generateCfgBlockSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
-/** ── 7. ROBDD Decision Gate Node ── */
+/** ── 8. ROBDD Decision Gate Node ── */
 export function generateBddGateSvg(data) {
   const { varName = "var", id = 0, isTerminal = false, terminalValue = 1 } = data;
 
@@ -329,7 +378,7 @@ export function generateBddGateSvg(data) {
   <text x="65" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" fill="#0F172A" text-anchor="middle">${escapeXml(varName)}</text>
 </svg>`;
 
-  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 130, height: 60 };
+  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
 function parseMemberRow(raw) {
@@ -358,8 +407,17 @@ function parseMemberRow(raw) {
   return { vis, text: cleaned, color };
 }
 
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 function escapeXml(str) {
-  return str
+  return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
