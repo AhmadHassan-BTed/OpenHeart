@@ -1580,7 +1580,12 @@ impl JSONExporter {
             (
                 "track_core",
                 "CompilerCore",
-                vec!["@0ms: Idle", "@10ms: Lexing", "@60ms: Parsing", "@200ms: Verification"],
+                vec![
+                    "@0ms: Idle",
+                    "@10ms: Lexing",
+                    "@60ms: Parsing",
+                    "@200ms: Verification",
+                ],
             ),
             (
                 "track_memory",
@@ -1661,9 +1666,24 @@ impl JSONExporter {
 
         let frames = [
             ("sd_start", "start", "action", "(( start ))"),
-            ("sd_ingest", "Lexical Ingestion", "action", "ref sd [Lexical Ingestion]"),
-            ("sd_dom", "Dominator Engine", "action", "ref sd [Cooper Dominator Analysis]"),
-            ("sd_bdd", "ROBDD Verifier", "action", "ref sd [ROBDD Saturation Verification]"),
+            (
+                "sd_ingest",
+                "Lexical Ingestion",
+                "action",
+                "ref sd [Lexical Ingestion]",
+            ),
+            (
+                "sd_dom",
+                "Dominator Engine",
+                "action",
+                "ref sd [Cooper Dominator Analysis]",
+            ),
+            (
+                "sd_bdd",
+                "ROBDD Verifier",
+                "action",
+                "ref sd [ROBDD Saturation Verification]",
+            ),
             ("sd_stop", "stop", "action", "(( stop ))"),
         ];
 
@@ -1721,10 +1741,26 @@ impl JSONExporter {
         let mut edges = Vec::new();
 
         let bbs = [
-            ("bb_0", "Entry", vec!["v0 = load manifest", "br cond bb_1, bb_2"]),
-            ("bb_1", "LoopBody", vec!["v1 = reduce_cst(v0)", "v2 = resolve_symbols(v1)", "br cond bb_1, bb_3"]),
+            (
+                "bb_0",
+                "Entry",
+                vec!["v0 = load manifest", "br cond bb_1, bb_2"],
+            ),
+            (
+                "bb_1",
+                "LoopBody",
+                vec![
+                    "v1 = reduce_cst(v0)",
+                    "v2 = resolve_symbols(v1)",
+                    "br cond bb_1, bb_3",
+                ],
+            ),
             ("bb_2", "FastExit", vec!["ret Error"]),
-            ("bb_3", "Dominators", vec!["v3 = compute_idom(v2)", "br bb_4"]),
+            (
+                "bb_3",
+                "Dominators",
+                vec!["v3 = compute_idom(v2)", "br bb_4"],
+            ),
             ("bb_4", "Exit", vec!["v4 = synthesize_scpg(v3)", "ret v4"]),
         ];
 
