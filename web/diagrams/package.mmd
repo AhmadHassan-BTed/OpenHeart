@@ -1,211 +1,25 @@
 flowchart TB
-    subgraph Pkg_AppBackend["package: AppBackend"]
-        Mod_AppBackend["AppBackend"]
+    subgraph Pkg_json["package: json"]
+        Mod_json["json"]
     end
-    subgraph Pkg_DataManager["package: DataManager"]
-        Mod_DataManager["DataManager"]
+    subgraph Pkg_owns["package: owns"]
+        Mod_owns["owns"]
     end
-    subgraph Pkg_DataLoaderAndInitializer["package: DataLoaderAndInitializer"]
-        Mod_DataLoaderAndInitializer["DataLoaderAndInitializer"]
+    subgraph Pkg_config["package: config"]
+        Mod_config["config"]
     end
-    subgraph Pkg_Factory["package: Factory"]
-        Mod_Factory["Factory"]
+    subgraph Pkg_relative["package: relative"]
+        Mod_relative["relative"]
     end
-    subgraph Pkg_PackageTypeTrainer["package: PackageTypeTrainer"]
-        Mod_PackageTypeTrainer["PackageTypeTrainer"]
+    subgraph Pkg_Lets["package: Lets"]
+        Mod_Lets["Lets"]
     end
-    subgraph Pkg_LocalTrainingModule["package: LocalTrainingModule"]
-        Mod_LocalTrainingModule["LocalTrainingModule"]
+    subgraph Pkg_terface["package: terface"]
+        Mod_terface["terface"]
     end
-    subgraph Pkg_TrainingExecutor["package: TrainingExecutor"]
-        Mod_TrainingExecutor["TrainingExecutor"]
+    subgraph Pkg_version["package: version"]
+        Mod_version["version"]
     end
-    subgraph Pkg_TrainingStateManager["package: TrainingStateManager"]
-        Mod_TrainingStateManager["TrainingStateManager"]
-    end
-    subgraph Pkg_Network["package: Network"]
-        Mod_Network["Network"]
-    end
-    subgraph Pkg_ModelUpdateTransmission["package: ModelUpdateTransmission"]
-        Mod_ModelUpdateTransmission["ModelUpdateTransmission"]
-    end
-    subgraph Pkg_RegisteredInfo["package: RegisteredInfo"]
-        Mod_RegisteredInfo["RegisteredInfo"]
-    end
-    subgraph Pkg_Server_DAO["package: Server_DAO"]
-        Mod_Server_DAO["Server_DAO"]
-    end
-    subgraph Pkg_ResourceManagement["package: ResourceManagement"]
-        Mod_ResourceManagement["ResourceManagement"]
-    end
-    subgraph Pkg_OperationControl["package: OperationControl"]
-        Mod_OperationControl["OperationControl"]
-    end
-    subgraph Pkg_ResourceManager["package: ResourceManager"]
-        Mod_ResourceManager["ResourceManager"]
-    end
-    subgraph Pkg_TaskContainer["package: TaskContainer"]
-        Mod_TaskContainer["TaskContainer"]
-    end
-    subgraph Pkg_Validator["package: Validator"]
-        Mod_Validator["Validator"]
-    end
-    subgraph Pkg_ModelInferenceValidator["package: ModelInferenceValidator"]
-        Mod_ModelInferenceValidator["ModelInferenceValidator"]
-    end
-    subgraph Pkg_AppFrontend["package: AppFrontend"]
-        Mod_AppFrontend["AppFrontend"]
-    end
-    subgraph Pkg_Flush["package: Flush"]
-        Mod_Flush["Flush"]
-    end
-    subgraph Pkg_Interface["package: Interface"]
-        Mod_Interface["Interface"]
-    end
-    subgraph Pkg_AboutUs["package: AboutUs"]
-        Mod_AboutUs["AboutUs"]
-    end
-    subgraph Pkg_Auth["package: Auth"]
-        Mod_Auth["Auth"]
-    end
-    subgraph Pkg_DeviceAuthorization["package: DeviceAuthorization"]
-        Mod_DeviceAuthorization["DeviceAuthorization"]
-    end
-    subgraph Pkg_DeviceUnregister["package: DeviceUnregister"]
-        Mod_DeviceUnregister["DeviceUnregister"]
-    end
-    subgraph Pkg_ForgetPassword["package: ForgetPassword"]
-        Mod_ForgetPassword["ForgetPassword"]
-    end
-    subgraph Pkg_GetStarted["package: GetStarted"]
-        Mod_GetStarted["GetStarted"]
-    end
-    subgraph Pkg_Home["package: Home"]
-        Mod_Home["Home"]
-    end
-    subgraph Pkg_Insights["package: Insights"]
-        Mod_Insights["Insights"]
-    end
-    subgraph Pkg_DeviceInsights["package: DeviceInsights"]
-        Mod_DeviceInsights["DeviceInsights"]
-    end
-    subgraph Pkg_ModelTraining["package: ModelTraining"]
-        Mod_ModelTraining["ModelTraining"]
-    end
-    subgraph Pkg_UsageInsights["package: UsageInsights"]
-        Mod_UsageInsights["UsageInsights"]
-    end
-    subgraph Pkg_RewardBank["package: RewardBank"]
-        Mod_RewardBank["RewardBank"]
-    end
-    subgraph Pkg_Settings["package: Settings"]
-        Mod_Settings["Settings"]
-    end
-    subgraph Pkg_TrainingLogsDisplay["package: TrainingLogsDisplay"]
-        Mod_TrainingLogsDisplay["TrainingLogsDisplay"]
-    end
-    subgraph Pkg_AppGlobal["package: AppGlobal"]
-        Mod_AppGlobal["AppGlobal"]
-    end
-    subgraph Pkg_Utils["package: Utils"]
-        Mod_Utils["Utils"]
-    end
-    subgraph Pkg_com["package: com"]
-        Mod_com["com"]
-    end
-    subgraph Pkg_example["package: example"]
-        Mod_example["example"]
-    end
-    subgraph Pkg_fractal["package: fractal"]
-        Mod_fractal["fractal"]
-    end
-    subgraph Pkg_AppBackend_DataManager_DataLoaderAndInitializer["package: AppBackend.DataManager.DataLoaderAndInitializer"]
-        Mod_AppBackend_DataManager_DataLoaderAndInitializer["AppBackend_DataManager_DataLoaderAndInitializer"]
-    end
-    subgraph Pkg_AppBackend_LocalTrainingModule_TrainingExecutor["package: AppBackend.LocalTrainingModule.TrainingExecutor"]
-        Mod_AppBackend_LocalTrainingModule_TrainingExecutor["AppBackend_LocalTrainingModule_TrainingExecutor"]
-    end
-    subgraph Pkg_AppBackend_LocalTrainingModule_TrainingStateManager["package: AppBackend.LocalTrainingModule.TrainingStateManager"]
-        Mod_AppBackend_LocalTrainingModule_TrainingStateManager["AppBackend_LocalTrainingModule_TrainingStateManager"]
-    end
-    subgraph Pkg_AppBackend_Network["package: AppBackend.Network"]
-        Mod_AppBackend_Network["AppBackend_Network"]
-    end
-    subgraph Pkg_AppBackend_ResourceManagement["package: AppBackend.ResourceManagement"]
-        Mod_AppBackend_ResourceManagement["AppBackend_ResourceManagement"]
-    end
-    subgraph Pkg_AppBackend_TaskContainer["package: AppBackend.TaskContainer"]
-        Mod_AppBackend_TaskContainer["AppBackend_TaskContainer"]
-    end
-    subgraph Pkg_AppBackend_Validator_ModelInferenceValidator["package: AppBackend.Validator.ModelInferenceValidator"]
-        Mod_AppBackend_Validator_ModelInferenceValidator["AppBackend_Validator_ModelInferenceValidator"]
-    end
-    subgraph Pkg_AppFrontend_Flush["package: AppFrontend.Flush"]
-        Mod_AppFrontend_Flush["AppFrontend_Flush"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Home["package: AppFrontend.Interface.Home"]
-        Mod_AppFrontend_Interface_Home["AppFrontend_Interface_Home"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Insights_DeviceInsights["package: AppFrontend.Interface.Insights.DeviceInsights"]
-        Mod_AppFrontend_Interface_Insights_DeviceInsights["AppFrontend_Interface_Insights_DeviceInsights"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Insights["package: AppFrontend.Interface.Insights"]
-        Mod_AppFrontend_Interface_Insights["AppFrontend_Interface_Insights"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Insights_ModelTraining["package: AppFrontend.Interface.Insights.ModelTraining"]
-        Mod_AppFrontend_Interface_Insights_ModelTraining["AppFrontend_Interface_Insights_ModelTraining"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Insights_UsageInsights["package: AppFrontend.Interface.Insights.UsageInsights"]
-        Mod_AppFrontend_Interface_Insights_UsageInsights["AppFrontend_Interface_Insights_UsageInsights"]
-    end
-    subgraph Pkg_AppFrontend_Interface_RewardBank["package: AppFrontend.Interface.RewardBank"]
-        Mod_AppFrontend_Interface_RewardBank["AppFrontend_Interface_RewardBank"]
-    end
-    subgraph Pkg_AppFrontend_Interface_TrainingLogsDisplay["package: AppFrontend.Interface.TrainingLogsDisplay"]
-        Mod_AppFrontend_Interface_TrainingLogsDisplay["AppFrontend_Interface_TrainingLogsDisplay"]
-    end
-    subgraph Pkg_AppGlobal_Utils["package: AppGlobal.Utils"]
-        Mod_AppGlobal_Utils["AppGlobal_Utils"]
-    end
-    subgraph Pkg_com_example_fractal["package: com.example.fractal"]
-        Mod_com_example_fractal["com_example_fractal"]
-    end
-    subgraph Pkg_AppBackend_Factory_PackageTypeTrainer["package: AppBackend.Factory.PackageTypeTrainer"]
-        Mod_AppBackend_Factory_PackageTypeTrainer["AppBackend_Factory_PackageTypeTrainer"]
-    end
-    subgraph Pkg_AppBackend_Network_ModelUpdateTransmission["package: AppBackend.Network.ModelUpdateTransmission"]
-        Mod_AppBackend_Network_ModelUpdateTransmission["AppBackend_Network_ModelUpdateTransmission"]
-    end
-    subgraph Pkg_AppBackend_Network_RegisteredInfo["package: AppBackend.Network.RegisteredInfo"]
-        Mod_AppBackend_Network_RegisteredInfo["AppBackend_Network_RegisteredInfo"]
-    end
-    subgraph Pkg_AppBackend_Network_Server_DAO["package: AppBackend.Network.Server_DAO"]
-        Mod_AppBackend_Network_Server_DAO["AppBackend_Network_Server_DAO"]
-    end
-    subgraph Pkg_AppBackend_ResourceManagement_OperationControl["package: AppBackend.ResourceManagement.OperationControl"]
-        Mod_AppBackend_ResourceManagement_OperationControl["AppBackend_ResourceManagement_OperationControl"]
-    end
-    subgraph Pkg_AppBackend_ResourceManagement_ResourceManager["package: AppBackend.ResourceManagement.ResourceManager"]
-        Mod_AppBackend_ResourceManagement_ResourceManager["AppBackend_ResourceManagement_ResourceManager"]
-    end
-    subgraph Pkg_AppFrontend_Interface_AboutUs["package: AppFrontend.Interface.AboutUs"]
-        Mod_AppFrontend_Interface_AboutUs["AppFrontend_Interface_AboutUs"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Auth_DeviceAuthorization["package: AppFrontend.Interface.Auth.DeviceAuthorization"]
-        Mod_AppFrontend_Interface_Auth_DeviceAuthorization["AppFrontend_Interface_Auth_DeviceAuthorization"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Auth_DeviceUnregister["package: AppFrontend.Interface.Auth.DeviceUnregister"]
-        Mod_AppFrontend_Interface_Auth_DeviceUnregister["AppFrontend_Interface_Auth_DeviceUnregister"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Auth_ForgetPassword["package: AppFrontend.Interface.Auth.ForgetPassword"]
-        Mod_AppFrontend_Interface_Auth_ForgetPassword["AppFrontend_Interface_Auth_ForgetPassword"]
-    end
-    subgraph Pkg_AppFrontend_Interface_GetStarted["package: AppFrontend.Interface.GetStarted"]
-        Mod_AppFrontend_Interface_GetStarted["AppFrontend_Interface_GetStarted"]
-    end
-    subgraph Pkg_AppFrontend_Interface_RegisteredInfo["package: AppFrontend.Interface.RegisteredInfo"]
-        Mod_AppFrontend_Interface_RegisteredInfo["AppFrontend_Interface_RegisteredInfo"]
-    end
-    subgraph Pkg_AppFrontend_Interface_Settings["package: AppFrontend.Interface.Settings"]
-        Mod_AppFrontend_Interface_Settings["AppFrontend_Interface_Settings"]
+    subgraph Pkg_stallation["package: stallation"]
+        Mod_stallation["stallation"]
     end

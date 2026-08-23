@@ -48,7 +48,7 @@ skinparam UsecaseFontColor #ffffff
 
 title Control Flow Graph (CFG) & Dominator Frontiers
 
-state "Function CFG: createDataInitializer()" as CFG_createDataInitializer {
+state "Function CFG: state()" as CFG_state {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f
@@ -64,7 +64,7 @@ state "Function CFG: createDataInitializer()" as CFG_createDataInitializer {
   BB3 --> [*] : return
 }
 
-state "Function CFG: build()" as CFG_build {
+state "Function CFG: this()" as CFG_this {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f
@@ -80,7 +80,7 @@ state "Function CFG: build()" as CFG_build {
   BB3 --> [*] : return
 }
 
-state "Function CFG: if()" as CFG_if {
+state "Function CFG: path()" as CFG_path {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f
@@ -96,7 +96,7 @@ state "Function CFG: if()" as CFG_if {
   BB3 --> [*] : return
 }
 
-state "Function CFG: setUpTrainer()" as CFG_setUpTrainer {
+state "Function CFG: disabled()" as CFG_disabled {
   state "Entry Block 0\n[Cooper idom: entry]" as BB0 #1e293b
   state "Branch Gate: (condition)" as Gate1 <<choice>>
   state "Then Block 1\n[Statements Execution]" as BB1 #14171f

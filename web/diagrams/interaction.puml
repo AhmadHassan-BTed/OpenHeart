@@ -46,20 +46,8 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-partition "sd: Scenario AppFrontend" {
-  :dispatch onUploadSuccess();
-}
-partition "sd: Scenario Suppress" {
-  :dispatch run();
-  :dispatch startLiveUpdates();
-  :dispatch startLiveUpdates();
-  :dispatch startLiveUpdates();
-}
-partition "sd: Scenario if" {
-  :dispatch POST_Ping();
-}
-partition "sd: Scenario AppFrontend" {
-  :dispatch isPaused();
+partition "sd: Scenario generateSRSWithProgress" {
+  :dispatch App();
 }
 stop
 @enduml

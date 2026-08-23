@@ -73,6 +73,11 @@
       </div>
     </header>
 
+    <!-- Top Linear Live Progress Indicator -->
+    <div id="clone-progress-bar-container" class="clone-progress-track">
+      <div id="clone-progress-fill" class="clone-progress-fill"></div>
+    </div>
+
     <!-- ── 12-Column Responsive Workspace Grid ── -->
     <main class="workspace-grid">
 
@@ -577,17 +582,56 @@
       document.getElementById('btn-zoom-out').addEventListener('click', () => canvas.zoomOut());
       document.getElementById('btn-zoom-reset').addEventListener('click', () => canvas.resetView());
 
-      // ── Dynamic GitHub Import & Analyze Action ──
+      // ── Dynamic GitHub Import & Analyze Action with Live Progress ──
       const importRepo = async (repoUrl) => {
         const hudText = document.getElementById('hud-status-text');
         const hashBadge = document.getElementById('header-hash-badge');
         const btnImport = document.getElementById('btn-import-repo');
+        const progressTrack = document.getElementById('clone-progress-bar-container');
+        const progressFill = document.getElementById('clone-progress-fill');
 
         const parts = repoUrl.trim().split('/');
         const repoName = parts[parts.length - 1] || 'repository';
 
-        hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong> via Rust Compiler Pipeline...`;
-        if (btnImport) btnImport.disabled = true;
+        if (btnImport) {
+          btnImport.disabled = true;
+          btnImport.innerHTML = '<span class="btn-spinner"></span> Cloning 10%';
+        }
+        if (progressTrack) progressTrack.classList.add('active');
+        if (progressFill) progressFill.style.width = '10%';
+
+        const startTime = Date.now();
+        let progress = 10;
+
+        const phases = [
+          { p: 25, label: `[1/5] 📡 Connecting to GitHub & Cloning repository (git clone --depth 1)...` },
+          { p: 45, label: `[2/5] 📂 Scanning source tree & parsing ASTs...` },
+          { p: 70, label: `[3/5] 🧠 Compiling SCPG program graphs (Dominators, SSA, ROBDD)...` },
+          { p: 90, label: `[4/5] 🎨 Synthesizing deterministic UML 2.5 projections & layouts...` }
+        ];
+
+        let phaseIdx = 0;
+        hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${phases[0].label} <span style="opacity:0.75; font-size:10px;">(0.0s)</span>`;
+
+        const progressInterval = setInterval(() => {
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          if (phaseIdx < phases.length) {
+            const curPhase = phases[phaseIdx];
+            if (progress < curPhase.p) {
+              progress += 2;
+            } else if (phaseIdx + 1 < phases.length) {
+              phaseIdx++;
+            }
+            if (progressFill) progressFill.style.width = `${progress}%`;
+            if (btnImport) btnImport.innerHTML = `<span class="btn-spinner"></span> ${progress}%`;
+            hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${phases[phaseIdx].label} <span style="opacity:0.75; font-size:10px;">(${elapsed}s)</span>`;
+          } else {
+            if (progress < 95) progress += 0.5;
+            if (progressFill) progressFill.style.width = `${progress}%`;
+            if (btnImport) btnImport.innerHTML = `<span class="btn-spinner"></span> ${Math.floor(progress)}%`;
+            hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: Finalizing graph export... <span style="opacity:0.75; font-size:10px;">(${elapsed}s)</span>`;
+          }
+        }, 120);
 
         try {
           const res = await fetch('/api/analyze', {
@@ -598,6 +642,9 @@
               diagram_types: ['class', 'package', 'component', 'activity', 'sequence', 'statemachine']
             })
           });
+
+          clearInterval(progressInterval);
+          if (progressFill) progressFill.style.width = '100%';
 
           if (!res.ok) {
             throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -616,17 +663,26 @@
           const filesCount = data.stats ? data.stats.files_processed : 0;
           const classesCount = data.stats ? data.stats.total_classes : 0;
           const timeMs = data.stats ? data.stats.execution_time_ms : 0;
+          const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-          hudText.innerHTML = `SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms) · Ready`;
+          hudText.innerHTML = `✅ [5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
 
           // Re-render current active diagram from fresh compiler Graph IR
           await canvas.renderGraph(canvas.currentGraphType);
 
         } catch (err) {
+          clearInterval(progressInterval);
           console.error('[OpenHeart Studio] Repo analysis error:', err);
           hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}. OpenHeart server running?</span>`;
         } finally {
-          if (btnImport) btnImport.disabled = false;
+          setTimeout(() => {
+            if (progressTrack) progressTrack.classList.remove('active');
+            if (progressFill) progressFill.style.width = '0%';
+          }, 800);
+          if (btnImport) {
+            btnImport.disabled = false;
+            btnImport.innerHTML = 'Analyze Repo';
+          }
         }
       };
 

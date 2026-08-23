@@ -1,44 +1,44 @@
 flowchart TD
     %% Control Flow Graph & Dominator Frontiers
-    subgraph CFG_createDataInitializer["Function CFG: createDataInitializer()"]
-        BB0_createDataInitializer["Entry Block 0<br/>[Cooper idom: entry]"]
-        Gate1_createDataInitializer{"Branch Gate: condition"}
-        BB1_createDataInitializer["Then Block 1<br/>Statements Execution"]
-        BB2_createDataInitializer["Else/Merge Block 2<br/>Dominance Frontier"]
-        BB3_createDataInitializer["Exit Return Block 3"]
+    subgraph CFG_state["Function CFG: state()"]
+        BB0_state["Entry Block 0<br/>[Cooper idom: entry]"]
+        Gate1_state{"Branch Gate: condition"}
+        BB1_state["Then Block 1<br/>Statements Execution"]
+        BB2_state["Else/Merge Block 2<br/>Dominance Frontier"]
+        BB3_state["Exit Return Block 3"]
 
-        BB0_createDataInitializer --> Gate1_createDataInitializer
-        Gate1_createDataInitializer -->|true branch| BB1_createDataInitializer
-        Gate1_createDataInitializer -->|false branch| BB2_createDataInitializer
-        BB1_createDataInitializer --> BB2_createDataInitializer
-        BB2_createDataInitializer --> BB3_createDataInitializer
+        BB0_state --> Gate1_state
+        Gate1_state -->|true branch| BB1_state
+        Gate1_state -->|false branch| BB2_state
+        BB1_state --> BB2_state
+        BB2_state --> BB3_state
     end
 
-    subgraph CFG_build["Function CFG: build()"]
-        BB0_build["Entry Block 0<br/>[Cooper idom: entry]"]
-        Gate1_build{"Branch Gate: condition"}
-        BB1_build["Then Block 1<br/>Statements Execution"]
-        BB2_build["Else/Merge Block 2<br/>Dominance Frontier"]
-        BB3_build["Exit Return Block 3"]
+    subgraph CFG_this["Function CFG: this()"]
+        BB0_this["Entry Block 0<br/>[Cooper idom: entry]"]
+        Gate1_this{"Branch Gate: condition"}
+        BB1_this["Then Block 1<br/>Statements Execution"]
+        BB2_this["Else/Merge Block 2<br/>Dominance Frontier"]
+        BB3_this["Exit Return Block 3"]
 
-        BB0_build --> Gate1_build
-        Gate1_build -->|true branch| BB1_build
-        Gate1_build -->|false branch| BB2_build
-        BB1_build --> BB2_build
-        BB2_build --> BB3_build
+        BB0_this --> Gate1_this
+        Gate1_this -->|true branch| BB1_this
+        Gate1_this -->|false branch| BB2_this
+        BB1_this --> BB2_this
+        BB2_this --> BB3_this
     end
 
-    subgraph CFG_if["Function CFG: if()"]
-        BB0_if["Entry Block 0<br/>[Cooper idom: entry]"]
-        Gate1_if{"Branch Gate: condition"}
-        BB1_if["Then Block 1<br/>Statements Execution"]
-        BB2_if["Else/Merge Block 2<br/>Dominance Frontier"]
-        BB3_if["Exit Return Block 3"]
+    subgraph CFG_path["Function CFG: path()"]
+        BB0_path["Entry Block 0<br/>[Cooper idom: entry]"]
+        Gate1_path{"Branch Gate: condition"}
+        BB1_path["Then Block 1<br/>Statements Execution"]
+        BB2_path["Else/Merge Block 2<br/>Dominance Frontier"]
+        BB3_path["Exit Return Block 3"]
 
-        BB0_if --> Gate1_if
-        Gate1_if -->|true branch| BB1_if
-        Gate1_if -->|false branch| BB2_if
-        BB1_if --> BB2_if
-        BB2_if --> BB3_if
+        BB0_path --> Gate1_path
+        Gate1_path -->|true branch| BB1_path
+        Gate1_path -->|false branch| BB2_path
+        BB1_path --> BB2_path
+        BB2_path --> BB3_path
     end
 

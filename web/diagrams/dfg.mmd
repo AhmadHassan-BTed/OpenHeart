@@ -1,6 +1,6 @@
 flowchart LR
     %% Static Single Assignment Def-Use Data Flow Graph
-    subgraph SSA_0["SSA Scope: Image_DataInitializer_Factory"]
+    subgraph SSA_0["SSA Scope: SupportedLanguage"]
         v0_0["SSA Def: v₀<br/>var: retries (Block 0)"]
         v1_0["SSA Def: v₁<br/>var: retries (Block 1)"]
         v2_0["SSA φ-Node: v₂ = φ(v₀, v₁)<br/>join: Block 2"]"]
@@ -9,7 +9,7 @@ flowchart LR
         v1_0 -->|reaching def 1| v2_0
     end
 
-    subgraph SSA_1["SSA Scope: Image_Trainer_Factory"]
+    subgraph SSA_1["SSA Scope: Priority"]
         v0_1["SSA Def: v₀<br/>var: retries (Block 0)"]
         v1_1["SSA Def: v₁<br/>var: retries (Block 1)"]
         v2_1["SSA φ-Node: v₂ = φ(v₀, v₁)<br/>join: Block 2"]"]
@@ -18,7 +18,7 @@ flowchart LR
         v1_1 -->|reaching def 1| v2_1
     end
 
-    subgraph SSA_2["SSA Scope: CheckpointManager"]
+    subgraph SSA_2["SSA Scope: NFRCategory"]
         v0_2["SSA Def: v₀<br/>var: retries (Block 0)"]
         v1_2["SSA Def: v₁<br/>var: retries (Block 1)"]
         v2_2["SSA φ-Node: v₂ = φ(v₀, v₁)<br/>join: Block 2"]"]

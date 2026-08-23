@@ -46,168 +46,36 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-component [AppBackend] as comp_AppBackend
-() "IAppBackend" as iface_AppBackend
-iface_AppBackend - comp_AppBackend
+component [json] as comp_json
+() "Ijson" as iface_json
+iface_json - comp_json
 
-component [DataManager] as comp_DataManager
-() "IDataManager" as iface_DataManager
-iface_DataManager - comp_DataManager
+component [owns] as comp_owns
+() "Iowns" as iface_owns
+iface_owns - comp_owns
 
-component [DataLoaderAndInitializer] as comp_DataLoaderAndInitializer
-() "IDataLoaderAndInitializer" as iface_DataLoaderAndInitializer
-iface_DataLoaderAndInitializer - comp_DataLoaderAndInitializer
+component [config] as comp_config
+() "Iconfig" as iface_config
+iface_config - comp_config
 
-component [Factory] as comp_Factory
-() "IFactory" as iface_Factory
-iface_Factory - comp_Factory
+component [relative] as comp_relative
+() "Irelative" as iface_relative
+iface_relative - comp_relative
 
-component [PackageTypeTrainer] as comp_PackageTypeTrainer
-() "IPackageTypeTrainer" as iface_PackageTypeTrainer
-iface_PackageTypeTrainer - comp_PackageTypeTrainer
+component [Lets] as comp_Lets
+() "ILets" as iface_Lets
+iface_Lets - comp_Lets
 
-component [LocalTrainingModule] as comp_LocalTrainingModule
-() "ILocalTrainingModule" as iface_LocalTrainingModule
-iface_LocalTrainingModule - comp_LocalTrainingModule
+component [terface] as comp_terface
+() "Iterface" as iface_terface
+iface_terface - comp_terface
 
-component [TrainingExecutor] as comp_TrainingExecutor
-() "ITrainingExecutor" as iface_TrainingExecutor
-iface_TrainingExecutor - comp_TrainingExecutor
+component [version] as comp_version
+() "Iversion" as iface_version
+iface_version - comp_version
 
-component [TrainingStateManager] as comp_TrainingStateManager
-() "ITrainingStateManager" as iface_TrainingStateManager
-iface_TrainingStateManager - comp_TrainingStateManager
-
-component [Network] as comp_Network
-() "INetwork" as iface_Network
-iface_Network - comp_Network
-
-component [ModelUpdateTransmission] as comp_ModelUpdateTransmission
-() "IModelUpdateTransmission" as iface_ModelUpdateTransmission
-iface_ModelUpdateTransmission - comp_ModelUpdateTransmission
-
-component [RegisteredInfo] as comp_RegisteredInfo
-() "IRegisteredInfo" as iface_RegisteredInfo
-iface_RegisteredInfo - comp_RegisteredInfo
-
-component [Server_DAO] as comp_Server_DAO
-() "IServer_DAO" as iface_Server_DAO
-iface_Server_DAO - comp_Server_DAO
-
-component [ResourceManagement] as comp_ResourceManagement
-() "IResourceManagement" as iface_ResourceManagement
-iface_ResourceManagement - comp_ResourceManagement
-
-component [OperationControl] as comp_OperationControl
-() "IOperationControl" as iface_OperationControl
-iface_OperationControl - comp_OperationControl
-
-component [ResourceManager] as comp_ResourceManager
-() "IResourceManager" as iface_ResourceManager
-iface_ResourceManager - comp_ResourceManager
-
-component [TaskContainer] as comp_TaskContainer
-() "ITaskContainer" as iface_TaskContainer
-iface_TaskContainer - comp_TaskContainer
-
-component [Validator] as comp_Validator
-() "IValidator" as iface_Validator
-iface_Validator - comp_Validator
-
-component [ModelInferenceValidator] as comp_ModelInferenceValidator
-() "IModelInferenceValidator" as iface_ModelInferenceValidator
-iface_ModelInferenceValidator - comp_ModelInferenceValidator
-
-component [AppFrontend] as comp_AppFrontend
-() "IAppFrontend" as iface_AppFrontend
-iface_AppFrontend - comp_AppFrontend
-
-component [Flush] as comp_Flush
-() "IFlush" as iface_Flush
-iface_Flush - comp_Flush
-
-component [Interface] as comp_Interface
-() "IInterface" as iface_Interface
-iface_Interface - comp_Interface
-
-component [AboutUs] as comp_AboutUs
-() "IAboutUs" as iface_AboutUs
-iface_AboutUs - comp_AboutUs
-
-component [Auth] as comp_Auth
-() "IAuth" as iface_Auth
-iface_Auth - comp_Auth
-
-component [DeviceAuthorization] as comp_DeviceAuthorization
-() "IDeviceAuthorization" as iface_DeviceAuthorization
-iface_DeviceAuthorization - comp_DeviceAuthorization
-
-component [DeviceUnregister] as comp_DeviceUnregister
-() "IDeviceUnregister" as iface_DeviceUnregister
-iface_DeviceUnregister - comp_DeviceUnregister
-
-component [ForgetPassword] as comp_ForgetPassword
-() "IForgetPassword" as iface_ForgetPassword
-iface_ForgetPassword - comp_ForgetPassword
-
-component [GetStarted] as comp_GetStarted
-() "IGetStarted" as iface_GetStarted
-iface_GetStarted - comp_GetStarted
-
-component [Home] as comp_Home
-() "IHome" as iface_Home
-iface_Home - comp_Home
-
-component [Insights] as comp_Insights
-() "IInsights" as iface_Insights
-iface_Insights - comp_Insights
-
-component [DeviceInsights] as comp_DeviceInsights
-() "IDeviceInsights" as iface_DeviceInsights
-iface_DeviceInsights - comp_DeviceInsights
-
-component [ModelTraining] as comp_ModelTraining
-() "IModelTraining" as iface_ModelTraining
-iface_ModelTraining - comp_ModelTraining
-
-component [UsageInsights] as comp_UsageInsights
-() "IUsageInsights" as iface_UsageInsights
-iface_UsageInsights - comp_UsageInsights
-
-component [RegisteredInfo] as comp_RegisteredInfo
-() "IRegisteredInfo" as iface_RegisteredInfo
-iface_RegisteredInfo - comp_RegisteredInfo
-
-component [RewardBank] as comp_RewardBank
-() "IRewardBank" as iface_RewardBank
-iface_RewardBank - comp_RewardBank
-
-component [Settings] as comp_Settings
-() "ISettings" as iface_Settings
-iface_Settings - comp_Settings
-
-component [TrainingLogsDisplay] as comp_TrainingLogsDisplay
-() "ITrainingLogsDisplay" as iface_TrainingLogsDisplay
-iface_TrainingLogsDisplay - comp_TrainingLogsDisplay
-
-component [AppGlobal] as comp_AppGlobal
-() "IAppGlobal" as iface_AppGlobal
-iface_AppGlobal - comp_AppGlobal
-
-component [Utils] as comp_Utils
-() "IUtils" as iface_Utils
-iface_Utils - comp_Utils
-
-component [com] as comp_com
-() "Icom" as iface_com
-iface_com - comp_com
-
-component [example] as comp_example
-() "Iexample" as iface_example
-iface_example - comp_example
-
-component [fractal] as comp_fractal
-() "Ifractal" as iface_fractal
-iface_fractal - comp_fractal
+component [stallation] as comp_stallation
+() "Istallation" as iface_stallation
+iface_stallation - comp_stallation
 
 @enduml
