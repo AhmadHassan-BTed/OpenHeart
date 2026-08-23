@@ -16,6 +16,10 @@ import {
 } from './uml-card-renderer.js';
 
 export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
+  const isDark = typeof document !== 'undefined' && document.body && (
+    document.body.classList.contains('dark-theme') || 
+    document.documentElement.getAttribute('data-theme') === 'dark'
+  );
   const elements = [];
   const nodeMap = new Map();
   const packageStack = [];
@@ -317,6 +321,11 @@ function getActivePackage(packageStack) {
 function registerClassNode(block, nodeMap, elements, packageStack) {
   if (nodeMap.has(block.id)) return;
 
+  const isDark = typeof document !== 'undefined' && document.body && (
+    document.body.classList.contains('dark-theme') || 
+    document.documentElement.getAttribute('data-theme') === 'dark'
+  );
+
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;
   
@@ -326,7 +335,8 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
     kind: block.kind,
     fields: block.fields,
     methods: block.methods,
-    width: 290
+    width: 290,
+    isDark: isDark
   });
 
   const node = {
@@ -353,17 +363,22 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
 function ensureNodeExists(id, nodeMap, elements, packageStack, diagramType) {
   if (!id || nodeMap.has(id)) return;
 
+  const isDark = typeof document !== 'undefined' && document.body && (
+    document.body.classList.contains('dark-theme') || 
+    document.documentElement.getAttribute('data-theme') === 'dark'
+  );
+
   const currentParentPkg = getActivePackage(packageStack);
   const nestLevel = packageStack.filter(p => p !== null).length;
   const label = id.replace(/_/g, ' ');
 
   let svgData;
   if (diagramType === 'statemachine' || id.startsWith('state_')) {
-    svgData = generateStateNodeSvg({ name: id === 'state_init' ? '[*]' : (id === 'state_final' ? 'state_final' : label) });
+    svgData = generateStateNodeSvg({ name: id === 'state_init' ? '[*]' : (id === 'state_final' ? 'state_final' : label), isDark });
   } else if (diagramType === 'cfg') {
-    svgData = generateCfgBlockSvg({ id: id, label: label, instructions: [] });
+    svgData = generateCfgBlockSvg({ id: id, label: label, instructions: [], isDark });
   } else if (diagramType === 'robdd') {
-    svgData = generateBddGateSvg({ varName: label, isTerminal: id === '0' || id === '1', terminalValue: id === '1' ? 1 : 0 });
+    svgData = generateBddGateSvg({ varName: label, isTerminal: id === '0' || id === '1', terminalValue: id === '1' ? 1 : 0, isDark });
   } else {
     svgData = generateUmlClassCardSvg({
       name: label,
@@ -371,7 +386,8 @@ function ensureNodeExists(id, nodeMap, elements, packageStack, diagramType) {
       kind: id.includes('init') || id.includes('start') || id.includes('entry') ? 'entry' : 'class',
       fields: [],
       methods: [],
-      width: 260
+      width: 260,
+      isDark: isDark
     });
   }
 

@@ -201,14 +201,14 @@ export function generatePackageFolderSvg(pkgData) {
 
 /** ── 3. State Machine Node ── */
 export function generateStateNodeSvg(data) {
-  const { name = "State", entryAction = null, doActivity = null, exitAction = null, width = 240 } = data;
+  const { name = "State", entryAction = null, doActivity = null, exitAction = null, width = 240, isDark = false } = data;
   const isInitial = name === '[*]' || name === 'state_init' || name.endsWith('_init');
   const isFinal = name === 'state_final' || name.endsWith('_final');
 
   if (isInitial) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-  <circle cx="24" cy="24" r="18" fill="#0F172A" stroke="#38BDF8" stroke-width="2.5" />
+  <circle cx="24" cy="24" r="18" fill="${isDark ? '#38BDF8' : '#0F172A'}" stroke="${isDark ? '#0284C7' : '#38BDF8'}" stroke-width="2.5" />
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 48, height: 48 };
   }
@@ -216,8 +216,8 @@ export function generateStateNodeSvg(data) {
   if (isFinal) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-  <circle cx="24" cy="24" r="20" fill="#FFFFFF" stroke="#0F172A" stroke-width="2" />
-  <circle cx="24" cy="24" r="13" fill="#0F172A" />
+  <circle cx="24" cy="24" r="20" fill="${isDark ? '#0F172A' : '#FFFFFF'}" stroke="${isDark ? '#38BDF8' : '#0F172A'}" stroke-width="2" />
+  <circle cx="24" cy="24" r="13" fill="${isDark ? '#38BDF8' : '#0F172A'}" />
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 48, height: 48 };
   }
@@ -228,19 +228,24 @@ export function generateStateNodeSvg(data) {
   if (exitAction) actions.push({ label: 'exit /', action: exitAction, color: '#EF4444' });
 
   const height = 40 + (actions.length > 0 ? actions.length * 18 + 14 : 10);
+  const cardBg = isDark ? '#0F172A' : '#FFFFFF';
+  const headerBg = isDark ? '#075985' : '#F0F9FF';
+  const strokeColor = isDark ? '#38BDF8' : '#0284C7';
+  const titleColor = isDark ? '#F0F9FF' : '#0369A1';
+  const bodyTextColor = isDark ? '#CBD5E1' : '#334155';
 
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="14" ry="14" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.8" />
-  <path d="M 1,14 Q 1,1 14,1 L ${width - 14},1 Q ${width - 1},1 ${width - 1},14 L ${width - 1},32 L 1,32 Z" fill="#F0F9FF" />
-  <line x1="1" y1="32" x2="${width - 1}" y2="32" stroke="#BAE6FD" stroke-width="1.2" />
-  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="#0369A1" text-anchor="middle">${escapeXml(name)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="14" ry="14" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <path d="M 1,14 Q 1,1 14,1 L ${width - 14},1 Q ${width - 1},1 ${width - 1},14 L ${width - 1},32 L 1,32 Z" fill="${headerBg}" />
+  <line x1="1" y1="32" x2="${width - 1}" y2="32" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="${titleColor}" text-anchor="middle">${escapeXml(name)}</text>
 `;
 
   let actY = 48;
   actions.forEach(act => {
     svg += `
-  <text x="14" y="${actY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#334155">
+  <text x="14" y="${actY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="${bodyTextColor}">
     <tspan font-weight="700" fill="${act.color}">${act.label} </tspan>
     <tspan>${escapeXml(act.action)}</tspan>
   </text>`;
@@ -253,7 +258,7 @@ export function generateStateNodeSvg(data) {
 
 /** ── 4. Activity Action Node ── */
 export function generateActionNodeSvg(data) {
-  const { name = "Action", isStart = false, isStop = false, width = 230 } = data;
+  const { name = "Action", isStart = false, isStop = false, width = 230, isDark = false } = data;
 
   if (isStart || name === 'start') {
     const svg = `
@@ -266,19 +271,25 @@ export function generateActionNodeSvg(data) {
   if (isStop || name === 'stop') {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-  <circle cx="22" cy="22" r="18" fill="#FFFFFF" stroke="#EF4444" stroke-width="2.5" />
+  <circle cx="22" cy="22" r="18" fill="${isDark ? '#0F172A' : '#FFFFFF'}" stroke="#EF4444" stroke-width="2.5" />
   <circle cx="22" cy="22" r="11" fill="#EF4444" />
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 44, height: 44 };
   }
 
   const height = 54;
+  const cardBg = isDark ? '#1E1B4B' : '#FFFFFF';
+  const strokeColor = isDark ? '#818CF8' : '#6366F1';
+  const badgeBg = isDark ? '#312E81' : '#EEF2FF';
+  const badgeColor = isDark ? '#C7D2FE' : '#4F46E5';
+  const textColor = isDark ? '#F8FAFC' : '#1E293B';
+
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="20" ry="20" fill="#FFFFFF" stroke="#6366F1" stroke-width="1.8" />
-  <rect x="${width / 2 - 35}" y="5" width="70" height="12" rx="6" ry="6" fill="#EEF2FF" />
-  <text x="${width / 2}" y="14" font-family="JetBrains Mono, monospace" font-size="8" font-weight="700" fill="#4F46E5" text-anchor="middle">&lt;&lt;action&gt;&gt;</text>
-  <text x="${width / 2}" y="36" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="600" fill="#1E293B" text-anchor="middle">${escapeXml(name)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="20" ry="20" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <rect x="${width / 2 - 35}" y="5" width="70" height="12" rx="6" ry="6" fill="${badgeBg}" />
+  <text x="${width / 2}" y="14" font-family="JetBrains Mono, monospace" font-size="8" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;action&gt;&gt;</text>
+  <text x="${width / 2}" y="36" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="600" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
 
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
@@ -286,25 +297,34 @@ export function generateActionNodeSvg(data) {
 
 /** ── 5. Component & Interface Sockets ── */
 export function generateComponentNodeSvg(data) {
-  const { name = "Component", isInterface = false, width = 240, height = 70 } = data;
+  const { name = "Component", isInterface = false, width = 240, height = 70, isDark = false } = data;
 
   if (isInterface) {
+    const textColor = isDark ? '#F8FAFC' : '#1E293B';
+    const circleBg = isDark ? '#1E293B' : '#FFFFFF';
+    const strokeColor = isDark ? '#60A5FA' : '#2563EB';
+
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="180" height="54" viewBox="0 0 180 54">
-  <circle cx="24" cy="27" r="12" fill="#FFFFFF" stroke="#2563EB" stroke-width="2.5" />
-  <line x1="36" y1="27" x2="60" y2="27" stroke="#2563EB" stroke-width="2" />
-  <text x="66" y="31" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="700" fill="#1E293B">${escapeXml(name)}</text>
+  <circle cx="24" cy="27" r="12" fill="${circleBg}" stroke="${strokeColor}" stroke-width="2.5" />
+  <line x1="36" y1="27" x2="60" y2="27" stroke="${strokeColor}" stroke-width="2" />
+  <text x="66" y="31" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="700" fill="${textColor}">${escapeXml(name)}</text>
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 180, height: 54 };
   }
 
+  const cardBg = isDark ? '#064E3B' : '#FFFFFF';
+  const strokeColor = isDark ? '#34D399' : '#059669';
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const badgeColor = isDark ? '#6EE7B7' : '#059669';
+
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="#FFFFFF" stroke="#059669" stroke-width="1.8" />
-  <rect x="-4" y="14" width="16" height="12" rx="2" fill="#FFFFFF" stroke="#059669" stroke-width="1.5" />
-  <rect x="-4" y="34" width="16" height="12" rx="2" fill="#FFFFFF" stroke="#059669" stroke-width="1.5" />
-  <text x="${width / 2}" y="24" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#059669" text-anchor="middle">&lt;&lt;component&gt;&gt;</text>
-  <text x="${width / 2}" y="46" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">${escapeXml(name)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <rect x="-4" y="14" width="16" height="12" rx="2" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.5" />
+  <rect x="-4" y="34" width="16" height="12" rx="2" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.5" />
+  <text x="${width / 2}" y="24" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;component&gt;&gt;</text>
+  <text x="${width / 2}" y="46" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
 
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
@@ -312,24 +332,29 @@ export function generateComponentNodeSvg(data) {
 
 /** ── 6. Deployment Node & Artifact ── */
 export function generateDeploymentNodeSvg(data) {
-  const { name = "Device", isArtifact = false, width = 230, height = 75 } = data;
+  const { name = "Device", isArtifact = false, width = 230, height = 75, isDark = false } = data;
+  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
+  const strokeColor = isArtifact ? (isDark ? '#FBBF24' : '#D97706') : (isDark ? '#94A3B8' : '#64748B');
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+  const badgeColor = isArtifact ? (isDark ? '#FDE68A' : '#B45309') : (isDark ? '#CBD5E1' : '#475569');
 
   if (isArtifact) {
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="#FFFFFF" stroke="#D97706" stroke-width="1.8" stroke-dasharray="4 3"/>
-  <text x="${width / 2}" y="24" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#B45309" text-anchor="middle">&lt;&lt;artifact&gt;&gt;</text>
-  <text x="${width / 2}" y="48" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="#0F172A" text-anchor="middle">📦 ${escapeXml(name)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" stroke-dasharray="4 3"/>
+  <text x="${width / 2}" y="24" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;artifact&gt;&gt;</text>
+  <text x="${width / 2}" y="48" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">📦 ${escapeXml(name)}</text>
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
   }
 
+  const tabFill = isDark ? '#334155' : '#F1F5F9';
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <polygon points="12,1 12,12 1,12" fill="#F1F5F9" stroke="#64748B" stroke-width="1.2" />
-  <rect x="1" y="12" width="${width - 14}" height="${height - 14}" rx="4" fill="#FFFFFF" stroke="#64748B" stroke-width="1.8" />
-  <text x="${(width - 14) / 2}" y="32" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#475569" text-anchor="middle">&lt;&lt;device&gt;&gt;</text>
-  <text x="${(width - 14) / 2}" y="52" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">🖥️ ${escapeXml(name)}</text>
+  <polygon points="12,1 12,12 1,12" fill="${tabFill}" stroke="${strokeColor}" stroke-width="1.2" />
+  <rect x="1" y="12" width="${width - 14}" height="${height - 14}" rx="4" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <text x="${(width - 14) / 2}" y="32" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;device&gt;&gt;</text>
+  <text x="${(width - 14) / 2}" y="52" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">🖥️ ${escapeXml(name)}</text>
 </svg>`;
 
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
@@ -337,62 +362,77 @@ export function generateDeploymentNodeSvg(data) {
 
 /** ── 7. Sequence Participant / Lifeline Header Card ── */
 export function generateSequenceLifelineSvg(data) {
-  const { name = "Participant", isActor = false, width = 180, height = 60 } = data;
+  const { name = "Participant", isActor = false, width = 180, height = 60, isDark = false } = data;
+  const cardBg = isDark ? '#1E1B4B' : '#F8FAFC';
+  const strokeColor = isDark ? '#818CF8' : '#4F46E5';
+  const badgeColor = isDark ? '#C7D2FE' : '#4F46E5';
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="8" ry="8" fill="#F8FAFC" stroke="#4F46E5" stroke-width="1.8" />
-  <text x="${width / 2}" y="20" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#4F46E5" text-anchor="middle">${isActor ? '&lt;&lt;actor&gt;&gt;' : '&lt;&lt;participant&gt;&gt;'}</text>
-  <text x="${width / 2}" y="42" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="#0F172A" text-anchor="middle">${escapeXml(name)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="8" ry="8" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <text x="${width / 2}" y="20" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">${isActor ? '&lt;&lt;actor&gt;&gt;' : '&lt;&lt;participant&gt;&gt;'}</text>
+  <text x="${width / 2}" y="42" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
 /** ── 8. Use Case Bubble & Actor ── */
 export function generateUseCaseSvg(data) {
-  const { name = "Use Case", isActor = false, width = 220, height = 70 } = data;
+  const { name = "Use Case", isActor = false, width = 220, height = 70, isDark = false } = data;
+  const strokeColor = isDark ? '#60A5FA' : '#2563EB';
+  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
+  const textColor = isDark ? '#F8FAFC' : '#1E293B';
 
   if (isActor) {
+    const actorStroke = isDark ? '#F8FAFC' : '#0F172A';
     const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90">
-  <circle cx="60" cy="18" r="12" fill="#FFFFFF" stroke="#0F172A" stroke-width="2" />
-  <line x1="60" y1="30" x2="60" y2="58" stroke="#0F172A" stroke-width="2" />
-  <line x1="38" y1="42" x2="82" y2="42" stroke="#0F172A" stroke-width="2" />
-  <line x1="60" y1="58" x2="42" y2="80" stroke="#0F172A" stroke-width="2" />
-  <line x1="60" y1="58" x2="78" y2="80" stroke="#0F172A" stroke-width="2" />
-  <text x="60" y="88" font-family="JetBrains Mono, sans-serif" font-size="10" font-weight="700" fill="#0F172A" text-anchor="middle">${escapeXml(name)}</text>
+  <circle cx="60" cy="18" r="12" fill="${cardBg}" stroke="${actorStroke}" stroke-width="2" />
+  <line x1="60" y1="30" x2="60" y2="58" stroke="${actorStroke}" stroke-width="2" />
+  <line x1="38" y1="42" x2="82" y2="42" stroke="${actorStroke}" stroke-width="2" />
+  <line x1="60" y1="58" x2="42" y2="80" stroke="${actorStroke}" stroke-width="2" />
+  <line x1="60" y1="58" x2="78" y2="80" stroke="${actorStroke}" stroke-width="2" />
+  <text x="60" y="88" font-family="JetBrains Mono, sans-serif" font-size="10" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 120, height: 90 };
   }
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <ellipse cx="${width / 2}" cy="${height / 2}" rx="${width / 2 - 3}" ry="${height / 2 - 3}" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.8" />
-  <text x="${width / 2}" y="${height / 2 + 4}" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="600" fill="#1E293B" text-anchor="middle">${escapeXml(name)}</text>
+  <ellipse cx="${width / 2}" cy="${height / 2}" rx="${width / 2 - 3}" ry="${height / 2 - 3}" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <text x="${width / 2}" y="${height / 2 + 4}" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="600" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
 /** ── 9. Object Runtime Instance Card ── */
 export function generateObjectCardSvg(data) {
-  const { name = "obj", fields = [], width = 240, height = 90 } = data;
+  const { name = "obj", fields = [], width = 240, height = 90, isDark = false } = data;
   const HEADER_HEIGHT = 32;
   const ROW_HEIGHT = 18;
   const calculatedHeight = HEADER_HEIGHT + Math.max(1, fields.length) * ROW_HEIGHT + 14;
   const cardHeight = Math.max(height, calculatedHeight);
 
+  const cardBg = isDark ? '#0F172A' : '#FFFFFF';
+  const headerBg = isDark ? '#075985' : '#F0F9FF';
+  const strokeColor = isDark ? '#38BDF8' : '#0284C7';
+  const titleColor = isDark ? '#E0F2FE' : '#0369A1';
+  const bodyTextColor = isDark ? '#CBD5E1' : '#334155';
+
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${cardHeight}" viewBox="0 0 ${width} ${cardHeight}">
-  <rect x="1" y="1" width="${width - 2}" height="${cardHeight - 2}" rx="6" ry="6" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.5" />
-  <rect x="1" y="1" width="${width - 2}" height="${HEADER_HEIGHT}" rx="6" ry="6" fill="#F0F9FF" />
-  <line x1="1" y1="${HEADER_HEIGHT}" x2="${width - 1}" y2="${HEADER_HEIGHT}" stroke="#0284C7" stroke-width="1.2" />
-  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="700" text-decoration="underline" fill="#0369A1" text-anchor="middle">${escapeXml(name)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${cardHeight - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.5" />
+  <rect x="1" y="1" width="${width - 2}" height="${HEADER_HEIGHT}" rx="6" ry="6" fill="${headerBg}" />
+  <line x1="1" y1="${HEADER_HEIGHT}" x2="${width - 1}" y2="${HEADER_HEIGHT}" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11" font-weight="700" text-decoration="underline" fill="${titleColor}" text-anchor="middle">${escapeXml(name)}</text>
 `;
 
   let currY = HEADER_HEIGHT + 16;
   fields.forEach(f => {
     const text = typeof f === 'string' ? f : (f.signature || f.name);
     svg += `
-  <text x="12" y="${currY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#334155">${escapeXml(text)}</text>`;
+  <text x="12" y="${currY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="${bodyTextColor}">${escapeXml(text)}</text>`;
     currY += ROW_HEIGHT;
   });
 
@@ -402,31 +442,37 @@ export function generateObjectCardSvg(data) {
 
 /** ── 10. Compiler CFG Basic Block Card ── */
 export function generateCfgBlockSvg(data) {
-  const { id = "bb_0", label = "Block", instructions = [], width = 280 } = data;
+  const { id = "bb_0", label = "Block", instructions = [], width = 280, isDark = false } = data;
   const HEADER_HEIGHT = 36;
   const ROW_HEIGHT = 18;
   const height = HEADER_HEIGHT + Math.max(1, instructions.length) * ROW_HEIGHT + 18;
 
+  const cardBg = isDark ? '#1F1F2E' : '#FFFFFF';
+  const headerBg = isDark ? '#450A0A' : '#FEF2F2';
+  const strokeColor = isDark ? '#F87171' : '#DC2626';
+  const titleColor = isDark ? '#FECACA' : '#991B1B';
+  const bodyTextColor = isDark ? '#E2E8F0' : '#334155';
+
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.5" />
-  <path d="M 1,6 Q 1,1 6,1 L ${width - 6},1 Q ${width - 1},1 ${width - 1},6 L ${width - 1},${HEADER_HEIGHT} L 1,${HEADER_HEIGHT} Z" fill="#FEF2F2" />
-  <line x1="1" y1="${HEADER_HEIGHT}" x2="${width - 1}" y2="${HEADER_HEIGHT}" stroke="#FECACA" stroke-width="1.2" />
-  <text x="12" y="23" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#991B1B">⚡ BASIC BLOCK #${escapeXml(id)}</text>
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.5" />
+  <path d="M 1,6 Q 1,1 6,1 L ${width - 6},1 Q ${width - 1},1 ${width - 1},6 L ${width - 1},${HEADER_HEIGHT} L 1,${HEADER_HEIGHT} Z" fill="${headerBg}" />
+  <line x1="1" y1="${HEADER_HEIGHT}" x2="${width - 1}" y2="${HEADER_HEIGHT}" stroke="${strokeColor}" stroke-width="1.2" />
+  <text x="12" y="23" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="${titleColor}">⚡ BASIC BLOCK #${escapeXml(id)}</text>
 `;
 
   let instY = HEADER_HEIGHT + 16;
   if (instructions.length > 0) {
     instructions.forEach(inst => {
       svg += `
-  <text x="12" y="${instY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#334155">
-    <tspan fill="#DC2626">▸ </tspan><tspan>${escapeXml(inst)}</tspan>
+  <text x="12" y="${instY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="${bodyTextColor}">
+    <tspan fill="${strokeColor}">▸ </tspan><tspan>${escapeXml(inst)}</tspan>
   </text>`;
       instY += ROW_HEIGHT;
     });
   } else {
     svg += `
-  <text x="12" y="${instY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="#475569">${escapeXml(label)}</text>`;
+  <text x="12" y="${instY}" font-family="JetBrains Mono, monospace" font-size="9.5" fill="${bodyTextColor}">${escapeXml(label)}</text>`;
   }
 
   svg += `\n</svg>`;
@@ -435,7 +481,7 @@ export function generateCfgBlockSvg(data) {
 
 /** ── 11. ROBDD Decision Gate Node ── */
 export function generateBddGateSvg(data) {
-  const { varName = "var", isTerminal = false, terminalValue = 1 } = data;
+  const { varName = "var", isTerminal = false, terminalValue = 1, isDark = false } = data;
 
   if (isTerminal) {
     const isTrue = terminalValue === 1;
@@ -449,11 +495,16 @@ export function generateBddGateSvg(data) {
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: 90, height: 38 };
   }
 
+  const cardBg = isDark ? '#1E3A8A' : '#FFFFFF';
+  const strokeColor = isDark ? '#60A5FA' : '#3B82F6';
+  const badgeColor = isDark ? '#93C5FD' : '#3B82F6';
+  const textColor = isDark ? '#F8FAFC' : '#0F172A';
+
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="130" height="60" viewBox="0 0 130 60">
-  <polygon points="65,2 128,30 65,58 2,30" fill="#FFFFFF" stroke="#3B82F6" stroke-width="2" />
-  <text x="65" y="26" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="#3B82F6" text-anchor="middle">&lt;&lt;gate&gt;&gt;</text>
-  <text x="65" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" fill="#0F172A" text-anchor="middle">${escapeXml(varName)}</text>
+  <polygon points="65,2 128,30 65,58 2,30" fill="${cardBg}" stroke="${strokeColor}" stroke-width="2" />
+  <text x="65" y="26" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;gate&gt;&gt;</text>
+  <text x="65" y="39" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(varName)}</text>
 </svg>`;
 
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
