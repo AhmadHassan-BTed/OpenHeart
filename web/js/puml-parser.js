@@ -1,7 +1,7 @@
 /**
  * OpenHeart Precision PlantUML & Mermaid Graph Engine Parser
  * Clean UML 2.5 notation with strict 3-compartment class formatting (Name, Attributes, Operations),
- * non-overlapping leaf package containers, and collision-free computed geometry.
+ * hierarchical multi-level package container depth levels, and collision-free computed geometry.
  */
 
 export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
@@ -27,8 +27,9 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const pkgId = pkgMatch[2] || `pkg_${pkgName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 
       // In Class diagrams, prune redundant root empty wrappers ("com", "com.patterns")
-      // to keep clean side-by-side leaf package boxes without concentric container overlap
       const isRedundantWrapper = (pkgName === 'com' || pkgName === 'com.patterns' || pkgName === 'patterns') && diagramType === 'class';
+      const currentParentPkg = getActivePackage(packageStack);
+      const nestLevel = packageStack.filter(p => p !== null).length;
 
       if (!isRedundantWrapper && !nodeMap.has(pkgId)) {
         const pkgNode = {
@@ -36,9 +37,11 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
             id: pkgId,
             label: `package [${pkgName}]`,
             kind: 'package',
-            isPackage: true
+            isPackage: true,
+            parent: currentParentPkg || undefined,
+            nestLevel: nestLevel
           },
-          classes: 'compound-package'
+          classes: `compound-package nest-level-${Math.min(3, nestLevel)}`
         };
         nodeMap.set(pkgId, pkgNode);
         elements.push(pkgNode);
@@ -56,6 +59,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const artName = artMatch[1];
       const artId = artMatch[2] || `art_${artName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
       const activePkg = getActivePackage(packageStack);
+      const nestLevel = packageStack.filter(p => p !== null).length;
       if (!nodeMap.has(artId)) {
         const node = {
           data: {
@@ -66,7 +70,8 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
             height: 60,
             file: `${artName}.java`,
             lines: [1],
-            parent: activePkg
+            parent: activePkg,
+            nestLevel: nestLevel
           }
         };
         nodeMap.set(artId, node);
@@ -127,26 +132,30 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       continue;
     }
 
-    // ── 5. Component / Interface Socket ──
+    // ── 5. Component / Interface Socket / Timing Lifeline ──
     const compMatch = rawLine.match(/^component\s+\[([^\]]+)\]\s+as\s+([A-Za-z0-9_]+)/) ||
                       rawLine.match(/^component\s+([A-Za-z0-9_]+)/) ||
-                      rawLine.match(/^\(\)\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/);
+                      rawLine.match(/^\(\)\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/) ||
+                      rawLine.match(/^(?:robust|concise)\s+"([^"]+)"\s+as\s+([A-Za-z0-9_]+)/);
     if (compMatch) {
       const id = compMatch[2] || compMatch[1];
       const label = compMatch[1];
       const isIface = rawLine.startsWith('()');
+      const isTiming = rawLine.startsWith('robust') || rawLine.startsWith('concise');
       const activePkg = getActivePackage(packageStack);
+      const nestLevel = packageStack.filter(p => p !== null).length;
       if (!nodeMap.has(id)) {
         const node = {
           data: {
             id: id,
-            label: isIface ? `<<interface>>\n${label}` : `<<component>>\n${label}`,
+            label: isTiming ? `<<timeline>>\n${label}` : (isIface ? `<<interface>>\n${label}` : `<<component>>\n${label}`),
             kind: isIface ? 'interface' : 'entry',
             width: isIface ? 180 : 230,
             height: isIface ? 55 : 70,
             file: `${label}.java`,
             lines: [1],
-            parent: activePkg
+            parent: activePkg,
+            nestLevel: nestLevel
           }
         };
         nodeMap.set(id, node);
@@ -163,6 +172,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const isStart = label === 'start';
       const isStop = label === 'stop';
       const activePkg = getActivePackage(packageStack);
+      const nestLevel = packageStack.filter(p => p !== null).length;
       if (!nodeMap.has(id)) {
         const node = {
           data: {
@@ -173,7 +183,8 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
             height: 50,
             file: 'Activity.java',
             lines: [1],
-            parent: activePkg
+            parent: activePkg,
+            nestLevel: nestLevel
           }
         };
         nodeMap.set(id, node);
@@ -188,6 +199,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const id = stateMatch[2] || stateMatch[1];
       const label = stateMatch[1];
       const activePkg = getActivePackage(packageStack);
+      const nestLevel = packageStack.filter(p => p !== null).length;
       if (!nodeMap.has(id)) {
         const node = {
           data: {
@@ -198,7 +210,8 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
             height: 55,
             file: `${id}.java`,
             lines: [1],
-            parent: activePkg
+            parent: activePkg,
+            nestLevel: nestLevel
           }
         };
         nodeMap.set(id, node);
@@ -260,6 +273,7 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
   if (nodeMap.has(block.id)) return;
 
   const currentParentPkg = getActivePackage(packageStack);
+  const nestLevel = packageStack.filter(p => p !== null).length;
   
   // Strict 3-Compartment UML 2.5 Construction
   const nameCompartment = `${block.stereotype}\n${block.name}`;
@@ -291,7 +305,8 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
       height: nodeHeight,
       file: `${block.name}.java`,
       lines: [1, 5, 10],
-      parent: currentParentPkg
+      parent: currentParentPkg,
+      nestLevel: nestLevel
     }
   };
 
@@ -303,6 +318,7 @@ function ensureNodeExists(id, nodeMap, elements, packageStack) {
   if (!id || nodeMap.has(id)) return;
 
   const currentParentPkg = getActivePackage(packageStack);
+  const nestLevel = packageStack.filter(p => p !== null).length;
   const label = id.replace(/_/g, ' ');
   const node = {
     data: {
@@ -313,7 +329,8 @@ function ensureNodeExists(id, nodeMap, elements, packageStack) {
       height: 65,
       file: `${id}.java`,
       lines: [1],
-      parent: currentParentPkg
+      parent: currentParentPkg,
+      nestLevel: nestLevel
     }
   };
 
