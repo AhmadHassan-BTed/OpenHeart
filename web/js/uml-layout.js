@@ -1,7 +1,10 @@
 /**
- * OpenHeart Deterministic UML Spatial Layout Engine
- * Computes exact collision-free bounding boxes and non-overlapping coordinate grids.
- * Mathematically guarantees ZERO overlap between packages, classes, and compiler nodes.
+ * OpenHeart Hierarchical Architectural Layout Engine
+ * Computes exact composite bounding boxes across 3 distinct nesting levels:
+ *  - Level 1: Domain Tier Containers (Behavioral, Creational, Structural)
+ *  - Level 2: Subpackage Containers (observer, strategy, builder, factory, adapter, facade, etc.)
+ *  - Level 3: Enclosed 3-Compartment Class Cards
+ * Guaranteed 100% collision-free geometry with clear color-tiered depth.
  */
 
 export function computeDeterministicLayout(elements, graphType = 'class') {
@@ -22,107 +25,185 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
       nodeMap.set(el.data.id, el);
     } else {
       nodeMap.set(el.data.id, el);
-      if (el.data.parent && packageMap.has(el.data.parent)) {
-        packageMap.get(el.data.parent).children.push(el);
-      } else {
-        standaloneNodes.push(el);
-      }
     }
   });
 
-  // If this is a hierarchical graph (CFG, ROBDD, Call Graph, State Machine, Sequence, Activity)
+  // Link children to their parent packages
+  elements.forEach(el => {
+    if (!el.data.source && el.data.parent && packageMap.has(el.data.parent)) {
+      packageMap.get(el.data.parent).children.push(el);
+    } else if (!el.data.source && !el.data.isPackage && !el.data.parent) {
+      standaloneNodes.push(el);
+    }
+  });
+
+  // If this is a hierarchical compiler graph
   if (['cfg', 'robdd', 'dfg', 'cdg', 'callgraph', 'statemachine', 'sequence', 'activity'].includes(graphType)) {
     return layoutHierarchicalGraph(nodeMap, edges, elements);
   }
 
-  // 2. Compute Layout for Class / Package / Component / Composite diagrams
-  const PACKAGES_PER_ROW = 3;
-  const PKG_GUTTER_X = 140;
-  const PKG_GUTTER_Y = 160;
-  const CARD_WIDTH = 280;
-  const CARD_GAP_X = 50;
-  const CARD_GAP_Y = 40;
-  const PKG_PAD_TOP = 80;
-  const PKG_PAD_BOTTOM = 40;
-  const PKG_PAD_SIDE = 40;
-
-  let pkgIndex = 0;
-  let rowMaxHeight = 0;
-  let currentOriginX = 0;
-  let currentOriginY = 0;
+  // 2. Identify Top-Level Domain Packages (Level 1) vs Subpackages (Level 2)
+  const level1Packages = [];
+  const level2Packages = [];
 
   packageMap.forEach((pkgData, pkgId) => {
-    const children = pkgData.children;
-    const colCount = Math.min(2, Math.max(1, children.length));
-    const rowCount = Math.ceil(children.length / colCount);
-
-    // Calculate max child dimensions
-    let maxChildHeight = 90;
-    children.forEach(child => {
-      const h = child.data.height || 100;
-      if (h > maxChildHeight) maxChildHeight = h;
-    });
-
-    const innerWidth = colCount * CARD_WIDTH + (colCount - 1) * CARD_GAP_X;
-    const innerHeight = rowCount * maxChildHeight + (rowCount - 1) * CARD_GAP_Y;
-
-    const pkgWidth = innerWidth + PKG_PAD_SIDE * 2;
-    const pkgHeight = innerHeight + PKG_PAD_TOP + PKG_PAD_BOTTOM;
-
-    // Grid placement for package
-    const colIndex = pkgIndex % PACKAGES_PER_ROW;
-    if (colIndex === 0 && pkgIndex > 0) {
-      currentOriginX = 0;
-      currentOriginY += rowMaxHeight + PKG_GUTTER_Y;
-      rowMaxHeight = 0;
+    const parent = pkgData.element.data.parent;
+    if (!parent || !packageMap.has(parent)) {
+      level1Packages.push(pkgData);
+    } else {
+      level2Packages.push(pkgData);
     }
-
-    const pkgX = currentOriginX;
-    const pkgY = currentOriginY;
-
-    if (pkgHeight > rowMaxHeight) {
-      rowMaxHeight = pkgHeight;
-    }
-
-    // Set package position & size
-    pkgData.element.data.width = pkgWidth;
-    pkgData.element.data.height = pkgHeight;
-    pkgData.element.position = {
-      x: pkgX + pkgWidth / 2,
-      y: pkgY + pkgHeight / 2
-    };
-
-    // Position children inside package
-    children.forEach((child, cIdx) => {
-      const cCol = cIdx % colCount;
-      const cRow = Math.floor(cIdx / colCount);
-
-      const childX = pkgX + PKG_PAD_SIDE + cCol * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2;
-      const childY = pkgY + PKG_PAD_TOP + cRow * (maxChildHeight + CARD_GAP_Y) + (child.data.height || maxChildHeight) / 2;
-
-      child.data.width = CARD_WIDTH;
-      child.position = {
-        x: childX,
-        y: childY
-      };
-    });
-
-    currentOriginX += pkgWidth + PKG_GUTTER_X;
-    pkgIndex++;
   });
 
-  // 3. Position any standalone nodes in a bottom shelf
+  // 3. Layout Constants
+  const CARD_WIDTH = 290;
+  const CARD_GAP_X = 140; // Wide routing channel
+  const CARD_GAP_Y = 120;
+  const SUBPKG_PAD_TOP = 80;
+  const SUBPKG_PAD_BOTTOM = 50;
+  const SUBPKG_PAD_SIDE = 50;
+  const SUBPKG_GUTTER_X = 70;
+  const DOMAIN_PAD_TOP = 90;
+  const DOMAIN_PAD_BOTTOM = 60;
+  const DOMAIN_PAD_SIDE = 50;
+  const DOMAIN_GUTTER_Y = 180;
+
+  // Step A: Calculate Layout for each Level 2 Subpackage
+  const subpkgBounds = new Map();
+
+  packageMap.forEach((pkgData, pkgId) => {
+    const directLeafChildren = pkgData.children.filter(c => !c.data.isPackage);
+    if (directLeafChildren.length > 0) {
+      const colCount = Math.min(2, Math.max(1, directLeafChildren.length));
+      const rowCount = Math.ceil(directLeafChildren.length / colCount);
+
+      let maxChildHeight = 90;
+      directLeafChildren.forEach(child => {
+        const h = child.data.height || 180;
+        if (h > maxChildHeight) maxChildHeight = h;
+      });
+
+      const innerWidth = colCount * CARD_WIDTH + (colCount - 1) * CARD_GAP_X;
+      const innerHeight = rowCount * maxChildHeight + (rowCount - 1) * CARD_GAP_Y;
+
+      const subWidth = innerWidth + SUBPKG_PAD_SIDE * 2;
+      const subHeight = innerHeight + SUBPKG_PAD_TOP + SUBPKG_PAD_BOTTOM;
+
+      subpkgBounds.set(pkgId, {
+        width: subWidth,
+        height: subHeight,
+        colCount,
+        maxChildHeight,
+        children: directLeafChildren
+      });
+
+      pkgData.element.data.width = subWidth;
+      pkgData.element.data.height = subHeight;
+      pkgData.element.data.origWidth = subWidth;
+      pkgData.element.data.origHeight = subHeight;
+    }
+  });
+
+  // Step B: Layout Level 1 Domain Packages & Place Subpackages / Classes Inside
+  let currentDomainY = 0;
+
+  level1Packages.forEach((domainPkg) => {
+    const domainId = domainPkg.element.data.id;
+    const subChildren = domainPkg.children.filter(c => c.data.isPackage);
+
+    if (subChildren.length > 0) {
+      // Place subpackages side by side inside domain
+      let currentSubX = DOMAIN_PAD_SIDE;
+      let maxSubHeight = 0;
+
+      subChildren.forEach((subPkg) => {
+        const subId = subPkg.data.id;
+        const b = subpkgBounds.get(subId) || { width: 400, height: 250, colCount: 1, maxChildHeight: 180, children: [] };
+        
+        if (b.height > maxSubHeight) {
+          maxSubHeight = b.height;
+        }
+
+        const subX = currentSubX;
+        const subY = currentDomainY + DOMAIN_PAD_TOP;
+
+        // Position subpackage container
+        subPkg.position = {
+          x: subX + b.width / 2,
+          y: subY + b.height / 2
+        };
+
+        // Position child classes inside this subpackage
+        b.children.forEach((child, cIdx) => {
+          const cCol = cIdx % b.colCount;
+          const cRow = Math.floor(cIdx / b.colCount);
+
+          const childX = subX + SUBPKG_PAD_SIDE + cCol * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2;
+          const childY = subY + SUBPKG_PAD_TOP + cRow * (b.maxChildHeight + CARD_GAP_Y) + (child.data.height || b.maxChildHeight) / 2;
+
+          child.data.width = CARD_WIDTH;
+          child.position = {
+            x: childX,
+            y: childY
+          };
+        });
+
+        currentSubX += b.width + SUBPKG_GUTTER_X;
+      });
+
+      const totalDomainWidth = currentSubX - SUBPKG_GUTTER_X + DOMAIN_PAD_SIDE;
+      const totalDomainHeight = maxSubHeight + DOMAIN_PAD_TOP + DOMAIN_PAD_BOTTOM;
+
+      domainPkg.element.data.width = totalDomainWidth;
+      domainPkg.element.data.height = totalDomainHeight;
+      domainPkg.element.data.origWidth = totalDomainWidth;
+      domainPkg.element.data.origHeight = totalDomainHeight;
+      domainPkg.element.position = {
+        x: totalDomainWidth / 2,
+        y: currentDomainY + totalDomainHeight / 2
+      };
+
+      currentDomainY += totalDomainHeight + DOMAIN_GUTTER_Y;
+    } else {
+      // Standalone domain package with direct classes
+      const b = subpkgBounds.get(domainId);
+      if (b) {
+        const domainWidth = b.width + DOMAIN_PAD_SIDE * 2;
+        const domainHeight = b.height + DOMAIN_PAD_TOP + DOMAIN_PAD_BOTTOM;
+
+        domainPkg.element.data.width = domainWidth;
+        domainPkg.element.data.height = domainHeight;
+        domainPkg.element.position = {
+          x: domainWidth / 2,
+          y: currentDomainY + domainHeight / 2
+        };
+
+        b.children.forEach((child, cIdx) => {
+          const cCol = cIdx % b.colCount;
+          const cRow = Math.floor(cIdx / b.colCount);
+
+          child.position = {
+            x: DOMAIN_PAD_SIDE + SUBPKG_PAD_SIDE + cCol * (CARD_WIDTH + CARD_GAP_X) + CARD_WIDTH / 2,
+            y: currentDomainY + DOMAIN_PAD_TOP + SUBPKG_PAD_TOP + cRow * (b.maxChildHeight + CARD_GAP_Y) + (child.data.height || b.maxChildHeight) / 2
+          };
+        });
+
+        currentDomainY += domainHeight + DOMAIN_GUTTER_Y;
+      }
+    }
+  });
+
+  // Step C: Standalone nodes shelf
   if (standaloneNodes.length > 0) {
     let shelfX = 0;
-    const shelfY = currentOriginY + rowMaxHeight + PKG_GUTTER_Y;
-    standaloneNodes.forEach((node, sIdx) => {
+    standaloneNodes.forEach((node) => {
       const w = node.data.width || CARD_WIDTH;
       const h = node.data.height || 100;
       node.position = {
         x: shelfX + w / 2,
-        y: shelfY + h / 2
+        y: currentDomainY + h / 2
       };
-      shelfX += w + CARD_GAP_X;
+      shelfX += w + 60;
     });
   }
 
@@ -130,7 +211,6 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
 }
 
 function layoutHierarchicalGraph(nodeMap, edges, elements) {
-  // Topological rank assignment
   const inDegree = new Map();
   const adj = new Map();
   const nodes = [];
@@ -150,7 +230,6 @@ function layoutHierarchicalGraph(nodeMap, edges, elements) {
     }
   });
 
-  // Kahn rank assignment
   const queue = [];
   const ranks = new Map();
 
@@ -183,22 +262,20 @@ function layoutHierarchicalGraph(nodeMap, edges, elements) {
     });
   }
 
-  // Handle any disconnected or cyclic nodes
   nodes.forEach(n => {
     if (!ranks.has(n.data.id)) {
       ranks.set(n.data.id, 0);
     }
   });
 
-  // Group by rank
   const rankGroups = new Map();
   ranks.forEach((r, id) => {
     if (!rankGroups.has(r)) rankGroups.set(r, []);
     rankGroups.get(r).push(nodeMap.get(id));
   });
 
-  const LEVEL_GAP_Y = 160;
-  const NODE_GAP_X = 80;
+  const LEVEL_GAP_Y = 180;
+  const NODE_GAP_X = 120;
   let currentY = 0;
 
   const sortedRanks = Array.from(rankGroups.keys()).sort((a, b) => a - b);

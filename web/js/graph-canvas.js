@@ -1,12 +1,16 @@
 /**
- * OpenHeart Precision Interactive Graph Canvas
- * Strictly conforms to UML 2.5 standard symbolic notation:
- *  - 3-Compartment Class / Interface / Abstract Symbols
- *  - Folder-Tab Compound Package Containers
+ * OpenHeart Precision Interactive Graph Canvas (Deterministic UML Edition)
+ * Strictly enforces UML 2.5 standard symbolic notation:
+ *  - 3-Level Distinct Color Hierarchy:
+ *      Level 1: Domain Tier Container (Solid border, soft pastel backdrop)
+ *      Level 2: Subpackage Container (Dashed border, saturated pastel backdrop)
+ *      Level 3: Enclosed 3-Compartment Class Cards (Crisp pure white with drop shadow)
+ *  - Deterministic Preset Layout Engine (100% Collision-Free Guarantee)
  *  - Orthogonal Taxi Wiring for Clean, Non-Entangled Routing
  */
 
 import { parsePumlToCytoscape } from './puml-parser.js';
+import { computeDeterministicLayout } from './uml-layout.js';
 
 export class InteractiveGraphCanvas {
   constructor(containerId = 'interactive-canvas') {
@@ -18,6 +22,7 @@ export class InteractiveGraphCanvas {
     this.onNodeHoverCallback = null;
     this.activeHoverId = null;
     this.hoverTimeout = null;
+    this.collapsedPackages = new Set();
   }
 
   init() {
@@ -45,6 +50,7 @@ export class InteractiveGraphCanvas {
     }
 
     this.activeHoverId = null;
+    this.collapsedPackages.clear();
 
     let elements = customElements;
     if (!elements) {
@@ -65,11 +71,12 @@ export class InteractiveGraphCanvas {
       ];
     }
 
-    const isHierarchical = ['cfg', 'robdd', 'callgraph', 'statemachine', 'activity', 'sequence'].includes(graphType);
+    // Compute exact collision-free coordinates across all 3 tiers
+    const layoutElements = computeDeterministicLayout(elements, graphType);
 
     this.cy = cytoscape({
       container: container,
-      elements: elements,
+      elements: layoutElements,
       boxSelectionEnabled: false,
       autounselectify: false,
       userZoomingEnabled: false,
@@ -79,93 +86,207 @@ export class InteractiveGraphCanvas {
       pixelRatio: 'auto',
       textureOnViewport: false,
       style: this.getModernStyleSheet(),
-      layout: isHierarchical ? {
-        name: 'breadthfirst',
-        directed: true,
-        padding: 60,
-        spacingFactor: 1.45,
-        animate: false
-      } : {
-        name: 'cose',
-        nodeDimensionsIncludeLabels: true,
-        padding: 90,
-        nodeOverlap: 90,
-        idealEdgeLength: 220,
-        edgeElasticity: 0.25,
-        nestingFactor: 0.1,
-        gravity: 15,
-        numIter: 1600,
-        initialTemp: 400,
-        coolingFactor: 0.95,
-        minTemp: 1.0,
-        nodeRepulsion: function(node) {
-          return node.isParent() ? 3500000 : 1200000;
-        },
+      layout: {
+        name: 'preset',
         animate: false
       }
     });
 
     this.attachEventListeners(container);
-    this.cy.fit(undefined, 40);
+    this.cy.fit(undefined, 60);
+  }
+
+  focusNodeByFile(fileName) {
+    if (!this.cy) return;
+    const node = this.cy.nodes().filter(n => n.data('file') === fileName)[0];
+    if (node) {
+      this.cy.animate({
+        center: { eles: node },
+        zoom: Math.max(0.7, this.cy.zoom()),
+        duration: 250
+      });
+      this.cy.nodes().unselect();
+      node.select();
+      if (this.onNodeSelectedCallback) {
+        this.onNodeSelectedCallback(node.data());
+      }
+    }
   }
 
   getModernStyleSheet() {
     return [
-      // ── Base Class Node (UML 2.5 3-Compartment Card) ──
+      // ── Level 3: SVG 3-Compartment Class Card Vector (Pure White Floating Card) ──
       {
-        selector: 'node',
+        selector: 'node[?svgDataUri]',
         style: {
+          'background-image': 'data(svgDataUri)',
+          'background-fit': 'cover',
+          'background-clip': 'node',
           'background-color': '#FFFFFF',
-          'border-width': 1.5,
-          'border-color': '#94A3B8',
-          'label': 'data(label)',
-          'color': '#0F172A',
-          'font-family': 'JetBrains Mono, SF Mono, Consolas, monospace',
-          'font-size': '11px',
-          'font-weight': 500,
-          'line-height': 1.4,
-          'text-valign': 'center',
-          'text-halign': 'center',
-          'text-wrap': 'wrap',
-          'text-max-width': '280px',
+          'border-width': 0,
           'width': 'data(width)',
           'height': 'data(height)',
           'shape': 'roundrectangle',
-          'border-radius': '6px',
-          'padding': '14px'
+          'label': '',
+          'z-index': 10
         }
       },
 
-      // ── Interface Symbol (Blue Accent Header) ──
+      // ── Level 1: Behavioral Domain Tier Container (Soft Violet Layer) ──
       {
-        selector: 'node[kind = "interface"]',
+        selector: 'node.pkg-domain-tier.pkg-behavioral, node[?isDomainTier][category = "pkg-behavioral"]',
         style: {
-          'background-color': '#FFFFFF',
-          'border-color': '#3B82F6',
-          'border-width': 1.5,
-          'color': '#0F172A'
+          'background-color': '#FAF5FF',
+          'background-opacity': 1.0,
+          'border-width': 2.5,
+          'border-color': '#C084FC',
+          'border-style': 'solid',
+          'shape': 'roundrectangle',
+          'border-radius': '16px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 24,
+          'text-margin-y': 20,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '13px',
+          'font-weight': 800,
+          'letter-spacing': '0.04em',
+          'color': '#6B21A8',
+          'padding': '40px',
+          'z-index': 1
         }
       },
 
-      // ── Abstract Class Symbol (Indigo Accent Header) ──
+      // ── Level 1: Creational Domain Tier Container (Soft Emerald Layer) ──
       {
-        selector: 'node[kind = "abstract"]',
+        selector: 'node.pkg-domain-tier.pkg-creational, node[?isDomainTier][category = "pkg-creational"]',
         style: {
-          'background-color': '#FFFFFF',
-          'border-color': '#6366F1',
-          'border-width': 1.5,
-          'color': '#0F172A'
+          'background-color': '#F0FDF4',
+          'background-opacity': 1.0,
+          'border-width': 2.5,
+          'border-color': '#86EFAC',
+          'border-style': 'solid',
+          'shape': 'roundrectangle',
+          'border-radius': '16px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 24,
+          'text-margin-y': 20,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '13px',
+          'font-weight': 800,
+          'letter-spacing': '0.04em',
+          'color': '#065F46',
+          'padding': '40px',
+          'z-index': 1
         }
       },
 
-      // ── Level 0 Package Container (Outer Namespace) ──
+      // ── Level 1: Structural Domain Tier Container (Soft Sky Blue Layer) ──
+      {
+        selector: 'node.pkg-domain-tier.pkg-structural, node[?isDomainTier][category = "pkg-structural"]',
+        style: {
+          'background-color': '#F0F9FF',
+          'background-opacity': 1.0,
+          'border-width': 2.5,
+          'border-color': '#7DD3FC',
+          'border-style': 'solid',
+          'shape': 'roundrectangle',
+          'border-radius': '16px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 24,
+          'text-margin-y': 20,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '13px',
+          'font-weight': 800,
+          'letter-spacing': '0.04em',
+          'color': '#075985',
+          'padding': '40px',
+          'z-index': 1
+        }
+      },
+
+      // ── Level 2: Behavioral Subpackage Container (Richer Violet Tint) ──
+      {
+        selector: 'node.pkg-subpackage.pkg-behavioral, node[!isDomainTier].pkg-behavioral',
+        style: {
+          'background-color': '#F3E8FF',
+          'background-opacity': 1.0,
+          'border-width': 2.0,
+          'border-color': '#9333EA',
+          'border-style': 'dashed',
+          'shape': 'roundrectangle',
+          'border-radius': '10px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 18,
+          'text-margin-y': 14,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '11.5px',
+          'font-weight': 700,
+          'color': '#581C87',
+          'padding': '30px',
+          'z-index': 3
+        }
+      },
+
+      // ── Level 2: Creational Subpackage Container (Richer Emerald Tint) ──
+      {
+        selector: 'node.pkg-subpackage.pkg-creational, node[!isDomainTier].pkg-creational',
+        style: {
+          'background-color': '#DCFCE7',
+          'background-opacity': 1.0,
+          'border-width': 2.0,
+          'border-color': '#059669',
+          'border-style': 'dashed',
+          'shape': 'roundrectangle',
+          'border-radius': '10px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 18,
+          'text-margin-y': 14,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '11.5px',
+          'font-weight': 700,
+          'color': '#064E3B',
+          'padding': '30px',
+          'z-index': 3
+        }
+      },
+
+      // ── Level 2: Structural Subpackage Container (Richer Sky Blue Tint) ──
+      {
+        selector: 'node.pkg-subpackage.pkg-structural, node[!isDomainTier].pkg-structural',
+        style: {
+          'background-color': '#E0F2FE',
+          'background-opacity': 1.0,
+          'border-width': 2.0,
+          'border-color': '#0284C7',
+          'border-style': 'dashed',
+          'shape': 'roundrectangle',
+          'border-radius': '10px',
+          'text-valign': 'top',
+          'text-halign': 'left',
+          'text-margin-x': 18,
+          'text-margin-y': 14,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
+          'font-size': '11.5px',
+          'font-weight': 700,
+          'color': '#0C4A6E',
+          'padding': '30px',
+          'z-index': 3
+        }
+      },
+
+      // ── General Package Container Fallback ──
       {
         selector: 'node.compound-package, node[?isPackage]',
         style: {
           'background-color': '#F8FAFC',
-          'background-opacity': 0.85,
-          'border-width': 1.5,
-          'border-color': '#94A3B8',
+          'background-opacity': 1.0,
+          'border-width': 2.0,
+          'border-color': '#64748B',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
           'border-radius': '12px',
@@ -177,87 +298,21 @@ export class InteractiveGraphCanvas {
           'font-size': '11px',
           'font-weight': 700,
           'color': '#334155',
-          'padding': '36px'
+          'padding': '36px',
+          'z-index': 1
         }
       },
 
-      // ── Level 1 Sub-Package Container (Deeper Slate Tint) ──
+      // ── Collapsed Package Container State ──
       {
-        selector: 'node.nest-level-1, node[nestLevel = 1]',
+        selector: 'node.package-collapsed',
         style: {
-          'background-color': '#F1F5F9',
-          'background-opacity': 0.92,
-          'border-color': '#64748B',
-          'border-width': 1.5,
-          'color': '#1E293B',
-          'padding': '30px'
-        }
-      },
-
-      // ── Level 2 Nested Sub-Module Container (Blue-Gray Tint) ──
-      {
-        selector: 'node.nest-level-2, node[nestLevel = 2]',
-        style: {
-          'background-color': '#E2E8F0',
-          'background-opacity': 0.95,
-          'border-color': '#475569',
-          'border-width': 2.0,
-          'color': '#0F172A',
-          'padding': '26px'
-        }
-      },
-
-      // ── Level 3+ Deep Nested Container (Rich Slate Frame) ──
-      {
-        selector: 'node.nest-level-3, node[nestLevel = 3]',
-        style: {
-          'background-color': '#CBD5E1',
-          'background-opacity': 1.0,
-          'border-color': '#334155',
-          'border-width': 2.0,
-          'color': '#020617',
-          'padding': '22px'
-        }
-      },
-
-      // ── Entry / Initial Node ──
-      {
-        selector: 'node[kind = "entry"]',
-        style: {
-          'background-color': '#FFFFFF',
-          'border-color': '#EF4444',
-          'border-width': 2.0,
-          'font-weight': 700
-        }
-      },
-
-      // ── Exit / Final Node ──
-      {
-        selector: 'node[kind = "exit"]',
-        style: {
-          'background-color': '#F8FAFC',
-          'border-color': '#94A3B8',
-          'border-width': 1.5,
-          'color': '#475569'
-        }
-      },
-
-      // ── Condition Decision Gate (Diamond Splitter) ──
-      {
-        selector: 'node[kind = "gate"]',
-        style: {
-          'shape': 'diamond',
-          'background-color': '#FFFFFF',
-          'border-color': '#3B82F6',
-          'border-width': 2.0,
-          'font-size': '10px',
-          'font-weight': 600,
+          'width': 260,
+          'height': 60,
           'text-valign': 'center',
           'text-halign': 'center',
-          'text-wrap': 'wrap',
-          'text-max-width': '110px',
-          'width': '130px',
-          'height': '130px'
+          'border-style': 'solid',
+          'border-width': 2.5
         }
       },
 
@@ -266,74 +321,54 @@ export class InteractiveGraphCanvas {
         selector: 'edge',
         style: {
           'width': 1.5,
-          'line-color': '#94A3B8',
-          'target-arrow-color': '#94A3B8',
+          'line-color': '#64748B',
+          'target-arrow-color': '#64748B',
           'target-arrow-shape': 'triangle',
-          'arrow-scale': 0.9,
+          'arrow-scale': 1.0,
           'curve-style': 'taxi',
           'taxi-direction': 'auto',
-          'taxi-turn': '24px',
-          'taxi-turn-min-distance': '8px',
+          'taxi-turn': '28px',
+          'taxi-turn-min-distance': '12px',
           'label': 'data(label)',
           'font-family': 'JetBrains Mono, monospace',
           'font-size': '10px',
-          'font-weight': 500,
-          'color': '#64748B',
+          'font-weight': 600,
+          'color': '#334155',
           'text-background-color': '#FFFFFF',
           'text-background-opacity': 1.0,
           'text-background-padding': '4px',
           'text-border-width': 1,
-          'text-border-color': '#E2E8F0',
-          'text-border-opacity': 1
+          'text-border-color': '#CBD5E1',
+          'text-border-opacity': 1,
+          'z-index': 5
         }
       },
 
-      // ── True Branch Edge (Vibrant Red) ──
-      {
-        selector: 'edge[branch = "true"]',
-        style: {
-          'line-color': '#EF4444',
-          'target-arrow-color': '#EF4444',
-          'color': '#DC2626',
-          'text-border-color': '#FECACA'
-        }
-      },
-
-      // ── False Branch Edge (Dashed) ──
-      {
-        selector: 'edge[branch = "false"]',
-        style: {
-          'line-style': 'dashed',
-          'line-color': '#94A3B8',
-          'target-arrow-color': '#94A3B8',
-          'color': '#64748B'
-        }
-      },
-
-      // ── UML Generalization (--|>) ──
+      // ── UML Generalization (--|>) : Solid line + Hollow Triangle Head ──
       {
         selector: 'edge[uml_kind = "generalization"]',
         style: {
           'target-arrow-shape': 'triangle',
           'target-arrow-fill': 'hollow',
-          'line-color': '#475569',
-          'target-arrow-color': '#475569'
+          'line-color': '#1E293B',
+          'target-arrow-color': '#1E293B',
+          'line-style': 'solid'
         }
       },
 
-      // ── UML Realization (..|>) ──
+      // ── UML Realization (..|>) : Dashed line + Hollow Triangle Head ──
       {
         selector: 'edge[uml_kind = "realization"]',
         style: {
           'target-arrow-shape': 'triangle',
           'target-arrow-fill': 'hollow',
           'line-style': 'dashed',
-          'line-color': '#475569',
-          'target-arrow-color': '#475569'
+          'line-color': '#1E293B',
+          'target-arrow-color': '#1E293B'
         }
       },
 
-      // ── UML Composition (<*--) ──
+      // ── UML Composition (<*--) : Filled Black Diamond Source ──
       {
         selector: 'edge[uml_kind = "composition"]',
         style: {
@@ -345,7 +380,19 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── UML Dependency (..>) ──
+      // ── UML Aggregation (o--) : Hollow Diamond Source ──
+      {
+        selector: 'edge[uml_kind = "aggregation"]',
+        style: {
+          'source-arrow-shape': 'diamond',
+          'source-arrow-fill': 'hollow',
+          'source-arrow-color': '#0F172A',
+          'line-color': '#0F172A',
+          'target-arrow-shape': 'none'
+        }
+      },
+
+      // ── UML Dependency (..>) : Dashed line + Vee Arrowhead ──
       {
         selector: 'edge[uml_kind = "dependency"]',
         style: {
@@ -356,35 +403,37 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── NODE HOVER HIGHLIGHT ──
+      // ── VIBRANT PATH ILLUMINATION: Highlighted Nodes ──
       {
         selector: 'node.path-highlighted',
         style: {
           'border-color': '#EF4444',
-          'border-width': 2.5,
-          'background-color': '#FFFFFF',
-          'color': '#0F172A',
-          'z-index': 999
+          'border-width': 3.5,
+          'border-style': 'solid',
+          'z-index': 9999
         }
       },
 
-      // ── EDGE HOVER HIGHLIGHT ──
+      // ── VIBRANT PATH ILLUMINATION: Highlighted Edges ──
       {
         selector: 'edge.path-highlighted',
         style: {
-          'width': 2.5,
+          'width': 3.5,
           'line-color': '#EF4444',
           'target-arrow-color': '#EF4444',
           'source-arrow-color': '#EF4444',
-          'z-index': 999
+          'color': '#EF4444',
+          'text-border-color': '#EF4444',
+          'text-border-width': 1.5,
+          'z-index': 9999
         }
       },
 
-      // ── Dimmed Inactive State ──
+      // ── Dimmed Inactive State (Deep Fog) ──
       {
         selector: '.dimmed',
         style: {
-          'opacity': 0.12
+          'opacity': 0.08
         }
       },
 
@@ -393,8 +442,8 @@ export class InteractiveGraphCanvas {
         selector: ':selected',
         style: {
           'border-color': '#EF4444',
-          'border-width': 2.5,
-          'background-color': '#FEF2F2'
+          'border-width': 3.0,
+          'border-style': 'solid'
         }
       }
     ];
@@ -482,10 +531,10 @@ export class InteractiveGraphCanvas {
       }
     }, { passive: false });
 
-    // ── Zero-Flicker Batched Path Hover Illumination ──
+    // ── High-Intensity Path Hover Illumination ──
     this.cy.on('mouseover', 'node, edge', (e) => {
       const target = e.target;
-      if (target.isParent()) return;
+      if (target.data('isPackage')) return;
 
       const targetId = target.id();
       if (this.activeHoverId === targetId) return;
@@ -508,11 +557,11 @@ export class InteractiveGraphCanvas {
       }
 
       this.cy.batch(() => {
-        this.cy.elements().not(':parent').addClass('dimmed');
+        this.cy.elements().not('node[?isPackage]').addClass('dimmed');
         pathElements.removeClass('dimmed').addClass('path-highlighted');
       });
 
-      if (this.onNodeHoverCallback && target.isNode() && !target.isParent()) {
+      if (this.onNodeHoverCallback && target.isNode()) {
         this.onNodeHoverCallback(target.data());
       }
     });
@@ -530,10 +579,42 @@ export class InteractiveGraphCanvas {
     // ── Click to Inspect & Synchronize Monaco ──
     this.cy.on('tap', 'node', (e) => {
       const node = e.target;
-      if (node.isParent()) return;
+      
+      // If clicking package container, toggle collapse/expand (Opening & Closing)
+      if (node.data('isPackage')) {
+        this.togglePackageCollapse(node);
+        return;
+      }
+
       this.selectedNode = node.data();
       if (this.onNodeSelectedCallback) {
         this.onNodeSelectedCallback(this.selectedNode);
+      }
+    });
+  }
+
+  togglePackageCollapse(pkgNode) {
+    const pkgId = pkgNode.id();
+    const children = this.cy.nodes(`[parent = "${pkgId}"]`);
+    const isCollapsed = this.collapsedPackages.has(pkgId);
+
+    this.cy.batch(() => {
+      if (isCollapsed) {
+        // Expand (Open)
+        this.collapsedPackages.delete(pkgId);
+        pkgNode.removeClass('package-collapsed');
+        pkgNode.data('width', pkgNode.data('origWidth') || 650);
+        pkgNode.data('height', pkgNode.data('origHeight') || 400);
+        pkgNode.data('label', `package [${pkgId.replace(/^pkg_/, '').replace(/_/g, '.')}]`);
+        children.style('display', 'element');
+        children.connectedEdges().style('display', 'element');
+      } else {
+        // Collapse (Close)
+        this.collapsedPackages.add(pkgId);
+        pkgNode.addClass('package-collapsed');
+        pkgNode.data('label', `[+] package [${pkgId.replace(/^pkg_/, '').replace(/_/g, '.')}] (${children.length} classes)`);
+        children.style('display', 'none');
+        children.connectedEdges().style('display', 'none');
       }
     });
   }
@@ -565,7 +646,7 @@ export class InteractiveGraphCanvas {
     this.cy.animate({
       fit: {
         eles: this.cy.elements(),
-        padding: 50
+        padding: 60
       },
       duration: 250
     });
