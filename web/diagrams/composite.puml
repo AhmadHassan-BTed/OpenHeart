@@ -62,8 +62,8 @@ class CheckpointManager <<composite>> {
   port in_port
   port out_port
   -part TAG : 
-  -part fun : 
-  -part fun : 
+  -part fun : Task
+  -part fun : Task
   -part TAG : 
   -part imageTask : 
   -part ckptFile : 
@@ -151,8 +151,8 @@ class Flusher <<composite>> {
   port out_port
   -part TAG : 
   -part filesDir : 
-  -part fun : 
-  -part fun : 
+  -part fun : Task
+  -part fun : Task
   -part TAG : 
   -part filesDir : 
   -part imageTask : 
@@ -576,8 +576,8 @@ class BootReceiver <<composite>> {
 class FractalApplication <<composite>> {
   port in_port
   port out_port
-  -part GlobalState : 
-  -part GlobalUtils : 
+  -part GlobalState : GlobalUtils
+  -part GlobalUtils : app_config
   -part app_config : 
   -part startupExecutor : 
   -part globalState : 

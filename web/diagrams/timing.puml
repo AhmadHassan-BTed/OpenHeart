@@ -46,8 +46,8 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-robust "ExternalActor" as tl_ExternalActor
 robust "plugins" as tl_plugins
+robust "ExternalActor" as tl_ExternalActor
 
 @0
 tl_plugins is onUploadSuccess

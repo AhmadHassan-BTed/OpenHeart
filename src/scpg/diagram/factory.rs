@@ -180,6 +180,15 @@ impl DiagramExporterFactory for JSONFactory {
     ) -> Option<String> {
         let graph_ir = match diagram_type {
             "package" => JSONExporter::export_package_diagram(uma, sta, tca),
+            "sequence" => JSONExporter::export_sequence_diagram(uma, sta, tca),
+            "state" | "statemachine" | "state_machine" => JSONExporter::export_state_diagram(uma, sta, tca),
+            "activity" => JSONExporter::export_activity_diagram(uma, sta, tca),
+            "component" => JSONExporter::export_component_diagram(uma, sta, tca),
+            "deployment" => JSONExporter::export_deployment_diagram(uma, sta, tca),
+            "usecase" | "use_case" => JSONExporter::export_usecase_diagram(uma, sta, tca),
+            "object" => JSONExporter::export_object_diagram(uma, sta, tca),
+            "communication" => JSONExporter::export_sequence_diagram(uma, sta, tca),
+            "timing" => JSONExporter::export_state_diagram(uma, sta, tca),
             _ => JSONExporter::export_class_diagram(uma, sta, tca),
         };
         serde_json::to_string_pretty(&graph_ir).ok()
@@ -192,13 +201,22 @@ impl DiagramExporterFactory for JSONFactory {
         tca: &TokenCorpusArtifact,
     ) -> HashMap<String, String> {
         let mut map = HashMap::new();
-        let class_ir = JSONExporter::export_class_diagram(uma, sta, tca);
-        if let Ok(json) = serde_json::to_string_pretty(&class_ir) {
-            map.insert("class".to_string(), json);
-        }
-        let pkg_ir = JSONExporter::export_package_diagram(uma, sta, tca);
-        if let Ok(json) = serde_json::to_string_pretty(&pkg_ir) {
-            map.insert("package".to_string(), json);
+        let types = [
+            ("class", JSONExporter::export_class_diagram(uma, sta, tca)),
+            ("package", JSONExporter::export_package_diagram(uma, sta, tca)),
+            ("sequence", JSONExporter::export_sequence_diagram(uma, sta, tca)),
+            ("state", JSONExporter::export_state_diagram(uma, sta, tca)),
+            ("activity", JSONExporter::export_activity_diagram(uma, sta, tca)),
+            ("component", JSONExporter::export_component_diagram(uma, sta, tca)),
+            ("deployment", JSONExporter::export_deployment_diagram(uma, sta, tca)),
+            ("usecase", JSONExporter::export_usecase_diagram(uma, sta, tca)),
+            ("object", JSONExporter::export_object_diagram(uma, sta, tca)),
+        ];
+
+        for (name, ir) in types {
+            if let Ok(json) = serde_json::to_string_pretty(&ir) {
+                map.insert(name.to_string(), json);
+            }
         }
         map
     }

@@ -231,10 +231,10 @@ package "AppBackend" as pkg_AppBackend {
     }
 
     package "AppBackend.LocalTrainingModule.TrainingStateManager" as pkg_AppBackend_LocalTrainingModule_TrainingStateManager {
-      class CheckpointManager {
+      class CheckpointManager <<Decorator>> {
         +TAG : 
-        +fun : 
-        +fun : 
+        +fun : Task
+        +fun : Task
         +TAG : 
         +imageTask : 
         +ckptFile : 
@@ -645,11 +645,11 @@ package "AppBackend" as pkg_AppBackend {
 package "AppFrontend" as pkg_AppFrontend {
 
   package "AppFrontend.Flush" as pkg_AppFrontend_Flush {
-    class Flusher {
+    class Flusher <<Decorator>> {
       +TAG : 
       +filesDir : 
-      +fun : 
-      +fun : 
+      +fun : Task
+      +fun : Task
       +TAG : 
       +filesDir : 
       +imageTask : 
@@ -1516,9 +1516,9 @@ package "com" as pkg_com {
         +onReceive() : 
         +onReceive() : 
       }
-      class FractalApplication {
-        +GlobalState : 
-        +GlobalUtils : 
+      class FractalApplication <<Decorator>> {
+        +GlobalState : GlobalUtils
+        +GlobalUtils : app_config
         +app_config : 
         +startupExecutor : 
         +globalState : 
@@ -1647,6 +1647,8 @@ package "com" as pkg_com {
   }
 }
 
+BootReceiver --|> BroadcastReceiver
+CheckpointManager --> Task
 DataDownloader_naf +-- CancelledDownloadException
 DataDownloader_naf +-- DownloadListener
 DataDownloader_naf +-- PauseController
@@ -1655,16 +1657,46 @@ DeviceInsightsFragment --|> Fragment
 DeviceInsightsViewModel --|> AndroidViewModel
 DiamondTrainingView --|> View
 FileOperations +-- class
+Flusher --> Task
+FractalApplication --> GlobalUtils
+FractalApplication --> app_config
+GlobalState --|> Flusher
+GlobalState ..|> Task
+GlobalUtils --|> FileOperations
 HomeFragment --|> Fragment
 HomeFragment --> HomeViewModel
 HomeViewModel --|> AndroidViewModel
 HomeViewModel --> ResourceManager_Live_DTO
 HomeViewModel --> TrainingStateRepository
+ImageTrainer ..|> Trainer
+Image_DataInitializer ..|> DataInitializer
+Image_DataInitializer_Factory ..|> DataInitializer_Factory
+Image_InferenceValidator ..|> InferenceValidator
+Image_InferenceValidator_Factory ..|> InferenceValidator_Factory
+Image_Task --|> TaskType
+Image_Task_DataParams ..|> Task_DataParams
+Image_Task_Factory ..|> Task_Factory
+Image_Task_ModelParams ..|> Task_ModelParams
+Image_Trainer_Factory ..|> Trainer_Factory
 MainActivity --|> AppCompatActivity
 ModelTrainingFragment --|> Fragment
 ModelTrainingFragment --> HomeViewModel
 ModelTrainingViewModel --|> ViewModel
+ModelTransmission_DTO ..|> Task
 OvernightManagerService +-- NOTIFICATION_ID
+PackageTypeTrainer ..|> DataInitializer
+PackageTypeTrainer ..|> InferenceValidator
+PackageTypeTrainer ..|> Task
+PackageTypeTrainer ..|> Trainer
+PackageTypeTrainerBuilder ..|> Builder
+Server_DAO ..|> Auth
+Server_DAO ..|> ModelTransmission
+Server_DAO ..|> TaskPopulate
+Server_DAO --|> networkConfig_ini
+Task ..|> Task_DataParams
+Task ..|> Task_ModelParams
 TaskType +-- class
+checkpoints_DTO --|> checkpoint_DTO
+task_DTO ..|> Task
 
 @enduml

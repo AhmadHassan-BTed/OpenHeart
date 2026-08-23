@@ -49,6 +49,40 @@
   --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
+/* ── Ultra-Sleek Precision Dark Mode Theme ── */
+body.dark-theme, [data-theme="dark"] {
+  --bg-app: #0B0F19;
+  --bg-surface: #111827;
+  --bg-subtle: #1F2937;
+  --bg-muted: #374151;
+
+  --border-light: #1F2937;
+  --border-medium: #374151;
+  --border-focus: #60A5FA;
+
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --text-faint: #6B7280;
+  --text-inverse: #0F172A;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 20px 40px -8px rgba(0, 0, 0, 0.7);
+}
+
+body.dark-theme .app-header {
+  background: rgba(17, 24, 39, 0.95);
+}
+
+body.dark-theme .interactive-canvas-container {
+  background-color: #0B0F19;
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.08) 1.2px, transparent 1.2px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
 /* ── Reset & Core ── */
 *, *::before, *::after {
   box-sizing: border-box;

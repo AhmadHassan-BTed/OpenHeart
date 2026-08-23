@@ -28,10 +28,12 @@ export class SourceEditorModule {
       this.editor = null;
     }
 
+    const isDark = document.body && document.body.classList.contains('dark-theme');
+
     this.editor = window.monaco.editor.create(container, {
       value: "// OpenHeart Dynamic Code Synchronizer\n// Select any file or diagram node to view source",
       language: "java",
-      theme: "vs",
+      theme: isDark ? "vs-dark" : "vs",
       readOnly: true,
       automaticLayout: true,
       lineNumbers: "on",
@@ -46,6 +48,12 @@ export class SourceEditorModule {
         horizontalScrollbarSize: 8
       }
     });
+  }
+
+  setTheme(isDark) {
+    if (window.monaco && window.monaco.editor) {
+      window.monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+    }
   }
 
   async loadFile(fileName, nodeData = null, targetLines = []) {
