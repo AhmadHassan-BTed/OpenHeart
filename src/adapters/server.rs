@@ -106,8 +106,14 @@ impl OpenHeartServer {
                 }
             }
 
-            let decoded_path = file_query.replace("%2F", "/").replace("%20", " ").replace("%2B", "+");
-            let file_name = Path::new(&decoded_path).file_name().and_then(|n| n.to_str()).unwrap_or(&decoded_path);
+            let decoded_path = file_query
+                .replace("%2F", "/")
+                .replace("%20", " ")
+                .replace("%2B", "+");
+            let file_name = Path::new(&decoded_path)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&decoded_path);
 
             let mut found_content: Option<String> = None;
             let direct_candidates = [
@@ -115,15 +121,42 @@ impl OpenHeartServer {
                 &format!("./{}", decoded_path),
                 &format!("./target_repos/FractalAndroid/{}", decoded_path),
                 &format!("./test_patterns_codebase/{}", decoded_path),
-                &format!("./test_patterns_codebase/com/patterns/structural/facade/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/behavioral/observer/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/behavioral/strategy/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/behavioral/templatemethod/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/creational/builder/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/creational/factory/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/creational/singleton/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/structural/adapter/{}", file_name),
-                &format!("./test_patterns_codebase/com/patterns/structural/decorator/{}", file_name),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/structural/facade/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/behavioral/observer/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/behavioral/strategy/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/behavioral/templatemethod/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/creational/builder/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/creational/factory/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/creational/singleton/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/structural/adapter/{}",
+                    file_name
+                ),
+                &format!(
+                    "./test_patterns_codebase/com/patterns/structural/decorator/{}",
+                    file_name
+                ),
             ];
 
             for candidate in &direct_candidates {
@@ -151,10 +184,15 @@ impl OpenHeartServer {
                     "found": true,
                     "file": decoded_path,
                     "content": content
-                }).to_string();
+                })
+                .to_string();
                 Self::respond_json(stream, 200, &json);
             } else {
-                Self::respond_json(stream, 404, r#"{"found":false,"error":"Source file not found on server disk"}"#);
+                Self::respond_json(
+                    stream,
+                    404,
+                    r#"{"found":false,"error":"Source file not found on server disk"}"#,
+                );
             }
         } else if method == "POST" && clean_path == "/api/analyze" {
             let mut full_request = request.to_string();
@@ -265,8 +303,10 @@ impl OpenHeartServer {
                         visit(&p, target, out);
                     } else if p.is_file() {
                         if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                            let stripped_target = target.trim_end_matches(".java").trim_end_matches(".kt");
-                            let stripped_name = name.trim_end_matches(".java").trim_end_matches(".kt");
+                            let stripped_target =
+                                target.trim_end_matches(".java").trim_end_matches(".kt");
+                            let stripped_name =
+                                name.trim_end_matches(".java").trim_end_matches(".kt");
                             if name == target || stripped_name == stripped_target {
                                 out.push(p.to_string_lossy().to_string());
                             }
@@ -554,9 +594,27 @@ impl OpenHeartServer {
         let _ = fs::create_dir_all(&diag_dir);
         let diag_engine = crate::scpg::diagram::UniversalDiagramEngine::new();
         let all_diagram_types = [
-            "class", "object", "component", "deployment", "package", "composite",
-            "profile", "usecase", "use_case", "activity", "state", "statemachine", "sequence",
-            "communication", "interaction", "timing", "cfg", "robdd", "dfg", "cdg", "callgraph",
+            "class",
+            "object",
+            "component",
+            "deployment",
+            "package",
+            "composite",
+            "profile",
+            "usecase",
+            "use_case",
+            "activity",
+            "state",
+            "statemachine",
+            "sequence",
+            "communication",
+            "interaction",
+            "timing",
+            "cfg",
+            "robdd",
+            "dfg",
+            "cdg",
+            "callgraph",
         ];
         for dtype in all_diagram_types {
             if let Some(puml) = diag_engine.export_diagram(

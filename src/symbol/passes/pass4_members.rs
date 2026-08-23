@@ -13,11 +13,7 @@ use crate::symbol::builder::SymbolTableBuilder;
 pub struct Pass4Members;
 
 impl Pass4Members {
-    pub fn run(
-        bpa: &BPASTArtifact,
-        tca: &TokenCorpusArtifact,
-        builder: &mut SymbolTableBuilder,
-    ) {
+    pub fn run(bpa: &BPASTArtifact, tca: &TokenCorpusArtifact, builder: &mut SymbolTableBuilder) {
         // Build fast symbol name lookup table for type binding
         let mut class_name_to_sym: HashMap<String, u32> = HashMap::new();
         for sym_id in 0..builder.symbol_count() as u32 {

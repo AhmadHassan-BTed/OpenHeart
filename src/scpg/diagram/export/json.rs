@@ -169,7 +169,8 @@ impl JSONExporter {
             }
 
             for class_rec in classes {
-                let name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.sym_id));
+                let name =
+                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.sym_id));
                 if name.is_empty() {
                     continue;
                 }
@@ -261,8 +262,15 @@ impl JSONExporter {
                 if class_rec.extends_sym != u32::MAX {
                     let raw_base = PlantUMLExporter::resolve_name(sta, tca, class_rec.extends_sym);
                     let base_name = Self::clean_type_name(raw_base);
-                    if !base_name.is_empty() && base_name != name && declared_classes.contains(&base_name) {
-                        let key = (name.clone(), base_name.clone(), "generalization".to_string());
+                    if !base_name.is_empty()
+                        && base_name != name
+                        && declared_classes.contains(&base_name)
+                    {
+                        let key = (
+                            name.clone(),
+                            base_name.clone(),
+                            "generalization".to_string(),
+                        );
                         if seen_edges.insert(key) {
                             edge_id_counter += 1;
                             edges.push(GraphEdgeIR {
@@ -281,7 +289,10 @@ impl JSONExporter {
                 for iface_sym in &class_rec.implements_syms {
                     let raw_iface = PlantUMLExporter::resolve_name(sta, tca, *iface_sym);
                     let iface_name = Self::clean_type_name(raw_iface);
-                    if !iface_name.is_empty() && iface_name != name && declared_classes.contains(&iface_name) {
+                    if !iface_name.is_empty()
+                        && iface_name != name
+                        && declared_classes.contains(&iface_name)
+                    {
                         let key = (name.clone(), iface_name.clone(), "realization".to_string());
                         if seen_edges.insert(key) {
                             edge_id_counter += 1;
@@ -301,7 +312,10 @@ impl JSONExporter {
                 for &inner_sym in &class_rec.inner_classes {
                     let raw_inner = PlantUMLExporter::resolve_name(sta, tca, inner_sym);
                     let inner_name = Self::clean_type_name(raw_inner);
-                    if !inner_name.is_empty() && inner_name != name && declared_classes.contains(&inner_name) {
+                    if !inner_name.is_empty()
+                        && inner_name != name
+                        && declared_classes.contains(&inner_name)
+                    {
                         let key = (name.clone(), inner_name.clone(), "composition".to_string());
                         if seen_edges.insert(key) {
                             edge_id_counter += 1;
@@ -322,8 +336,15 @@ impl JSONExporter {
                     if f.type_sym_id != u32::MAX {
                         let raw_target = PlantUMLExporter::resolve_name(sta, tca, f.type_sym_id);
                         let target_name = Self::clean_type_name(raw_target);
-                        if !target_name.is_empty() && target_name != name && declared_classes.contains(&target_name) {
-                            let (kind, arrow) = if f.is_collection != 0 || raw_target.contains("List") || raw_target.contains("Set") || raw_target.contains("Array") {
+                        if !target_name.is_empty()
+                            && target_name != name
+                            && declared_classes.contains(&target_name)
+                        {
+                            let (kind, arrow) = if f.is_collection != 0
+                                || raw_target.contains("List")
+                                || raw_target.contains("Set")
+                                || raw_target.contains("Array")
+                            {
                                 ("aggregation", "o--")
                             } else if (f.modifiers & 0x02) != 0 {
                                 ("composition", "*--")
@@ -351,7 +372,10 @@ impl JSONExporter {
                 for &assoc_sym in &class_rec.association_syms {
                     let raw_assoc = PlantUMLExporter::resolve_name(sta, tca, assoc_sym);
                     let target_name = Self::clean_type_name(raw_assoc);
-                    if !target_name.is_empty() && target_name != name && declared_classes.contains(&target_name) {
+                    if !target_name.is_empty()
+                        && target_name != name
+                        && declared_classes.contains(&target_name)
+                    {
                         let key = (name.clone(), target_name.clone(), "association".to_string());
                         if seen_edges.insert(key) {
                             edge_id_counter += 1;
@@ -395,7 +419,9 @@ impl JSONExporter {
 
         let mut all_pkg_paths = HashSet::new();
         for class_rec in &uma.classes {
-            if let Some(pkg) = PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
+            if let Some(pkg) =
+                PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id)
+            {
                 if !pkg.is_empty() {
                     all_pkg_paths.insert(pkg);
                 }
@@ -442,14 +468,17 @@ impl JSONExporter {
 
         let mut pkg_deps: HashSet<(String, String)> = HashSet::new();
         for class_rec in &uma.classes {
-            let src_pkg = match PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
-                Some(p) if !p.is_empty() => p,
-                _ => continue,
-            };
+            let src_pkg =
+                match PlantUMLExporter::resolve_sym_package(sta, tca, None, class_rec.sym_id) {
+                    Some(p) if !p.is_empty() => p,
+                    _ => continue,
+                };
 
             for field in &class_rec.fields {
                 if field.type_sym_id != u32::MAX {
-                    if let Some(dst_pkg) = PlantUMLExporter::resolve_sym_package(sta, tca, None, field.type_sym_id) {
+                    if let Some(dst_pkg) =
+                        PlantUMLExporter::resolve_sym_package(sta, tca, None, field.type_sym_id)
+                    {
                         if !dst_pkg.is_empty() && src_pkg != dst_pkg {
                             pkg_deps.insert((src_pkg.clone(), dst_pkg));
                         }
@@ -459,7 +488,12 @@ impl JSONExporter {
 
             for method in &class_rec.methods {
                 if method.return_type_sym_id != u32::MAX {
-                    if let Some(dst_pkg) = PlantUMLExporter::resolve_sym_package(sta, tca, None, method.return_type_sym_id) {
+                    if let Some(dst_pkg) = PlantUMLExporter::resolve_sym_package(
+                        sta,
+                        tca,
+                        None,
+                        method.return_type_sym_id,
+                    ) {
                         if !dst_pkg.is_empty() && src_pkg != dst_pkg {
                             pkg_deps.insert((src_pkg.clone(), dst_pkg));
                         }
@@ -516,8 +550,16 @@ impl JSONExporter {
                         id: format!("part_{}", lname),
                         label: lname.clone(),
                         name: lname.clone(),
-                        kind: if is_act { "actor".to_string() } else { "participant".to_string() },
-                        stereotype: Some(if is_act { "<<actor>>".to_string() } else { "<<participant>>".to_string() }),
+                        kind: if is_act {
+                            "actor".to_string()
+                        } else {
+                            "participant".to_string()
+                        },
+                        stereotype: Some(if is_act {
+                            "<<actor>>".to_string()
+                        } else {
+                            "<<participant>>".to_string()
+                        }),
                         parent: None,
                         nest_level: 0,
                         is_package: false,
@@ -532,13 +574,16 @@ impl JSONExporter {
             }
 
             for msg in &seq.messages {
-                let from_name = if msg.from_lifeline == u32::MAX - 1 || msg.from_lifeline == u32::MAX {
-                    "Actor".to_string()
-                } else {
-                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, msg.from_lifeline))
-                };
-                let to_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, msg.to_lifeline));
-                let method_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, msg.method_sym_id));
+                let from_name =
+                    if msg.from_lifeline == u32::MAX - 1 || msg.from_lifeline == u32::MAX {
+                        "Actor".to_string()
+                    } else {
+                        Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, msg.from_lifeline))
+                    };
+                let to_name =
+                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, msg.to_lifeline));
+                let method_name =
+                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, msg.method_sym_id));
 
                 if !from_name.is_empty() && !to_name.is_empty() {
                     let from_id = format!("part_{}", from_name);
@@ -597,7 +642,8 @@ impl JSONExporter {
 
         if nodes.is_empty() {
             for class_rec in uma.classes.iter().take(6) {
-                let cname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.sym_id));
+                let cname =
+                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.sym_id));
                 if !cname.is_empty() && seen_nodes.insert(cname.clone()) {
                     nodes.push(GraphNodeIR {
                         id: format!("part_{}", cname),
@@ -762,7 +808,11 @@ impl JSONExporter {
 
             let mut trigger_label = "executeWork()".to_string();
             for trans in &sm.transitions {
-                let trigger = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, trans.trigger_method_sym));
+                let trigger = Self::sanitize(PlantUMLExporter::resolve_name(
+                    sta,
+                    tca,
+                    trans.trigger_method_sym,
+                ));
                 if !trigger.is_empty() {
                     trigger_label = format!("{}()", trigger);
                     break;
@@ -815,7 +865,11 @@ impl JSONExporter {
         let mut edge_id_counter = 0;
 
         for act in uma.activities.iter().take(6) {
-            let fname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, act.function_sym_id));
+            let fname = Self::sanitize(PlantUMLExporter::resolve_name(
+                sta,
+                tca,
+                act.function_sym_id,
+            ));
             if fname.is_empty() {
                 continue;
             }
@@ -983,7 +1037,11 @@ impl JSONExporter {
         let mut edge_id_counter = 0;
 
         for comp in &uma.components {
-            let cname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, comp.component_sym_id));
+            let cname = Self::sanitize(PlantUMLExporter::resolve_name(
+                sta,
+                tca,
+                comp.component_sym_id,
+            ));
             if cname.is_empty() {
                 continue;
             }
@@ -1038,7 +1096,8 @@ impl JSONExporter {
 
         if nodes.is_empty() {
             for pkg in uma.packages.iter().take(6) {
-                let pname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, pkg.package_sym_id));
+                let pname =
+                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, pkg.package_sym_id));
                 if pname.is_empty() {
                     continue;
                 }
@@ -1087,7 +1146,11 @@ impl JSONExporter {
         let mut edge_id_counter = 0;
 
         for comp in uma.components.iter().take(6) {
-            let cname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, comp.component_sym_id));
+            let cname = Self::sanitize(PlantUMLExporter::resolve_name(
+                sta,
+                tca,
+                comp.component_sym_id,
+            ));
             if cname.is_empty() {
                 continue;
             }
@@ -1182,7 +1245,8 @@ impl JSONExporter {
         }
         if actors.is_empty() {
             if let Some(first_cls) = uma.classes.first() {
-                let cname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, first_cls.sym_id));
+                let cname =
+                    Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, first_cls.sym_id));
                 if !cname.is_empty() {
                     actors.push(cname);
                 }
@@ -1214,7 +1278,11 @@ impl JSONExporter {
                 continue;
             }
             for method in class_rec.methods.iter().take(3) {
-                let mname = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, method.method_sym_id));
+                let mname = Self::sanitize(PlantUMLExporter::resolve_name(
+                    sta,
+                    tca,
+                    method.method_sym_id,
+                ));
                 if mname.is_empty() {
                     continue;
                 }
@@ -1343,4 +1411,3 @@ impl JSONExporter {
         }
     }
 }
-

@@ -14,11 +14,7 @@ use crate::symbol::uml_meta::AssociationDetector;
 pub struct Pass5Hierarchy;
 
 impl Pass5Hierarchy {
-    pub fn run(
-        bpa: &BPASTArtifact,
-        tca: &TokenCorpusArtifact,
-        builder: &mut SymbolTableBuilder,
-    ) {
+    pub fn run(bpa: &BPASTArtifact, tca: &TokenCorpusArtifact, builder: &mut SymbolTableBuilder) {
         // Build fast class/interface lookup map
         let mut class_name_to_sym: HashMap<String, (u32, u8)> = HashMap::new();
         for sym_id in 0..builder.symbol_count() as u32 {
@@ -125,15 +121,29 @@ impl Pass5Hierarchy {
                                 .trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
 
                             if !clean_name.is_empty()
-                                && !matches!(clean_name, "class" | "fun" | "val" | "var" | "override" | "public" | "private" | "open" | "data")
+                                && !matches!(
+                                    clean_name,
+                                    "class"
+                                        | "fun"
+                                        | "val"
+                                        | "var"
+                                        | "override"
+                                        | "public"
+                                        | "private"
+                                        | "open"
+                                        | "data"
+                                )
                             {
-                                if let Some(&(target_sym, target_kind)) = class_name_to_sym.get(clean_name) {
+                                if let Some(&(target_sym, target_kind)) =
+                                    class_name_to_sym.get(clean_name)
+                                {
                                     if target_sym != sym_id {
-                                        let relation = if target_kind == SymbolKind::SK_INTERFACE as u8 {
-                                            THRelation::TH_IMPLEMENTS
-                                        } else {
-                                            THRelation::TH_EXTENDS
-                                        };
+                                        let relation =
+                                            if target_kind == SymbolKind::SK_INTERFACE as u8 {
+                                                THRelation::TH_IMPLEMENTS
+                                            } else {
+                                                THRelation::TH_EXTENDS
+                                            };
                                         builder.add_th_edge(sym_id, target_sym, relation);
                                     }
                                 }

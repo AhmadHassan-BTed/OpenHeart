@@ -114,7 +114,11 @@ impl SymbolTableBuilder {
             return;
         }
 
-        if self.th_edges.iter().any(|e| e.from_sym == from_sym && e.to_sym == to_sym && e.relation == relation) {
+        if self
+            .th_edges
+            .iter()
+            .any(|e| e.from_sym == from_sym && e.to_sym == to_sym && e.relation == relation)
+        {
             return;
         }
 
@@ -137,7 +141,8 @@ impl SymbolTableBuilder {
 
         while let Some(curr) = queue.pop_front() {
             for edge in &self.th_edges {
-                if (edge.relation == THRelation::TH_EXTENDS || edge.relation == THRelation::TH_IMPLEMENTS)
+                if (edge.relation == THRelation::TH_EXTENDS
+                    || edge.relation == THRelation::TH_IMPLEMENTS)
                     && edge.from_sym == curr
                 {
                     if edge.to_sym == target {
@@ -170,7 +175,9 @@ impl SymbolTableBuilder {
             let mut adj: HashMap<u32, Vec<u32>> = HashMap::new();
 
             for edge in &self.th_edges {
-                if edge.relation == THRelation::TH_EXTENDS || edge.relation == THRelation::TH_IMPLEMENTS {
+                if edge.relation == THRelation::TH_EXTENDS
+                    || edge.relation == THRelation::TH_IMPLEMENTS
+                {
                     in_degree.entry(edge.to_sym).or_insert(0);
                     *in_degree.entry(edge.from_sym).or_insert(0) += 1;
                     adj.entry(edge.to_sym).or_default().push(edge.from_sym);
