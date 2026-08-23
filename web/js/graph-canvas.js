@@ -384,7 +384,7 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Default Edge Fallback (Smooth Bezier Routing & Visible Arrows) ──
+      // ── Default Edge Fallback (Orthogonal 90-Degree Taxi Routing & Visible Arrows) ──
       {
         selector: 'edge',
         style: {
@@ -393,12 +393,13 @@ export class InteractiveGraphCanvas {
           'target-arrow-color': '#64748B',
           'target-arrow-shape': 'vee',
           'arrow-scale': 1.8,
-          'curve-style': 'bezier',
-          'control-point-step-size': 35,
+          'curve-style': 'taxi',
+          'taxi-direction': 'auto',
+          'taxi-turn': '28px',
+          'taxi-turn-min-distance': '12px',
+          'taxi-radius': 8,
           'source-distance-from-node': 4,
           'target-distance-from-node': 4,
-          'source-endpoint': 'outside-to-node',
-          'target-endpoint': 'outside-to-node',
           'label': 'data(label)',
           'font-family': 'JetBrains Mono, monospace',
           'font-size': '10px',
