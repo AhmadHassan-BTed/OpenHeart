@@ -25,32 +25,69 @@ export function loadGraphIrToCytoscape(graphIr) {
   const elements = [];
   const nodeMap = new Map();
 
-  // 1. Ingest Nodes Directly from Typed Schema
+  // 1. Identify packages with children
+  const parentIds = new Set(graphIr.nodes.map(n => n.parent).filter(Boolean));
+
+  // 2. Ingest Nodes Directly from Typed Schema
   graphIr.nodes.forEach(node => {
     let svgData = null;
 
     if (node.is_package) {
-      // Dynamic package folder node
-      const shortName = node.name || node.label.replace(/^package\s*\[?/, '').replace(/\]?$/, '');
-      const displayLabel = node.is_domain_tier
-        ? `DOMAIN LAYER: ${shortName.toUpperCase()}`
-        : `package [${shortName}]`;
+      const shortName = node.name || (node.label ? node.label.replace(/^package\s*\[?/, '').replace(/\]?$/, '') : node.id);
+      const isParent = parentIds.has(node.id);
+      const isDomainTier = node.is_domain_tier || (node.nest_level === 0);
 
-      const pkgNode = {
-        data: {
-          id: node.id,
-          label: displayLabel,
-          rawName: node.name,
-          kind: 'package',
-          isPackage: true,
-          isDomainTier: node.is_domain_tier,
-          parent: node.parent || undefined,
-          nestLevel: node.nest_level || 0
-        },
-        classes: `compound-package ${node.is_domain_tier ? 'pkg-domain-tier' : 'pkg-subpackage'} nest-level-${Math.min(5, node.nest_level || 0)}`
-      };
-      nodeMap.set(node.id, pkgNode);
-      elements.push(pkgNode);
+      const displayLabel = isDomainTier
+        ? `📂 DOMAIN: ${shortName.toUpperCase()}`
+        : `📁 package [${shortName}]`;
+
+      if (isParent) {
+        const pkgNode = {
+          data: {
+            id: node.id,
+            label: displayLabel,
+            rawName: node.name || shortName,
+            textLabel: displayLabel,
+            kind: 'package',
+            isPackage: true,
+            isDomainTier: isDomainTier,
+            parent: node.parent || undefined,
+            nestLevel: node.nest_level || 0
+          },
+          classes: `compound-package ${isDomainTier ? 'pkg-domain-tier' : 'pkg-subpackage'} nest-level-${Math.min(5, node.nest_level || 0)}`
+        };
+        nodeMap.set(node.id, pkgNode);
+        elements.push(pkgNode);
+      } else {
+        const svgData = generatePackageFolderSvg({
+          name: shortName,
+          nestLevel: node.nest_level || 0,
+          width: 240,
+          height: 100,
+          isDark
+        });
+
+        const pkgNode = {
+          data: {
+            id: node.id,
+            label: '',
+            rawName: node.name || shortName,
+            textLabel: displayLabel,
+            kind: 'package',
+            isPackage: true,
+            isLeafPackage: true,
+            isDomainTier: isDomainTier,
+            parent: node.parent || undefined,
+            nestLevel: node.nest_level || 0,
+            width: svgData.width,
+            height: svgData.height,
+            svgDataUri: svgData.dataUri
+          },
+          classes: `leaf-package nest-level-${Math.min(5, node.nest_level || 0)}`
+        };
+        nodeMap.set(node.id, pkgNode);
+        elements.push(pkgNode);
+      }
       return;
     }
 
