@@ -203,6 +203,9 @@ impl Pass5Hierarchy {
                 builder.add_association(record);
             }
         }
+
+        // 4. Ensure complete Type Hierarchy acyclicity
+        builder.sanitize_th_graph();
     }
 
     fn find_all_type_refs(decl_node: u32, bpa: &BPASTArtifact) -> Vec<u32> {

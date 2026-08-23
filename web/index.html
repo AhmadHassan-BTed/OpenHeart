@@ -433,16 +433,16 @@
 
       // ── Relationship Layers & Checklist Filter Synchronizer ──
       const RELATION_CONFIG = {
-        generalization: { label: 'Generalization (--|>)', icon: '▷', color: '#1E293B' },
-        realization: { label: 'Realization (..|>)', icon: '⇢', color: '#2563EB' },
-        composition: { label: 'Composition (*--)', icon: '◆', color: '#0F172A' },
-        aggregation: { label: 'Aggregation (o--)', icon: '◇', color: '#0F172A' },
-        association: { label: 'Association (-->)', icon: '→', color: '#334155' },
-        dependency: { label: 'Dependency (..>)', icon: '⇢', color: '#64748B' },
-        message: { label: 'Sequence Message (->)', icon: '→', color: '#4F46E5' },
-        transition: { label: 'State Transition (-->)', icon: '➔', color: '#0284C7' },
-        control_flow: { label: 'Control Flow (-->)', icon: '➔', color: '#6366F1' },
-        manifestation: { label: 'Manifestation (..>)', icon: '📦', color: '#D97706' }
+        generalization: { label: 'Generalization (--|>)', icon: '▷', color: '#8B5CF6' },
+        realization: { label: 'Realization (..|>)', icon: '▷', color: '#2563EB' },
+        composition: { label: 'Composition (*--)', icon: '♦', color: '#DC2626' },
+        aggregation: { label: 'Aggregation (o--)', icon: '◇', color: '#059669' },
+        association: { label: 'Association (-->)', icon: '>', color: '#0284C7' },
+        dependency: { label: 'Dependency (..>)', icon: '>', color: '#D97706' },
+        message: { label: 'Sequence Message (->)', icon: '▶', color: '#6366F1' },
+        transition: { label: 'State Transition (-->)', icon: '▶', color: '#06B6D4' },
+        control_flow: { label: 'Control Flow (-->)', icon: '▶', color: '#10B981' },
+        manifestation: { label: 'Manifestation (..>)', icon: '📦', color: '#EA580C' }
       };
 
       const layersPanel = document.getElementById('canvas-layers-panel');
@@ -472,10 +472,12 @@
           const chip = document.createElement('label');
           chip.className = `layer-chip-label ${item.visible ? '' : 'unchecked'}`;
           chip.setAttribute('data-kind', item.kind);
+          chip.style.borderLeft = `3px solid ${conf.color}`;
 
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
           checkbox.checked = item.visible;
+          checkbox.style.accentColor = conf.color;
 
           checkbox.addEventListener('change', () => {
             const isChecked = checkbox.checked;
@@ -488,7 +490,10 @@
           });
 
           const span = document.createElement('span');
-          span.innerHTML = `<strong>${conf.icon}</strong> ${conf.label} <span style="opacity: 0.7; font-size: 9px;">(${item.count})</span>`;
+          span.style.display = 'inline-flex';
+          span.style.alignItems = 'center';
+          span.style.gap = '5px';
+          span.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background-color:${conf.color}; box-shadow:0 0 5px ${conf.color};"></span><strong style="color:${conf.color}; font-size:12px; font-weight:800;">${conf.icon}</strong> <span>${conf.label}</span> <span style="opacity: 0.7; font-size: 9.5px; font-weight:700;">(${item.count})</span>`;
 
           chip.appendChild(checkbox);
           chip.appendChild(span);

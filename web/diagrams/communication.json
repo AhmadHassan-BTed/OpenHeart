@@ -3,24 +3,6 @@
   "title": "UML 2.5 Sequence Interaction Scenarios",
   "nodes": [
     {
-      "id": "part_plugins",
-      "label": "plugins",
-      "name": "plugins",
-      "kind": "participant",
-      "stereotype": "<<participant>>",
-      "parent": null,
-      "nest_level": 0,
-      "is_package": false,
-      "is_domain_tier": false,
-      "file": "plugins.java",
-      "lines": [
-        1
-      ],
-      "fields": [],
-      "methods": [],
-      "instructions": []
-    },
-    {
       "id": "part_ExternalActor",
       "label": "ExternalActor",
       "name": "ExternalActor",
@@ -31,6 +13,24 @@
       "is_package": false,
       "is_domain_tier": false,
       "file": "ExternalActor.java",
+      "lines": [
+        1
+      ],
+      "fields": [],
+      "methods": [],
+      "instructions": []
+    },
+    {
+      "id": "part_plugins",
+      "label": "plugins",
+      "name": "plugins",
+      "kind": "participant",
+      "stereotype": "<<participant>>",
+      "parent": null,
+      "nest_level": 0,
+      "is_package": false,
+      "is_domain_tier": false,
+      "file": "plugins.java",
       "lines": [
         1
       ],

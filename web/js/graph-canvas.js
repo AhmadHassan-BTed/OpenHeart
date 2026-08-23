@@ -176,10 +176,12 @@ export class InteractiveGraphCanvas {
         selector: 'node[?svgDataUri]',
         style: {
           'background-image': 'data(svgDataUri)',
-          'background-fit': 'cover',
+          'background-fit': 'contain',
           'background-clip': 'node',
-          'background-color': '#FFFFFF',
+          'background-color': 'transparent',
+          'background-opacity': 0,
           'border-width': 0,
+          'padding': 0,
           'width': 'data(width)',
           'height': 'data(height)',
           'shape': 'roundrectangle',
@@ -190,7 +192,7 @@ export class InteractiveGraphCanvas {
 
       // ── Level 0: Root Domain Tier Container (Lightest Soft Violet Tint) ──
       {
-        selector: 'node.nest-level-0, node[nestLevel = 0]',
+        selector: 'node[?isPackage].nest-level-0, node[?isPackage][nestLevel = 0]',
         style: {
           'background-color': '#FAF5FF',
           'background-opacity': 0.85,
@@ -221,7 +223,7 @@ export class InteractiveGraphCanvas {
 
       // ── Level 1: Subpackage Container (Darker / Richer Violet Tint) ──
       {
-        selector: 'node.nest-level-1, node[nestLevel = 1]',
+        selector: 'node[?isPackage].nest-level-1, node[?isPackage][nestLevel = 1]',
         style: {
           'background-color': '#F3E8FF',
           'background-opacity': 0.90,
@@ -251,7 +253,7 @@ export class InteractiveGraphCanvas {
 
       // ── Level 2: Subpackage Container (Darker Lilac Tint) ──
       {
-        selector: 'node.nest-level-2, node[nestLevel = 2]',
+        selector: 'node[?isPackage].nest-level-2, node[?isPackage][nestLevel = 2]',
         style: {
           'background-color': '#E9D5FF',
           'background-opacity': 0.95,
@@ -281,7 +283,7 @@ export class InteractiveGraphCanvas {
 
       // ── Level 3: Leaf Subpackage Container (Darkest Deep Purple Tint) ──
       {
-        selector: 'node.nest-level-3, node[nestLevel = 3]',
+        selector: 'node[?isPackage].nest-level-3, node[?isPackage][nestLevel = 3]',
         style: {
           'background-color': '#DDD6FE',
           'background-opacity': 1.0,
@@ -311,7 +313,7 @@ export class InteractiveGraphCanvas {
 
       // ── Level 4+: Deepest Innermost Package Container ──
       {
-        selector: 'node.nest-level-4, node.nest-level-5, node[nestLevel >= 4]',
+        selector: 'node[?isPackage].nest-level-4, node[?isPackage].nest-level-5, node[?isPackage][nestLevel >= 4]',
         style: {
           'background-color': '#C4B5FD',
           'background-opacity': 1.0,
@@ -382,24 +384,26 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Default Edge (Clean Smooth Routing & Visible Arrowheads) ──
+      // ── Default Edge Fallback ──
       {
         selector: 'edge',
         style: {
           'width': 2.0,
-          'line-color': '#475569',
-          'target-arrow-color': '#475569',
-          'target-arrow-shape': 'triangle',
-          'arrow-scale': 1.3,
+          'line-color': '#64748B',
+          'target-arrow-color': '#64748B',
+          'target-arrow-shape': 'vee',
+          'arrow-scale': 1.6,
           'curve-style': 'bezier',
+          'source-distance-from-node': 3,
+          'target-distance-from-node': 3,
           'label': 'data(label)',
           'font-family': 'JetBrains Mono, monospace',
-          'font-size': '10.5px',
+          'font-size': '10px',
           'font-weight': 700,
           'color': '#1E293B',
           'text-background-color': '#FFFFFF',
           'text-background-opacity': 0.95,
-          'text-background-padding': '4px 6px',
+          'text-background-padding': '3px 6px',
           'text-border-width': 1,
           'text-border-color': '#CBD5E1',
           'text-border-opacity': 1,
@@ -407,76 +411,193 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── UML Generalization (--|>) : Solid line + Hollow Triangle Head ──
+      // ── 1. UML Generalization (--|>) : Royal Purple Solid Line + Hollow Triangle Head ──
       {
-        selector: 'edge[uml_kind = "generalization"]',
+        selector: 'edge[uml_kind = "generalization"], edge.edge-generalization',
         style: {
           'target-arrow-shape': 'triangle',
           'target-arrow-fill': 'hollow',
-          'line-color': '#0F172A',
-          'target-arrow-color': '#0F172A',
+          'line-color': '#8B5CF6',
+          'target-arrow-color': '#8B5CF6',
+          'source-arrow-shape': 'none',
           'line-style': 'solid',
-          'arrow-scale': 1.5,
-          'width': 2.2,
+          'arrow-scale': 2.2,
+          'width': 2.4,
           'z-index': 999
         }
       },
 
-      // ── UML Realization (..|>) : Dashed line + Hollow Triangle Head ──
+      // ── 2. UML Realization (..|>) : Electric Azure Dashed Line + Hollow Triangle Head ──
       {
-        selector: 'edge[uml_kind = "realization"]',
+        selector: 'edge[uml_kind = "realization"], edge.edge-realization',
         style: {
           'target-arrow-shape': 'triangle',
           'target-arrow-fill': 'hollow',
           'line-style': 'dashed',
-          'line-color': '#0F172A',
-          'target-arrow-color': '#0F172A',
-          'arrow-scale': 1.5,
-          'width': 2.2,
+          'line-dash-pattern': [7, 5],
+          'line-color': '#2563EB',
+          'target-arrow-color': '#2563EB',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 2.2,
+          'width': 2.4,
           'z-index': 999
         }
       },
 
-      // ── UML Composition (<*--) : Filled Black Diamond Source ──
+      // ── 3. UML Composition (*-- or --*) : Ruby Crimson Solid Line + Filled Diamond ──
       {
-        selector: 'edge[uml_kind = "composition"]',
+        selector: 'edge[uml_kind = "composition"], edge.edge-composition',
         style: {
           'source-arrow-shape': 'diamond',
           'source-arrow-fill': 'filled',
-          'source-arrow-color': '#0F172A',
-          'line-color': '#0F172A',
+          'source-arrow-color': '#DC2626',
+          'line-color': '#DC2626',
           'target-arrow-shape': 'none',
-          'arrow-scale': 1.4,
-          'width': 2.0,
+          'line-style': 'solid',
+          'arrow-scale': 2.6,
+          'width': 2.5,
+          'z-index': 999
+        }
+      },
+      {
+        selector: 'edge[arrow = "--*"], edge[arrow = "-->*"]',
+        style: {
+          'target-arrow-shape': 'diamond',
+          'target-arrow-fill': 'filled',
+          'target-arrow-color': '#DC2626',
+          'source-arrow-shape': 'none',
+          'line-color': '#DC2626',
+          'line-style': 'solid',
+          'arrow-scale': 2.6,
+          'width': 2.5,
           'z-index': 999
         }
       },
 
-      // ── UML Aggregation (o--) : Hollow Diamond Source ──
+      // ── 4. UML Aggregation (o-- or --o) : Emerald Green Solid Line + Hollow Diamond ──
       {
-        selector: 'edge[uml_kind = "aggregation"]',
+        selector: 'edge[uml_kind = "aggregation"], edge.edge-aggregation',
         style: {
           'source-arrow-shape': 'diamond',
           'source-arrow-fill': 'hollow',
-          'source-arrow-color': '#0F172A',
-          'line-color': '#0F172A',
+          'source-arrow-color': '#059669',
+          'line-color': '#059669',
           'target-arrow-shape': 'none',
-          'arrow-scale': 1.4,
+          'line-style': 'solid',
+          'arrow-scale': 2.6,
+          'width': 2.5,
+          'z-index': 999
+        }
+      },
+      {
+        selector: 'edge[arrow = "--o"], edge[arrow = "-->o"]',
+        style: {
+          'target-arrow-shape': 'diamond',
+          'target-arrow-fill': 'hollow',
+          'target-arrow-color': '#059669',
+          'source-arrow-shape': 'none',
+          'line-color': '#059669',
+          'line-style': 'solid',
+          'arrow-scale': 2.6,
+          'width': 2.5,
+          'z-index': 999
+        }
+      },
+
+      // ── 5. UML Directed Association (-->) : Cyan Blue Solid Line + Open Vee Arrowhead ──
+      {
+        selector: 'edge[uml_kind = "association"], edge.edge-association',
+        style: {
+          'target-arrow-shape': 'vee',
+          'target-arrow-fill': 'filled',
+          'line-style': 'solid',
+          'line-color': '#0284C7',
+          'target-arrow-color': '#0284C7',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 1.8,
           'width': 2.0,
           'z-index': 999
         }
       },
 
-      // ── UML Dependency (..>) : Dashed line + Vee Arrowhead ──
+      // ── 6. UML Dependency (..>) : Amber Gold Dashed Line + Open Vee Arrowhead ──
       {
-        selector: 'edge[uml_kind = "dependency"]',
+        selector: 'edge[uml_kind = "dependency"], edge.edge-dependency',
         style: {
           'target-arrow-shape': 'vee',
+          'target-arrow-fill': 'filled',
           'line-style': 'dashed',
-          'line-color': '#334155',
-          'target-arrow-color': '#334155',
-          'arrow-scale': 1.3,
-          'width': 1.8,
+          'line-dash-pattern': [6, 4],
+          'line-color': '#D97706',
+          'target-arrow-color': '#D97706',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 1.8,
+          'width': 2.0,
+          'z-index': 999
+        }
+      },
+
+      // ── 7. Sequence Message (->) : Vibrant Indigo Solid Line + Triangle Arrowhead ──
+      {
+        selector: 'edge[uml_kind = "message"], edge.edge-message',
+        style: {
+          'target-arrow-shape': 'triangle',
+          'target-arrow-fill': 'filled',
+          'line-style': 'solid',
+          'line-color': '#6366F1',
+          'target-arrow-color': '#6366F1',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 1.6,
+          'width': 2.2,
+          'z-index': 999
+        }
+      },
+
+      // ── 8. State Transition (-->) : Sky Blue Solid Line + Triangle Arrowhead ──
+      {
+        selector: 'edge[uml_kind = "transition"], edge.edge-transition',
+        style: {
+          'target-arrow-shape': 'triangle',
+          'target-arrow-fill': 'filled',
+          'line-style': 'solid',
+          'line-color': '#06B6D4',
+          'target-arrow-color': '#06B6D4',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 1.6,
+          'width': 2.2,
+          'z-index': 999
+        }
+      },
+
+      // ── 9. Activity Control Flow (-->) : Emerald Solid Line + Triangle Arrowhead ──
+      {
+        selector: 'edge[uml_kind = "control_flow"], edge.edge-control_flow',
+        style: {
+          'target-arrow-shape': 'triangle',
+          'target-arrow-fill': 'filled',
+          'line-style': 'solid',
+          'line-color': '#10B981',
+          'target-arrow-color': '#10B981',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 1.6,
+          'width': 2.2,
+          'z-index': 999
+        }
+      },
+
+      // ── 10. Deployment Manifestation (..>) : Orange Dashed Line + Vee Arrowhead ──
+      {
+        selector: 'edge[uml_kind = "manifestation"], edge.edge-manifestation',
+        style: {
+          'target-arrow-shape': 'vee',
+          'target-arrow-fill': 'filled',
+          'line-style': 'dashed',
+          'line-dash-pattern': [6, 4],
+          'line-color': '#EA580C',
+          'target-arrow-color': '#EA580C',
+          'source-arrow-shape': 'none',
+          'arrow-scale': 1.6,
+          'width': 2.0,
           'z-index': 999
         }
       },
