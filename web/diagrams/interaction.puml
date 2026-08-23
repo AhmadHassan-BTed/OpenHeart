@@ -46,17 +46,20 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-partition "sd: Scenario PaymentStrategy" {
-  :dispatch update();
+partition "sd: Scenario AppFrontend" {
+  :dispatch onUploadSuccess();
 }
-partition "sd: Scenario String" {
-  :dispatch attach();
+partition "sd: Scenario Suppress" {
+  :dispatch run();
+  :dispatch startLiveUpdates();
+  :dispatch startLiveUpdates();
+  :dispatch startLiveUpdates();
 }
-partition "sd: Scenario pay" {
-  :dispatch detach();
+partition "sd: Scenario if" {
+  :dispatch POST_Ping();
 }
-partition "sd: Scenario name" {
-  :dispatch notifyObservers();
+partition "sd: Scenario AppFrontend" {
+  :dispatch isPaused();
 }
 stop
 @enduml

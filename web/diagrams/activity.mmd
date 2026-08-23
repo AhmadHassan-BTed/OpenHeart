@@ -1,24 +1,6 @@
 graph TD
-    subgraph Act_6["Function: setNews"]
-        Start_6([Start: setNews])
-        Node_6_0["Block_0"]
-        Node_6_1["Block_1"]
-        Node_6_2["Block_2"]
-        Node_6_0 --> Node_6_1
-        Node_6_1 --> Node_6_2
-    end
-
-    subgraph Act_8["Function: attach"]
-        Start_8([Start: attach])
-        Node_8_0["Block_0"]
-        Node_8_1["Block_1"]
-        Node_8_2["Block_2"]
-        Node_8_0 --> Node_8_1
-        Node_8_1 --> Node_8_2
-    end
-
-    subgraph Act_10["Function: detach"]
-        Start_10([Start: detach])
+    subgraph Act_10["Function: createDataInitializer"]
+        Start_10([Start: createDataInitializer])
         Node_10_0["Block_0"]
         Node_10_1["Block_1"]
         Node_10_2["Block_2"]
@@ -26,33 +8,40 @@ graph TD
         Node_10_1 --> Node_10_2
     end
 
-    subgraph Act_12["Function: notifyObservers"]
-        Start_12([Start: notifyObservers])
-        Node_12_0["Block_0"]
-        Node_12_1["Block_1"]
-        Node_12_2["Block_2"]
-        Node_12_3["Block_3"]
-        Node_12_4["Block_4"]
-        Node_12_5["Block_5"]
-        Node_12_0 --> Node_12_1
-        Node_12_1 --> Node_12_2
-        Node_12_2 --> Node_12_5
-        Node_12_5 --> Node_12_2
-        Node_12_2 --> Node_12_3
-        Node_12_3 --> Node_12_4
+    subgraph Act_25["Function: build"]
+        Start_25([Start: build])
+        Node_25_0["Block_0"]
+        Node_25_1["Block_1"]
+        Node_25_2["Block_2"]
+        Node_25_0 --> Node_25_1
+        Node_25_1 --> Node_25_2
     end
 
-    subgraph Act_17["Function: update"]
-        Start_17([Start: update])
-        Node_17_0["Block_0"]
-        Node_17_1["Block_1"]
-        Node_17_2["Block_2"]
-        Node_17_0 --> Node_17_1
-        Node_17_1 --> Node_17_2
+    subgraph Act_26["Function: if"]
+        Start_26([Start: if])
+        Node_26_0["Block_0"]
+        Node_26_1["Block_1"]
+        Node_26_2["Block_2"]
+        Node_26_0 --> Node_26_1
+        Node_26_1 --> Node_26_2
     end
 
-    subgraph Act_39["Function: pay"]
-        Start_39([Start: pay])
+    subgraph Act_34["Function: setUpTrainer"]
+        Start_34([Start: setUpTrainer])
+        Node_34_0["Block_0"]
+        Node_34_1["Block_1"]
+        Node_34_2["Block_2"]
+        Node_34_3["Block_3"]
+        Node_34_4["Block_4"]
+        Node_34_0 --> Node_34_1
+        Node_34_1 --> Node_34_2
+        Node_34_2 --> Node_34_3
+        Node_34_1 --> Node_34_3
+        Node_34_3 --> Node_34_4
+    end
+
+    subgraph Act_39["Function: createTrainer"]
+        Start_39([Start: createTrainer])
         Node_39_0["Block_0"]
         Node_39_1["Block_1"]
         Node_39_2["Block_2"]
@@ -60,21 +49,35 @@ graph TD
         Node_39_1 --> Node_39_2
     end
 
-    subgraph Act_51["Function: pay"]
-        Start_51([Start: pay])
-        Node_51_0["Block_0"]
-        Node_51_1["Block_1"]
-        Node_51_2["Block_2"]
-        Node_51_0 --> Node_51_1
-        Node_51_1 --> Node_51_2
+    subgraph Act_50["Function: onUploadSuccess"]
+        Start_50([Start: onUploadSuccess])
+        Node_50_0["Block_0"]
+        Node_50_1["Block_1"]
+        Node_50_2["Block_2"]
+        Node_50_0 --> Node_50_1
+        Node_50_1 --> Node_50_2
     end
 
-    subgraph Act_57["Function: setPaymentStrategy"]
-        Start_57([Start: setPaymentStrategy])
-        Node_57_0["Block_0"]
-        Node_57_1["Block_1"]
-        Node_57_2["Block_2"]
-        Node_57_0 --> Node_57_1
-        Node_57_1 --> Node_57_2
+    subgraph Act_56["Function: createCheckpoint"]
+        Start_56([Start: createCheckpoint])
+        Node_56_0["Block_0"]
+        Node_56_1["Block_1"]
+        Node_56_2["Block_2"]
+        Node_56_0 --> Node_56_1
+        Node_56_1 --> Node_56_2
+    end
+
+    subgraph Act_58["Function: loadCheckpoint"]
+        Start_58([Start: loadCheckpoint])
+        Node_58_0["Block_0"]
+        Node_58_1["Block_1"]
+        Node_58_2["Block_2"]
+        Node_58_3["Block_3"]
+        Node_58_4["Block_4"]
+        Node_58_0 --> Node_58_1
+        Node_58_1 --> Node_58_3
+        Node_58_3 --> Node_58_4
+        Node_58_1 --> Node_58_2
+        Node_58_2 --> Node_58_4
     end
 

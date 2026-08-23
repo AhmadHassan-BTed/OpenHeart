@@ -46,40 +46,38 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-partition "Function: setNews()" {
+partition "Function: createDataInitializer()" {
   start
   :Block_1;
   stop
 }
 
-partition "Function: attach()" {
+partition "Function: build()" {
   start
   :Block_1;
   stop
 }
 
-partition "Function: detach()" {
+partition "Function: if()" {
   start
   :Block_1;
   stop
 }
 
-partition "Function: notifyObservers()" {
+partition "Function: setUpTrainer()" {
   start
-  :Block_1;
   if (eval_branch) then (yes)
-  :Block_3;
-  :Block_5;
+  :Block_2;
   stop
 }
 
-partition "Function: update()" {
+partition "Function: createTrainer()" {
   start
   :Block_1;
   stop
 }
 
-partition "Function: pay()" {
+partition "Function: onUploadSuccess()" {
   start
   :Block_1;
   stop

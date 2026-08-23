@@ -46,137 +46,1217 @@ skinparam UsecaseBorderColor #38bdf8
 skinparam UsecaseBackgroundColor #14171f
 skinparam UsecaseFontColor #ffffff
 
-object "obj_NewsAgency : NewsAgency" as obj_NewsAgency {
-  news = "<>"
-  observers = "<>"
+object "obj_Image_DataInitializer_Factory : Image_DataInitializer_Factory" as obj_Image_DataInitializer_Factory {
 }
 
-object "obj_NewsChannel : NewsChannel" as obj_NewsChannel {
-  news = "<>"
+object "obj_Image_Trainer_Factory : Image_Trainer_Factory" as obj_Image_Trainer_Factory {
 }
 
-object "obj_Observer : Observer" as obj_Observer {
+object "obj_CheckpointManager : CheckpointManager" as obj_CheckpointManager {
+  TAG = "<>"
+  fun = "<>"
+  fun = "<>"
+  TAG = "<>"
+  imageTask = "<>"
+  ckptFile = "<>"
+  metaFile = "<>"
+  inputs = "<>"
+  json = "<>"
+  jsonText = "<>"
+  lastEpoch = "<>"
 }
 
-object "obj_Subject : Subject" as obj_Subject {
+object "obj_networkConfig_ini : networkConfig_ini" as obj_networkConfig_ini {
+  String = "<>"
+  String = "<>"
+  get = "<>"
+  API_KEY = "<>"
+  SERVER_IP = "<>"
+  SERVER_PROTOCOL = "<>"
+  SERVER_PORT = "<>"
+  portStr = "<>"
 }
 
-object "obj_CreditCardStrategy : CreditCardStrategy" as obj_CreditCardStrategy {
+object "obj_DataDownloader_naf : DataDownloader_naf" as obj_DataDownloader_naf {
+  TAG = "<String>"
+}
+
+object "obj_PauseController : PauseController" as obj_PauseController {
+}
+
+object "obj_DownloadListener : DownloadListener" as obj_DownloadListener {
+}
+
+object "obj_CancelledDownloadException : CancelledDownloadException" as obj_CancelledDownloadException {
+}
+
+object "obj_FileUploader_naf : FileUploader_naf" as obj_FileUploader_naf {
+  TAG = "<String>"
+}
+
+object "obj_Parser : Parser" as obj_Parser {
+  candidates = "<>"
+  path = "<>"
+  parser = "<>"
+  dynamicDevfreq = "<>"
+  dynamicProc = "<>"
+  allCandidates = "<>"
+  result = "<>"
+  discovered = "<>"
+  devfreqDir = "<>"
   name = "<>"
-  cardNumber = "<>"
+  isGpu = "<>"
+  procDir = "<>"
+  file = "<>"
+  raw = "<>"
+  line = "<>"
+  numStr = "<>"
+  pct = "<>"
+  idle = "<>"
 }
 
-object "obj_PaymentStrategy : PaymentStrategy" as obj_PaymentStrategy {
+object "obj_Image_Task_Factory : Image_Task_Factory" as obj_Image_Task_Factory {
 }
 
-object "obj_PaypalStrategy : PaypalStrategy" as obj_PaypalStrategy {
-  emailId = "<>"
+object "obj_TaskType : TaskType" as obj_TaskType {
+  PassiveTask = "<>"
 }
 
-object "obj_ShoppingCart : ShoppingCart" as obj_ShoppingCart {
-  paymentStrategy = "<PaymentStrategy>"
+object "obj_Image_InferenceValidator_Factory : Image_InferenceValidator_Factory" as obj_Image_InferenceValidator_Factory {
 }
 
-object "obj_CsvDataMiner : CsvDataMiner" as obj_CsvDataMiner {
+object "obj_Flusher : Flusher" as obj_Flusher {
+  TAG = "<>"
+  filesDir = "<>"
+  fun = "<>"
+  fun = "<>"
+  TAG = "<>"
+  filesDir = "<>"
+  imageTask = "<>"
+  ckptFile = "<>"
+  metaFile = "<>"
+  imgFile = "<>"
+  lblFile = "<>"
+  modelFile = "<>"
+  directory = "<>"
+  prefix = "<>"
 }
 
-object "obj_DataMiner : DataMiner" as obj_DataMiner {
+object "obj_DiamondTrainingView : DiamondTrainingView" as obj_DiamondTrainingView {
+  paint = "<Paint>"
+  path = "<Path>"
+  density = "<>"
+  MIN_STROKE = "<>"
+  MAX_STROKE = "<>"
+  strokeWidth = "<>"
 }
 
-object "obj_PdfDataMiner : PdfDataMiner" as obj_PdfDataMiner {
+object "obj_HomeFragment : HomeFragment" as obj_HomeFragment {
+  TAG = "<String>"
+  binding = "<FragmentHomeBinding>"
+  homeViewModel = "<HomeViewModel>"
 }
 
-object "obj_Computer : Computer" as obj_Computer {
-  cpu = "<>"
-  ram = "<>"
+object "obj_HomeViewModel : HomeViewModel" as obj_HomeViewModel {
+}
+
+object "obj_ModelTrainer : ModelTrainer" as obj_ModelTrainer {
+  Interpreter = "<>"
+  NUM_EPOCHS = "<>"
+  BATCH_SIZE = "<>"
+  IMG_HEIGHT = "<>"
+  IMG_WIDTH = "<>"
+  NUM_TRAININGS = "<>"
+  NUM_BATCHES = "<>"
+  NUM_CLASSES = "<>"
+  InputStream = "<>"
+  InputStream = "<>"
+  TAG = "<>"
+  context = "<>"
+  interpreter = "<>"
+  NUM_EPOCHS = "<>"
+  BATCH_SIZE = "<>"
+  IMG_HEIGHT = "<>"
+  IMG_WIDTH = "<>"
+  NUM_TRAININGS = "<>"
+  NUM_BATCHES = "<>"
+  NUM_CLASSES = "<>"
+  imagesInputStream = "<>"
+  labelsInputStream = "<>"
+  TAG = "<>"
+  modelBuffer = "<>"
+  fileDescriptor = "<>"
+  inputStream = "<>"
+  fileChannel = "<>"
+  startOffset = "<>"
+  declaredLength = "<>"
+  imagesStream = "<>"
+  labelsStream = "<>"
+  imageSkipBytes = "<>"
+  labelSkipBytes = "<>"
+  imageByteBuffer = "<>"
+  imageBatch = "<>"
+  labelByteBuffer = "<>"
+  labelBatch = "<>"
+  imageData = "<>"
+  labelData = "<>"
+  imageBytes = "<>"
+  labelBytes = "<>"
+  imageFloatBuffer = "<>"
+  labelFloatBuffer = "<>"
+  imageFloats = "<>"
+  labelFloats = "<>"
+  losses = "<>"
+  lastLoss = "<>"
+  sampleCount = "<>"
+  batchData = "<>"
+  singleImageBuffer = "<>"
+  singleLabelBuffer = "<>"
+  inputs = "<>"
+  outputs = "<>"
+  lossBuffer = "<>"
+  inputByteBuffer = "<>"
+  inputBuffer = "<>"
+  outputByteBuffer = "<>"
+  outputBuffer = "<>"
+  logitsByteBuffer = "<>"
+  logitsBuffer = "<>"
+  probabilities = "<>"
+  logits = "<>"
+  maxIdx = "<>"
+  maxProb = "<>"
+  documentsDir = "<>"
+  testFile = "<>"
+  checkpointFile = "<>"
+  saveInputs = "<>"
+  saveOutputs = "<>"
+  files = "<>"
+  restoreInputs = "<>"
+  restoreOutputs = "<>"
+  testImage = "<>"
+  inferInputs = "<>"
+  inferOutputs = "<>"
+  filesDir = "<>"
+}
+
+object "obj_TrainingStateRepository : TrainingStateRepository" as obj_TrainingStateRepository {
+  instance = "<TrainingStateRepository>"
+  isActive = "<>"
+  isWaiting = "<>"
+  isPaused = "<>"
+  trainingProgress = "<>"
+  statusMessage = "<>"
+  detailedStats = "<>"
+}
+
+object "obj_trainer_naf : trainer_naf" as obj_trainer_naf {
+  Interpreter = "<>"
+  TAG = "<>"
+  NUM_EPOCHS = "<>"
+  BATCH_SIZE = "<>"
+  IMG_HEIGHT = "<>"
+  IMG_WIDTH = "<>"
+  NUM_TRAININGS = "<>"
+  NUM_BATCHES = "<>"
+  NUM_CLASSES = "<>"
+  SERVER_IMAGES_FILENAME = "<>"
+  SERVER_LABELS_FILENAME = "<>"
+  context = "<>"
+  interpreter = "<>"
+  TAG = "<>"
+  NUM_EPOCHS = "<>"
+  BATCH_SIZE = "<>"
+  IMG_HEIGHT = "<>"
+  IMG_WIDTH = "<>"
+  NUM_TRAININGS = "<>"
+  NUM_BATCHES = "<>"
+  NUM_CLASSES = "<>"
+  SERVER_IMAGES_FILENAME = "<>"
+  SERVER_LABELS_FILENAME = "<>"
+}
+
+object "obj_DeviceInsightsFragment : DeviceInsightsFragment" as obj_DeviceInsightsFragment {
+  binding = "<FragmentDeviceBinding>"
+  viewModel = "<DeviceInsightsViewModel>"
+  binding = "<>"
+  viewModel = "<>"
+  Override = "<>"
+}
+
+object "obj_DeviceInsightsViewModel : DeviceInsightsViewModel" as obj_DeviceInsightsViewModel {
+  batteryPercent = "<>"
+  isCharging = "<>"
+  isOnline = "<>"
+  isWifi = "<>"
+  isCellular = "<>"
+  deviceStandby = "<>"
+  networkStandby = "<>"
+  powerConsumption = "<>"
+  tempStorage = "<>"
+  bgTasks = "<>"
+  batteryReceiver = "<BroadcastReceiver>"
+  networkCallback = "<>"
+  pollingHandler = "<Handler>"
+  pollingRunnable = "<Runnable>"
+  liveVoltage_mV = "<>"
+  prefs = "<SharedPreferences>"
+  PREFS_NAME = "<String>"
+  KEY_NET_START_TIME = "<String>"
+}
+
+object "obj_InsightsPagerAdapter : InsightsPagerAdapter" as obj_InsightsPagerAdapter {
+}
+
+object "obj_InsightsPagerFragment : InsightsPagerFragment" as obj_InsightsPagerFragment {
+  FragmentInsightsPagerBinding = "<>"
+  get = "<>"
+  _binding = "<>"
+  binding = "<>"
+  pagerAdapter = "<>"
+  page = "<>"
+}
+
+object "obj_ModelTrainingFragment : ModelTrainingFragment" as obj_ModelTrainingFragment {
+}
+
+object "obj_ModelTrainingViewModel : ModelTrainingViewModel" as obj_ModelTrainingViewModel {
+  mText = "<>"
+}
+
+object "obj_TrainingWaveView : TrainingWaveView" as obj_TrainingWaveView {
+  density = "<>"
+  wavePath = "<>"
+  wavePaint = "<>"
+  density = "<>"
+  wavePath = "<>"
+  wavePaint = "<>"
+  animTime = "<>"
+  lastFrameTime = "<>"
+  isActive = "<>"
+  currentAmpMultiplier = "<>"
+  isStateInitialized = "<>"
+  topColors = "<>"
+  bottomColors = "<>"
+  layers = "<>"
+}
+
+object "obj_HeartBeatView : HeartBeatView" as obj_HeartBeatView {
+  density = "<>"
+  isActive = "<>"
+  currentAmpMultiplier = "<>"
+  isStateInitialized = "<>"
+  fun = "<>"
+  wavePaint = "<>"
+  style = "<>"
+  strokeWidth = "<>"
+  isAntiAlias = "<>"
+  strokeJoin = "<>"
+  strokeCap = "<>"
+  density = "<>"
+  isActive = "<>"
+  currentAmpMultiplier = "<>"
+  isStateInitialized = "<>"
+  wavePaint = "<>"
+  baselinePaint = "<>"
+  path = "<>"
+  phase = "<>"
+  midY = "<>"
+  targetAmp = "<>"
+  dynamicAmplitude = "<>"
+  freq1 = "<>"
+  freq2 = "<>"
+  stepSize = "<>"
+  xf = "<>"
+  yOffset = "<>"
+  isAnimating = "<>"
+}
+
+object "obj_ResourceStatsChartView : ResourceStatsChartView" as obj_ResourceStatsChartView {
+  currentStats = "<>"
+  targetStats = "<>"
+  dp = "<>"
+  frameCount = "<>"
+  barPaint = "<>"
+  style = "<>"
+  strokeWidth = "<>"
+  pathEffect = "<>"
+  currentStats = "<>"
+  targetStats = "<>"
+  dp = "<>"
+  frameCount = "<>"
+  barPaint = "<>"
+  textPaint = "<>"
+  gridPaint = "<>"
+  current = "<>"
+  target = "<>"
+  paddingLeft = "<>"
+  paddingRight = "<>"
+  paddingTop = "<>"
+  paddingBottom = "<>"
+  chartWidth = "<>"
+  chartHeight = "<>"
+  barHeight = "<>"
+  spacing = "<>"
+  gridValues = "<>"
+  x = "<>"
+  label = "<>"
+  currentY = "<>"
+  barWidth = "<>"
+  displayValue = "<>"
+  suffix = "<>"
+}
+
+object "obj_FluidWaveLayout : FluidWaveLayout" as obj_FluidWaveLayout {
+  Float = "<>"
+  Float = "<>"
+  isFirstVaporSet = "<>"
+  isFirstLiquidSet = "<>"
+  vaporStartPct = "<>"
+  vaporTargetPct = "<>"
+  vaporSurgeX = "<>"
+  liquidStartPct = "<>"
+  liquidTargetPct = "<>"
+  liquidSurgeX = "<>"
+  Float = "<>"
+  get = "<>"
+  paintLiquidFront = "<>"
+  style = "<>"
+  targetVaporPercentage = "<>"
+  targetLiquidPercentage = "<>"
+  isFirstVaporSet = "<>"
+  isFirstLiquidSet = "<>"
+  vaporStartPct = "<>"
+  vaporTargetPct = "<>"
+  vaporSurgeX = "<>"
+  liquidStartPct = "<>"
+  liquidTargetPct = "<>"
+  liquidSurgeX = "<>"
+  depthFactor = "<>"
+  paintLiquidFront = "<>"
+  paintLiquidBack = "<>"
+  paintVaporFront = "<>"
+  paintVaporBack = "<>"
+  pathLiquidFront = "<>"
+  pathLiquidBack = "<>"
+  pathVaporFront = "<>"
+  pathVaporBack = "<>"
+  phaseShift = "<>"
+  lastFrameTime = "<>"
+  sensorManager = "<>"
+  accelerometer = "<>"
+  targetTiltOffset = "<>"
+  currentTiltOffset = "<>"
+  targetVolatility = "<>"
+  currentVolatility = "<>"
+  lastAccel = "<>"
+}
+
+object "obj_TrainingLogsDisplay_ViewModel : TrainingLogsDisplay_ViewModel" as obj_TrainingLogsDisplay_ViewModel {
+  consoleLogs = "<>"
+  val = "<>"
+  currentStatus = "<>"
+  stepsText = "<>"
+  lossText = "<>"
+  consoleLogs = "<>"
+  currentStatus = "<>"
+  stepsText = "<>"
+  lossText = "<>"
+}
+
+object "obj_FileOperations : FileOperations" as obj_FileOperations {
+  gson = "<>"
+  TAG = "<>"
+  context = "<>"
+  gson = "<>"
+  TAG = "<>"
+  file = "<>"
+  json = "<>"
+  obj = "<>"
+}
+
+object "obj_BootReceiver : BootReceiver" as obj_BootReceiver {
+  fileOps = "<>"
+  config = "<>"
+  serviceIntent = "<>"
+}
+
+object "obj_FractalApplication : FractalApplication" as obj_FractalApplication {
+  GlobalState = "<>"
+  GlobalUtils = "<>"
+  app_config = "<>"
+  startupExecutor = "<>"
+  globalState = "<>"
+  globalUtils = "<>"
+  appConfig = "<>"
+  startupExecutor = "<>"
+  fileOps = "<>"
+  fileName = "<>"
+  defaultAsset = "<>"
+  loadedConfig = "<>"
+  serverDao = "<>"
+  trainerBuilder = "<>"
+  state = "<>"
+}
+
+object "obj_MainActivity : MainActivity" as obj_MainActivity {
+  binding = "<ActivityMainBinding>"
+  PREFS_NAME = "<String>"
+  KEY_LAST_SYNCED = "<String>"
+}
+
+object "obj_OvernightManagerService : OvernightManagerService" as obj_OvernightManagerService {
+  CHANNEL_ID = "<>"
+  ACTION_STOP = "<>"
+  CHANNEL_ID = "<>"
+  NOTIFICATION_ID = "<>"
+  ACTION_STOP = "<>"
+  scope = "<>"
+  repo = "<>"
+  isManagingCurrentWindow = "<>"
+  isFirstRun = "<>"
+  app = "<>"
+  config = "<>"
+  hour = "<>"
+  minutesUntilMidnight = "<>"
+  startIntent = "<>"
+  resumeIntent = "<>"
+  pauseIntent = "<>"
+  channel = "<>"
+  openAppIntent = "<>"
+  openAppPending = "<>"
+  stopIntent = "<>"
+  stopPendingIntent = "<>"
+}
+
+object "obj_DataInitializer : DataInitializer" as obj_DataInitializer {
+}
+
+object "obj_DataInitializer_Factory : DataInitializer_Factory" as obj_DataInitializer_Factory {
+}
+
+object "obj_Image_DataInitializer : Image_DataInitializer" as obj_Image_DataInitializer {
+  TAG = "<>"
+  imageStream = "<>"
+  labelStream = "<>"
+  imageTask = "<>"
+  filesDir = "<>"
+  imgFile = "<>"
+  lblFile = "<>"
+  numTrainings = "<>"
+  numClasses = "<>"
+  shapeArray = "<>"
+  imgHeight = "<>"
+  imgWidth = "<>"
+  imageBytes = "<>"
+  labelBytes = "<>"
+  imageBatch = "<>"
+  labelBatch = "<>"
+  imageData = "<>"
+  labelData = "<>"
+  imgRead = "<>"
+  lblRead = "<>"
+  imageFloatBuffer = "<>"
+  labelFloatBuffer = "<>"
+  imageFloats = "<>"
+  labelFloats = "<>"
+}
+
+object "obj_Builder : Builder" as obj_Builder {
+}
+
+object "obj_PackageTypeTrainer : PackageTypeTrainer" as obj_PackageTypeTrainer {
+  context = "<>"
+  task = "<>"
+  dataInitializer = "<>"
+  trainer = "<>"
+  validator = "<>"
+  TAG = "<>"
+  validationResult = "<>"
+  opControl = "<>"
+  transmissionDTO = "<>"
+  transmitter = "<>"
+  flusher = "<>"
+  uploadSuccess = "<>"
+  attemptCount = "<>"
+}
+
+object "obj_PackageTypeTrainerBuilder : PackageTypeTrainerBuilder" as obj_PackageTypeTrainerBuilder {
+  TAG = "<>"
+  taskFactory = "<>"
+  dataInitializerFactory = "<>"
+  trainerFactory = "<>"
+  validatorFactory = "<>"
+  buildContext = "<>"
+  ctx = "<>"
+  tFactory = "<>"
+  task = "<>"
+  dFactory = "<>"
+  dataInitializer = "<>"
+  trFactory = "<>"
+  trainer = "<>"
+  vFactory = "<>"
+  validator = "<>"
+}
+
+object "obj_ImageTrainer : ImageTrainer" as obj_ImageTrainer {
+  task = "<>"
+  trainingData = "<>"
+  interpreter = "<>"
+  currentEpoch = "<>"
+  checkpointManager = "<>"
+  TAG = "<>"
+  availableSignatures = "<>"
+  imageTask = "<>"
+  modelFile = "<>"
+  inputStream = "<>"
+  buffer = "<>"
+  imageBatch = "<>"
+  labelBatch = "<>"
+  shapeArray = "<>"
+  imgHeight = "<>"
+  imgWidth = "<>"
+  numClasses = "<>"
+  numTrainings = "<>"
+  numEpochs = "<>"
+  trainingStartTime = "<>"
+  timeLeftStr = "<>"
+  totalSteps = "<>"
+  currentStep = "<>"
+  singleImageBuffer = "<>"
+  singleLabelBuffer = "<>"
+  lossBuffer = "<>"
+  inputs = "<>"
+  outputs = "<>"
+  lastLoss = "<>"
+  hardwareIssue = "<>"
+  imgPos = "<>"
+  imgArray = "<>"
+  lblPos = "<>"
+  lblArray = "<>"
+  percent = "<>"
+  logMessage = "<>"
+  completedInSession = "<>"
+  timeElapsed = "<>"
+  avgTimePerEpoch = "<>"
+  remainingEpochs = "<>"
+  remainingMillis = "<>"
+  seconds = "<>"
+  minutes = "<>"
+  completedEpochs = "<>"
+}
+
+object "obj_Trainer : Trainer" as obj_Trainer {
+  task = "<>"
+  trainingData = "<>"
+  interpreter = "<>"
+  currentEpoch = "<>"
+}
+
+object "obj_Trainer_Factory : Trainer_Factory" as obj_Trainer_Factory {
+}
+
+object "obj_TrainingCallback : TrainingCallback" as obj_TrainingCallback {
+}
+
+object "obj_checkpoint_DTO : checkpoint_DTO" as obj_checkpoint_DTO {
+  task_Id = "<>"
+  lastEpoch = "<>"
+  checkpointTimestamp = "<>"
+}
+
+object "obj_checkpoints_DTO : checkpoints_DTO" as obj_checkpoints_DTO {
+  checkpoints = "<>"
+}
+
+object "obj_ModelTransmission_DTO : ModelTransmission_DTO" as obj_ModelTransmission_DTO {
+  task = "<>"
+}
+
+object "obj_ModelTransmitter : ModelTransmitter" as obj_ModelTransmitter {
+  TAG = "<>"
+  serverDao = "<>"
+}
+
+object "obj_Registered_DTO : Registered_DTO" as obj_Registered_DTO {
+  username = "<>"
+  email = "<>"
+  phoneNumber = "<>"
+  carrier = "<>"
+  timeZone = "<>"
+  joinedOn = "<>"
+  platform = "<>"
+  hardwareID = "<>"
+  serialNumber = "<>"
+  processor = "<>"
   storage = "<>"
-  graphicsCardEnabled = "<>"
+  totalRam = "<>"
+  androidVersion = "<>"
+  macAddress = "<>"
+  status = "<>"
 }
 
-object "obj_ComputerBuilder : ComputerBuilder" as obj_ComputerBuilder {
-  computer = "<Computer>"
+object "obj_RegistrationManager : RegistrationManager" as obj_RegistrationManager {
+  context = "<>"
+  handler = "<>"
+  liveUpdateRunnable = "<>"
 }
 
-object "obj_Director : Director" as obj_Director {
+object "obj_Auth : Auth" as obj_Auth {
 }
 
-object "obj_Logistics : Logistics" as obj_Logistics {
+object "obj_ModelTransmission : ModelTransmission" as obj_ModelTransmission {
 }
 
-object "obj_RoadLogistics : RoadLogistics" as obj_RoadLogistics {
+object "obj_Server_DAO : Server_DAO" as obj_Server_DAO {
+  networkConfig = "<>"
+  TAG = "<>"
+  url = "<>"
+  conn = "<>"
+  reader = "<>"
+  response = "<>"
+  json = "<>"
+  task = "<>"
+  dateString = "<>"
+  format = "<>"
+  trainingTypeJsonArray = "<>"
+  trainingTypeList = "<>"
+  shapeJsonArray = "<>"
+  shapeList = "<>"
+  inputTensorJson = "<>"
+  inputMap = "<>"
+  outputTensorJson = "<>"
+  outputMap = "<>"
+  imageTask = "<>"
+  taskId = "<>"
+  ckptFilename = "<>"
+  uploadFile = "<>"
+  boundary = "<>"
+  lineEnd = "<>"
+  twoHyphens = "<>"
+  dos = "<>"
+  fileInputStream = "<>"
+  bufferSize = "<>"
+  buffer = "<>"
+  bytesRead = "<>"
+  responseCode = "<>"
+  auth = "<>"
+  firestore = "<>"
+  email = "<>"
+  password = "<>"
+  username = "<>"
+  phone = "<>"
+  carrier = "<>"
+  loginTask = "<>"
+  user = "<>"
+  userData = "<>"
+  regTask = "<>"
+  profileUpdates = "<>"
+  targetEmail = "<>"
+  resetTask = "<>"
+  doc = "<>"
+  userEmail = "<>"
+  currentDate = "<>"
+  base64Images = "<>"
+  currentPayloadSize = "<>"
+  maxSafePayloadSize = "<>"
+  base64String = "<>"
+  feedbackData = "<>"
+  targetCollection = "<>"
+  statusUpdate = "<>"
+  resolvedStatus = "<>"
+  hashMapOf = "<>"
 }
 
-object "obj_SeaLogistics : SeaLogistics" as obj_SeaLogistics {
+object "obj_TaskPopulate : TaskPopulate" as obj_TaskPopulate {
 }
 
-object "obj_Ship : Ship" as obj_Ship {
+object "obj_GpuUsageReader : GpuUsageReader" as obj_GpuUsageReader {
+  TAG = "<>"
+  lock = "<>"
+  resolvedPath = "<>"
+  resolvedParser = "<>"
+  scanComplete = "<>"
 }
 
-object "obj_Transport : Transport" as obj_Transport {
+object "obj_OperationControl : OperationControl" as obj_OperationControl {
+  context = "<>"
+  globalState = "<>"
+  allowed = "<>"
+  networkAllowed = "<>"
+  config = "<>"
+  cm = "<>"
+  network = "<>"
+  caps = "<>"
+  isWifi = "<>"
+  isCellular = "<>"
+  powerManager = "<>"
+  batteryStatus = "<>"
+  status = "<>"
+  isCharging = "<>"
+  level = "<>"
+  scale = "<>"
+  batteryPct = "<>"
 }
 
-object "obj_Truck : Truck" as obj_Truck {
+object "obj_ResourceManager_Live_DTO : ResourceManager_Live_DTO" as obj_ResourceManager_Live_DTO {
+  cpuPercentage = "<>"
+  ramPercentage = "<>"
+  temperature = "<>"
+  batteryPercentage = "<>"
+  gpuPercentage = "<>"
+  activityManager = "<>"
+  gpuSysfsAvailable = "<>"
+  lastCpuLoad = "<>"
+  cpuFloat = "<>"
+  gpuFloat = "<>"
+  memoryInfo = "<>"
+  usedRam = "<>"
+  intent = "<>"
+  real = "<>"
+  process = "<>"
+  reader = "<>"
+  line = "<>"
+  totalCpu = "<>"
+  trimmedLine = "<>"
+  pattern = "<>"
+  matches = "<>"
+  sum = "<>"
+  load = "<>"
 }
 
-object "obj_DatabaseConnectionPool : DatabaseConnectionPool" as obj_DatabaseConnectionPool {
-  instance = "<DatabaseConnectionPool>"
-  maxConnections = "<>"
-  isInitialized = "<>"
+object "obj_ResourceManager_Record_DTO : ResourceManager_Record_DTO" as obj_ResourceManager_Record_DTO {
+  deviceStandbyTime = "<>"
+  networkStandbyTime = "<>"
+  networkOnlineStartTime = "<>"
+  networkOnlineEndTime = "<>"
+  powerConsuption = "<>"
+  tempStorage = "<>"
+  backgroundTasksRunning = "<>"
 }
 
-object "obj_AdvancedMediaPlayer : AdvancedMediaPlayer" as obj_AdvancedMediaPlayer {
+object "obj_ResourceStatistics : ResourceStatistics" as obj_ResourceStatistics {
+  overallPerformance = "<>"
+  estimatedTimeLeft = "<>"
+  epochsCompleted = "<>"
+  inferenceTesting = "<>"
 }
 
-object "obj_AudioPlayer : AudioPlayer" as obj_AudioPlayer {
-  mediaAdapter = "<MediaAdapter>"
+object "obj_Image_Task : Image_Task" as obj_Image_Task {
+  task_Id = "<>"
+  taskType = "<>"
+  task_expire_date = "<>"
+  task_completion_status = "<>"
+  training_type = "<>"
+  CKPT_FILENAME = "<>"
+  architecture = "<>"
+  reward_rate = "<>"
+  NUM_EPOCHS = "<>"
+  input_tensor_name = "<>"
+  output_tensor_name = "<>"
+  MODEL_FILENAME = "<>"
+  BATCH_SIZE = "<>"
+  NUM_TRAININGS = "<>"
+  INPUT_SHAPE = "<>"
+  NUM_CLASSES = "<>"
+  TRAIN_IMAGES_FILENAME = "<>"
+  TRAIN_LABELS_FILENAME = "<>"
 }
 
-object "obj_MediaAdapter : MediaAdapter" as obj_MediaAdapter {
-  advancedMusicPlayer = "<AdvancedMediaPlayer>"
+object "obj_Image_Task_DataParams : Image_Task_DataParams" as obj_Image_Task_DataParams {
+  BATCH_SIZE = "<>"
+  NUM_TRAININGS = "<>"
+  INPUT_SHAPE = "<>"
+  NUM_CLASSES = "<>"
+  TRAIN_IMAGES_FILENAME = "<>"
+  TRAIN_LABELS_FILENAME = "<>"
 }
 
-object "obj_MediaPlayer : MediaPlayer" as obj_MediaPlayer {
+object "obj_Image_Task_ModelParams : Image_Task_ModelParams" as obj_Image_Task_ModelParams {
+  NUM_EPOCHS = "<>"
+  input_tensor_name = "<>"
+  output_tensor_name = "<>"
+  MODEL_FILENAME = "<>"
 }
 
-object "obj_Mp4Player : Mp4Player" as obj_Mp4Player {
+object "obj_Task : Task" as obj_Task {
+  task_Id = "<>"
+  taskType = "<>"
+  task_expire_date = "<>"
+  task_completion_status = "<>"
+  training_type = "<>"
+  CKPT_FILENAME = "<>"
+  architecture = "<>"
+  reward_rate = "<>"
 }
 
-object "obj_VlcPlayer : VlcPlayer" as obj_VlcPlayer {
+object "obj_Task_DataParams : Task_DataParams" as obj_Task_DataParams {
 }
 
-object "obj_Beverage : Beverage" as obj_Beverage {
+object "obj_Task_Factory : Task_Factory" as obj_Task_Factory {
 }
 
-object "obj_CondimentDecorator : CondimentDecorator" as obj_CondimentDecorator {
-  beverage = "<Beverage>"
+object "obj_Task_ModelParams : Task_ModelParams" as obj_Task_ModelParams {
+  NUM_EPOCHS = "<>"
+  input_tensor_name = "<>"
+  output_tensor_name = "<>"
+  MODEL_FILENAME = "<>"
 }
 
-object "obj_Espresso : Espresso" as obj_Espresso {
+object "obj_task_DTO : task_DTO" as obj_task_DTO {
+  current_task_Id = "<>"
+  list_task_Id = "<>"
 }
 
-object "obj_Mocha : Mocha" as obj_Mocha {
+object "obj_Image_InferenceValidator : Image_InferenceValidator" as obj_Image_InferenceValidator {
+  TAG = "<>"
+  pair = "<>"
+  imageTask = "<>"
+  imageBatch = "<>"
+  shapeArray = "<>"
+  imgHeight = "<>"
+  imgWidth = "<>"
+  numClasses = "<>"
+  singleImageFloats = "<>"
+  inputBuffer = "<>"
+  outputBuffer = "<>"
+  logitsBuffer = "<>"
+  inputs = "<>"
+  outputs = "<>"
+  probs = "<>"
+  predictedClass = "<>"
+  confidence = "<>"
+  resultString = "<>"
 }
 
-object "obj_Whip : Whip" as obj_Whip {
+object "obj_InferenceValidator : InferenceValidator" as obj_InferenceValidator {
 }
 
-object "obj_AudioMixer : AudioMixer" as obj_AudioMixer {
+object "obj_InferenceValidator_Factory : InferenceValidator_Factory" as obj_InferenceValidator_Factory {
 }
 
-object "obj_BitrateReader : BitrateReader" as obj_BitrateReader {
+object "obj_AboutUs_Fragment : AboutUs_Fragment" as obj_AboutUs_Fragment {
+  _binding = "<>"
+  binding = "<>"
 }
 
-object "obj_VideoConversionFacade : VideoConversionFacade" as obj_VideoConversionFacade {
-  audioMixer = "<AudioMixer>"
-  bitrateReader = "<BitrateReader>"
+object "obj_DeviceAuthorization_Fragment : DeviceAuthorization_Fragment" as obj_DeviceAuthorization_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+  isPasswordVisible = "<>"
+  currentUser = "<>"
+  msg = "<>"
+  customTypeface = "<>"
+  username = "<>"
+  email = "<>"
+  phone = "<>"
+  carrier = "<>"
+  password = "<>"
+  agreedToTerms = "<>"
+  loginData = "<>"
 }
 
-obj_ShoppingCart --> obj_PaymentStrategy : references (paymentStrategy)
-obj_ComputerBuilder --> obj_Computer : references (computer)
-obj_AudioPlayer --> obj_MediaAdapter : references (mediaAdapter)
-obj_MediaAdapter --> obj_AdvancedMediaPlayer : references (advancedMusicPlayer)
-obj_CondimentDecorator --> obj_Beverage : references (beverage)
-obj_VideoConversionFacade --> obj_AudioMixer : references (audioMixer)
-obj_VideoConversionFacade --> obj_BitrateReader : references (bitrateReader)
+object "obj_DeviceAuthorization_ViewModel : DeviceAuthorization_ViewModel" as obj_DeviceAuthorization_ViewModel {
+  _authStatus = "<>"
+  authStatus = "<>"
+  globalState = "<>"
+  pollingJob = "<>"
+  regManager = "<>"
+  registeredDto = "<>"
+  serverDao = "<>"
+  success = "<>"
+  msg = "<>"
+  displayMsg = "<>"
+  auth = "<>"
+  verified = "<>"
+  maxAttempts = "<>"
+  currentUser = "<>"
+}
+
+object "obj_LoginRegister_DTO : LoginRegister_DTO" as obj_LoginRegister_DTO {
+  username = "<>"
+  password = "<>"
+  email = "<>"
+  phoneNumber = "<>"
+  carrier = "<>"
+}
+
+object "obj_DeviceUnregister_Fragment : DeviceUnregister_Fragment" as obj_DeviceUnregister_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+  selectedScreenshots = "<>"
+  authStateListener = "<>"
+  pickImagesLauncher = "<>"
+  safeUris = "<>"
+  successCount = "<>"
+  bytes = "<>"
+  user = "<>"
+  title = "<>"
+  desc = "<>"
+  agreedToTerms = "<>"
+  wantsToUnregister = "<>"
+  dto = "<>"
+  context = "<>"
+  originalBitmap = "<>"
+  source = "<>"
+  maxSize = "<>"
+  width = "<>"
+  height = "<>"
+  bitmapRatio = "<>"
+  resizedBitmap = "<>"
+  stream = "<>"
+}
+
+object "obj_DeviceUnregister_ViewModel : DeviceUnregister_ViewModel" as obj_DeviceUnregister_ViewModel {
+  _unregisterStatus = "<>"
+  unregisterStatus = "<>"
+  registrationManager = "<>"
+  globalState = "<>"
+  rawData = "<>"
+  serverDao = "<>"
+  registeredDto = "<>"
+  success = "<>"
+}
+
+object "obj_Unregister_DTO : Unregister_DTO" as obj_Unregister_DTO {
+  problemTitle = "<>"
+  description = "<>"
+  screenshots = "<>"
+  wantsToUnregister = "<>"
+}
+
+object "obj_ForgetPassword_DTO : ForgetPassword_DTO" as obj_ForgetPassword_DTO {
+  email = "<>"
+  confirmationCode = "<>"
+  newPassword = "<>"
+}
+
+object "obj_ForgetPassword_Fragment : ForgetPassword_Fragment" as obj_ForgetPassword_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+  isEmailSent = "<>"
+  email = "<>"
+  dto = "<>"
+}
+
+object "obj_ForgetPassword_ViewModel : ForgetPassword_ViewModel" as obj_ForgetPassword_ViewModel {
+  _resetStatus = "<>"
+  resetStatus = "<>"
+  globalState = "<>"
+  registeredDto = "<>"
+  serverDao = "<>"
+}
+
+object "obj_GetStarted_Fragment : GetStarted_Fragment" as obj_GetStarted_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  prefs = "<>"
+  navOptions = "<>"
+}
+
+object "obj_WaveLayer : WaveLayer" as obj_WaveLayer {
+  freq = "<>"
+  speed = "<>"
+  ampPercentage = "<>"
+  offset = "<>"
+  currentTime = "<>"
+  deltaTime = "<>"
+  targetAmp = "<>"
+  isAnimating = "<>"
+  width = "<>"
+  centerY = "<>"
+  layer = "<>"
+  direction = "<>"
+  maxAvailableHeight = "<>"
+  currentLayerMaxPx = "<>"
+  baseThickness = "<>"
+  xf = "<>"
+  normalizedX = "<>"
+  rawSineSum = "<>"
+  yOffset = "<>"
+}
+
+object "obj_UsageInsights_Fragment : UsageInsights_Fragment" as obj_UsageInsights_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+  sharedHomeViewModel = "<>"
+  formattedStatsMap = "<>"
+  isTrainingActive = "<>"
+}
+
+object "obj_UsageInsights_ViewModel : UsageInsights_ViewModel" as obj_UsageInsights_ViewModel {
+  romUsage = "<>"
+  stat = "<>"
+  totalBytes = "<>"
+  availableBytes = "<>"
+}
+
+object "obj_RegisteredInfo_Fragment : RegisteredInfo_Fragment" as obj_RegisteredInfo_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+}
+
+object "obj_RegisteredInfo_ViewModel : RegisteredInfo_ViewModel" as obj_RegisteredInfo_ViewModel {
+  registrationManager = "<>"
+  globalState = "<>"
+  _deviceInfo = "<>"
+  deviceInfo = "<>"
+  cachedUsername = "<>"
+  cachedEmail = "<>"
+  cachedJoinedOn = "<>"
+  pollingJob = "<>"
+  auth = "<>"
+  user = "<>"
+  isVerified = "<>"
+  rawData = "<>"
+  serverDao = "<>"
+  finalData = "<>"
+  immediateUpdate = "<>"
+}
+
+object "obj_Particle : Particle" as obj_Particle {
+  x = "<>"
+  y = "<>"
+  vx = "<>"
+  vy = "<>"
+  radius = "<>"
+  isFront = "<>"
+  active = "<>"
+  maxParticles = "<>"
+  particles = "<>"
+  frameCallback = "<>"
+}
+
+object "obj_RewardBank_Fragment : RewardBank_Fragment" as obj_RewardBank_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+  user = "<>"
+  pulse = "<>"
+  openDrawer = "<>"
+  goToLogin = "<>"
+}
+
+object "obj_RewardBank_ViewModel : RewardBank_ViewModel" as obj_RewardBank_ViewModel {
+  INSTANCE = "<>"
+  PREFS_NAME = "<>"
+  prefs = "<>"
+  auth = "<>"
+  firestoreListener = "<>"
+  MAX_MB_LIMIT = "<>"
+  vaporMBs = "<>"
+  liquidMBs = "<>"
+  dateFormat = "<>"
+  lastActiveDate = "<>"
+  isFlushing = "<>"
+  vaporPercentage = "<>"
+  liquidPercentage = "<>"
+  displayGBs = "<>"
+  statusText = "<>"
+  authListener = "<>"
+  user = "<>"
+  timeTickReceiver = "<>"
+}
+
+object "obj_Settings_Fragment : Settings_Fragment" as obj_Settings_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+  config = "<>"
+}
+
+object "obj_Settings_ViewModel : Settings_ViewModel" as obj_Settings_ViewModel {
+  app = "<>"
+  globalState = "<>"
+  fileOps = "<>"
+  config = "<>"
+  serviceIntent = "<>"
+}
+
+object "obj_TrainingLogger : TrainingLogger" as obj_TrainingLogger {
+  consoleLogs = "<>"
+  currentStatus = "<>"
+  stepsText = "<>"
+  lossText = "<>"
+  current = "<>"
+  lines = "<>"
+  safeLines = "<>"
+}
+
+object "obj_TrainingLogsDisplay_Fragment : TrainingLogsDisplay_Fragment" as obj_TrainingLogsDisplay_Fragment {
+  _binding = "<>"
+  binding = "<>"
+  viewModel = "<>"
+}
+
+object "obj_GlobalState : GlobalState" as obj_GlobalState {
+  appConfig = "<>"
+  server = "<>"
+  registrationManager = "<>"
+  currentTask = "<>"
+  packageTypeTrainerBuilder = "<>"
+  packageTypeTrainer = "<>"
+  flusher = "<>"
+  resourceStatistics = "<>"
+  resourceManager_Live_DTO = "<>"
+  resourceManager_Record_DTO = "<>"
+}
+
+object "obj_GlobalUtils : GlobalUtils" as obj_GlobalUtils {
+  fileOperations = "<>"
+}
+
+object "obj_app_config : app_config" as obj_app_config {
+  onWifi = "<>"
+  onData = "<>"
+  overNightUtilization = "<>"
+  idleTimeUtilization = "<>"
+  minChargeLimit = "<>"
+  maxChargeLimit = "<>"
+  onChargingExclusive = "<>"
+  isLoggedIn = "<>"
+}
+
+object "obj_FractalTrainingService : FractalTrainingService" as obj_FractalTrainingService {
+  CHANNEL_ID = "<>"
+  NOTIFICATION_ID = "<>"
+  TAG = "<>"
+  currentStatusText = "<>"
+  lastProgress = "<>"
+  isCurrentlyDownloading = "<>"
+  trainingThread = "<>"
+  systemUiMode = "<>"
+  repo = "<>"
+  progress = "<>"
+  incomingText = "<>"
+  orchestrator = "<>"
+}
+
+object "obj_Orchestrator : Orchestrator" as obj_Orchestrator {
+  context = "<>"
+  TAG = "<>"
+  globalState = "<>"
+  deviceId = "<>"
+  opControl = "<>"
+  task = "<>"
+  attemptCount = "<>"
+  downloadSuccess = "<>"
+  needsDownload = "<>"
+  modelFile = "<>"
+  imagesFile = "<>"
+  labelsFile = "<>"
+  latch = "<>"
+  pauseController = "<>"
+}
+
+obj_HomeFragment --> obj_HomeViewModel : references (homeViewModel)
+obj_HomeViewModel --> obj_TrainingStateRepository : references (repository)
+obj_HomeViewModel --> obj_ResourceManager_Live_DTO : references (resourceManager)
+obj_DeviceInsightsFragment --> obj_DeviceInsightsViewModel : references (viewModel)
+obj_ModelTrainingFragment --> obj_HomeViewModel : references (sharedViewModel)
 
 @enduml

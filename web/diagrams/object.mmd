@@ -1,126 +1,1208 @@
 classDiagram
-    class obj_NewsAgency {
-        <<instance: NewsAgency>>
-        news: Unknown
-        observers: Unknown
+    class obj_Image_DataInitializer_Factory {
+        <<instance: Image_DataInitializer_Factory>>
     }
-    class obj_NewsChannel {
-        <<instance: NewsChannel>>
-        news: Unknown
+    class obj_Image_Trainer_Factory {
+        <<instance: Image_Trainer_Factory>>
     }
-    class obj_Observer {
-        <<instance: Observer>>
+    class obj_CheckpointManager {
+        <<instance: CheckpointManager>>
+        TAG: Unknown
+        fun: Unknown
+        fun: Unknown
+        TAG: Unknown
+        imageTask: Unknown
+        ckptFile: Unknown
+        metaFile: Unknown
+        inputs: Unknown
+        json: Unknown
+        jsonText: Unknown
+        lastEpoch: Unknown
     }
-    class obj_Subject {
-        <<instance: Subject>>
+    class obj_networkConfig_ini {
+        <<instance: networkConfig_ini>>
+        String: Unknown
+        String: Unknown
+        get: Unknown
+        API_KEY: Unknown
+        SERVER_IP: Unknown
+        SERVER_PROTOCOL: Unknown
+        SERVER_PORT: Unknown
+        portStr: Unknown
     }
-    class obj_CreditCardStrategy {
-        <<instance: CreditCardStrategy>>
+    class obj_DataDownloader_naf {
+        <<instance: DataDownloader_naf>>
+        TAG: String
+    }
+    class obj_PauseController {
+        <<instance: PauseController>>
+    }
+    class obj_DownloadListener {
+        <<instance: DownloadListener>>
+    }
+    class obj_CancelledDownloadException {
+        <<instance: CancelledDownloadException>>
+    }
+    class obj_FileUploader_naf {
+        <<instance: FileUploader_naf>>
+        TAG: String
+    }
+    class obj_Parser {
+        <<instance: Parser>>
+        candidates: Unknown
+        path: Unknown
+        parser: Unknown
+        dynamicDevfreq: Unknown
+        dynamicProc: Unknown
+        allCandidates: Unknown
+        result: Unknown
+        discovered: Unknown
+        devfreqDir: Unknown
         name: Unknown
-        cardNumber: Unknown
+        isGpu: Unknown
+        procDir: Unknown
+        file: Unknown
+        raw: Unknown
+        line: Unknown
+        numStr: Unknown
+        pct: Unknown
+        idle: Unknown
     }
-    class obj_PaymentStrategy {
-        <<instance: PaymentStrategy>>
+    class obj_Image_Task_Factory {
+        <<instance: Image_Task_Factory>>
     }
-    class obj_PaypalStrategy {
-        <<instance: PaypalStrategy>>
-        emailId: Unknown
+    class obj_TaskType {
+        <<instance: TaskType>>
+        PassiveTask: Unknown
     }
-    class obj_ShoppingCart {
-        <<instance: ShoppingCart>>
-        paymentStrategy: PaymentStrategy
+    class obj_Image_InferenceValidator_Factory {
+        <<instance: Image_InferenceValidator_Factory>>
     }
-    class obj_CsvDataMiner {
-        <<instance: CsvDataMiner>>
+    class obj_Flusher {
+        <<instance: Flusher>>
+        TAG: Unknown
+        filesDir: Unknown
+        fun: Unknown
+        fun: Unknown
+        TAG: Unknown
+        filesDir: Unknown
+        imageTask: Unknown
+        ckptFile: Unknown
+        metaFile: Unknown
+        imgFile: Unknown
+        lblFile: Unknown
+        modelFile: Unknown
+        directory: Unknown
+        prefix: Unknown
     }
-    class obj_DataMiner {
-        <<instance: DataMiner>>
+    class obj_DiamondTrainingView {
+        <<instance: DiamondTrainingView>>
+        paint: Paint
+        path: Path
+        density: Unknown
+        MIN_STROKE: Unknown
+        MAX_STROKE: Unknown
+        strokeWidth: Unknown
     }
-    class obj_PdfDataMiner {
-        <<instance: PdfDataMiner>>
+    class obj_HomeFragment {
+        <<instance: HomeFragment>>
+        TAG: String
+        binding: FragmentHomeBinding
+        homeViewModel: HomeViewModel
     }
-    class obj_Computer {
-        <<instance: Computer>>
-        cpu: Unknown
-        ram: Unknown
+    class obj_HomeViewModel {
+        <<instance: HomeViewModel>>
+    }
+    class obj_ModelTrainer {
+        <<instance: ModelTrainer>>
+        Interpreter: Unknown
+        NUM_EPOCHS: Unknown
+        BATCH_SIZE: Unknown
+        IMG_HEIGHT: Unknown
+        IMG_WIDTH: Unknown
+        NUM_TRAININGS: Unknown
+        NUM_BATCHES: Unknown
+        NUM_CLASSES: Unknown
+        InputStream: Unknown
+        InputStream: Unknown
+        TAG: Unknown
+        context: Unknown
+        interpreter: Unknown
+        NUM_EPOCHS: Unknown
+        BATCH_SIZE: Unknown
+        IMG_HEIGHT: Unknown
+        IMG_WIDTH: Unknown
+        NUM_TRAININGS: Unknown
+        NUM_BATCHES: Unknown
+        NUM_CLASSES: Unknown
+        imagesInputStream: Unknown
+        labelsInputStream: Unknown
+        TAG: Unknown
+        modelBuffer: Unknown
+        fileDescriptor: Unknown
+        inputStream: Unknown
+        fileChannel: Unknown
+        startOffset: Unknown
+        declaredLength: Unknown
+        imagesStream: Unknown
+        labelsStream: Unknown
+        imageSkipBytes: Unknown
+        labelSkipBytes: Unknown
+        imageByteBuffer: Unknown
+        imageBatch: Unknown
+        labelByteBuffer: Unknown
+        labelBatch: Unknown
+        imageData: Unknown
+        labelData: Unknown
+        imageBytes: Unknown
+        labelBytes: Unknown
+        imageFloatBuffer: Unknown
+        labelFloatBuffer: Unknown
+        imageFloats: Unknown
+        labelFloats: Unknown
+        losses: Unknown
+        lastLoss: Unknown
+        sampleCount: Unknown
+        batchData: Unknown
+        singleImageBuffer: Unknown
+        singleLabelBuffer: Unknown
+        inputs: Unknown
+        outputs: Unknown
+        lossBuffer: Unknown
+        inputByteBuffer: Unknown
+        inputBuffer: Unknown
+        outputByteBuffer: Unknown
+        outputBuffer: Unknown
+        logitsByteBuffer: Unknown
+        logitsBuffer: Unknown
+        probabilities: Unknown
+        logits: Unknown
+        maxIdx: Unknown
+        maxProb: Unknown
+        documentsDir: Unknown
+        testFile: Unknown
+        checkpointFile: Unknown
+        saveInputs: Unknown
+        saveOutputs: Unknown
+        files: Unknown
+        restoreInputs: Unknown
+        restoreOutputs: Unknown
+        testImage: Unknown
+        inferInputs: Unknown
+        inferOutputs: Unknown
+        filesDir: Unknown
+    }
+    class obj_TrainingStateRepository {
+        <<instance: TrainingStateRepository>>
+        instance: TrainingStateRepository
+        isActive: Unknown
+        isWaiting: Unknown
+        isPaused: Unknown
+        trainingProgress: Unknown
+        statusMessage: Unknown
+        detailedStats: Unknown
+    }
+    class obj_trainer_naf {
+        <<instance: trainer_naf>>
+        Interpreter: Unknown
+        TAG: Unknown
+        NUM_EPOCHS: Unknown
+        BATCH_SIZE: Unknown
+        IMG_HEIGHT: Unknown
+        IMG_WIDTH: Unknown
+        NUM_TRAININGS: Unknown
+        NUM_BATCHES: Unknown
+        NUM_CLASSES: Unknown
+        SERVER_IMAGES_FILENAME: Unknown
+        SERVER_LABELS_FILENAME: Unknown
+        context: Unknown
+        interpreter: Unknown
+        TAG: Unknown
+        NUM_EPOCHS: Unknown
+        BATCH_SIZE: Unknown
+        IMG_HEIGHT: Unknown
+        IMG_WIDTH: Unknown
+        NUM_TRAININGS: Unknown
+        NUM_BATCHES: Unknown
+        NUM_CLASSES: Unknown
+        SERVER_IMAGES_FILENAME: Unknown
+        SERVER_LABELS_FILENAME: Unknown
+    }
+    class obj_DeviceInsightsFragment {
+        <<instance: DeviceInsightsFragment>>
+        binding: FragmentDeviceBinding
+        viewModel: DeviceInsightsViewModel
+        binding: Unknown
+        viewModel: Unknown
+        Override: Unknown
+    }
+    class obj_DeviceInsightsViewModel {
+        <<instance: DeviceInsightsViewModel>>
+        batteryPercent: Unknown
+        isCharging: Unknown
+        isOnline: Unknown
+        isWifi: Unknown
+        isCellular: Unknown
+        deviceStandby: Unknown
+        networkStandby: Unknown
+        powerConsumption: Unknown
+        tempStorage: Unknown
+        bgTasks: Unknown
+        batteryReceiver: BroadcastReceiver
+        networkCallback: Unknown
+        pollingHandler: Handler
+        pollingRunnable: Runnable
+        liveVoltage_mV: Unknown
+        prefs: SharedPreferences
+        PREFS_NAME: String
+        KEY_NET_START_TIME: String
+    }
+    class obj_InsightsPagerAdapter {
+        <<instance: InsightsPagerAdapter>>
+    }
+    class obj_InsightsPagerFragment {
+        <<instance: InsightsPagerFragment>>
+        FragmentInsightsPagerBinding: Unknown
+        get: Unknown
+        _binding: Unknown
+        binding: Unknown
+        pagerAdapter: Unknown
+        page: Unknown
+    }
+    class obj_ModelTrainingFragment {
+        <<instance: ModelTrainingFragment>>
+    }
+    class obj_ModelTrainingViewModel {
+        <<instance: ModelTrainingViewModel>>
+        mText: Unknown
+    }
+    class obj_TrainingWaveView {
+        <<instance: TrainingWaveView>>
+        density: Unknown
+        wavePath: Unknown
+        wavePaint: Unknown
+        density: Unknown
+        wavePath: Unknown
+        wavePaint: Unknown
+        animTime: Unknown
+        lastFrameTime: Unknown
+        isActive: Unknown
+        currentAmpMultiplier: Unknown
+        isStateInitialized: Unknown
+        topColors: Unknown
+        bottomColors: Unknown
+        layers: Unknown
+    }
+    class obj_HeartBeatView {
+        <<instance: HeartBeatView>>
+        density: Unknown
+        isActive: Unknown
+        currentAmpMultiplier: Unknown
+        isStateInitialized: Unknown
+        fun: Unknown
+        wavePaint: Unknown
+        style: Unknown
+        strokeWidth: Unknown
+        isAntiAlias: Unknown
+        strokeJoin: Unknown
+        strokeCap: Unknown
+        density: Unknown
+        isActive: Unknown
+        currentAmpMultiplier: Unknown
+        isStateInitialized: Unknown
+        wavePaint: Unknown
+        baselinePaint: Unknown
+        path: Unknown
+        phase: Unknown
+        midY: Unknown
+        targetAmp: Unknown
+        dynamicAmplitude: Unknown
+        freq1: Unknown
+        freq2: Unknown
+        stepSize: Unknown
+        xf: Unknown
+        yOffset: Unknown
+        isAnimating: Unknown
+    }
+    class obj_ResourceStatsChartView {
+        <<instance: ResourceStatsChartView>>
+        currentStats: Unknown
+        targetStats: Unknown
+        dp: Unknown
+        frameCount: Unknown
+        barPaint: Unknown
+        style: Unknown
+        strokeWidth: Unknown
+        pathEffect: Unknown
+        currentStats: Unknown
+        targetStats: Unknown
+        dp: Unknown
+        frameCount: Unknown
+        barPaint: Unknown
+        textPaint: Unknown
+        gridPaint: Unknown
+        current: Unknown
+        target: Unknown
+        paddingLeft: Unknown
+        paddingRight: Unknown
+        paddingTop: Unknown
+        paddingBottom: Unknown
+        chartWidth: Unknown
+        chartHeight: Unknown
+        barHeight: Unknown
+        spacing: Unknown
+        gridValues: Unknown
+        x: Unknown
+        label: Unknown
+        currentY: Unknown
+        barWidth: Unknown
+        displayValue: Unknown
+        suffix: Unknown
+    }
+    class obj_FluidWaveLayout {
+        <<instance: FluidWaveLayout>>
+        Float: Unknown
+        Float: Unknown
+        isFirstVaporSet: Unknown
+        isFirstLiquidSet: Unknown
+        vaporStartPct: Unknown
+        vaporTargetPct: Unknown
+        vaporSurgeX: Unknown
+        liquidStartPct: Unknown
+        liquidTargetPct: Unknown
+        liquidSurgeX: Unknown
+        Float: Unknown
+        get: Unknown
+        paintLiquidFront: Unknown
+        style: Unknown
+        targetVaporPercentage: Unknown
+        targetLiquidPercentage: Unknown
+        isFirstVaporSet: Unknown
+        isFirstLiquidSet: Unknown
+        vaporStartPct: Unknown
+        vaporTargetPct: Unknown
+        vaporSurgeX: Unknown
+        liquidStartPct: Unknown
+        liquidTargetPct: Unknown
+        liquidSurgeX: Unknown
+        depthFactor: Unknown
+        paintLiquidFront: Unknown
+        paintLiquidBack: Unknown
+        paintVaporFront: Unknown
+        paintVaporBack: Unknown
+        pathLiquidFront: Unknown
+        pathLiquidBack: Unknown
+        pathVaporFront: Unknown
+        pathVaporBack: Unknown
+        phaseShift: Unknown
+        lastFrameTime: Unknown
+        sensorManager: Unknown
+        accelerometer: Unknown
+        targetTiltOffset: Unknown
+        currentTiltOffset: Unknown
+        targetVolatility: Unknown
+        currentVolatility: Unknown
+        lastAccel: Unknown
+    }
+    class obj_TrainingLogsDisplay_ViewModel {
+        <<instance: TrainingLogsDisplay_ViewModel>>
+        consoleLogs: Unknown
+        Unknown: Unknown
+        currentStatus: Unknown
+        stepsText: Unknown
+        lossText: Unknown
+        consoleLogs: Unknown
+        currentStatus: Unknown
+        stepsText: Unknown
+        lossText: Unknown
+    }
+    class obj_FileOperations {
+        <<instance: FileOperations>>
+        gson: Unknown
+        TAG: Unknown
+        context: Unknown
+        gson: Unknown
+        TAG: Unknown
+        file: Unknown
+        json: Unknown
+        obj: Unknown
+    }
+    class obj_BootReceiver {
+        <<instance: BootReceiver>>
+        fileOps: Unknown
+        config: Unknown
+        serviceIntent: Unknown
+    }
+    class obj_FractalApplication {
+        <<instance: FractalApplication>>
+        GlobalState: Unknown
+        GlobalUtils: Unknown
+        app_config: Unknown
+        startupExecutor: Unknown
+        globalState: Unknown
+        globalUtils: Unknown
+        appConfig: Unknown
+        startupExecutor: Unknown
+        fileOps: Unknown
+        fileName: Unknown
+        defaultAsset: Unknown
+        loadedConfig: Unknown
+        serverDao: Unknown
+        trainerBuilder: Unknown
+        state: Unknown
+    }
+    class obj_MainActivity {
+        <<instance: MainActivity>>
+        binding: ActivityMainBinding
+        PREFS_NAME: String
+        KEY_LAST_SYNCED: String
+    }
+    class obj_OvernightManagerService {
+        <<instance: OvernightManagerService>>
+        CHANNEL_ID: Unknown
+        ACTION_STOP: Unknown
+        CHANNEL_ID: Unknown
+        NOTIFICATION_ID: Unknown
+        ACTION_STOP: Unknown
+        scope: Unknown
+        repo: Unknown
+        isManagingCurrentWindow: Unknown
+        isFirstRun: Unknown
+        app: Unknown
+        config: Unknown
+        hour: Unknown
+        minutesUntilMidnight: Unknown
+        startIntent: Unknown
+        resumeIntent: Unknown
+        pauseIntent: Unknown
+        channel: Unknown
+        openAppIntent: Unknown
+        openAppPending: Unknown
+        stopIntent: Unknown
+        stopPendingIntent: Unknown
+    }
+    class obj_DataInitializer {
+        <<instance: DataInitializer>>
+    }
+    class obj_DataInitializer_Factory {
+        <<instance: DataInitializer_Factory>>
+    }
+    class obj_Image_DataInitializer {
+        <<instance: Image_DataInitializer>>
+        TAG: Unknown
+        imageStream: Unknown
+        labelStream: Unknown
+        imageTask: Unknown
+        filesDir: Unknown
+        imgFile: Unknown
+        lblFile: Unknown
+        numTrainings: Unknown
+        numClasses: Unknown
+        shapeArray: Unknown
+        imgHeight: Unknown
+        imgWidth: Unknown
+        imageBytes: Unknown
+        labelBytes: Unknown
+        imageBatch: Unknown
+        labelBatch: Unknown
+        imageData: Unknown
+        labelData: Unknown
+        imgRead: Unknown
+        lblRead: Unknown
+        imageFloatBuffer: Unknown
+        labelFloatBuffer: Unknown
+        imageFloats: Unknown
+        labelFloats: Unknown
+    }
+    class obj_Builder {
+        <<instance: Builder>>
+    }
+    class obj_PackageTypeTrainer {
+        <<instance: PackageTypeTrainer>>
+        context: Unknown
+        task: Unknown
+        dataInitializer: Unknown
+        trainer: Unknown
+        validator: Unknown
+        TAG: Unknown
+        validationResult: Unknown
+        opControl: Unknown
+        transmissionDTO: Unknown
+        transmitter: Unknown
+        flusher: Unknown
+        uploadSuccess: Unknown
+        attemptCount: Unknown
+    }
+    class obj_PackageTypeTrainerBuilder {
+        <<instance: PackageTypeTrainerBuilder>>
+        TAG: Unknown
+        taskFactory: Unknown
+        dataInitializerFactory: Unknown
+        trainerFactory: Unknown
+        validatorFactory: Unknown
+        buildContext: Unknown
+        ctx: Unknown
+        tFactory: Unknown
+        task: Unknown
+        dFactory: Unknown
+        dataInitializer: Unknown
+        trFactory: Unknown
+        trainer: Unknown
+        vFactory: Unknown
+        validator: Unknown
+    }
+    class obj_ImageTrainer {
+        <<instance: ImageTrainer>>
+        task: Unknown
+        trainingData: Unknown
+        interpreter: Unknown
+        currentEpoch: Unknown
+        checkpointManager: Unknown
+        TAG: Unknown
+        availableSignatures: Unknown
+        imageTask: Unknown
+        modelFile: Unknown
+        inputStream: Unknown
+        buffer: Unknown
+        imageBatch: Unknown
+        labelBatch: Unknown
+        shapeArray: Unknown
+        imgHeight: Unknown
+        imgWidth: Unknown
+        numClasses: Unknown
+        numTrainings: Unknown
+        numEpochs: Unknown
+        trainingStartTime: Unknown
+        timeLeftStr: Unknown
+        totalSteps: Unknown
+        currentStep: Unknown
+        singleImageBuffer: Unknown
+        singleLabelBuffer: Unknown
+        lossBuffer: Unknown
+        inputs: Unknown
+        outputs: Unknown
+        lastLoss: Unknown
+        hardwareIssue: Unknown
+        imgPos: Unknown
+        imgArray: Unknown
+        lblPos: Unknown
+        lblArray: Unknown
+        percent: Unknown
+        logMessage: Unknown
+        completedInSession: Unknown
+        timeElapsed: Unknown
+        avgTimePerEpoch: Unknown
+        remainingEpochs: Unknown
+        remainingMillis: Unknown
+        seconds: Unknown
+        minutes: Unknown
+        completedEpochs: Unknown
+    }
+    class obj_Trainer {
+        <<instance: Trainer>>
+        task: Unknown
+        trainingData: Unknown
+        interpreter: Unknown
+        currentEpoch: Unknown
+    }
+    class obj_Trainer_Factory {
+        <<instance: Trainer_Factory>>
+    }
+    class obj_TrainingCallback {
+        <<instance: TrainingCallback>>
+    }
+    class obj_checkpoint_DTO {
+        <<instance: checkpoint_DTO>>
+        task_Id: Unknown
+        lastEpoch: Unknown
+        checkpointTimestamp: Unknown
+    }
+    class obj_checkpoints_DTO {
+        <<instance: checkpoints_DTO>>
+        checkpoints: Unknown
+    }
+    class obj_ModelTransmission_DTO {
+        <<instance: ModelTransmission_DTO>>
+        task: Unknown
+    }
+    class obj_ModelTransmitter {
+        <<instance: ModelTransmitter>>
+        TAG: Unknown
+        serverDao: Unknown
+    }
+    class obj_Registered_DTO {
+        <<instance: Registered_DTO>>
+        username: Unknown
+        email: Unknown
+        phoneNumber: Unknown
+        carrier: Unknown
+        timeZone: Unknown
+        joinedOn: Unknown
+        platform: Unknown
+        hardwareID: Unknown
+        serialNumber: Unknown
+        processor: Unknown
         storage: Unknown
-        graphicsCardEnabled: Unknown
+        totalRam: Unknown
+        androidVersion: Unknown
+        macAddress: Unknown
+        status: Unknown
     }
-    class obj_ComputerBuilder {
-        <<instance: ComputerBuilder>>
-        computer: Computer
+    class obj_RegistrationManager {
+        <<instance: RegistrationManager>>
+        context: Unknown
+        handler: Unknown
+        liveUpdateRunnable: Unknown
     }
-    class obj_Director {
-        <<instance: Director>>
+    class obj_Auth {
+        <<instance: Auth>>
     }
-    class obj_Logistics {
-        <<instance: Logistics>>
+    class obj_ModelTransmission {
+        <<instance: ModelTransmission>>
     }
-    class obj_RoadLogistics {
-        <<instance: RoadLogistics>>
+    class obj_Server_DAO {
+        <<instance: Server_DAO>>
+        networkConfig: Unknown
+        TAG: Unknown
+        url: Unknown
+        conn: Unknown
+        reader: Unknown
+        response: Unknown
+        json: Unknown
+        task: Unknown
+        dateString: Unknown
+        format: Unknown
+        trainingTypeJsonArray: Unknown
+        trainingTypeList: Unknown
+        shapeJsonArray: Unknown
+        shapeList: Unknown
+        inputTensorJson: Unknown
+        inputMap: Unknown
+        outputTensorJson: Unknown
+        outputMap: Unknown
+        imageTask: Unknown
+        taskId: Unknown
+        ckptFilename: Unknown
+        uploadFile: Unknown
+        boundary: Unknown
+        lineEnd: Unknown
+        twoHyphens: Unknown
+        dos: Unknown
+        fileInputStream: Unknown
+        bufferSize: Unknown
+        buffer: Unknown
+        bytesRead: Unknown
+        responseCode: Unknown
+        auth: Unknown
+        firestore: Unknown
+        email: Unknown
+        password: Unknown
+        username: Unknown
+        phone: Unknown
+        carrier: Unknown
+        loginTask: Unknown
+        user: Unknown
+        userData: Unknown
+        regTask: Unknown
+        profileUpdates: Unknown
+        targetEmail: Unknown
+        resetTask: Unknown
+        doc: Unknown
+        userEmail: Unknown
+        currentDate: Unknown
+        base64Images: Unknown
+        currentPayloadSize: Unknown
+        maxSafePayloadSize: Unknown
+        base64String: Unknown
+        feedbackData: Unknown
+        targetCollection: Unknown
+        statusUpdate: Unknown
+        resolvedStatus: Unknown
+        hashMapOf: Unknown
     }
-    class obj_SeaLogistics {
-        <<instance: SeaLogistics>>
+    class obj_TaskPopulate {
+        <<instance: TaskPopulate>>
     }
-    class obj_Ship {
-        <<instance: Ship>>
+    class obj_GpuUsageReader {
+        <<instance: GpuUsageReader>>
+        TAG: Unknown
+        lock: Unknown
+        resolvedPath: Unknown
+        resolvedParser: Unknown
+        scanComplete: Unknown
     }
-    class obj_Transport {
-        <<instance: Transport>>
+    class obj_OperationControl {
+        <<instance: OperationControl>>
+        context: Unknown
+        globalState: Unknown
+        allowed: Unknown
+        networkAllowed: Unknown
+        config: Unknown
+        cm: Unknown
+        network: Unknown
+        caps: Unknown
+        isWifi: Unknown
+        isCellular: Unknown
+        powerManager: Unknown
+        batteryStatus: Unknown
+        status: Unknown
+        isCharging: Unknown
+        level: Unknown
+        scale: Unknown
+        batteryPct: Unknown
     }
-    class obj_Truck {
-        <<instance: Truck>>
+    class obj_ResourceManager_Live_DTO {
+        <<instance: ResourceManager_Live_DTO>>
+        cpuPercentage: Unknown
+        ramPercentage: Unknown
+        temperature: Unknown
+        batteryPercentage: Unknown
+        gpuPercentage: Unknown
+        activityManager: Unknown
+        gpuSysfsAvailable: Unknown
+        lastCpuLoad: Unknown
+        cpuFloat: Unknown
+        gpuFloat: Unknown
+        memoryInfo: Unknown
+        usedRam: Unknown
+        intent: Unknown
+        real: Unknown
+        process: Unknown
+        reader: Unknown
+        line: Unknown
+        totalCpu: Unknown
+        trimmedLine: Unknown
+        pattern: Unknown
+        matches: Unknown
+        sum: Unknown
+        load: Unknown
     }
-    class obj_DatabaseConnectionPool {
-        <<instance: DatabaseConnectionPool>>
-        instance: DatabaseConnectionPool
-        maxConnections: Unknown
-        isInitialized: Unknown
+    class obj_ResourceManager_Record_DTO {
+        <<instance: ResourceManager_Record_DTO>>
+        deviceStandbyTime: Unknown
+        networkStandbyTime: Unknown
+        networkOnlineStartTime: Unknown
+        networkOnlineEndTime: Unknown
+        powerConsuption: Unknown
+        tempStorage: Unknown
+        backgroundTasksRunning: Unknown
     }
-    class obj_AdvancedMediaPlayer {
-        <<instance: AdvancedMediaPlayer>>
+    class obj_ResourceStatistics {
+        <<instance: ResourceStatistics>>
+        overallPerformance: Unknown
+        estimatedTimeLeft: Unknown
+        epochsCompleted: Unknown
+        inferenceTesting: Unknown
     }
-    class obj_AudioPlayer {
-        <<instance: AudioPlayer>>
-        mediaAdapter: MediaAdapter
+    class obj_Image_Task {
+        <<instance: Image_Task>>
+        task_Id: Unknown
+        taskType: Unknown
+        task_expire_date: Unknown
+        task_completion_status: Unknown
+        training_type: Unknown
+        CKPT_FILENAME: Unknown
+        architecture: Unknown
+        reward_rate: Unknown
+        NUM_EPOCHS: Unknown
+        input_tensor_name: Unknown
+        output_tensor_name: Unknown
+        MODEL_FILENAME: Unknown
+        BATCH_SIZE: Unknown
+        NUM_TRAININGS: Unknown
+        INPUT_SHAPE: Unknown
+        NUM_CLASSES: Unknown
+        TRAIN_IMAGES_FILENAME: Unknown
+        TRAIN_LABELS_FILENAME: Unknown
     }
-    class obj_MediaAdapter {
-        <<instance: MediaAdapter>>
-        advancedMusicPlayer: AdvancedMediaPlayer
+    class obj_Image_Task_DataParams {
+        <<instance: Image_Task_DataParams>>
+        BATCH_SIZE: Unknown
+        NUM_TRAININGS: Unknown
+        INPUT_SHAPE: Unknown
+        NUM_CLASSES: Unknown
+        TRAIN_IMAGES_FILENAME: Unknown
+        TRAIN_LABELS_FILENAME: Unknown
     }
-    class obj_MediaPlayer {
-        <<instance: MediaPlayer>>
+    class obj_Image_Task_ModelParams {
+        <<instance: Image_Task_ModelParams>>
+        NUM_EPOCHS: Unknown
+        input_tensor_name: Unknown
+        output_tensor_name: Unknown
+        MODEL_FILENAME: Unknown
     }
-    class obj_Mp4Player {
-        <<instance: Mp4Player>>
+    class obj_Task {
+        <<instance: Task>>
+        task_Id: Unknown
+        taskType: Unknown
+        task_expire_date: Unknown
+        task_completion_status: Unknown
+        training_type: Unknown
+        CKPT_FILENAME: Unknown
+        architecture: Unknown
+        reward_rate: Unknown
     }
-    class obj_VlcPlayer {
-        <<instance: VlcPlayer>>
+    class obj_Task_DataParams {
+        <<instance: Task_DataParams>>
     }
-    class obj_Beverage {
-        <<instance: Beverage>>
+    class obj_Task_Factory {
+        <<instance: Task_Factory>>
     }
-    class obj_CondimentDecorator {
-        <<instance: CondimentDecorator>>
-        beverage: Beverage
+    class obj_Task_ModelParams {
+        <<instance: Task_ModelParams>>
+        NUM_EPOCHS: Unknown
+        input_tensor_name: Unknown
+        output_tensor_name: Unknown
+        MODEL_FILENAME: Unknown
     }
-    class obj_Espresso {
-        <<instance: Espresso>>
+    class obj_task_DTO {
+        <<instance: task_DTO>>
+        current_task_Id: Unknown
+        list_task_Id: Unknown
     }
-    class obj_Mocha {
-        <<instance: Mocha>>
+    class obj_Image_InferenceValidator {
+        <<instance: Image_InferenceValidator>>
+        TAG: Unknown
+        pair: Unknown
+        imageTask: Unknown
+        imageBatch: Unknown
+        shapeArray: Unknown
+        imgHeight: Unknown
+        imgWidth: Unknown
+        numClasses: Unknown
+        singleImageFloats: Unknown
+        inputBuffer: Unknown
+        outputBuffer: Unknown
+        logitsBuffer: Unknown
+        inputs: Unknown
+        outputs: Unknown
+        probs: Unknown
+        predictedClass: Unknown
+        confidence: Unknown
+        resultString: Unknown
     }
-    class obj_Whip {
-        <<instance: Whip>>
+    class obj_InferenceValidator {
+        <<instance: InferenceValidator>>
     }
-    class obj_AudioMixer {
-        <<instance: AudioMixer>>
+    class obj_InferenceValidator_Factory {
+        <<instance: InferenceValidator_Factory>>
     }
-    class obj_BitrateReader {
-        <<instance: BitrateReader>>
+    class obj_AboutUs_Fragment {
+        <<instance: AboutUs_Fragment>>
+        _binding: Unknown
+        binding: Unknown
     }
-    class obj_VideoConversionFacade {
-        <<instance: VideoConversionFacade>>
-        audioMixer: AudioMixer
-        bitrateReader: BitrateReader
+    class obj_DeviceAuthorization_Fragment {
+        <<instance: DeviceAuthorization_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+        isPasswordVisible: Unknown
+        currentUser: Unknown
+        msg: Unknown
+        customTypeface: Unknown
+        username: Unknown
+        email: Unknown
+        phone: Unknown
+        carrier: Unknown
+        password: Unknown
+        agreedToTerms: Unknown
+        loginData: Unknown
+    }
+    class obj_DeviceAuthorization_ViewModel {
+        <<instance: DeviceAuthorization_ViewModel>>
+        _authStatus: Unknown
+        authStatus: Unknown
+        globalState: Unknown
+        pollingJob: Unknown
+        regManager: Unknown
+        registeredDto: Unknown
+        serverDao: Unknown
+        success: Unknown
+        msg: Unknown
+        displayMsg: Unknown
+        auth: Unknown
+        verified: Unknown
+        maxAttempts: Unknown
+        currentUser: Unknown
+    }
+    class obj_LoginRegister_DTO {
+        <<instance: LoginRegister_DTO>>
+        username: Unknown
+        password: Unknown
+        email: Unknown
+        phoneNumber: Unknown
+        carrier: Unknown
+    }
+    class obj_DeviceUnregister_Fragment {
+        <<instance: DeviceUnregister_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+        selectedScreenshots: Unknown
+        authStateListener: Unknown
+        pickImagesLauncher: Unknown
+        safeUris: Unknown
+        successCount: Unknown
+        bytes: Unknown
+        user: Unknown
+        title: Unknown
+        desc: Unknown
+        agreedToTerms: Unknown
+        wantsToUnregister: Unknown
+        dto: Unknown
+        context: Unknown
+        originalBitmap: Unknown
+        source: Unknown
+        maxSize: Unknown
+        width: Unknown
+        height: Unknown
+        bitmapRatio: Unknown
+        resizedBitmap: Unknown
+        stream: Unknown
+    }
+    class obj_DeviceUnregister_ViewModel {
+        <<instance: DeviceUnregister_ViewModel>>
+        _unregisterStatus: Unknown
+        unregisterStatus: Unknown
+        registrationManager: Unknown
+        globalState: Unknown
+        rawData: Unknown
+        serverDao: Unknown
+        registeredDto: Unknown
+        success: Unknown
+    }
+    class obj_Unregister_DTO {
+        <<instance: Unregister_DTO>>
+        problemTitle: Unknown
+        description: Unknown
+        screenshots: Unknown
+        wantsToUnregister: Unknown
+    }
+    class obj_ForgetPassword_DTO {
+        <<instance: ForgetPassword_DTO>>
+        email: Unknown
+        confirmationCode: Unknown
+        newPassword: Unknown
+    }
+    class obj_ForgetPassword_Fragment {
+        <<instance: ForgetPassword_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+        isEmailSent: Unknown
+        email: Unknown
+        dto: Unknown
+    }
+    class obj_ForgetPassword_ViewModel {
+        <<instance: ForgetPassword_ViewModel>>
+        _resetStatus: Unknown
+        resetStatus: Unknown
+        globalState: Unknown
+        registeredDto: Unknown
+        serverDao: Unknown
+    }
+    class obj_GetStarted_Fragment {
+        <<instance: GetStarted_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        prefs: Unknown
+        navOptions: Unknown
+    }
+    class obj_WaveLayer {
+        <<instance: WaveLayer>>
+        freq: Unknown
+        speed: Unknown
+        ampPercentage: Unknown
+        offset: Unknown
+        currentTime: Unknown
+        deltaTime: Unknown
+        targetAmp: Unknown
+        isAnimating: Unknown
+        width: Unknown
+        centerY: Unknown
+        layer: Unknown
+        direction: Unknown
+        maxAvailableHeight: Unknown
+        currentLayerMaxPx: Unknown
+        baseThickness: Unknown
+        xf: Unknown
+        normalizedX: Unknown
+        rawSineSum: Unknown
+        yOffset: Unknown
+    }
+    class obj_UsageInsights_Fragment {
+        <<instance: UsageInsights_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+        sharedHomeViewModel: Unknown
+        formattedStatsMap: Unknown
+        isTrainingActive: Unknown
+    }
+    class obj_UsageInsights_ViewModel {
+        <<instance: UsageInsights_ViewModel>>
+        romUsage: Unknown
+        stat: Unknown
+        totalBytes: Unknown
+        availableBytes: Unknown
+    }
+    class obj_RegisteredInfo_Fragment {
+        <<instance: RegisteredInfo_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+    }
+    class obj_RegisteredInfo_ViewModel {
+        <<instance: RegisteredInfo_ViewModel>>
+        registrationManager: Unknown
+        globalState: Unknown
+        _deviceInfo: Unknown
+        deviceInfo: Unknown
+        cachedUsername: Unknown
+        cachedEmail: Unknown
+        cachedJoinedOn: Unknown
+        pollingJob: Unknown
+        auth: Unknown
+        user: Unknown
+        isVerified: Unknown
+        rawData: Unknown
+        serverDao: Unknown
+        finalData: Unknown
+        immediateUpdate: Unknown
+    }
+    class obj_Particle {
+        <<instance: Particle>>
+        x: Unknown
+        y: Unknown
+        vx: Unknown
+        vy: Unknown
+        radius: Unknown
+        isFront: Unknown
+        active: Unknown
+        maxParticles: Unknown
+        particles: Unknown
+        frameCallback: Unknown
+    }
+    class obj_RewardBank_Fragment {
+        <<instance: RewardBank_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+        user: Unknown
+        pulse: Unknown
+        openDrawer: Unknown
+        goToLogin: Unknown
+    }
+    class obj_RewardBank_ViewModel {
+        <<instance: RewardBank_ViewModel>>
+        INSTANCE: Unknown
+        PREFS_NAME: Unknown
+        prefs: Unknown
+        auth: Unknown
+        firestoreListener: Unknown
+        MAX_MB_LIMIT: Unknown
+        vaporMBs: Unknown
+        liquidMBs: Unknown
+        dateFormat: Unknown
+        lastActiveDate: Unknown
+        isFlushing: Unknown
+        vaporPercentage: Unknown
+        liquidPercentage: Unknown
+        displayGBs: Unknown
+        statusText: Unknown
+        authListener: Unknown
+        user: Unknown
+        timeTickReceiver: Unknown
+    }
+    class obj_Settings_Fragment {
+        <<instance: Settings_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+        config: Unknown
+    }
+    class obj_Settings_ViewModel {
+        <<instance: Settings_ViewModel>>
+        app: Unknown
+        globalState: Unknown
+        fileOps: Unknown
+        config: Unknown
+        serviceIntent: Unknown
+    }
+    class obj_TrainingLogger {
+        <<instance: TrainingLogger>>
+        consoleLogs: Unknown
+        currentStatus: Unknown
+        stepsText: Unknown
+        lossText: Unknown
+        current: Unknown
+        lines: Unknown
+        safeLines: Unknown
+    }
+    class obj_TrainingLogsDisplay_Fragment {
+        <<instance: TrainingLogsDisplay_Fragment>>
+        _binding: Unknown
+        binding: Unknown
+        viewModel: Unknown
+    }
+    class obj_GlobalState {
+        <<instance: GlobalState>>
+        appConfig: Unknown
+        server: Unknown
+        registrationManager: Unknown
+        currentTask: Unknown
+        packageTypeTrainerBuilder: Unknown
+        packageTypeTrainer: Unknown
+        flusher: Unknown
+        resourceStatistics: Unknown
+        resourceManager_Live_DTO: Unknown
+        resourceManager_Record_DTO: Unknown
+    }
+    class obj_GlobalUtils {
+        <<instance: GlobalUtils>>
+        fileOperations: Unknown
+    }
+    class obj_app_config {
+        <<instance: app_config>>
+        onWifi: Unknown
+        onData: Unknown
+        overNightUtilization: Unknown
+        idleTimeUtilization: Unknown
+        minChargeLimit: Unknown
+        maxChargeLimit: Unknown
+        onChargingExclusive: Unknown
+        isLoggedIn: Unknown
+    }
+    class obj_FractalTrainingService {
+        <<instance: FractalTrainingService>>
+        CHANNEL_ID: Unknown
+        NOTIFICATION_ID: Unknown
+        TAG: Unknown
+        currentStatusText: Unknown
+        lastProgress: Unknown
+        isCurrentlyDownloading: Unknown
+        trainingThread: Unknown
+        systemUiMode: Unknown
+        repo: Unknown
+        progress: Unknown
+        incomingText: Unknown
+        orchestrator: Unknown
+    }
+    class obj_Orchestrator {
+        <<instance: Orchestrator>>
+        context: Unknown
+        TAG: Unknown
+        globalState: Unknown
+        deviceId: Unknown
+        opControl: Unknown
+        task: Unknown
+        attemptCount: Unknown
+        downloadSuccess: Unknown
+        needsDownload: Unknown
+        modelFile: Unknown
+        imagesFile: Unknown
+        labelsFile: Unknown
+        latch: Unknown
+        pauseController: Unknown
     }

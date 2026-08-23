@@ -61,11 +61,11 @@ impl Phase3Stage {
 
         // Pass 4: Member Declaration Type Resolution
         log_info("Executing Pass 4: Member Declaration Type Assignment...");
-        Pass4Members::run(bpa, &mut builder);
+        Pass4Members::run(bpa, tca, &mut builder);
 
         // Pass 5: Type Hierarchy Construction
         log_info("Executing Pass 5: Type Hierarchy CSR & UML Association Detection...");
-        Pass5Hierarchy::run(bpa, &mut builder);
+        Pass5Hierarchy::run(bpa, tca, &mut builder);
         log_debug(&format!(
             "Pass 5 Derived: {} TH edges, {} UML association records",
             builder.th_edges.len(),

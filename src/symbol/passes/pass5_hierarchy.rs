@@ -1,17 +1,47 @@
 //! Pass 5 — Type Hierarchy Construction & UML Association Detection
 //! Builds E^TH CSR graph (TH_EXTENDS, TH_IMPLEMENTS, TH_USES) and detects UML field associations.
 
+use std::collections::HashMap;
+
 use crate::ast::BPASTArtifact;
 use crate::core::types::ast::ASTNodeType;
 use crate::core::types::symbol::{AssocKind, SymbolKind, THRelation, UMLAssociationRecord};
+use crate::core::types::token::unpack_sort_key;
+use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::builder::SymbolTableBuilder;
 use crate::symbol::uml_meta::AssociationDetector;
 
 pub struct Pass5Hierarchy;
 
 impl Pass5Hierarchy {
-    pub fn run(bpa: &BPASTArtifact, builder: &mut SymbolTableBuilder) {
-        // 1. Explicit inheritance (TH_EXTENDS & TH_IMPLEMENTS)
+    pub fn run(
+        bpa: &BPASTArtifact,
+        tca: &TokenCorpusArtifact,
+        builder: &mut SymbolTableBuilder,
+    ) {
+        // Build fast class/interface lookup map
+        let mut class_name_to_sym: HashMap<String, (u32, u8)> = HashMap::new();
+        for sym_id in 0..builder.symbol_count() as u32 {
+            if let Some(s) = builder.symbol(sym_id) {
+                let kind = SymbolKind::from(s.kind);
+                if matches!(
+                    kind,
+                    SymbolKind::SK_CLASS
+                        | SymbolKind::SK_INTERFACE
+                        | SymbolKind::SK_ENUM
+                        | SymbolKind::SK_RECORD
+                ) {
+                    let bytes = tca.interner.lookup_text(s.name_id);
+                    if let Ok(name) = std::str::from_utf8(bytes) {
+                        if !name.is_empty() {
+                            class_name_to_sym.insert(name.to_string(), (sym_id, s.kind));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1. Explicit AST-based inheritance (TH_EXTENDS & TH_IMPLEMENTS)
         for sym_id in 0..builder.symbol_count() as u32 {
             let (kind, decl_node) = match builder.symbol(sym_id) {
                 Some(s) => (s.kind, s.decl_node),
@@ -47,7 +77,76 @@ impl Pass5Hierarchy {
             }
         }
 
-        // 2. Field-based dependencies (TH_USES & UML associations)
+        // 2. Token-level inheritance discovery for Kotlin & Multi-lang classes
+        for sym_id in 0..builder.symbol_count() as u32 {
+            let (kind, first_token) = match builder.symbol(sym_id) {
+                Some(s) => (s.kind, s.first_token_id),
+                None => continue,
+            };
+
+            if first_token == u32::MAX || (first_token as usize) >= tca.token_records.len() {
+                continue;
+            }
+
+            if kind == SymbolKind::SK_CLASS as u8
+                || kind == SymbolKind::SK_INTERFACE as u8
+                || kind == SymbolKind::SK_RECORD as u8
+            {
+                let rec = &tca.token_records[first_token as usize];
+                let cur_fid = unpack_sort_key(rec.sort_key).0;
+
+                let mut lookahead = (first_token as usize) + 1;
+                let limit = (first_token as usize) + 60;
+
+                let mut in_supertypes = false;
+
+                while lookahead < tca.token_records.len() && lookahead < limit {
+                    let next_rec = &tca.token_records[lookahead];
+                    if unpack_sort_key(next_rec.sort_key).0 != cur_fid {
+                        break;
+                    }
+
+                    let bytes = tca.interner.lookup_text(next_rec.text_id);
+                    if bytes == b"{" || bytes == b";" {
+                        break;
+                    }
+
+                    if bytes == b":" || bytes == b"extends" || bytes == b"implements" {
+                        in_supertypes = true;
+                        lookahead += 1;
+                        continue;
+                    }
+
+                    if in_supertypes {
+                        if let Ok(text) = std::str::from_utf8(bytes) {
+                            let clean_name = text
+                                .trim()
+                                .trim_end_matches('?')
+                                .trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+
+                            if !clean_name.is_empty()
+                                && !matches!(clean_name, "class" | "fun" | "val" | "var" | "override" | "public" | "private" | "open" | "data")
+                            {
+                                if let Some(&(target_sym, target_kind)) = class_name_to_sym.get(clean_name) {
+                                    if target_sym != sym_id {
+                                        let relation = if target_kind == SymbolKind::SK_INTERFACE as u8 {
+                                            THRelation::TH_IMPLEMENTS
+                                        } else {
+                                            THRelation::TH_EXTENDS
+                                        };
+                                        builder.add_th_edge(sym_id, target_sym, relation);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    lookahead += 1;
+                }
+            }
+        }
+
+        // 3. Field-based dependencies (TH_USES & UML associations)
         for sym_id in 0..builder.symbol_count() as u32 {
             let (kind, type_id, owner_sym_id, name_id) = match builder.symbol(sym_id) {
                 Some(s) => (s.kind, s.type_id, s.parent_sym, s.name_id),
@@ -79,25 +178,29 @@ impl Pass5Hierarchy {
                     builder,
                     bpa,
                 );
-                if assoc_kind != AssocKind::None {
-                    let record = UMLAssociationRecord {
-                        from_symbol_id: owner_sym_id,
-                        to_symbol_id: type_id,
-                        field_symbol_id: sym_id,
-                        assoc_kind: assoc_kind as u8,
-                        mult_min: 0,
-                        mult_max: if assoc_kind == AssocKind::Aggregation {
-                            u16::MAX
-                        } else {
-                            1
-                        },
-                        is_navigable: 1,
-                        role_name_id: name_id,
-                        _reserved: 0,
-                        _padding: 0,
-                    };
-                    builder.add_association(record);
-                }
+                let effective_kind = if assoc_kind == AssocKind::None {
+                    AssocKind::Association
+                } else {
+                    assoc_kind
+                };
+
+                let record = UMLAssociationRecord {
+                    from_symbol_id: owner_sym_id,
+                    to_symbol_id: type_id,
+                    field_symbol_id: sym_id,
+                    assoc_kind: effective_kind as u8,
+                    mult_min: 0,
+                    mult_max: if effective_kind == AssocKind::Aggregation {
+                        u16::MAX
+                    } else {
+                        1
+                    },
+                    is_navigable: 1,
+                    role_name_id: name_id,
+                    _reserved: 0,
+                    _padding: 0,
+                };
+                builder.add_association(record);
             }
         }
     }

@@ -81,6 +81,29 @@ impl JSONExporter {
         clean
     }
 
+    fn clean_type_name(raw: &str) -> String {
+        let mut s = raw.trim();
+        s = s.trim_end_matches('?');
+        // Handle generics like List<Task>, Map<String, Task>, Array<Task>
+        if let Some(start) = s.find('<') {
+            if let Some(end) = s.rfind('>') {
+                if end > start + 1 {
+                    let inner = &s[start + 1..end];
+                    if let Some(comma_pos) = inner.rfind(',') {
+                        s = inner[comma_pos + 1..].trim();
+                    } else {
+                        s = inner.trim();
+                    }
+                }
+            }
+        }
+        // Handle package prefixes like AppBackend.TaskContainer.Task
+        if let Some(dot_pos) = s.rfind('.') {
+            s = &s[dot_pos + 1..];
+        }
+        Self::sanitize(s)
+    }
+
     // ── 1. CLASS DIAGRAM GRAPH IR ─────────────────────────────────────────────
     pub fn export_class_diagram(
         uma: &UMLMetadataArtifact,
@@ -90,6 +113,7 @@ impl JSONExporter {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
         let mut edge_id_counter = 0;
+        let mut seen_edges: HashSet<(String, String, String)> = HashSet::new();
 
         let mut package_classes: HashMap<String, Vec<&ClassRecord>> = HashMap::new();
         for class_rec in &uma.classes {
@@ -99,6 +123,15 @@ impl JSONExporter {
         }
 
         let mut registered_packages = HashSet::new();
+        // Collect all declared class names to prevent dangling edges to external SDK types
+        let mut declared_classes: HashSet<String> = HashSet::new();
+        for class_rec in &uma.classes {
+            let name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.sym_id));
+            if !name.is_empty() {
+                declared_classes.insert(name);
+            }
+        }
+
         for (pkg_path, classes) in &package_classes {
             let parts: Vec<&str> = pkg_path.split('.').collect();
             let mut path_acc = String::new();
@@ -224,41 +257,73 @@ impl JSONExporter {
                     instructions: vec![],
                 });
 
+                // 1. Generalization (--|>)
                 if class_rec.extends_sym != u32::MAX {
-                    let base_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, class_rec.extends_sym));
-                    if !base_name.is_empty() {
-                        edge_id_counter += 1;
-                        edges.push(GraphEdgeIR {
-                            id: format!("edge_{}", edge_id_counter),
-                            source: name.clone(),
-                            target: base_name,
-                            kind: "generalization".to_string(),
-                            label: None,
-                            arrow: "--|>".to_string(),
-                        });
+                    let raw_base = PlantUMLExporter::resolve_name(sta, tca, class_rec.extends_sym);
+                    let base_name = Self::clean_type_name(raw_base);
+                    if !base_name.is_empty() && base_name != name && declared_classes.contains(&base_name) {
+                        let key = (name.clone(), base_name.clone(), "generalization".to_string());
+                        if seen_edges.insert(key) {
+                            edge_id_counter += 1;
+                            edges.push(GraphEdgeIR {
+                                id: format!("edge_{}", edge_id_counter),
+                                source: name.clone(),
+                                target: base_name,
+                                kind: "generalization".to_string(),
+                                label: None,
+                                arrow: "--|>".to_string(),
+                            });
+                        }
                     }
                 }
 
+                // 2. Realization (..|>)
                 for iface_sym in &class_rec.implements_syms {
-                    let iface_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, *iface_sym));
-                    if !iface_name.is_empty() {
-                        edge_id_counter += 1;
-                        edges.push(GraphEdgeIR {
-                            id: format!("edge_{}", edge_id_counter),
-                            source: name.clone(),
-                            target: iface_name,
-                            kind: "realization".to_string(),
-                            label: None,
-                            arrow: "..|>".to_string(),
-                        });
+                    let raw_iface = PlantUMLExporter::resolve_name(sta, tca, *iface_sym);
+                    let iface_name = Self::clean_type_name(raw_iface);
+                    if !iface_name.is_empty() && iface_name != name && declared_classes.contains(&iface_name) {
+                        let key = (name.clone(), iface_name.clone(), "realization".to_string());
+                        if seen_edges.insert(key) {
+                            edge_id_counter += 1;
+                            edges.push(GraphEdgeIR {
+                                id: format!("edge_{}", edge_id_counter),
+                                source: name.clone(),
+                                target: iface_name,
+                                kind: "realization".to_string(),
+                                label: None,
+                                arrow: "..|>".to_string(),
+                            });
+                        }
                     }
                 }
 
+                // 3. Inner Class Containment / Nesting (+--)
+                for &inner_sym in &class_rec.inner_classes {
+                    let raw_inner = PlantUMLExporter::resolve_name(sta, tca, inner_sym);
+                    let inner_name = Self::clean_type_name(raw_inner);
+                    if !inner_name.is_empty() && inner_name != name && declared_classes.contains(&inner_name) {
+                        let key = (name.clone(), inner_name.clone(), "composition".to_string());
+                        if seen_edges.insert(key) {
+                            edge_id_counter += 1;
+                            edges.push(GraphEdgeIR {
+                                id: format!("edge_{}", edge_id_counter),
+                                source: name.clone(),
+                                target: inner_name,
+                                kind: "composition".to_string(),
+                                label: Some("<<contains>>".to_string()),
+                                arrow: "+--".to_string(),
+                            });
+                        }
+                    }
+                }
+
+                // 4. Field Associations, Aggregations, Compositions
                 for f in &class_rec.fields {
                     if f.type_sym_id != u32::MAX {
-                        let target_name = Self::sanitize(PlantUMLExporter::resolve_name(sta, tca, f.type_sym_id));
-                        if !target_name.is_empty() && target_name != name {
-                            let (kind, arrow) = if f.is_collection != 0 {
+                        let raw_target = PlantUMLExporter::resolve_name(sta, tca, f.type_sym_id);
+                        let target_name = Self::clean_type_name(raw_target);
+                        if !target_name.is_empty() && target_name != name && declared_classes.contains(&target_name) {
+                            let (kind, arrow) = if f.is_collection != 0 || raw_target.contains("List") || raw_target.contains("Set") || raw_target.contains("Array") {
                                 ("aggregation", "o--")
                             } else if (f.modifiers & 0x02) != 0 {
                                 ("composition", "*--")
@@ -266,14 +331,37 @@ impl JSONExporter {
                                 ("association", "-->")
                             };
 
+                            let key = (name.clone(), target_name.clone(), kind.to_string());
+                            if seen_edges.insert(key) {
+                                edge_id_counter += 1;
+                                edges.push(GraphEdgeIR {
+                                    id: format!("edge_{}", edge_id_counter),
+                                    source: name.clone(),
+                                    target: target_name,
+                                    kind: kind.to_string(),
+                                    label: None,
+                                    arrow: arrow.to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // 5. Explicit Association Syms from UMA
+                for &assoc_sym in &class_rec.association_syms {
+                    let raw_assoc = PlantUMLExporter::resolve_name(sta, tca, assoc_sym);
+                    let target_name = Self::clean_type_name(raw_assoc);
+                    if !target_name.is_empty() && target_name != name && declared_classes.contains(&target_name) {
+                        let key = (name.clone(), target_name.clone(), "association".to_string());
+                        if seen_edges.insert(key) {
                             edge_id_counter += 1;
                             edges.push(GraphEdgeIR {
                                 id: format!("edge_{}", edge_id_counter),
                                 source: name.clone(),
                                 target: target_name,
-                                kind: kind.to_string(),
+                                kind: "association".to_string(),
                                 label: None,
-                                arrow: arrow.to_string(),
+                                arrow: "-->".to_string(),
                             });
                         }
                     }

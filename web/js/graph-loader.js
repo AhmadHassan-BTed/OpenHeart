@@ -112,8 +112,11 @@ export function loadGraphIrToCytoscape(graphIr) {
     elements.push(cytoscapeNode);
   });
 
-  // 2. Ingest Edges Directly from Typed Schema
+  // 2. Ingest Edges Directly from Typed Schema (Filter dangling edges to external SDK symbols)
   (graphIr.edges || []).forEach((edge, idx) => {
+    if (!nodeMap.has(edge.source) || !nodeMap.has(edge.target)) {
+      return;
+    }
     elements.push({
       data: {
         id: edge.id || `edge_${idx}_${edge.source}_${edge.target}`,

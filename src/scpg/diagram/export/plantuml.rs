@@ -702,9 +702,10 @@ skinparam UsecaseFontColor #ffffff\n\n"
 
         fn render_pkg_tree(node: &PkgTreeNode, indent: &str, out: &mut String) {
             let pkg_alias = format!("pkg_{}", node.full_path.replace(['.', '/', '-'], "_"));
+            let leaf_name = node.full_path.split('.').last().unwrap_or(&node.full_path);
             out.push_str(&format!(
                 "{}package \"{}\" as {} {{\n",
-                indent, node.full_path, pkg_alias
+                indent, leaf_name, pkg_alias
             ));
 
             let child_indent = format!("{}  ", indent);

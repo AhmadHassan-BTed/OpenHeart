@@ -1,17 +1,20 @@
 graph TD
-    subgraph Scenario_PaymentStrategy["Scenario: PaymentStrategy"]
-        Disp_update["dispatch update()"]
+    subgraph Scenario_AppFrontend["Scenario: AppFrontend"]
+        Disp_onUploadSuccess["dispatch onUploadSuccess()"]
     end
 
-    subgraph Scenario_String["Scenario: String"]
-        Disp_attach["dispatch attach()"]
+    subgraph Scenario_Suppress["Scenario: Suppress"]
+        Disp_run["dispatch run()"]
+        Disp_startLiveUpdates["dispatch startLiveUpdates()"]
+        Disp_startLiveUpdates["dispatch startLiveUpdates()"]
+        Disp_startLiveUpdates["dispatch startLiveUpdates()"]
     end
 
-    subgraph Scenario_pay["Scenario: pay"]
-        Disp_detach["dispatch detach()"]
+    subgraph Scenario_if["Scenario: if"]
+        Disp_POST_Ping["dispatch POST_Ping()"]
     end
 
-    subgraph Scenario_name["Scenario: name"]
-        Disp_notifyObservers["dispatch notifyObservers()"]
+    subgraph Scenario_AppFrontend["Scenario: AppFrontend"]
+        Disp_isPaused["dispatch isPaused()"]
     end
 

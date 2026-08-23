@@ -48,7 +48,7 @@ skinparam UsecaseFontColor #ffffff
 
 title Reduced Ordered BDD (ROBDD) & Shannon Decision Gates
 
-state "ROBDD Path Summary: NewsAgency.setNews()\n[#SAT Paths: 2 | Cyclomatic V(G): 1]" as BDD_NewsAgency_setNews {
+state "ROBDD Path Summary: Image_DataInitializer_Factory.createDataInitializer()\n[#SAT Paths: 2 | Cyclomatic V(G): 1]" as BDD_Image_DataInitializer_Factory_createDataInitializer {
   state "Gate x₀ (Branch 0)" as Node_x0 <<choice>>
   state "Gate x₁ (Branch 1)" as Node_x1 <<choice>>
   state "1 (Feasible Path)" as Term_1 #065f46
@@ -61,7 +61,7 @@ state "ROBDD Path Summary: NewsAgency.setNews()\n[#SAT Paths: 2 | Cyclomatic V(G
   Node_x1 ..> Term_0 : [x₁ = 0] (infeasible path)
 }
 
-state "ROBDD Path Summary: NewsAgency.attach()\n[#SAT Paths: 2 | Cyclomatic V(G): 1]" as BDD_NewsAgency_attach {
+state "ROBDD Path Summary: Image_DataInitializer_Factory.createDataInitializer()\n[#SAT Paths: 1 | Cyclomatic V(G): 1]" as BDD_Image_DataInitializer_Factory_createDataInitializer {
   state "Gate x₀ (Branch 0)" as Node_x0 <<choice>>
   state "Gate x₁ (Branch 1)" as Node_x1 <<choice>>
   state "1 (Feasible Path)" as Term_1 #065f46
@@ -74,7 +74,7 @@ state "ROBDD Path Summary: NewsAgency.attach()\n[#SAT Paths: 2 | Cyclomatic V(G)
   Node_x1 ..> Term_0 : [x₁ = 0] (infeasible path)
 }
 
-state "ROBDD Path Summary: NewsChannel.update()\n[#SAT Paths: 2 | Cyclomatic V(G): 1]" as BDD_NewsChannel_update {
+state "ROBDD Path Summary: Image_Trainer_Factory.createTrainer()\n[#SAT Paths: 2 | Cyclomatic V(G): 1]" as BDD_Image_Trainer_Factory_createTrainer {
   state "Gate x₀ (Branch 0)" as Node_x0 <<choice>>
   state "Gate x₁ (Branch 1)" as Node_x1 <<choice>>
   state "1 (Feasible Path)" as Term_1 #065f46
@@ -87,7 +87,33 @@ state "ROBDD Path Summary: NewsChannel.update()\n[#SAT Paths: 2 | Cyclomatic V(G
   Node_x1 ..> Term_0 : [x₁ = 0] (infeasible path)
 }
 
-state "ROBDD Path Summary: Observer.update()\n[#SAT Paths: 1 | Cyclomatic V(G): 1]" as BDD_Observer_update {
+state "ROBDD Path Summary: Image_Trainer_Factory.createTrainer()\n[#SAT Paths: 1 | Cyclomatic V(G): 1]" as BDD_Image_Trainer_Factory_createTrainer {
+  state "Gate x₀ (Branch 0)" as Node_x0 <<choice>>
+  state "Gate x₁ (Branch 1)" as Node_x1 <<choice>>
+  state "1 (Feasible Path)" as Term_1 #065f46
+  state "0 (Infeasible Sink)" as Term_0 #7f1d1d
+
+  [*] --> Node_x0
+  Node_x0 --> Node_x1 : [x₀ = 1] (high/solid)
+  Node_x0 ..> Term_0 : [x₀ = 0] (low/dashed)
+  Node_x1 --> Term_1 : [x₁ = 1] (feasible path)
+  Node_x1 ..> Term_0 : [x₁ = 0] (infeasible path)
+}
+
+state "ROBDD Path Summary: CheckpointManager.createCheckpoint()\n[#SAT Paths: 2 | Cyclomatic V(G): 1]" as BDD_CheckpointManager_createCheckpoint {
+  state "Gate x₀ (Branch 0)" as Node_x0 <<choice>>
+  state "Gate x₁ (Branch 1)" as Node_x1 <<choice>>
+  state "1 (Feasible Path)" as Term_1 #065f46
+  state "0 (Infeasible Sink)" as Term_0 #7f1d1d
+
+  [*] --> Node_x0
+  Node_x0 --> Node_x1 : [x₀ = 1] (high/solid)
+  Node_x0 ..> Term_0 : [x₀ = 0] (low/dashed)
+  Node_x1 --> Term_1 : [x₁ = 1] (feasible path)
+  Node_x1 ..> Term_0 : [x₁ = 0] (infeasible path)
+}
+
+state "ROBDD Path Summary: CheckpointManager.loadCheckpoint()\n[#SAT Paths: 6 | Cyclomatic V(G): 2]" as BDD_CheckpointManager_loadCheckpoint {
   state "Gate x₀ (Branch 0)" as Node_x0 <<choice>>
   state "Gate x₁ (Branch 1)" as Node_x1 <<choice>>
   state "1 (Feasible Path)" as Term_1 #065f46
