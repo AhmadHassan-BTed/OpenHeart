@@ -190,21 +190,21 @@ export class GitHubEngine {
       });
     }
 
-    // Match class / interface / enum / trait / struct declarations
-    const classRegex = /(?:public\s+|protected\s+|private\s+|abstract\s+|final\s+|static\s+|open\s+|data\s+|sealed\s+)*(class|interface|enum|trait|struct|record)\s+([A-Za-z0-9_]+)(?:<[^>]+>)?(?:\s+(?:extends|implements|:)\s+([A-Za-z0-9_<>, ]+))?\s*\{/g;
-    
+    // 2. Comprehensive Multi-Language Class/Interface/Record/Trait Regex
+    const classDeclRegex = /(?:export\s+)?(?:public\s+|private\s+|protected\s+)?(?:abstract\s+|sealed\s+|final\s+)?(class|interface|enum|record|trait|struct|type)\s+([A-Za-z0-9_]+)(?:<[^>]*>)?(?:\s*(?:extends|implements|permits|:)\s*([A-Za-z0-9_,\s<>\?]+))?\s*\{/g;
     let match;
     let foundInFile = 0;
-    while ((match = classRegex.exec(code)) !== null) {
+
+    while ((match = classDeclRegex.exec(code)) !== null) {
       foundInFile++;
-      let kind = match[1]; // class, interface, enum, trait, struct, record
-      if (kind === 'trait' || kind === 'record') kind = 'interface';
+      let kind = match[1]; // class, interface, enum, trait, struct, record, type
+      if (kind === 'trait' || kind === 'record' || kind === 'type') kind = 'interface';
       if (kind === 'struct') kind = 'class';
 
       const className = match[2];
       const heritage = match[3] || '';
       
-      const heritageParts = heritage.split(',').map(s => s.trim().split('<')[0].replace(/extends|implements/g, '').trim()).filter(Boolean);
+      const heritageParts = heritage.split(',').map(s => s.trim().split('<')[0].replace(/extends|implements|permits/g, '').trim()).filter(Boolean);
       const extendsClause = heritageParts.length > 0 ? heritageParts[0] : null;
       const implementsClause = heritageParts.slice(1);
 

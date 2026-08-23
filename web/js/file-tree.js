@@ -161,12 +161,15 @@ export class FileTreeExplorer {
       label.className = 'tree-file-label';
       label.textContent = node.name;
 
+      row.setAttribute('data-node-id', node.nodeId || '');
+      row.setAttribute('data-file-name', node.name || '');
+
       row.appendChild(badge);
       row.appendChild(label);
 
       row.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.selectFile(node.name);
+        this.selectFile(node.name, node.nodeId);
         if (this.onFileSelect) {
           this.onFileSelect(node.name, node);
         }
@@ -178,15 +181,19 @@ export class FileTreeExplorer {
     return wrapper;
   }
 
-  selectFile(fileName) {
+  selectFile(fileName, nodeId = null) {
     this.activeFile = fileName;
     if (!this.container) return;
 
     const allFileRows = this.container.querySelectorAll('.tree-file-row');
     allFileRows.forEach(r => {
-      const label = r.querySelector('.tree-file-label');
-      if (label && label.textContent === fileName) {
+      const rowNodeId = r.getAttribute('data-node-id');
+      const rowFileName = r.getAttribute('data-file-name');
+      const isMatch = (nodeId && rowNodeId === nodeId) || (rowFileName === fileName);
+
+      if (isMatch) {
         r.classList.add('active');
+        r.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         let parent = r.parentElement;
         while (parent && parent !== this.container) {
           if (parent.classList.contains('tree-children')) {

@@ -280,6 +280,59 @@ export class SourceEditorModule {
       }
     });
 
+    // Check for special compiler pipeline and behavioral IR nodes
+    if (kind === 'bb') {
+      let out = `// ── Basic Block Control Flow IR ──\n`;
+      out += `block ${nodeData.id} [${nodeData.name || 'Block'}] {\n`;
+      const insts = nodeData.instructions || [];
+      if (insts.length > 0) {
+        insts.forEach((inst, idx) => {
+          out += `    ${String(idx + 1).padStart(2, '0')}: ${inst};\n`;
+        });
+      } else {
+        out += `    01: nop;\n`;
+      }
+      out += `}\n`;
+      return out;
+    }
+
+    if (kind === 'state') {
+      let out = `// ── UML 2.5 State Machine Specification ──\n`;
+      out += `state ${className} {\n`;
+      const insts = nodeData.instructions || [];
+      if (insts.length > 0) {
+        insts.forEach(inst => {
+          out += `    ${inst}\n`;
+        });
+      } else {
+        out += `    entry / logState("${className}")\n`;
+        out += `    do / processQueue()\n`;
+        out += `    exit / notifyCompleted()\n`;
+      }
+      out += `}\n`;
+      return out;
+    }
+
+    if (kind === 'timing_track') {
+      let out = `// ── UML 2.5 Timing Waveform Specification ──\n`;
+      out += `lifeline "${nodeData.name || className}" {\n`;
+      const insts = nodeData.instructions || [];
+      insts.forEach(inst => {
+        out += `    ${inst}\n`;
+      });
+      out += `}\n`;
+      return out;
+    }
+
+    if (kind === 'bdd_gate' || kind === 'bdd_terminal') {
+      let out = `// ── Reduced Ordered Binary Decision Diagram (ROBDD) ──\n`;
+      out += `node ${nodeData.id} {\n`;
+      out += `    variable: "${nodeData.name || nodeData.label || 'x'}"\n`;
+      out += `    saturated_paths: ${nodeData.bddSatCount || 1}\n`;
+      out += `}\n`;
+      return out;
+    }
+
     // Generate Java/Kotlin AST code with full signatures
     let out = `package ${pkg};\n\n`;
     out += `import java.util.*;\n`;
