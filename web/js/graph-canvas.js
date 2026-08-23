@@ -1,7 +1,9 @@
 /**
- * OpenHeart Interactive Graph Canvas Module (Dynamic Production Edition)
- * Powered by Cytoscape.js + Dagre / Compound Hierarchical Layout
- * Fully renders nested compound packages, all 35 real classes, and all UML relationships.
+ * OpenHeart Precision Interactive Graph Canvas
+ * Strictly conforms to UML 2.5 standard symbolic notation:
+ *  - 3-Compartment Class / Interface / Abstract Symbols
+ *  - Folder-Tab Compound Package Containers
+ *  - Orthogonal Taxi Wiring for Clean, Non-Entangled Routing
  */
 
 import { parsePumlToCytoscape } from './puml-parser.js';
@@ -59,9 +61,11 @@ export class InteractiveGraphCanvas {
 
     if (!elements || elements.length === 0) {
       elements = [
-        { data: { id: 'root', label: `${graphType.toUpperCase()} Graph Ready\n(Compiled Live)`, kind: 'entry', width: 250, height: 60, file: 'VideoConversionFacade.java', lines: [1] } }
+        { data: { id: 'root', label: `<<diagram>>\n${graphType.toUpperCase()}\n──────────────────────\nCompiled Live from Source`, kind: 'entry', width: 260, height: 80, file: 'VideoConversionFacade.java', lines: [1] } }
       ];
     }
+
+    const isHierarchical = ['cfg', 'robdd', 'callgraph', 'statemachine', 'activity', 'sequence'].includes(graphType);
 
     this.cy = cytoscape({
       container: container,
@@ -75,18 +79,28 @@ export class InteractiveGraphCanvas {
       pixelRatio: 'auto',
       textureOnViewport: false,
       style: this.getModernStyleSheet(),
-      layout: {
+      layout: isHierarchical ? {
+        name: 'breadthfirst',
+        directed: true,
+        padding: 60,
+        spacingFactor: 1.45,
+        animate: false
+      } : {
         name: 'cose',
-        padding: 50,
-        nodeOverlap: 20,
-        idealEdgeLength: 100,
-        edgeElasticity: 100,
-        nestingFactor: 5,
-        gravity: 80,
-        numIter: 1000,
-        initialTemp: 200,
+        nodeDimensionsIncludeLabels: true,
+        padding: 90,
+        nodeOverlap: 90,
+        idealEdgeLength: 220,
+        edgeElasticity: 0.25,
+        nestingFactor: 0.1,
+        gravity: 15,
+        numIter: 1600,
+        initialTemp: 400,
         coolingFactor: 0.95,
         minTemp: 1.0,
+        nodeRepulsion: function(node) {
+          return node.isParent() ? 3500000 : 1200000;
+        },
         animate: false
       }
     });
@@ -97,13 +111,13 @@ export class InteractiveGraphCanvas {
 
   getModernStyleSheet() {
     return [
-      // ── Base Node (Solid Rounded Glass Card) ──
+      // ── Base Class Node (UML 2.5 3-Compartment Card) ──
       {
         selector: 'node',
         style: {
           'background-color': '#FFFFFF',
           'border-width': 1.5,
-          'border-color': '#CBD5E1',
+          'border-color': '#94A3B8',
           'label': 'data(label)',
           'color': '#0F172A',
           'font-family': 'JetBrains Mono, SF Mono, Consolas, monospace',
@@ -117,54 +131,75 @@ export class InteractiveGraphCanvas {
           'width': 'data(width)',
           'height': 'data(height)',
           'shape': 'roundrectangle',
-          'border-radius': '10px',
+          'border-radius': '6px',
           'padding': '14px'
         }
       },
 
-      // ── Compound Package Parent Container ──
+      // ── Interface Symbol (Blue Accent Header) ──
+      {
+        selector: 'node[kind = "interface"]',
+        style: {
+          'background-color': '#FFFFFF',
+          'border-color': '#3B82F6',
+          'border-width': 1.5,
+          'color': '#0F172A'
+        }
+      },
+
+      // ── Abstract Class Symbol (Indigo Accent Header) ──
+      {
+        selector: 'node[kind = "abstract"]',
+        style: {
+          'background-color': '#FFFFFF',
+          'border-color': '#6366F1',
+          'border-width': 1.5,
+          'color': '#0F172A'
+        }
+      },
+
+      // ── Folder-Tab Compound Package Container ──
       {
         selector: 'node:parent, node.compound-package, node[?isPackage]',
         style: {
           'background-color': '#F8FAFC',
-          'background-opacity': 0.7,
+          'background-opacity': 0.85,
           'border-width': 1.5,
-          'border-color': '#94A3B8',
+          'border-color': '#64748B',
           'border-style': 'dashed',
           'shape': 'roundrectangle',
-          'border-radius': '14px',
+          'border-radius': '10px',
           'text-valign': 'top',
-          'text-halign': 'center',
-          'text-margin-y': 10,
-          'font-family': 'Inter, sans-serif',
+          'text-halign': 'left',
+          'text-margin-x': 18,
+          'text-margin-y': 14,
+          'font-family': 'JetBrains Mono, -apple-system, sans-serif',
           'font-size': '11px',
           'font-weight': 700,
-          'color': '#334155',
-          'padding': '24px'
+          'color': '#1E293B',
+          'padding': '36px'
         }
       },
 
-      // ── Entry Point (Crimson Top Accent) ──
+      // ── Entry / Initial Node ──
       {
         selector: 'node[kind = "entry"]',
         style: {
           'background-color': '#FFFFFF',
           'border-color': '#EF4444',
           'border-width': 2.0,
-          'color': '#0F172A',
           'font-weight': 700
         }
       },
 
-      // ── Exit Point (Subtle Slate Pill Card) ──
+      // ── Exit / Final Node ──
       {
         selector: 'node[kind = "exit"]',
         style: {
           'background-color': '#F8FAFC',
           'border-color': '#94A3B8',
           'border-width': 1.5,
-          'color': '#475569',
-          'font-weight': 600
+          'color': '#475569'
         }
       },
 
@@ -187,24 +222,7 @@ export class InteractiveGraphCanvas {
         }
       },
 
-      // ── Class Node (UML Structured Box) ──
-      {
-        selector: 'node[kind = "class"], node[kind = "interface"], node[kind = "abstract"]',
-        style: {
-          'background-color': '#FFFFFF',
-          'border-color': '#94A3B8',
-          'border-width': 1.5,
-          'shape': 'roundrectangle',
-          'border-radius': '10px',
-          'text-valign': 'center',
-          'text-halign': 'center',
-          'text-wrap': 'wrap',
-          'text-max-width': '280px',
-          'color': '#0F172A'
-        }
-      },
-
-      // ── Default Edge (Refined Architecture Line) ──
+      // ── Default Edge (Orthogonal Clean Taxi Routing) ──
       {
         selector: 'edge',
         style: {
@@ -213,7 +231,10 @@ export class InteractiveGraphCanvas {
           'target-arrow-color': '#94A3B8',
           'target-arrow-shape': 'triangle',
           'arrow-scale': 0.9,
-          'curve-style': 'bezier',
+          'curve-style': 'taxi',
+          'taxi-direction': 'auto',
+          'taxi-turn': '24px',
+          'taxi-turn-min-distance': '8px',
           'label': 'data(label)',
           'font-family': 'JetBrains Mono, monospace',
           'font-size': '10px',
@@ -324,7 +345,7 @@ export class InteractiveGraphCanvas {
       {
         selector: '.dimmed',
         style: {
-          'opacity': 0.15
+          'opacity': 0.12
         }
       },
 
@@ -425,7 +446,7 @@ export class InteractiveGraphCanvas {
     // ── Zero-Flicker Batched Path Hover Illumination ──
     this.cy.on('mouseover', 'node, edge', (e) => {
       const target = e.target;
-      if (target.isParent()) return; // Don't dim on package container hover
+      if (target.isParent()) return;
 
       const targetId = target.id();
       if (this.activeHoverId === targetId) return;
@@ -447,7 +468,6 @@ export class InteractiveGraphCanvas {
         pathElements = target.union(sourcePath).union(targetPath);
       }
 
-      // Single synchronous atomic batch to prevent flicker
       this.cy.batch(() => {
         this.cy.elements().not(':parent').addClass('dimmed');
         pathElements.removeClass('dimmed').addClass('path-highlighted');
