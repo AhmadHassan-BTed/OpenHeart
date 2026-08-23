@@ -92,6 +92,70 @@ impl OpenHeartServer {
         } else if is_get_or_head && clean_path == "/api/version" {
             let json = r#"{"version":"0.1.0","build":"production","release_date":"2026-08-22"}"#;
             Self::respond_json(stream, 200, json);
+        } else if is_get_or_head && clean_path == "/api/source" {
+            let mut file_query = String::new();
+            if let Some(pos) = raw_path.find('?') {
+                let query = &raw_path[pos + 1..];
+                for pair in query.split('&') {
+                    let mut kv = pair.split('=');
+                    if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
+                        if k == "file" || k == "path" {
+                            file_query = v.to_string();
+                        }
+                    }
+                }
+            }
+
+            let decoded_path = file_query.replace("%2F", "/").replace("%20", " ").replace("%2B", "+");
+            let file_name = Path::new(&decoded_path).file_name().and_then(|n| n.to_str()).unwrap_or(&decoded_path);
+
+            let mut found_content: Option<String> = None;
+            let direct_candidates = [
+                decoded_path.as_str(),
+                &format!("./{}", decoded_path),
+                &format!("./target_repos/FractalAndroid/{}", decoded_path),
+                &format!("./test_patterns_codebase/{}", decoded_path),
+                &format!("./test_patterns_codebase/com/patterns/structural/facade/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/behavioral/observer/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/behavioral/strategy/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/behavioral/templatemethod/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/creational/builder/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/creational/factory/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/creational/singleton/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/structural/adapter/{}", file_name),
+                &format!("./test_patterns_codebase/com/patterns/structural/decorator/{}", file_name),
+            ];
+
+            for candidate in &direct_candidates {
+                if let Ok(content) = fs::read_to_string(candidate) {
+                    found_content = Some(content);
+                    break;
+                }
+            }
+
+            if found_content.is_none() && !file_name.is_empty() {
+                for root in &["./target_repos", "./test_patterns_codebase", "./web"] {
+                    if let Ok(entries) = Self::walkdir_find(root, file_name) {
+                        if let Some(first_match) = entries.first() {
+                            if let Ok(content) = fs::read_to_string(first_match) {
+                                found_content = Some(content);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(content) = found_content {
+                let json = serde_json::json!({
+                    "found": true,
+                    "file": decoded_path,
+                    "content": content
+                }).to_string();
+                Self::respond_json(stream, 200, &json);
+            } else {
+                Self::respond_json(stream, 404, r#"{"found":false,"error":"Source file not found on server disk"}"#);
+            }
         } else if method == "POST" && clean_path == "/api/analyze" {
             let mut full_request = request.to_string();
             if !full_request.contains("\"repo_url\"") {
@@ -185,6 +249,34 @@ impl OpenHeartServer {
             json
         );
         let _ = stream.write_all(response.as_bytes());
+    }
+
+    fn walkdir_find(root_dir: &str, target_name: &str) -> std::io::Result<Vec<String>> {
+        let mut results = Vec::new();
+        let root = Path::new(root_dir);
+        if !root.exists() {
+            return Ok(results);
+        }
+        fn visit(dir: &Path, target: &str, out: &mut Vec<String>) {
+            if let Ok(entries) = fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        visit(&p, target, out);
+                    } else if p.is_file() {
+                        if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                            let stripped_target = target.trim_end_matches(".java").trim_end_matches(".kt");
+                            let stripped_name = name.trim_end_matches(".java").trim_end_matches(".kt");
+                            if name == target || stripped_name == stripped_target {
+                                out.push(p.to_string_lossy().to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        visit(root, target_name, &mut results);
+        Ok(results)
     }
 
     fn process_analyze_request(body: &str) -> String {
