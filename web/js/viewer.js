@@ -158,6 +158,14 @@ export class DiagramViewerModule {
             svg.style.display = 'block';
             svg.style.margin = 'auto';
             svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+            
+            // Clean up any residual white background rectangles
+            svg.querySelectorAll('rect').forEach(rect => {
+              const fill = rect.getAttribute('fill');
+              if (fill === '#FFFFFF' || fill === '#ffffff' || fill === 'white') {
+                rect.setAttribute('fill', 'transparent');
+              }
+            });
           }
 
           this.applyZoom(StudioState.currentZoom);
