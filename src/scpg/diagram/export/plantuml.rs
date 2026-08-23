@@ -109,6 +109,55 @@ impl PlantUMLExporter {
         diagrams
     }
 
+    pub fn theme_header() -> &'static str {
+        "skinparam backgroundColor transparent\n\
+skinparam monochrome false\n\
+skinparam shadowing false\n\
+skinparam roundcorner 6\n\
+skinparam defaultFontName \"Space Grotesk\", \"Segoe UI\", sans-serif\n\
+skinparam defaultFontColor #e5e5e5\n\
+skinparam defaultFontSize 12\n\
+skinparam ArrowColor #38bdf8\n\
+skinparam ArrowThickness 1.5\n\
+skinparam packageStyle rectangle\n\
+skinparam PackageBorderColor #facc15\n\
+skinparam PackageBackgroundColor #0f141c\n\
+skinparam PackageFontColor #facc15\n\
+skinparam ClassBorderColor #38bdf8\n\
+skinparam ClassBackgroundColor #14171f\n\
+skinparam ClassHeaderBackgroundColor #1e2433\n\
+skinparam ClassFontColor #ffffff\n\
+skinparam ObjectBorderColor #38bdf8\n\
+skinparam ObjectBackgroundColor #14171f\n\
+skinparam ObjectFontColor #ffffff\n\
+skinparam ComponentBorderColor #38bdf8\n\
+skinparam ComponentBackgroundColor #14171f\n\
+skinparam ComponentFontColor #ffffff\n\
+skinparam NodeBorderColor #38bdf8\n\
+skinparam NodeBackgroundColor #14171f\n\
+skinparam NodeFontColor #ffffff\n\
+skinparam StateBorderColor #38bdf8\n\
+skinparam StateBackgroundColor #14171f\n\
+skinparam StateFontColor #ffffff\n\
+skinparam ActivityBorderColor #38bdf8\n\
+skinparam ActivityBackgroundColor #14171f\n\
+skinparam ActivityFontColor #ffffff\n\
+skinparam SequenceLifeLineBorderColor #38bdf8\n\
+skinparam SequenceLifeLineBackgroundColor #14171f\n\
+skinparam SequenceGroupBorderColor #facc15\n\
+skinparam SequenceGroupBackgroundColor #0f141c\n\
+skinparam SequenceGroupFontColor #facc15\n\
+skinparam ParticipantBorderColor #38bdf8\n\
+skinparam ParticipantBackgroundColor #14171f\n\
+skinparam ParticipantFontColor #ffffff\n\
+skinparam ActorBorderColor #facc15\n\
+skinparam ActorBackgroundColor #14171f\n\
+skinparam ActorFontColor #ffffff\n\
+skinparam UsecaseBorderColor #38bdf8\n\
+skinparam UsecaseBackgroundColor #14171f\n\
+skinparam UsecaseFontColor #ffffff\n\n"
+    }
+
     pub fn resolve_name<'a>(
         sta: &'a SymbolTableArtifact,
         tca: &'a TokenCorpusArtifact,
@@ -221,10 +270,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam classAttributeIconSize 0\n");
-        out.push_str("skinparam monochrome false\n");
-        out.push_str("skinparam shadowing false\n");
-        out.push_str("skinparam roundcorner 6\n\n");
+        out.push_str(Self::theme_header());
 
         let mut package_classes: HashMap<String, Vec<&ClassRecord>> = HashMap::new();
         let mut root_classes: Vec<&ClassRecord> = Vec::new();
@@ -452,9 +498,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n");
-        out.push_str("skinparam shadowing false\n");
-        out.push_str("skinparam roundcorner 6\n\n");
+        out.push_str(Self::theme_header());
 
         let mut seen = HashSet::new();
         let mut object_names = Vec::new();
@@ -505,8 +549,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam componentStyle uml2\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         for comp in &uma.components {
             let cname = Self::sanitize(Self::resolve_name(sta, tca, comp.component_sym_id));
@@ -539,8 +582,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n");
-        out.push_str("skinparam roundcorner 6\n\n");
+        out.push_str(Self::theme_header());
 
         for comp in &uma.components {
             let cname = Self::sanitize(Self::resolve_name(sta, tca, comp.component_sym_id));
@@ -584,8 +626,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n");
-        out.push_str("skinparam packageStyle rectangle\n\n");
+        out.push_str(Self::theme_header());
 
         #[derive(Default)]
         struct PkgTreeNode {
@@ -715,7 +756,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         for class_rec in &uma.classes {
             if class_rec.fields.is_empty() && class_rec.inner_classes.is_empty() {
@@ -754,9 +795,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
-        out.push_str("class Class <<metaclass>>\n");
-        out.push_str("class Interface <<metaclass>>\n\n");
+        out.push_str(Self::theme_header());
 
         let mut annotations = Vec::new();
         for sym_id in 0..sta.symbol_count {
@@ -831,9 +870,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("left to right direction\n");
-        out.push_str("skinparam monochrome false\n");
-        out.push_str("skinparam packageStyle rectangle\n\n");
+        out.push_str(Self::theme_header());
 
         let mut actors = Vec::new();
         for class_rec in &uma.classes {
@@ -897,7 +934,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         for act in uma.activities.iter().take(6) {
             let name = Self::sanitize(Self::resolve_name(sta, tca, act.function_sym_id));
@@ -935,7 +972,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         for sm in &uma.state_machines {
             let cname = Self::sanitize(Self::resolve_name(sta, tca, sm.class_sym_id));
@@ -972,8 +1009,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("autonumber\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         for seq in &uma.sequences {
             for ll in &seq.lifelines {
@@ -1031,7 +1067,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         let mut pairs_seen = HashSet::new();
         for seq in &uma.sequences {
@@ -1099,8 +1135,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
-        out.push_str("start\n");
+        out.push_str(Self::theme_header());
 
         for seq in uma.sequences.iter().take(4) {
             let scenario = Self::sanitize(Self::resolve_name(sta, tca, seq.scenario_name));
@@ -1145,7 +1180,7 @@ impl PlantUMLExporter {
         tca: &TokenCorpusArtifact,
     ) -> String {
         let mut out = String::from("@startuml\n");
-        out.push_str("skinparam monochrome false\n\n");
+        out.push_str(Self::theme_header());
 
         let mut time_step = 0;
         for seq in uma.sequences.iter().take(1) {

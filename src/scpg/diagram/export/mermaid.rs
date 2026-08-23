@@ -1618,3 +1618,6 @@ impl MermaidDiagramStrategy for TimingMermaidStrategy {
         MermaidExporter::export_timing_diagram(uma, sta, tca)
     }
 }
+pub fn theme_init() -> &'static str {
+    "%%{init: {'theme': 'dark', 'themeVariables': { 'darkMode': true, 'background': 'transparent', 'primaryColor': '#14171f', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#38bdf8', 'lineColor': '#38bdf8', 'secondaryColor': '#0f141c', 'tertiaryColor': '#1e2433', 'edgeLabelBackground': '#0c0c0c', 'actorBkg': '#14171f', 'actorBorder': '#facc15', 'actorTextColor': '#ffffff', 'signalColor': '#38bdf8', 'signalTextColor': '#ffffff' }}}%%\n"
+}

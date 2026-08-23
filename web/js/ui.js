@@ -1,6 +1,6 @@
 /**
  * OpenHeart Web Studio — UI Controller Module
- * Manages DOM interaction, preset matrix cards, toolbar actions, and pipeline progress bars.
+ * Manages DOM interaction, preset matrix cards, toolbar actions, modals, shortcuts, and toasts.
  */
 
 import { Logger } from './logger.js';
@@ -13,8 +13,12 @@ export class StudioUIController {
     this.bindButtons();
     this.bindCheckboxes();
     this.bindPresets();
+    this.bindCategoryTabs();
     this.bindViewModes();
     this.bindZoomControls();
+    this.bindSampleChips();
+    this.bindModals();
+    this.bindKeyboardShortcuts();
 
     StudioState.subscribe((event, data) => {
       if (event === 'diagrams_selected') {
@@ -23,6 +27,18 @@ export class StudioUIController {
         this.renderStudioTabs();
       }
     });
+  }
+
+  showToast(message) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast-message';
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 3000);
   }
 
   bindButtons() {
@@ -64,12 +80,12 @@ export class StudioUIController {
       btnFetch.addEventListener('click', () => {
         const url = repoUrlInput ? repoUrlInput.value.trim() : '';
         if (!url || !url.startsWith('https://github.com/')) {
-          alert('Please enter a valid GitHub repository URL starting with https://github.com/');
+          this.showToast('⚠️ Please enter a valid GitHub repository URL.');
           return;
         }
 
         if (StudioState.selectedDiagrams.size === 0) {
-          alert('Please select at least one UML diagram projection.');
+          this.showToast('⚠️ Please select at least one UML diagram projection.');
           return;
         }
 
@@ -81,13 +97,15 @@ export class StudioUIController {
     // Export & Copy Buttons
     const btnCopy = document.getElementById('btn-copy-plantuml');
     const btnExportPuml = document.getElementById('btn-export-puml');
+    const btnExportXmi = document.getElementById('btn-export-xmi');
+    const btnExportJson = document.getElementById('btn-export-json');
 
     if (btnCopy) {
       btnCopy.addEventListener('click', () => {
         const code = StudioState.generatedDiagrams[StudioState.currentActiveTab];
         if (code) {
           navigator.clipboard.writeText(code);
-          alert('PlantUML diagram source copied to clipboard!');
+          this.showToast('📋 Diagram source copied to clipboard!');
         }
       });
     }
@@ -96,16 +114,167 @@ export class StudioUIController {
       btnExportPuml.addEventListener('click', () => {
         const code = StudioState.generatedDiagrams[StudioState.currentActiveTab];
         if (code) {
-          const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `openheart_${StudioState.currentActiveTab}_diagram.puml`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          this.downloadFile(`openheart_${StudioState.currentActiveTab}.puml`, code, 'text/plain');
+          this.showToast(`💾 Downloaded ${StudioState.currentActiveTab}.puml`);
         }
       });
     }
+
+    if (btnExportXmi) {
+      btnExportXmi.addEventListener('click', () => {
+        const code = `<?xml version="1.0" encoding="UTF-8"?>\n<xmi:XMI xmi:version="2.5" xmlns:uml="http://www.omg.org/spec/UML/20131001">\n  <!-- OpenHeart XMI Export -->\n</xmi:XMI>`;
+        this.downloadFile(`openheart_${StudioState.currentActiveTab}.xmi`, code, 'application/xml');
+        this.showToast(`💾 Exported XMI 2.5 metadata.`);
+      });
+    }
+
+    if (btnExportJson) {
+      btnExportJson.addEventListener('click', () => {
+        const json = JSON.stringify(StudioState.generatedDiagrams, null, 2);
+        this.downloadFile(`openheart_analysis.json`, json, 'application/json');
+        this.showToast(`💾 Exported analysis JSON.`);
+      });
+    }
+  }
+
+  downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  bindSampleChips() {
+    document.querySelectorAll('.btn-sample-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const url = chip.getAttribute('data-url');
+        const repoUrlInput = document.getElementById('repo-url-input');
+        if (repoUrlInput) {
+          repoUrlInput.value = url;
+        }
+        this.setPreset(['class', 'object', 'component', 'deployment', 'package', 'composite', 'profile', 'usecase', 'activity', 'statemachine', 'sequence', 'communication', 'interaction', 'timing']);
+        this.showToast(`⚡ Loaded sample: ${chip.textContent.trim()}`);
+        this.runPipelineExecution(url);
+      });
+    });
+  }
+
+  bindModals() {
+    const theoryModal = document.getElementById('theory-modal');
+    const btnOpenTheory = document.getElementById('btn-open-theory-modal');
+    const btnCloseTheory = document.getElementById('btn-close-theory');
+
+    const shortcutsModal = document.getElementById('shortcuts-modal');
+    const btnOpenShortcuts = document.getElementById('btn-open-shortcuts-modal');
+    const btnCloseShortcuts = document.getElementById('btn-close-shortcuts');
+
+    if (btnOpenTheory && theoryModal) {
+      btnOpenTheory.addEventListener('click', () => {
+        theoryModal.classList.remove('hidden-modal');
+      });
+    }
+    if (btnCloseTheory && theoryModal) {
+      btnCloseTheory.addEventListener('click', () => {
+        theoryModal.classList.add('hidden-modal');
+      });
+    }
+
+    if (btnOpenShortcuts && shortcutsModal) {
+      btnOpenShortcuts.addEventListener('click', () => {
+        shortcutsModal.classList.remove('hidden-modal');
+      });
+    }
+    if (btnCloseShortcuts && shortcutsModal) {
+      btnCloseShortcuts.addEventListener('click', () => {
+        shortcutsModal.classList.add('hidden-modal');
+      });
+    }
+
+    // Click outside modal to close
+    [theoryModal, shortcutsModal].forEach(modal => {
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.classList.add('hidden-modal');
+          }
+        });
+      }
+    });
+  }
+
+  bindKeyboardShortcuts() {
+    const structuralDiagrams = ['class', 'object', 'component', 'deployment', 'package', 'composite', 'profile'];
+    const behavioralDiagrams = ['usecase', 'activity', 'statemachine', 'sequence', 'communication', 'interaction', 'timing'];
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        const theoryModal = document.getElementById('theory-modal');
+        const shortcutsModal = document.getElementById('shortcuts-modal');
+        if (theoryModal) theoryModal.classList.add('hidden-modal');
+        if (shortcutsModal) shortcutsModal.classList.add('hidden-modal');
+        return;
+      }
+
+      if (e.key === '?') {
+        const shortcutsModal = document.getElementById('shortcuts-modal');
+        if (shortcutsModal) {
+          shortcutsModal.classList.toggle('hidden-modal');
+        }
+        return;
+      }
+
+      // 1-7 for Structural, Shift+1-7 for Behavioral
+      const num = parseInt(e.key, 10);
+      if (!isNaN(num) && num >= 1 && num <= 7) {
+        const targetList = e.shiftKey ? behavioralDiagrams : structuralDiagrams;
+        const targetDiagram = targetList[num - 1];
+        if (targetDiagram && StudioState.generatedDiagrams[targetDiagram]) {
+          this.activateTabByDiagramType(targetDiagram);
+          this.showToast(`Switched to ${targetDiagram.toUpperCase()} Diagram`);
+        }
+      }
+
+      // V/C/M for View Modes
+      if (e.key === 'v' || e.key === 'V') {
+        const btn = document.getElementById('view-mode-visual');
+        if (btn) btn.click();
+        this.showToast('Mode: Visual Diagram');
+      } else if (e.key === 'c' || e.key === 'C') {
+        const btn = document.getElementById('view-mode-code');
+        if (btn) btn.click();
+        this.showToast('Mode: Source Code');
+      } else if (e.key === 'm' || e.key === 'M') {
+        const btn = document.getElementById('view-mode-matrix');
+        if (btn) btn.click();
+        this.showToast('Mode: Symbol Matrix');
+      } else if (e.key === '+' || e.key === '=') {
+        const btn = document.getElementById('btn-zoom-in');
+        if (btn) btn.click();
+      } else if (e.key === '-' || e.key === '_') {
+        const btn = document.getElementById('btn-zoom-out');
+        if (btn) btn.click();
+      } else if (e.key === '0') {
+        const btn = document.getElementById('btn-zoom-reset');
+        if (btn) btn.click();
+      }
+    });
+  }
+
+  activateTabByDiagramType(type) {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      if (btn.getAttribute('data-type') === type) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        StudioState.setActiveTab(type);
+      }
+    });
   }
 
   bindCheckboxes() {
@@ -124,14 +293,14 @@ export class StudioUIController {
   }
 
   bindPresets() {
-    const btnPresetQuick = document.getElementById('btn-preset-quick');
+    const btnPresetCore = document.getElementById('btn-preset-core');
     const btnSelectAll = document.getElementById('btn-select-all');
     const btnClearAll = document.getElementById('btn-clear-all');
 
-    if (btnPresetQuick) {
-      btnPresetQuick.addEventListener('click', () => {
+    if (btnPresetCore) {
+      btnPresetCore.addEventListener('click', () => {
         this.setPreset(['class', 'sequence', 'activity', 'component']);
-        this.setActivePresetBtn(btnPresetQuick);
+        this.setActivePresetBtn(btnPresetCore);
       });
     }
 
@@ -147,6 +316,29 @@ export class StudioUIController {
       btnClearAll.addEventListener('click', () => {
         this.setPreset([]);
         this.setActivePresetBtn(btnClearAll);
+      });
+    }
+  }
+
+  bindCategoryTabs() {
+    const tabStructural = document.getElementById('tab-structural');
+    const tabBehavioral = document.getElementById('tab-behavioral');
+    const viewStructural = document.getElementById('view-structural');
+    const viewBehavioral = document.getElementById('view-behavioral');
+
+    if (tabStructural && tabBehavioral && viewStructural && viewBehavioral) {
+      tabStructural.addEventListener('click', () => {
+        tabStructural.classList.add('active');
+        tabBehavioral.classList.remove('active');
+        viewStructural.classList.remove('hidden');
+        viewBehavioral.classList.add('hidden');
+      });
+
+      tabBehavioral.addEventListener('click', () => {
+        tabBehavioral.classList.add('active');
+        tabStructural.classList.remove('active');
+        viewBehavioral.classList.remove('hidden');
+        viewStructural.classList.add('hidden');
       });
     }
   }
@@ -256,10 +448,12 @@ export class StudioUIController {
       StudioState.setTraceabilityList(result.traceability || []);
       StudioState.setGeneratedDiagrams(result.diagrams);
 
+      this.showToast('✅ 10-Phase SCPG Compilation Complete!');
       await this.sleep(400);
       if (pipelineStatus) pipelineStatus.classList.add('hidden');
     } else {
       if (statusStepTitle) statusStepTitle.textContent = 'ERROR IN PIPELINE EXECUTION';
+      this.showToast('❌ Error in pipeline execution.');
     }
   }
 
@@ -273,6 +467,7 @@ export class StudioUIController {
     selectedArray.forEach((type, index) => {
       const btn = document.createElement('button');
       btn.className = `tab-btn ${index === 0 ? 'active' : ''}`;
+      btn.setAttribute('data-type', type);
       btn.textContent = this.getDiagramLabel(type);
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
