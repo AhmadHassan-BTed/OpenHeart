@@ -159,37 +159,57 @@ export function generatePackageFolderSvg(pkgData) {
     nestLevel = 0,
     isCollapsed = false,
     childCount = 0,
-    width = 400,
-    height = 250
+    width = 240,
+    height = 100,
+    isDark = false
   } = pkgData;
 
-  const TAB_HEIGHT = 30;
+  const TAB_HEIGHT = 28;
   const shortName = name.replace(/^package\s*\[?/, '').replace(/\]?$/, '');
-  const tabWidth = Math.min(width - 40, Math.max(150, shortName.length * 8.5 + 40));
+  const tabWidth = Math.min(width - 30, Math.max(120, shortName.length * 8.5 + 40));
 
-  const hue = hashString(shortName) % 360;
   const isDomainTier = nestLevel === 0;
 
-  const tabBg = isDomainTier ? `hsl(${hue}, 75%, 92%)` : `hsl(${hue}, 70%, 88%)`;
-  const bodyBg = isDomainTier ? `hsl(${hue}, 55%, 98%)` : `hsl(${hue}, 50%, 95%)`;
-  const borderColor = isDomainTier ? `hsl(${hue}, 65%, 60%)` : `hsl(${hue}, 70%, 42%)`;
-  const textColor = `hsl(${hue}, 80%, 25%)`;
-  const borderStyle = isDomainTier ? '' : 'stroke-dasharray="6 4"';
+  let tabBg, bodyBg, borderColor, textColor, titleColor;
+  if (isDark) {
+    tabBg = isDomainTier ? '#2E1065' : '#1F2937';
+    bodyBg = isDomainTier ? '#13111C' : '#111827';
+    borderColor = isDomainTier ? '#9333EA' : '#A855F7';
+    textColor = isDomainTier ? '#E9D5FF' : '#D8B4FE';
+    titleColor = '#F9FAFB';
+  } else {
+    tabBg = isDomainTier ? '#DBEAFE' : '#EDE9FE';
+    bodyBg = isDomainTier ? '#FAF5FF' : '#F8FAFC';
+    borderColor = isDomainTier ? '#2563EB' : '#7C3AED';
+    textColor = isDomainTier ? '#1E40AF' : '#581C87';
+    titleColor = '#0F172A';
+  }
+
+  const borderStyle = isDomainTier ? '' : 'stroke-dasharray="5 3"';
 
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <!-- Package Folder Tab Ear -->
   <path d="M 2,${TAB_HEIGHT} L 2,6 Q 2,2 6,2 L ${tabWidth - 10},2 Q ${tabWidth - 4},2 ${tabWidth + 6},${TAB_HEIGHT} Z" fill="${tabBg}" stroke="${borderColor}" stroke-width="1.8" />
-  <text x="14" y="${TAB_HEIGHT - 10}" font-family="JetBrains Mono, -apple-system, sans-serif" font-size="11" font-weight="700" fill="${textColor}">
-    ${isCollapsed ? '📁 [+]' : '📂 [−]'} ${escapeXml(shortName)}
+  <text x="12" y="${TAB_HEIGHT - 9}" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="800" fill="${textColor}">
+    ${isCollapsed ? '📁 [+]' : '📁'} ${escapeXml(shortName)}
   </text>
-  <rect x="2" y="${TAB_HEIGHT}" width="${width - 4}" height="${height - TAB_HEIGHT - 2}" rx="8" ry="8" fill="${bodyBg}" stroke="${borderColor}" stroke-width="1.8" ${borderStyle} />
+  <!-- Package Folder Body Container -->
+  <rect x="2" y="${TAB_HEIGHT}" width="${width - 4}" height="${height - TAB_HEIGHT - 2}" rx="6" ry="6" fill="${bodyBg}" stroke="${borderColor}" stroke-width="1.8" ${borderStyle} />
+  <!-- Package Title in Body -->
+  <text x="${width / 2}" y="${TAB_HEIGHT + 30}" font-family="JetBrains Mono, monospace" font-size="12" font-weight="700" fill="${titleColor}" text-anchor="middle">
+    ${escapeXml(shortName)}
+  </text>
+  <text x="${width / 2}" y="${TAB_HEIGHT + 46}" font-family="JetBrains Mono, monospace" font-size="9" fill="${textColor}" text-anchor="middle" opacity="0.8">
+    &lt;&lt;package&gt;&gt;
+  </text>
 `;
 
-  if (isCollapsed) {
+  if (isCollapsed || childCount > 0) {
     svg += `
-  <rect x="${width / 2 - 110}" y="${TAB_HEIGHT + (height - TAB_HEIGHT) / 2 - 14}" width="220" height="28" rx="14" fill="#FFFFFF" stroke="${borderColor}" stroke-width="1" />
-  <text x="${width / 2}" y="${TAB_HEIGHT + (height - TAB_HEIGHT) / 2 + 4}" font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="${textColor}" text-anchor="middle">
-    📦 ${childCount} Classes (Click to Expand)
+  <rect x="${width / 2 - 80}" y="${height - 24}" width="160" height="18" rx="9" fill="${isDark ? '#1F2937' : '#FFFFFF'}" stroke="${borderColor}" stroke-width="1" />
+  <text x="${width / 2}" y="${height - 12}" font-family="JetBrains Mono, monospace" font-size="9" font-weight="700" fill="${textColor}" text-anchor="middle">
+    📦 ${childCount} Items (Click to Focus)
   </text>`;
   }
 

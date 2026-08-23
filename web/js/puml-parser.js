@@ -43,9 +43,9 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const nestLevel = packageStack.filter(p => p !== null).length;
       const isDomainTier = nestLevel === 0;
 
-      // Clean dynamic label: short package name
+      // Clean dynamic label: short package name with folder icon
       const shortName = pkgName.split('.').pop();
-      const displayLabel = isDomainTier ? `DOMAIN LAYER: ${pkgName.toUpperCase()}` : `package [${shortName}]`;
+      const displayLabel = isDomainTier ? `📂 DOMAIN: ${pkgName.toUpperCase()}` : `📁 package [${shortName}]`;
 
       if (!nodeMap.has(pkgId)) {
         const pkgNode = {
@@ -305,6 +305,29 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
   if (currentBlock) {
     registerClassNode(currentBlock, nodeMap, elements, packageStack);
   }
+
+  // Post-process: convert leaf packages into SVG folder cards
+  const parentPkgIds = new Set(elements.map(e => e.data && e.data.parent).filter(Boolean));
+  elements.forEach(el => {
+    if (el.data && el.data.isPackage && !parentPkgIds.has(el.data.id)) {
+      const rawName = el.data.rawName || el.data.id;
+      const shortName = rawName.split('.').pop();
+      const svgData = generatePackageFolderSvg({
+        name: shortName,
+        nestLevel: el.data.nestLevel || 0,
+        width: 240,
+        height: 100,
+        isDark
+      });
+      el.data.label = '';
+      el.data.textLabel = el.data.isDomainTier ? `📂 DOMAIN: ${shortName.toUpperCase()}` : `📁 package [${shortName}]`;
+      el.data.width = svgData.width;
+      el.data.height = svgData.height;
+      el.data.svgDataUri = svgData.dataUri;
+      el.data.isLeafPackage = true;
+      el.classes = `leaf-package nest-level-${Math.min(5, el.data.nestLevel || 0)}`;
+    }
+  });
 
   return elements;
 }
