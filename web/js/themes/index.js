@@ -8,6 +8,9 @@ export {
   toggleTheme,
   initTheme,
   onThemeChange,
-  buildCytoscapeStylesheet
+  buildCytoscapeStylesheet,
+  fetchManifest,
+  setManifest,
+  getCachedManifest
 } from './theme-manager.js';
 

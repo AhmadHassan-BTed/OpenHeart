@@ -120,133 +120,10 @@
           </li>
         </ul>
 
-        <div class="sidebar-category-title" style="margin-top: 18px;">
-          <span>UML 2.5 Projections</span>
-          <span class="phase-chip">14 TYPES</span>
-        </div>
-        <ul class="sidebar-nav-list">
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="class">
-              <span>01. Class Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="sequence">
-              <span>02. Sequence Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="statemachine">
-              <span>03. State Machine</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="activity">
-              <span>04. Activity Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="component">
-              <span>05. Component Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="package">
-              <span>06. Package Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="composite">
-              <span>07. Composite Structure</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="object">
-              <span>08. Object Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="deployment">
-              <span>09. Deployment Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="usecase">
-              <span>10. Use Case Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="communication">
-              <span>11. Communication Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="interaction">
-              <span>12. Interaction Overview</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="timing">
-              <span>13. Timing Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="profile">
-              <span>14. Profile Diagram</span>
-              <span class="phase-chip">Phase 9</span>
-            </button>
-          </li>
-        </ul>
-
-        <div class="sidebar-category-title" style="margin-top: 18px;">
-          <span>Compiler Pipeline IRs</span>
-          <span class="phase-chip">5 GRAPHS</span>
-        </div>
-        <ul class="sidebar-nav-list">
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="cfg">
-              <span>15. Control Flow (CFG)</span>
-              <span class="phase-chip">Phase 4</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="dfg">
-              <span>16. Data Flow (DFG)</span>
-              <span class="phase-chip">Phase 5</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="cdg">
-              <span>17. Control Dep (CDG)</span>
-              <span class="phase-chip">Phase 4</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="callgraph">
-              <span>18. Call Graph (CG)</span>
-              <span class="phase-chip">Phase 6</span>
-            </button>
-          </li>
-          <li>
-            <button class="sidebar-tab-btn" data-graph-type="robdd">
-              <span>19. ROBDD Saturation</span>
-              <span class="phase-chip">Phase 8</span>
-            </button>
-          </li>
-        </ul>
+        <!-- Dynamically rendered from diagrams/manifest.json -->
+        <nav id="sidebar-diagram-categories" class="sidebar-dynamic-nav">
+          <div style="padding: 12px; color: var(--text-faint); font-size: 11px;">Loading diagrams manifest...</div>
+        </nav>
       </aside>
 
       <!-- Center Viewport: Floating Interactive Canvas Card -->
@@ -387,11 +264,53 @@
     import { SourceEditorModule } from './js/editor.js';
     import { FileTreeExplorer } from './js/file-tree.js';
     import { GitHubEngine } from './js/github-engine.js';
-    import { initTheme, toggleTheme, onThemeChange } from './js/themes/index.js';
+    import { initTheme, toggleTheme, onThemeChange, fetchManifest, getCachedManifest, isDarkMode } from './js/themes/index.js';
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       const canvas = new InteractiveGraphCanvas('interactive-canvas');
       const editor = new SourceEditorModule('monaco-container');
+
+      // ── 1. Fetch Declarative Manifest (Zero Hardcoding) ──
+      const manifest = await fetchManifest();
+
+      // ── 2. Dynamically Render Sidebar from Manifest ──
+      const sidebarNav = document.getElementById('sidebar-diagram-categories');
+      const savedGraph = localStorage.getItem('openheart_active_graph') || 'class';
+      canvas.currentGraphType = savedGraph;
+
+      if (sidebarNav && manifest && manifest.categories) {
+        sidebarNav.innerHTML = '';
+        manifest.categories.forEach(cat => {
+          const catTitle = document.createElement('div');
+          catTitle.className = 'sidebar-category-title';
+          catTitle.style.marginTop = '18px';
+          catTitle.innerHTML = `<span>${cat.title}</span><span class="phase-chip">${cat.badge}</span>`;
+          sidebarNav.appendChild(catTitle);
+
+          const ul = document.createElement('ul');
+          ul.className = 'sidebar-nav-list';
+
+          cat.diagrams.forEach(diag => {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.className = `sidebar-tab-btn ${diag.id === savedGraph ? 'active' : ''}`;
+            btn.setAttribute('data-graph-type', diag.id);
+            btn.innerHTML = `<span>${diag.number}. ${diag.name}</span><span class="phase-chip">${diag.phase}</span>`;
+
+            btn.addEventListener('click', () => {
+              document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
+              btn.classList.add('active');
+              localStorage.setItem('openheart_active_graph', diag.id);
+              canvas.renderGraph(diag.id);
+            });
+
+            li.appendChild(btn);
+            ul.appendChild(li);
+          });
+
+          sidebarNav.appendChild(ul);
+        });
+      }
 
       const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile, fileEntry) => {
         const nodeData = fileEntry?.data || canvas.getNodeDataByFile(selectedFile) || canvas.getNodeDataById(fileEntry?.nodeId);
@@ -455,18 +374,6 @@
         paneExplorer.style.display = 'none';
       });
 
-      // Synchronize active diagram tab on page load
-      const savedGraph = localStorage.getItem('openheart_active_graph') || 'class';
-      canvas.currentGraphType = savedGraph;
-      
-      document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
-        if (btn.getAttribute('data-graph-type') === savedGraph) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
-      });
-
       canvas.init();
       editor.init();
 
@@ -478,7 +385,11 @@
         const labelHeader = nodeData.textLabel ? nodeData.textLabel.split('\n')[0] : (nodeData.label ? nodeData.label.split('\n')[0] : nodeData.id);
         document.getElementById('inspect-headline').innerText = labelHeader;
         document.getElementById('inspect-meta').innerText = `ID: ${nodeData.id} | Kind: ${nodeData.kind || 'node'}`;
-        document.getElementById('prop-kind').innerText = (nodeData.kind || 'CLASS').toUpperCase();
+        
+        const nodeKinds = manifest?.node_kinds || {};
+        const kindConf = nodeKinds[nodeData.kind] || { label: (nodeData.kind || 'CLASS').toUpperCase() };
+        document.getElementById('prop-kind').innerText = kindConf.label.toUpperCase();
+        
         document.getElementById('editor-filename').innerText = fileName;
         document.getElementById('breadcrumb-package').innerText = pkgPath;
         document.getElementById('breadcrumb-filename').innerText = fileName;
@@ -512,25 +423,7 @@
         }
       });
 
-      // ── Relationship Layers & Checklist Filter Synchronizer ──
-      const RELATION_CONFIG = {
-        generalization: { label: 'Generalization (--|>)', icon: '▷', color: '#8B5CF6' },
-        realization: { label: 'Realization (..|>)', icon: '▷', color: '#2563EB' },
-        composition: { label: 'Composition (*--)', icon: '♦', color: '#DC2626' },
-        aggregation: { label: 'Aggregation (o--)', icon: '◇', color: '#059669' },
-        association: { label: 'Association (-->)', icon: '>', color: '#0284C7' },
-        dependency: { label: 'Dependency (..>)', icon: '>', color: '#D97706' },
-        message: { label: 'Sequence Message (->)', icon: '▶', color: '#6366F1' },
-        transition: { label: 'State Transition (-->)', icon: '▶', color: '#06B6D4' },
-        control_flow: { label: 'Control Flow (-->)', icon: '▶', color: '#10B981' },
-        manifestation: { label: 'Manifestation (..>)', icon: '📦', color: '#EA580C' },
-        low_branch: { label: 'Low Branch / 0 (..>)', icon: '⤍', color: '#EF4444' },
-        high_branch: { label: 'High Branch / 1 (-->)', icon: '➜', color: '#10B981' },
-        data_flow: { label: 'Data Flow Def-Use (-->)', icon: '⇢', color: '#38BDF8' },
-        extension: { label: 'Profile Extension (--|>)', icon: '▲', color: '#C084FC' },
-        assembly_connector: { label: 'Assembly Port (-(0-)', icon: '⚯', color: '#FACC15' }
-      };
-
+      // ── Relationship Layers & Checklist Filter Synchronizer (100% Manifest Driven) ──
       const layersPanel = document.getElementById('canvas-layers-panel');
       const layersContainer = document.getElementById('layers-checklist-container');
       const layersTotalCount = document.getElementById('layers-total-count');
@@ -546,40 +439,40 @@
 
         if (layersPanel) layersPanel.style.display = 'flex';
         let totalEdges = 0;
+        const relTypes = manifest?.relationship_types || {};
+        const isDark = isDarkMode();
 
         activeKinds.forEach(item => {
           totalEdges += item.count;
-          const conf = RELATION_CONFIG[item.kind] || {
+          const conf = relTypes[item.kind] || {
             label: `${item.kind.toUpperCase()} (-->)`,
             icon: '→',
-            color: '#334155'
+            color_light: '#334155',
+            color_dark: '#94A3B8'
           };
+          const color = isDark ? (conf.color_dark || '#38BDF8') : (conf.color_light || '#0284C7');
 
           const chip = document.createElement('label');
           chip.className = `layer-chip-label ${item.visible ? '' : 'unchecked'}`;
           chip.setAttribute('data-kind', item.kind);
-          chip.style.borderLeft = `3px solid ${conf.color}`;
+          chip.style.borderLeft = `3px solid ${color}`;
 
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
           checkbox.checked = item.visible;
-          checkbox.style.accentColor = conf.color;
+          checkbox.style.accentColor = color;
 
           checkbox.addEventListener('change', () => {
             const isChecked = checkbox.checked;
             canvas.setEdgeFilter(item.kind, isChecked);
-            if (isChecked) {
-              chip.classList.remove('unchecked');
-            } else {
-              chip.classList.add('unchecked');
-            }
+            chip.classList.toggle('unchecked', !isChecked);
           });
 
           const span = document.createElement('span');
           span.style.display = 'inline-flex';
           span.style.alignItems = 'center';
           span.style.gap = '5px';
-          span.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background-color:${conf.color}; box-shadow:0 0 5px ${conf.color};"></span><strong style="color:${conf.color}; font-size:12px; font-weight:800;">${conf.icon}</strong> <span>${conf.label}</span> <span style="opacity: 0.7; font-size: 9.5px; font-weight:700;">(${item.count})</span>`;
+          span.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background-color:${color}; box-shadow:0 0 5px ${color};"></span><strong style="color:${color}; font-size:12px; font-weight:800;">${conf.icon || '→'}</strong> <span>${conf.label || item.kind}</span> <span style="opacity: 0.7; font-size: 9.5px; font-weight:700;">(${item.count})</span>`;
 
           chip.appendChild(checkbox);
           chip.appendChild(span);
@@ -609,18 +502,6 @@
           if (cb) cb.checked = false;
           chip.classList.add('unchecked');
           canvas.setEdgeFilter(kind, false);
-        });
-      });
-
-      // Graph selection tabs
-      document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const targetBtn = e.currentTarget;
-          document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
-          targetBtn.classList.add('active');
-          const graphType = targetBtn.getAttribute('data-graph-type');
-          localStorage.setItem('openheart_active_graph', graphType);
-          canvas.renderGraph(graphType);
         });
       });
 
