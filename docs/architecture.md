@@ -138,21 +138,50 @@ graph TD
 
 ---
 
-## 5. 14 UML Diagrams Native Generation Matrix
+## 5. Complete 19-Diagram Native Derivation Matrix
 
-| # | UML Diagram | Category | SCPG Engine Source Layer | Extractor Module |
-|---|---|---|---|---|
-| 1 | **Class Diagram** | Structural | $E^{\text{TH}}$ (Type Hierarchy) + $V_{\text{sym}}$ | `uma/structural/class_diagram.rs` |
-| 2 | **Object Diagram** | Structural | $E^{\text{TH}}$ + SSA Variable Instances | `uma/structural/object_diagram.rs` |
-| 3 | **Component Diagram** | Structural | $V_{\text{sym}}$ Package / Interface Bounds | `uma/structural/component_diagram.rs` |
-| 4 | **Deployment Diagram** | Structural | $V_{\text{sym}}$ Artifact Metadata | `scpg/diagram/export/plantuml.rs` |
-| 5 | **Package Diagram** | Structural | $V_{\text{sym}}$ Package Tree & Imports | `uma/structural/package_diagram.rs` |
-| 6 | **Composite Structure** | Structural | Internal Field Symbols & Ports | `uma/structural/composite_diagram.rs` |
-| 7 | **Profile Diagram** | Structural | Stereotype Metadata Records | `scpg/diagram/export/plantuml.rs` |
-| 8 | **Use Case Diagram** | Behavioral | Public Surface APIs & Actors | `uma/actor_identification.rs` |
-| 9 | **Activity Diagram** | Behavioral | $E^{\text{CFG}}$ + CDG Dominator Trees | `uma/behavioral/activity_diagram.rs` |
-| 10 | **State Machine** | Behavioral | $E^{\text{CFG}}$ + Abstract Interpretation | `uma/behavioral/state_machine.rs` |
-| 11 | **Sequence Diagram** | Interaction | $E^{\text{CG}}$ (Call Graph) + Lifelines | `uma/behavioral/sequence_diagram.rs` |
-| 12 | **Communication** | Interaction | $E^{\text{CG}}$ + Message Order Ordinals | `uma/behavioral/communication_diagram.rs` |
-| 13 | **Interaction Overview**| Interaction | High-Level Control Flow + Calls | `uma/behavioral/interaction_overview.rs` |
-| 14 | **Timing Diagram** | Interaction | State Transitions + Time Bounds | `uma/behavioral/timing_diagram.rs` |
+| # | Diagram Name | Category | Primary SCPG Source Layer | Extractor / Serializer Module | Cytoscape Layout Engine |
+|---|---|---|---|---|---|
+| 01 | **Class Diagram** | UML Structural | $E^{\text{TH}}$ (Type Hierarchy) + $V_{\text{sym}}$ | `uma/structural/class_diagram.rs` | `package_tree` |
+| 02 | **Package Diagram** | UML Structural | $V_{\text{sym}}$ Package Tree & Namespace Bounds | `uma/structural/package_diagram.rs` | `hierarchical` |
+| 03 | **Component Diagram** | UML Structural | $V_{\text{sym}}$ Subsystem & Service Wiring | `uma/structural/component_diagram.rs` | `hierarchical` |
+| 04 | **Composite Structure** | UML Structural | Internal Field Symbols & Port Connectors | `uma/structural/composite_diagram.rs` | `hierarchical` |
+| 05 | **Object Diagram** | UML Structural | $E^{\text{TH}}$ + SSA Heap Instance Links | `uma/structural/object_diagram.rs` | `hierarchical` |
+| 06 | **Deployment Diagram** | UML Structural | Node Artifacts & Hardware Execution Targets | `scpg/diagram/export/json.rs` | `hierarchical` |
+| 07 | **Profile Diagram** | UML Structural | Metamodel Stereotypes & Tagged Values | `scpg/diagram/export/json.rs` | `hierarchical` |
+| 08 | **Sequence Diagram** | UML Behavioral | $E^{\text{CG}}$ (Call Graph) + Lifeline Traces | `uma/behavioral/sequence_diagram.rs` | `sequence` |
+| 09 | **State Machine Diagram** | UML Behavioral | $E^{\text{CFG}}$ + State Transition Traversal | `uma/behavioral/state_machine.rs` | `hierarchical` |
+| 10 | **Activity Diagram** | UML Behavioral | $E^{\text{CFG}}$ + CDG Dominance Branches | `uma/behavioral/activity_diagram.rs` | `hierarchical` |
+| 11 | **Use Case Diagram** | UML Behavioral | Public API Surface Boundaries & Actors | `uma/actor_identification.rs` | `usecase` |
+| 12 | **Communication Diagram** | UML Behavioral | $E^{\text{CG}}$ Topology + Sequenced Numbers | `uma/behavioral/communication_diagram.rs` | `hierarchical` |
+| 13 | **Interaction Overview** | UML Behavioral | Nested Sequence Reference Frames (`ref sd`)| `uma/behavioral/interaction_overview.rs` | `hierarchical` |
+| 14 | **Timing Diagram** | UML Behavioral | Multi-Track Waveforms & Temporal Bounds | `uma/behavioral/timing_diagram.rs` | `timing` |
+| 15 | **Control Flow Graph (CFG)** | Compiler IR | $V_{\text{bb}}$ Basic Blocks + CSR Adjacency | `scpg/diagram/export/json.rs` | `hierarchical` |
+| 16 | **Data Flow Graph (DFG)** | Compiler IR | SSA Def-Use Chains & Lineage Vectors | `scpg/diagram/export/json.rs` | `hierarchical` |
+| 17 | **Control Dependence (CDG)** | Compiler IR | Reversed Post-Dominance Frontiers | `scpg/diagram/export/json.rs` | `hierarchical` |
+| 18 | **Call Graph (CG)** | Compiler IR | Interprocedural Call Sites & CHA Dispatch | `scpg/diagram/export/json.rs` | `hierarchical` |
+| 19 | **ROBDD Saturation** | Compiler IR | Canonical BDD Graphs & #SAT Path Counts | `scpg/diagram/export/json.rs` | `hierarchical` |
+
+---
+
+## 6. Declarative Manifest & Zero-Backend Web Studio Architecture
+
+The OpenHeart Web Studio is built on a 100% serverless, zero-backend architecture hosted on GitHub Pages:
+
+```mermaid
+graph TD
+    M["manifest.json<br/>(Categories, 19 Diagrams, 16 Relationships, 24 Node Kinds)"] --> Nav["Dynamic Sidebar Navigation"]
+    M --> TM["ThemeManager & Cytoscape Stylesheet Compiler"]
+    M --> RL["Relationship Layers Filter Panel"]
+    M --> IP["Inspector Node Kind Badges & Property Views"]
+
+    GH["GitHub Repository URL"] --> GHE["GitHubEngine (Client-Side REST API Fetcher)"]
+    GHE --> AST["AST Tokenizer & Class Extractor"]
+    AST --> GLoader["GraphLoader -> Cytoscape Graph IR"]
+    GLoader --> Canvas["Interactive Graph Canvas (Vector SVG Cards)"]
+    Canvas <--> Editor["Monaco Code Viewer (Bidirectional Synchronizer)"]
+```
+
+- **Manifest-Driven Configuration**: Centralized `web/diagrams/manifest.json` defines all terminology, badge colors, layout algorithms, and relationship semantics without hardcoding.
+- **Dynamic Cytoscape Stylesheet Compiler**: `ThemeManager` compiles Cytoscape edge styles and arrowheads dynamically based on the active theme (Obsidian Dark or Swiss Light).
+- **In-Browser GitHub Engine**: Analyzes public GitHub repositories dynamically on GitHub Pages with zero server dependencies and automatic rate-limit fallback.

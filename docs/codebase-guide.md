@@ -161,13 +161,14 @@ src/
 │
 └── scpg/                         # Phase 10: Succinct Compositional Program Graph (.scpg) & Queries
     ├── api/                      # High-Level SCPG Builder & Engine API
-    ├── diagram/                  # PlantUML, Mermaid, XMI, & JSON Diagram Exporters
-    │   ├── export/
-    │   │   ├── json.rs           # Structured JSON Diagram Serializer
+    ├── diagram/                  # Multi-Format Diagram Exporter Suite & Abstract Factory
+    │   ├── export/               # Format-Specific Strategy Implementations
+    │   │   ├── json.rs           # JSON Graph IR Serializer (19 Diagram Projections)
     │   │   ├── mermaid.rs        # Native Mermaid JS Syntax Exporter
-    │   │   ├── plantuml.rs       # Native PlantUML 14-Diagram Exporter Engine
+    │   │   ├── plantuml.rs       # Native PlantUML 19-Diagram Exporter Engine
     │   │   ├── plantuml_optimizer.rs # Package Bundling & Spaghetti Reduction Engine
     │   │   └── xmi.rs            # OMG XMI 2.5 XML Standard Serializer
+    │   ├── factory.rs            # DiagramFactory & Format Strategy Dynamic Dispatch
     │   ├── renderers.rs          # Visual Diagram Renderer Helpers
     │   └── mod.rs                # Diagram Module Roots
     ├── incremental/              # Incremental Re-computation & Delta Processing
@@ -181,6 +182,53 @@ src/
     │   └── slice.rs              # Forward & Backward Program Slicing Queries
     ├── serializer/               # Unified SCPG Binary Serializer & Integrity Checksums
     └── types.rs                  # SCPG Composite Graph Node & Edge Record Definitions
+```
+
+---
+
+## Detailed Web Studio Module Layout (`web/`)
+
+```text
+web/
+├── index.html                    # Single-Page Application (HTML5 / Vanilla CSS)
+├── style.css                     # Premium Swiss Typography & Adaptive Light/Dark Theme Engine
+│
+├── diagrams/                     # Declarative Graph Projections & Manifest
+│   ├── manifest.json             # Centralized Manifest (19 Diagrams, 16 Relationship Kinds, 24 Node Schemas)
+│   ├── class.json / .puml        # 01 · Class Diagram
+│   ├── package.json / .puml      # 02 · Package Diagram
+│   ├── component.json / .puml    # 03 · Component Diagram
+│   ├── composite.json / .puml    # 04 · Composite Structure Diagram
+│   ├── object.json / .puml       # 05 · Object Diagram
+│   ├── deployment.json / .puml   # 06 · Deployment Diagram
+│   ├── profile.json / .puml      # 07 · Profile Diagram
+│   ├── sequence.json / .puml     # 08 · Sequence Diagram
+│   ├── statemachine.json / .puml # 09 · State Machine Diagram
+│   ├── activity.json / .puml     # 10 · Activity Diagram
+│   ├── usecase.json / .puml      # 11 · Use Case Diagram
+│   ├── communication.json / .puml# 12 · Communication Diagram
+│   ├── interaction.json / .puml  # 13 · Interaction Overview Diagram
+│   ├── timing.json / .puml       # 14 · Timing Diagram
+│   ├── cfg.json / .puml          # 15 · Control Flow Graph (CFG)
+│   ├── dfg.json / .puml          # 16 · Data Flow Graph (DFG)
+│   ├── cdg.json / .puml          # 17 · Control Dependence Graph (CDG)
+│   ├── callgraph.json / .puml    # 18 · Call Graph (CG)
+│   └── robdd.json / .puml        # 19 · ROBDD Saturation Graph
+│
+└── js/                           # Modular ES6 Web Engine
+    ├── themes/                   # Theme Token System & Dynamic Cytoscape Stylesheet Compiler
+    │   ├── theme-manager.js      # Live Theme Manager & Stylesheet Generator
+    │   ├── light-theme.js        # Professional Light Theme Design Tokens
+    │   ├── dark-theme.js         # Obsidian Dark Theme Design Tokens
+    │   └── index.js              # Theme Entrypoint & Event Emitter
+    ├── uml-card-renderer.js      # Vector SVG Card Generators (Class, State, BDD Gate, Timing Track, etc.)
+    ├── uml-layout.js             # Deterministic Spatial Layout Engines (Multi-Root Grid, Hierarchical, Wing)
+    ├── puml-parser.js            # Generic PlantUML & Mermaid Graph Engine Parser
+    ├── graph-canvas.js           # Interactive Cytoscape Canvas Controller (Pan, Zoom, Hover, Selection)
+    ├── graph-loader.js           # Graph IR to Cytoscape Element Transformer
+    ├── editor.js                 # Monaco Precision Source Code Synchronizer & Multi-Language Highlighter
+    ├── file-tree.js              # Deterministic File Tree Explorer with Smooth Auto-Scroll
+    └── github-engine.js          # Zero-Backend In-Browser GitHub Ingestion & AST Parser Engine
 ```
 
 ---
@@ -199,6 +247,10 @@ src/
 | `psa_tests.rs` | Phase 8 ROBDD Path Summaries | ROBDD canonical sharing, Shannon expansion, path feasibility counting |
 | `uma_tests.rs` | Phase 9 UML Metadata | Structural & behavioral record extraction, design pattern detection |
 | `scpg_tests.rs` | Phase 10 & API Integration | Full 10-phase pipeline end-to-end processing & HTTP REST API response |
+| `strategy_diagram_tests.rs` | Abstract Factory Strategies | Strategy pattern registration, subtractive diagram generation, PlantUML/Mermaid compliance |
+| `research_paper_theorems_tests.rs` | Mathematical Theorems | Proof verification for Lemma 5.1 (Sort-Key injectivity), Theorem 5.2 (ROBDD size), Corollary 5.1 |
+| `design_pattern_architecture_tests.rs` | GoF Pattern Verification | End-to-end detection of Facade, Strategy, Observer, Decorator, and Adapter patterns |
+| `adversarial_trick_tests.rs` | Edge-Case Ingestion Tests | Deep circular inheritance, self-loops, extreme generic nesting, and obfuscated identifiers |
 | `pipeline_accuracy_tests.rs` | Multi-Phase Pipeline Verification | Ground-truth verification across benchmark codebases |
 | `surgical_pipeline_dump_test.rs` | Step-by-Step Binary Dump | Per-phase binary artifact integrity & serialization roundtrip tests |
 
