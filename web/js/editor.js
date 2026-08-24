@@ -486,6 +486,8 @@ export class SourceEditorModule {
       const targetRow = container.querySelector(`.code-line-row[data-line="${targetLineNum}"]`);
       if (targetRow) {
         targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetRow.classList.add('pulse-highlight');
+        setTimeout(() => targetRow.classList.remove('pulse-highlight'), 1200);
       }
     }, 40);
   }

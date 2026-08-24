@@ -1052,6 +1052,25 @@ html, body {
   border-radius: 2px;
 }
 
+.code-line-row.pulse-highlight {
+  animation: pulse-line 1.2s ease-out;
+}
+
+@keyframes pulse-line {
+  0% {
+    background: rgba(239, 68, 68, 0.35);
+    box-shadow: inset 3px 0 0 var(--accent-red);
+  }
+  50% {
+    background: rgba(37, 99, 235, 0.25);
+    box-shadow: inset 3px 0 0 var(--accent-blue);
+  }
+  100% {
+    background: rgba(37, 99, 235, 0.12);
+    box-shadow: inset 2px 0 0 var(--accent-blue);
+  }
+}
+
 /* Syntax Highlighting Colors */
 .syn-keyword {
   color: #7C3AED;

@@ -68,11 +68,14 @@ export class InteractiveGraphCanvas {
   getNodeDataByFile(fileName) {
     if (!this.cy || !fileName) return null;
     const nodes = this.cy.nodes();
-    const cleanFile = fileName.replace(/\.java$/, '').replace(/\.kt$/, '');
+    const cleanFile = fileName.replace(/\.java$/, '').replace(/\.kt$/, '').toLowerCase();
     for (let i = 0; i < nodes.length; i++) {
       const d = nodes[i].data();
       if (!d) continue;
-      if (d.file === fileName || d.id === fileName || d.id === cleanFile || d.name === cleanFile) {
+      const dFile = (d.file || '').replace(/\.java$/, '').replace(/\.kt$/, '').toLowerCase();
+      const dId = (d.id || '').toLowerCase();
+      const dName = (d.name || '').toLowerCase();
+      if (dFile === cleanFile || dId === cleanFile || dName === cleanFile || dFile.includes(cleanFile)) {
         return d;
       }
     }
@@ -90,6 +93,11 @@ export class InteractiveGraphCanvas {
     this.currentGraphType = graphType;
     const container = document.getElementById(this.containerId);
     if (!container) return;
+
+    if (this.hoverTimeout) {
+      clearTimeout(this.hoverTimeout);
+      this.hoverTimeout = null;
+    }
 
     if (this.cy) {
       this.cy.destroy();
