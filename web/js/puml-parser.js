@@ -322,34 +322,54 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
     }
 
     // ── 10. Relationships & Arrows ──
-    const relMatch = rawLine.match(/^([A-Za-z0-9_\[\]*]+)\s*([<\-\.o*+|]+>|<[<\-\.o*+|]+|\*--|--\*|o--|--o|\+--|--\+|\-\-|\.\.|-->|<--|\.\.>|<\.\.|\-\|>|<\|\-|\.\.\|>|<\|\.\.)\s*([A-Za-z0-9_\[\]*]+)(?:\s*:\s*(.+))?/);
+    const relMatch = rawLine.match(/^([A-Za-z0-9_\[\]*]+)\s*([<\-\.o*+|]+>|<[<\-\.o*+|]+|\*--|--\*|o--|--o|\+--|--\+|\-\-|\.\.|-->|<--|\.\.>|<\.\.|\-\|>|<\|\-|\.\.\|>|<\|\.\.|\-\>)(\s*|\s*:\s*)([A-Za-z0-9_\[\]*]+)(?:\s*:\s*(.+))?/);
     if (relMatch) {
       let src = relMatch[1].replace(/[[\]]/g, '');
       const arrow = relMatch[2];
-      let tgt = relMatch[3].replace(/[[\]]/g, '');
-      const edgeLabel = relMatch[4] ? relMatch[4].trim() : '';
+      let tgt = relMatch[4].replace(/[[\]]/g, '');
+      const edgeLabel = relMatch[5] ? relMatch[5].trim() : '';
 
-      if (src === '*') src = 'state_init';
-      if (tgt === '*') tgt = 'state_final';
+      if (src === '*' || src === '') src = `state_init_${elements.length}`;
+      if (tgt === '*' || tgt === '') tgt = `state_final_${elements.length}`;
 
       ensureNodeExists(src, nodeMap, elements, packageStack, diagramType);
       ensureNodeExists(tgt, nodeMap, elements, packageStack, diagramType);
 
       let umlKind = 'association';
-      if (arrow.includes('*--') || arrow.includes('--*')) {
-        umlKind = 'composition';
-      } else if (arrow.includes('o--') || arrow.includes('--o')) {
-        umlKind = 'aggregation';
-      } else if (arrow.includes('|>') || arrow.includes('<|')) {
-        if (arrow.includes('..')) {
-          umlKind = 'realization';
-        } else {
-          umlKind = 'generalization';
+      const dt = (diagramType || '').toLowerCase();
+
+      if (dt === 'sequence' || dt === 'communication') {
+        umlKind = 'message';
+      } else if (dt === 'statemachine' || dt === 'state') {
+        umlKind = 'transition';
+      } else if (dt === 'activity' || dt === 'cfg' || dt === 'cdg') {
+        umlKind = 'control_flow';
+      } else if (dt === 'dfg') {
+        umlKind = 'data_flow';
+      } else if (dt === 'profile') {
+        umlKind = 'extension';
+      } else if (dt === 'composite') {
+        umlKind = 'assembly_connector';
+      } else if (dt === 'deployment') {
+        umlKind = arrow.includes('..') ? 'manifestation' : 'association';
+      } else if (dt === 'robdd') {
+        umlKind = arrow.includes('..') ? 'low_branch' : 'high_branch';
+      } else {
+        if (arrow.includes('*--') || arrow.includes('--*')) {
+          umlKind = 'composition';
+        } else if (arrow.includes('o--') || arrow.includes('--o')) {
+          umlKind = 'aggregation';
+        } else if (arrow.includes('|>') || arrow.includes('<|')) {
+          if (arrow.includes('..')) {
+            umlKind = 'realization';
+          } else {
+            umlKind = 'generalization';
+          }
+        } else if (arrow.includes('..') || arrow.includes('..>')) {
+          umlKind = 'dependency';
+        } else if (arrow.includes('-->') || arrow.includes('<--')) {
+          umlKind = 'association';
         }
-      } else if (arrow.includes('..') || arrow.includes('..>')) {
-        umlKind = 'dependency';
-      } else if (arrow.includes('-->') || arrow.includes('<--')) {
-        umlKind = 'association';
       }
 
       elements.push({

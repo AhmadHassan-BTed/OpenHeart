@@ -84,15 +84,28 @@ impl JSONExporter {
     fn clean_type_name(raw: &str) -> String {
         let mut s = raw.trim();
         s = s.trim_end_matches('?');
-        // Handle generics like List<Task>, Map<String, Task>, Array<Task>
+        while s.ends_with("[]") {
+            s = &s[..s.len() - 2];
+        }
+        s = s.trim();
+
+        // Handle generics like List<Task>, Map<String, Task>, Set<? extends Task>
         if let Some(start) = s.find('<') {
             if let Some(end) = s.rfind('>') {
                 if end > start + 1 {
                     let inner = &s[start + 1..end];
-                    if let Some(comma_pos) = inner.rfind(',') {
-                        s = inner[comma_pos + 1..].trim();
+                    let clean_inner = if let Some(stripped) = inner.strip_prefix("? extends ") {
+                        stripped
+                    } else if let Some(stripped) = inner.strip_prefix("? super ") {
+                        stripped
                     } else {
-                        s = inner.trim();
+                        inner
+                    };
+
+                    if let Some(comma_pos) = clean_inner.rfind(',') {
+                        s = clean_inner[comma_pos + 1..].trim();
+                    } else {
+                        s = clean_inner.trim();
                     }
                 }
             }
