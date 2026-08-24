@@ -152,15 +152,17 @@ OpenHeart/
 │   ├── index.html                # Single-Page Web Studio Application
 │   └── style.css                 # Premium Swiss Design System & Dark/Light Themes
 │
+├── examples/                     # Standard Example & Benchmark Codebases (GoF Patterns, Enterprise Sample)
 ├── tests/                        # Unit & Integration Test Suite (47 Unit + 22 Integration Tests)
-├── docs/                         # Architecture Specifications & Onboarding Guides
+├── scripts/                      # Autonomous Diagram Generators, CI Checkers & Benchmark Harnesses
+├── docs/                         # Formal Specifications, Research Papers, & Developer Guides
 ├── Cargo.toml / Cargo.lock       # Rust Package Dependencies & Build Configuration
 └── Makefile                      # Convenient Targets for Build, Test, & Server Launch
 ```
 
 ---
 
-## Quickstart & Local Execution
+## 🛠️ Quickstart & Local Execution
 
 ### 1. Launch Live Web Studio (No Installation Required)
 Access the live studio directly in your browser:

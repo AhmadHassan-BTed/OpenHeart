@@ -233,6 +233,17 @@ web/
 
 ---
 
+## Example & Benchmark Codebases (`examples/`)
+
+| Directory | Purpose & Included Fixtures | Key Architectural Focus |
+|---|---|---|
+| `examples/test_patterns_codebase/` | 35 Gang of Four (GoF) Pattern Implementations | Creational, Structural, and Behavioral Pattern Matcher verification |
+| `examples/sample_project/` | Minimal Multi-Class Java Application | Baseline sanity verification for `App.java` and `Service.java` |
+| `examples/big_project_src/` | Multi-Package System Architecture | Deep package hierarchy and inter-package dependency analysis |
+| `examples/huge_enterprise_src/` | Enterprise Benchmark Codebase | Stress-testing memory-mapped binary serialization and #SAT path counts |
+
+---
+
 ## Integration Test Suite (`tests/`)
 
 | Test File | Covered Analysis Subsystem | Key Invariants Verified |

@@ -119,8 +119,46 @@ impl OpenHeartServer {
             let direct_candidates = [
                 decoded_path.as_str(),
                 &format!("./{}", decoded_path),
+                &format!("./examples/{}", decoded_path),
+                &format!("./examples/test_patterns_codebase/{}", decoded_path),
                 &format!("./target_repos/FractalAndroid/{}", decoded_path),
                 &format!("./test_patterns_codebase/{}", decoded_path),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/structural/facade/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/behavioral/observer/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/behavioral/strategy/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/behavioral/templatemethod/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/creational/builder/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/creational/factory/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/creational/singleton/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/structural/adapter/{}",
+                    file_name
+                ),
+                &format!(
+                    "./examples/test_patterns_codebase/com/patterns/structural/decorator/{}",
+                    file_name
+                ),
                 &format!(
                     "./test_patterns_codebase/com/patterns/structural/facade/{}",
                     file_name
@@ -167,7 +205,13 @@ impl OpenHeartServer {
             }
 
             if found_content.is_none() && !file_name.is_empty() {
-                for root in &["./target_repos", "./test_patterns_codebase", "./web"] {
+                for root in &[
+                    "./examples",
+                    "./examples/test_patterns_codebase",
+                    "./target_repos",
+                    "./test_patterns_codebase",
+                    "./web",
+                ] {
                     if let Ok(entries) = Self::walkdir_find(root, file_name) {
                         if let Some(first_match) = entries.first() {
                             if let Ok(content) = fs::read_to_string(first_match) {
