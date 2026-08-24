@@ -1,33 +1,41 @@
-# Build & Binary Output Target Directories
-/target/
-tmp/
-out_test/
-home/
-openheart_output/
-*_output/
-*_output_answer/
-output_diagrams/
-target_repos/
-sample_project/
-big_project_output/
-huge_output/
-scpg_output/
-fractal_android_output/
-fractal_android_output_answer/
+# ==============================================================================
+# OpenHeart (.gitignore) — Comprehensive Workspace Configuration
+# ==============================================================================
 
-# Python & Virtual Environments
+# ── 1. Rust / Cargo Build Targets & Artifacts ──
+/target/
+**/*.rs.bk
+*.pdb
+
+# ── 2. Node / Frontend Build & Logs ──
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.parcel-cache/
+.next/
+dist/
+build/
+
+# ── 3. Python Bytecode, Caches & Virtual Environments ──
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 .venv/
 venv/
 ENV/
 env/
 *.egg-info/
-.pytest_cache/
 
-# SCPG Phase 1-10 Binary Artifact Files
+# ── 4. SCPG Compiler Pipeline Binary Artifacts (Phases 1–10) ──
 *.tca
 *.bpa
 *.sta
@@ -39,25 +47,63 @@ env/
 *.uma
 *.scpg
 
-# Logs & Temporary Dump Files
+# ── 5. Output & Benchmark Cache Directories ──
+tmp/
+temp/
+out/
+out_*/
+*_output/
+*_output_answer/
+output_diagrams/
+target_repos/
+sample_project/
+big_project_output/
+huge_output/
+scpg_output/
+fractal_android_output/
+fractal_android_output_answer/
+
+# ── 6. Logs & Temporary Dump Files ──
 *.log
-*.txt
+*.tmp
+*.dump
 *.bin.png.txt
 *.png.txt
 
-# Media & Scratch Files
+# ── 7. Media Storage & Scratch Workspaces ──
 .tempmediaStorage/
 scratch/
 
-# Environment & Editor Files
-.env
-.env.*
+# ── 8. Operating System Metadata ──
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# ── 9. IDE & Editor Configurations ──
 .vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 .idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
 *.swp
 *.swo
+*~
+*.bak
 .zed/
 .fleet/
+.project
+.classpath
+.settings/
 
+# ── 10. Environment Configurations & Secrets ──
+.env
+.env.*
+!.env.example

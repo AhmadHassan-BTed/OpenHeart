@@ -29,7 +29,7 @@
 
 ---
 
-## 🌟 System Overview & Human Intent
+## System Overview & Human Intent
 
 Software codebases are living artifacts of human intellect designed to express domain logic, structural design, and operational intent. Traditional static analysis frameworks—such as pointer-heavy Code Property Graphs or lowered compiler IRs—strip away this high-level context, introducing massive memory inflation and pointer-chasing latency that isolate static analysis from real-time developer workflows.
 
@@ -41,7 +41,7 @@ By combining Succinct Balanced Parentheses (BP) trees, Compressed Sparse Row (CS
 
 ---
 
-## 🚀 Key Technical Features
+## Key Technical Features
 
 - **128× Memory Compression**: Replaces pointer-heavy AST nodes with Succinct Balanced Parentheses (BP) bitstrings and $O(1)$ Jacobson Rank/Select indexes.
 - **$O(1)$ Universal Traceability**: Monotonic 32-bit `token_id` anchors link raw source positions directly to IR graph nodes and derived UML elements.
@@ -84,7 +84,7 @@ OpenHeart deterministically derives 19 specialized graph projections organized i
 
 ---
 
-## ⚡ Master 10-Phase SCPG Compilation Pipeline
+## Master 10-Phase SCPG Compilation Pipeline
 
 ```text
 Phase 1 (COMPLETED) ──► Phase 2 (COMPLETED) ──► Phase 3 (COMPLETED) ──► Phase 4 (COMPLETED) ──► Phase 5 (COMPLETED)
@@ -100,7 +100,7 @@ Call Graph (.cga)       Forward/Backward       Summaries (.psa)       Metadata (
 
 ---
 
-## 📦 Binary Artifact Specifications
+## Binary Artifact Specifications
 
 | Phase | Artifact Extension | Magic Header | Core Storage Strategy & Data Structures |
 |---|---|---|---|
@@ -117,7 +117,7 @@ Call Graph (.cga)       Forward/Backward       Summaries (.psa)       Metadata (
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 OpenHeart/
@@ -160,11 +160,11 @@ OpenHeart/
 
 ---
 
-## 🛠️ Quickstart & Local Execution
+## Quickstart & Local Execution
 
 ### 1. Launch Live Web Studio (No Installation Required)
 Access the live studio directly in your browser:
-👉 **[OpenHeart Web Studio on GitHub Pages](https://ahmadhassan-bted.github.io/OpenHeart/)**
+ **[OpenHeart Web Studio on GitHub Pages](https://ahmadhassan-bted.github.io/OpenHeart/)**
 
 ### 2. Build Engine
 ```bash
@@ -189,7 +189,7 @@ cargo test --all-targets
 
 ---
 
-## 📚 Documentation Index
+## Documentation Index
 
 - **[System Overview](docs/overview.md)**: Formal mathematical definitions, comparative analysis, and succinct data structures.
 - **[System Architecture](docs/architecture.md)**: 10-Phase pipeline design and 19 diagram mappings.
@@ -201,6 +201,6 @@ cargo test --all-targets
 
 ---
 
-## 📜 License & Author
+## License & Author
 
 Authored, created, and maintained solely by **Ahmad Hassan (B-Ted)** under the [MIT License](LICENSE).
