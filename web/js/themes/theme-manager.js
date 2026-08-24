@@ -5,28 +5,122 @@
 import { LightTheme } from './light.js';
 import { DarkTheme } from './dark.js';
 
+export const DEFAULT_MANIFEST = {
+  version: "2.5.0",
+  name: "OpenHeart Universal Diagram Architecture Manifest",
+  description: "Declarative catalog of all UML 2.5 projections, compiler pipeline graphs, relationship terminologies, and node classifier schemas.",
+  categories: [
+    {
+      id: "uml_structural",
+      title: "UML 2.5 Structural Projections",
+      badge: "7 TYPES",
+      diagrams: [
+        { id: "class", number: "01", name: "Class Diagram", phase: "Phase 9", file_json: "class.json", file_puml: "class.puml", layout_engine: "package_tree" },
+        { id: "package", number: "02", name: "Package Diagram", phase: "Phase 9", file_json: "package.json", file_puml: "package.puml", layout_engine: "hierarchical" },
+        { id: "component", number: "03", name: "Component Diagram", phase: "Phase 9", file_json: "component.json", file_puml: "component.puml", layout_engine: "hierarchical" },
+        { id: "composite", number: "04", name: "Composite Structure", phase: "Phase 9", file_json: "composite.json", file_puml: "composite.puml", layout_engine: "hierarchical" },
+        { id: "object", number: "05", name: "Object Diagram", phase: "Phase 9", file_json: "object.json", file_puml: "object.puml", layout_engine: "hierarchical" },
+        { id: "deployment", number: "06", name: "Deployment Diagram", phase: "Phase 9", file_json: "deployment.json", file_puml: "deployment.puml", layout_engine: "hierarchical" },
+        { id: "profile", number: "07", name: "Profile Diagram", phase: "Phase 9", file_json: "profile.json", file_puml: "profile.puml", layout_engine: "hierarchical" }
+      ]
+    },
+    {
+      id: "uml_behavioral",
+      title: "UML 2.5 Behavioral Projections",
+      badge: "7 TYPES",
+      diagrams: [
+        { id: "sequence", number: "08", name: "Sequence Diagram", phase: "Phase 9", file_json: "sequence.json", file_puml: "sequence.puml", layout_engine: "sequence" },
+        { id: "statemachine", number: "09", name: "State Machine", phase: "Phase 9", file_json: "statemachine.json", file_puml: "statemachine.puml", layout_engine: "hierarchical" },
+        { id: "activity", number: "10", name: "Activity Diagram", phase: "Phase 9", file_json: "activity.json", file_puml: "activity.puml", layout_engine: "hierarchical" },
+        { id: "usecase", number: "11", name: "Use Case Diagram", phase: "Phase 9", file_json: "usecase.json", file_puml: "usecase.puml", layout_engine: "usecase" },
+        { id: "communication", number: "12", name: "Communication Diagram", phase: "Phase 9", file_json: "communication.json", file_puml: "communication.puml", layout_engine: "hierarchical" },
+        { id: "interaction", number: "13", name: "Interaction Overview", phase: "Phase 9", file_json: "interaction.json", file_puml: "interaction.puml", layout_engine: "hierarchical" },
+        { id: "timing", number: "14", name: "Timing Diagram", phase: "Phase 9", file_json: "timing.json", file_puml: "timing.puml", layout_engine: "timing" }
+      ]
+    },
+    {
+      id: "compiler_pipeline",
+      title: "Compiler Pipeline IRs",
+      badge: "5 GRAPHS",
+      diagrams: [
+        { id: "cfg", number: "15", name: "Control Flow (CFG)", phase: "Phase 4", file_json: "cfg.json", file_puml: "cfg.puml", layout_engine: "hierarchical" },
+        { id: "dfg", number: "16", name: "Data Flow (DFG)", phase: "Phase 5", file_json: "dfg.json", file_puml: "dfg.puml", layout_engine: "hierarchical" },
+        { id: "cdg", number: "17", name: "Control Dep (CDG)", phase: "Phase 4", file_json: "cdg.json", file_puml: "cdg.puml", layout_engine: "hierarchical" },
+        { id: "callgraph", number: "18", name: "Call Graph (CG)", phase: "Phase 6", file_json: "callgraph.json", file_puml: "callgraph.puml", layout_engine: "hierarchical" },
+        { id: "robdd", number: "19", name: "ROBDD Saturation", phase: "Phase 8", file_json: "robdd.json", file_puml: "robdd.puml", layout_engine: "hierarchical" }
+      ]
+    }
+  ],
+  relationship_types: {
+    generalization: { label: "Generalization (--|>)", icon: "▷", color_light: "#7C3AED", color_dark: "#A78BFA", line_style: "solid", target_arrow_shape: "triangle", target_arrow_fill: "hollow", arrow: "--|>", width: 2.5, arrow_scale: 2.0 },
+    realization: { label: "Realization (..|>)", icon: "▷", color_light: "#2563EB", color_dark: "#60A5FA", line_style: "dashed", target_arrow_shape: "triangle", target_arrow_fill: "hollow", arrow: "..|>", width: 2.4, arrow_scale: 2.0 },
+    composition: { label: "Composition (*--)", icon: "♦", color_light: "#DC2626", color_dark: "#F87171", line_style: "solid", source_arrow_shape: "diamond", source_arrow_fill: "filled", target_arrow_shape: "none", arrow: "*--", width: 2.6, arrow_scale: 2.2 },
+    aggregation: { label: "Aggregation (o--)", icon: "◇", color_light: "#059669", color_dark: "#34D399", line_style: "solid", source_arrow_shape: "diamond", source_arrow_fill: "hollow", target_arrow_shape: "none", arrow: "o--", width: 2.4, arrow_scale: 2.2 },
+    association: { label: "Association (-->)", icon: "→", color_light: "#0284C7", color_dark: "#38BDF8", line_style: "solid", target_arrow_shape: "vee", arrow: "-->", width: 2.2, arrow_scale: 1.8 },
+    dependency: { label: "Dependency (..>)", icon: "⇢", color_light: "#D97706", color_dark: "#FBBF24", line_style: "dashed", target_arrow_shape: "vee", arrow: "..>", width: 2.0, arrow_scale: 1.8 },
+    containment: { label: "Containment (+--)", icon: "⊕", color_light: "#6B7280", color_dark: "#9CA3AF", line_style: "dotted", target_arrow_shape: "circle", target_arrow_fill: "filled", arrow: "+--", width: 2.0, arrow_scale: 1.4 },
+    message: { label: "Sequence Message (->)", icon: "▶", color_light: "#4F46E5", color_dark: "#818CF8", line_style: "solid", target_arrow_shape: "triangle", target_arrow_fill: "filled", arrow: "->", width: 2.4, arrow_scale: 1.8 },
+    transition: { label: "State Transition (-->)", icon: "➔", color_light: "#0891B2", color_dark: "#22D3EE", line_style: "solid", target_arrow_shape: "triangle", target_arrow_fill: "filled", arrow: "-->", width: 2.4, arrow_scale: 1.8 },
+    control_flow: { label: "Control Flow (-->)", icon: "▶", color_light: "#059669", color_dark: "#10B981", line_style: "solid", target_arrow_shape: "triangle", target_arrow_fill: "filled", arrow: "-->", width: 2.4, arrow_scale: 1.8 },
+    manifestation: { label: "Manifestation (..>)", icon: "📦", color_light: "#EA580C", color_dark: "#FB923C", line_style: "dashed", target_arrow_shape: "vee", arrow: "..>", width: 2.2, arrow_scale: 1.8 },
+    low_branch: { label: "Low Branch / 0 (..>)", icon: "⤍", color_light: "#DC2626", color_dark: "#EF4444", line_style: "dashed", target_arrow_shape: "vee", arrow: "..>", width: 2.2, arrow_scale: 1.8 },
+    high_branch: { label: "High Branch / 1 (-->)", icon: "➜", color_light: "#059669", color_dark: "#10B981", line_style: "solid", target_arrow_shape: "triangle", target_arrow_fill: "filled", arrow: "-->", width: 2.5, arrow_scale: 1.8 },
+    data_flow: { label: "Data Flow Def-Use (-->)", icon: "⇢", color_light: "#0284C7", color_dark: "#38BDF8", line_style: "solid", target_arrow_shape: "vee", arrow: "-->", width: 2.2, arrow_scale: 1.8 },
+    extension: { label: "Profile Extension (--|>)", icon: "▲", color_light: "#9333EA", color_dark: "#C084FC", line_style: "solid", target_arrow_shape: "triangle", target_arrow_fill: "filled", arrow: "--|>", width: 2.5, arrow_scale: 2.0 },
+    assembly_connector: { label: "Assembly Port (-(0-)", icon: "⚯", color_light: "#D97706", color_dark: "#FACC15", line_style: "solid", target_arrow_shape: "circle", target_arrow_fill: "hollow", arrow: "-->", width: 2.4, arrow_scale: 1.6 }
+  },
+  node_kinds: {
+    class: { label: "Class", badge: "C", color: "#3B82F6" },
+    interface: { label: "Interface", badge: "I", color: "#10B981" },
+    abstract: { label: "Abstract Class", badge: "A", color: "#8B5CF6" },
+    enum: { label: "Enumeration", badge: "E", color: "#F59E0B" },
+    package: { label: "Package", badge: "📁", color: "#FACC15" },
+    state: { label: "State", badge: "S", color: "#06B6D4" },
+    action: { label: "Action", badge: "⚡", color: "#10B981" },
+    component: { label: "Component", badge: "⚙", color: "#3B82F6" },
+    device: { label: "Device", badge: "🖥", color: "#6366F1" },
+    artifact: { label: "Artifact", badge: "📦", color: "#EA580C" },
+    participant: { label: "Participant", badge: "👤", color: "#6366F1" },
+    actor: { label: "Actor", badge: "👤", color: "#FACC15" },
+    usecase: { label: "Use Case", badge: "U", color: "#38BDF8" },
+    object: { label: "Object Instance", badge: "O", color: "#3B82F6" },
+    bb: { label: "Basic Block", badge: "B", color: "#10B981" },
+    bdd_gate: { label: "BDD Gate", badge: "◆", color: "#C084FC" },
+    bdd_terminal: { label: "BDD Terminal", badge: "●", color: "#10B981" },
+    part: { label: "Composite Part", badge: "P", color: "#38BDF8" },
+    composite_classifier: { label: "Composite Classifier", badge: "C", color: "#38BDF8" },
+    metaclass: { label: "Metaclass", badge: "M", color: "#FACC15" },
+    stereotype: { label: "Stereotype", badge: "«S»", color: "#C084FC" },
+    timing_track: { label: "Timing Track", badge: "T", color: "#38BDF8" },
+    interaction_use: { label: "Interaction Use", badge: "ref", color: "#6366F1" },
+    data_node: { label: "Data Node", badge: "D", color: "#38BDF8" }
+  }
+};
+
 let themeListeners = [];
-let cachedManifest = null;
+let cachedManifest = DEFAULT_MANIFEST;
 
 export async function fetchManifest() {
-  if (cachedManifest) return cachedManifest;
   try {
     const res = await fetch('diagrams/manifest.json');
     if (res.ok) {
-      cachedManifest = await res.json();
+      const data = await res.json();
+      if (data && data.categories) {
+        cachedManifest = data;
+      }
     }
   } catch (e) {
-    console.warn('[THEME] Could not load diagrams/manifest.json:', e);
+    console.warn('[THEME] Using embedded default manifest:', e);
   }
-  return cachedManifest;
+  return cachedManifest || DEFAULT_MANIFEST;
 }
 
 export function setManifest(manifest) {
-  cachedManifest = manifest;
+  cachedManifest = manifest || DEFAULT_MANIFEST;
 }
 
 export function getCachedManifest() {
-  return cachedManifest;
+  return cachedManifest || DEFAULT_MANIFEST;
 }
 
 function compileDynamicEdgeStyles(manifest, isDark, edges) {
