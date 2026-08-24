@@ -156,6 +156,16 @@ export class SourceEditorModule {
       // 2. Try static candidate paths
       if (!content) {
         const candidatePaths = [
+          `examples/test_patterns_codebase/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/behavioral/observer/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/behavioral/strategy/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/behavioral/templatemethod/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/creational/builder/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/creational/factory/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/creational/singleton/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/structural/adapter/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/structural/decorator/${fileName}`,
+          `examples/test_patterns_codebase/com/patterns/structural/facade/${fileName}`,
           `test_patterns_codebase/${fileName}`,
           `test_patterns_codebase/com/patterns/behavioral/observer/${fileName}`,
           `test_patterns_codebase/com/patterns/behavioral/strategy/${fileName}`,
