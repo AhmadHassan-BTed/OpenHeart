@@ -575,7 +575,7 @@ export class InteractiveGraphCanvas {
     return loadGraphIrToCytoscape(customGraphIr);
   }
 
-  async renderGraph(graphType, customElements = null) {
+  async renderGraph(graphType, customElements = null, preservePositions = false) {
     this.currentGraphType = graphType;
     const container = document.getElementById(this.containerId);
     if (!container) return;
@@ -648,17 +648,20 @@ export class InteractiveGraphCanvas {
       ];
     }
 
-    // Compute exact collision-free coordinates across all 3 tiers
-    const layoutElements = computeDeterministicLayout(elements, graphType);
-
-    // Safety filter: Guarantee zero orphan edges so Cytoscape never crashes on external SDK symbols
-    const nodeIds = new Set(layoutElements.filter(e => e.data && !e.data.source).map(e => e.data.id));
-    const safeElements = layoutElements.filter(e => {
-      if (e.data && e.data.source) {
-        return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
-      }
-      return true;
-    });
+    // Compute exact collision-free coordinates across all 3 tiers (unless restoring saved layout)
+    let safeElements;
+    if (preservePositions) {
+      safeElements = elements;
+    } else {
+      const layoutElements = computeDeterministicLayout(elements, graphType);
+      const nodeIds = new Set(layoutElements.filter(e => e.data && !e.data.source).map(e => e.data.id));
+      safeElements = layoutElements.filter(e => {
+        if (e.data && e.data.source) {
+          return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
+        }
+        return true;
+      });
+    }
 
     this.cy = cytoscape({
       container: container,
@@ -687,7 +690,9 @@ export class InteractiveGraphCanvas {
     }
 
     this.attachEventListeners(container);
-    this.cy.fit(undefined, 60);
+    if (!preservePositions) {
+      this.cy.fit(undefined, 60);
+    }
 
     if (this.minimap) {
       this.minimap.onGraphRendered();
@@ -898,31 +903,49 @@ export class InteractiveGraphCanvas {
     });
 
     return {
+      $schema: "https://openheart.dev/schema/v1/diagram-state.json",
+      generator: "OpenHeart Studio 2026",
+      version: "1.0.0",
       format: "OpenHeart-Diagram-IR",
-      version: "1.0",
       diagram_type: this.currentGraphType,
       codebase_name: codebaseName,
       timestamp: new Date().toISOString(),
       pan: { ...this.cy.pan() },
       zoom: this.cy.zoom(),
+      pan_locked: this.isPanLocked,
+      active_filters: this.hiddenEdgeKinds ? Array.from(this.hiddenEdgeKinds) : [],
       elements: elements
     };
   }
 
-  loadDiagramState(savedState) {
+  async loadDiagramState(savedState) {
     if (!savedState || !savedState.elements || !Array.isArray(savedState.elements)) {
       throw new Error("Invalid OpenHeart diagram state format.");
     }
     const targetGraphType = savedState.diagram_type || this.currentGraphType || 'class';
     this.currentGraphType = targetGraphType;
     
-    this.renderGraph(targetGraphType, savedState.elements);
+    // Check if elements have custom positions
+    const hasCustomPositions = savedState.elements.some(e => e.position && (e.position.x !== undefined || e.position.y !== undefined));
+
+    await this.renderGraph(targetGraphType, savedState.elements, hasCustomPositions);
 
     if (savedState.zoom && savedState.pan && this.cy) {
       this.cy.viewport({
         zoom: savedState.zoom,
         pan: savedState.pan
       });
+    }
+
+    if (savedState.pan_locked !== undefined) {
+      this.setPanLock(savedState.pan_locked);
+    }
+
+    if (Array.isArray(savedState.active_filters)) {
+      this.hiddenEdgeKinds = new Set(savedState.active_filters);
+      if (this.onLayersUpdateCallback) {
+        this.onLayersUpdateCallback(this.getActiveEdgeKinds());
+      }
     }
   }
 

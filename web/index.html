@@ -1217,7 +1217,7 @@
           const state = canvas.getDiagramStateJson();
           if (!state) return;
           const jsonText = JSON.stringify(state, null, 2);
-          const filename = `${state.codebase_name || 'OpenHeart'}_${canvas.currentGraphType}_diagram.json`;
+          const filename = `${state.codebase_name || 'OpenHeart'}_${canvas.currentGraphType}_state.openheart.json`;
           downloadBlob(jsonText, 'application/json', filename);
           const hudText = document.getElementById('hud-status-text');
           if (hudText) {
@@ -1226,7 +1226,7 @@
         });
       }
 
-      // 2. Load Saved State (.json)
+      // 2. Load Saved State (.json / .openheart.json)
       const btnLoadJson = document.getElementById('btn-load-json');
       const inputLoadJson = document.getElementById('input-load-json');
       if (btnLoadJson && inputLoadJson) {
@@ -1242,15 +1242,25 @@
           try {
             const text = await file.text();
             const savedState = JSON.parse(text);
-            canvas.loadDiagramState(savedState);
+            await canvas.loadDiagramState(savedState);
             const hudText = document.getElementById('hud-status-text');
             if (hudText) {
-              hudText.innerHTML = `✅ Successfully loaded diagram state from <strong>${file.name}</strong> (${savedState.diagram_type.toUpperCase()})`;
+              hudText.innerHTML = `✅ Successfully loaded diagram state from <strong>${file.name}</strong> (${(savedState.diagram_type || 'DIAGRAM').toUpperCase()})`;
             }
             // Update active sidebar tab button
             document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
               btn.classList.toggle('active', btn.getAttribute('data-graph-type') === savedState.diagram_type);
             });
+            // Update pan lock button if present
+            const btnPanLock = document.getElementById('btn-pan-lock');
+            const iconPanLock = document.getElementById('icon-pan-lock');
+            const labelPanLock = document.getElementById('label-pan-lock');
+            if (btnPanLock && iconPanLock && labelPanLock) {
+              const isLocked = canvas.isPanLocked;
+              btnPanLock.classList.toggle('active-locked', isLocked);
+              iconPanLock.textContent = isLocked ? '🔒' : '🔓';
+              labelPanLock.textContent = isLocked ? 'Locked' : 'Unlocked';
+            }
           } catch (err) {
             console.error('Failed to load diagram state:', err);
             alert(`Could not load diagram JSON: ${err.message}`);
