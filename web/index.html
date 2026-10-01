@@ -62,20 +62,20 @@
         </div>
 
         <!-- Local Folder & ZIP Codebase Import Buttons -->
-        <div class="codebase-upload-group" style="display: flex; gap: 6px; align-items: center;">
+        <div class="codebase-upload-group">
           <input type="file" id="input-folder-picker" webkitdirectory directory multiple style="display: none;" />
           <input type="file" id="input-zip-picker" accept=".zip,application/zip" style="display: none;" />
-          <button id="btn-import-folder" class="btn-header-action" title="Select a local folder on your computer to generate diagrams" style="cursor: pointer;">
-            <span style="color: #38bdf8;">📁</span> <span>Folder</span>
+          <button id="btn-import-folder" class="btn-upload-segment" title="Select a local folder on your computer to generate diagrams">
+            <span>📁</span> <span>Folder</span>
           </button>
-          <button id="btn-import-zip" class="btn-header-action" title="Upload a ZIP archive to generate diagrams" style="cursor: pointer;">
-            <span style="color: #facc15;">📦</span> <span>ZIP</span>
+          <button id="btn-import-zip" class="btn-upload-segment" title="Upload a ZIP archive to generate diagrams">
+            <span>📦</span> <span>ZIP</span>
           </button>
         </div>
 
         <!-- Quick Repository Preset Chips -->
         <div class="preset-chips-box">
-          <span style="font-size: 11px; color: var(--text-faint);">Presets:</span>
+          <span class="preset-label">Presets:</span>
           <button class="preset-chip" data-repo="petclinic">spring-petclinic</button>
           <button class="preset-chip" data-repo="patterns">design-patterns</button>
           <button class="preset-chip" data-repo="payment">payment-service</button>
@@ -88,10 +88,8 @@
           <span id="header-hash-badge">SCPG 0x83D202B2 · Verified</span>
         </div>
 
-        <button id="btn-theme-toggle" class="btn-header-action" style="font-weight: 700; cursor: pointer;">🌙 Dark</button>
-        <button id="btn-export-svg" class="btn-header-action">Export SVG</button>
-        <button id="btn-export-json" class="btn-header-action">Export JSON</button>
-        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn-header-action">GitHub</a>
+        <button id="btn-theme-toggle" class="btn-header-action" title="Toggle Light / Dark Theme">🌙 Dark</button>
+        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn-header-action" title="View OpenHeart on GitHub">GitHub</a>
       </div>
     </header>
 
@@ -159,61 +157,78 @@
             <span class="live-pulse"></span>
             <span id="hud-status-text">Two-finger scroll to Pan · Two-finger pinch to Zoom · Hover to trace path</span>
           </div>
-          <div class="hud-action-controls">
-            <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag: 1% to 50%)">
-              <span class="pan-slider-label">⚡ Pan</span>
-              <input type="range" id="pan-sensitivity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
-              <span id="pan-sensitivity-val">10%</span>
-            </div>
-            <button id="btn-pan-lock" class="hud-pill-btn" title="Toggle Pan Lock (Lock diagram layout for pure panning & viewing)">
-              <span id="icon-pan-lock">🔓</span> <span id="label-pan-lock">Unlocked</span>
-            </button>
-            <button id="btn-toggle-minimap" class="hud-pill-btn active-pill" title="Toggle Minimap Radar (Shortcut: M)">
-              <span>🗺️ Minimap</span>
-            </button>
-            <button id="btn-toggle-loupe" class="hud-pill-btn" title="Toggle Cursor Magnifier Lens (Shortcut: L)">
-              <span>🔍 Loupe</span>
-            </button>
-            <div class="export-dropdown-wrapper" style="position: relative;">
-              <button id="btn-export-menu" class="hud-pill-btn" title="Save or Export Diagram">
-                <span>💾 Save / Export ▾</span>
-              </button>
-              <div id="export-menu-dropdown" class="export-menu-dropdown hidden-dropdown">
-                <button class="export-item-btn" id="btn-save-json">
-                  <span class="export-item-icon">💾</span>
-                  <div class="export-item-text">
-                    <strong>Save Diagram State (.json)</strong>
-                    <small>Preserves exact layout to resume later</small>
-                  </div>
-                </button>
-                <button class="export-item-btn" id="btn-load-json">
-                  <span class="export-item-icon">📥</span>
-                  <div class="export-item-text">
-                    <strong>Load Saved State (.json)</strong>
-                    <small>Resume previously saved diagram</small>
-                  </div>
-                </button>
-                <input type="file" id="input-load-json" accept=".json" style="display:none;" />
-                <div class="export-menu-divider"></div>
-                <button class="export-item-btn" id="btn-export-png">
-                  <span class="export-item-icon">📷</span>
-                  <div class="export-item-text">
-                    <strong>Export High-Res PNG</strong>
-                    <small>Crisp raster image for reports</small>
-                  </div>
-                </button>
-                <button class="export-item-btn" id="btn-export-svg">
-                  <span class="export-item-icon">🖼️</span>
-                  <div class="export-item-text">
-                    <strong>Export Vector SVG</strong>
-                    <small>Infinite resolution vector graphic</small>
-                  </div>
-                </button>
+          <div class="hud-action-controls hud-toolbar-cluster">
+            <div class="hud-group">
+              <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag: 1% to 50%)">
+                <span class="pan-slider-label">⚡ Pan</span>
+                <input type="range" id="pan-sensitivity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
+                <span id="pan-sensitivity-val">10%</span>
               </div>
             </div>
-            <button id="btn-zoom-in" class="hud-round-btn" title="Zoom In (+)">+</button>
-            <button id="btn-zoom-out" class="hud-round-btn" title="Zoom Out (−)">−</button>
-            <button id="btn-zoom-reset" class="hud-round-btn" title="Fit View (⊡)">⊡</button>
+
+            <div class="hud-divider"></div>
+
+            <div class="hud-group">
+              <button id="btn-pan-lock" class="hud-tool-btn hud-pill-btn" title="Toggle Pan Lock (Lock diagram layout for pure panning & viewing)">
+                <span id="icon-pan-lock">🔓</span> <span id="label-pan-lock" class="btn-text-label">Unlocked</span>
+              </button>
+              <button id="btn-toggle-minimap" class="hud-tool-btn hud-pill-btn active-pill" title="Toggle Minimap Radar (Shortcut: M)">
+                <span>🗺️</span> <span class="btn-text-label">Radar</span>
+              </button>
+              <button id="btn-toggle-loupe" class="hud-tool-btn hud-pill-btn" title="Toggle Cursor Magnifier Lens (Shortcut: L)">
+                <span>🔍</span> <span class="btn-text-label">Loupe</span>
+              </button>
+            </div>
+
+            <div class="hud-divider"></div>
+
+            <div class="hud-group">
+              <div class="export-dropdown-wrapper" style="position: relative;">
+                <button id="btn-export-menu" class="hud-tool-btn hud-pill-btn" title="Save or Export Diagram">
+                  <span>💾</span> <span class="btn-text-label">Export</span> <span style="font-size: 8px; opacity: 0.7;">▾</span>
+                </button>
+                <div id="export-menu-dropdown" class="export-menu-dropdown hidden-dropdown">
+                  <button class="export-item-btn" id="btn-save-json">
+                    <span class="export-item-icon">💾</span>
+                    <div class="export-item-text">
+                      <strong>Save Diagram State (.json)</strong>
+                      <small>Preserves exact layout to resume later</small>
+                    </div>
+                  </button>
+                  <button class="export-item-btn" id="btn-load-json">
+                    <span class="export-item-icon">📥</span>
+                    <div class="export-item-text">
+                      <strong>Load Saved State (.json)</strong>
+                      <small>Resume previously saved diagram</small>
+                    </div>
+                  </button>
+                  <input type="file" id="input-load-json" accept=".json" style="display:none;" />
+                  <div class="export-menu-divider"></div>
+                  <button class="export-item-btn" id="btn-export-png">
+                    <span class="export-item-icon">📷</span>
+                    <div class="export-item-text">
+                      <strong>Export High-Res PNG</strong>
+                      <small>Crisp raster image for reports</small>
+                    </div>
+                  </button>
+                  <button class="export-item-btn" id="btn-export-svg">
+                    <span class="export-item-icon">🖼️</span>
+                    <div class="export-item-text">
+                      <strong>Export Vector SVG</strong>
+                      <small>Infinite resolution vector graphic</small>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="hud-divider"></div>
+
+            <div class="hud-group zoom-group">
+              <button id="btn-zoom-in" class="hud-tool-btn hud-round-btn icon-only" title="Zoom In (+)">+</button>
+              <button id="btn-zoom-out" class="hud-tool-btn hud-round-btn icon-only" title="Zoom Out (−)">−</button>
+              <button id="btn-zoom-reset" class="hud-tool-btn hud-round-btn icon-only" title="Fit View (⊡)">⊡</button>
+            </div>
           </div>
         </div>
 

@@ -79,6 +79,9 @@ export function generateUmlClassCardSvg(classData) {
     stereotypeColor = theme.isDark ? `hsl(${hue}, 80%, 80%)` : `hsl(${hue}, 85%, 30%)`;
   }
 
+  const stereotypePillWidth = Math.max(76, Math.min(dynamicWidth - 32, Math.round((badgeText.length + 4) * 6.2 + 16)));
+  const stereotypePillX = Math.round((dynamicWidth - stereotypePillWidth) / 2);
+
   let svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${dynamicWidth}" height="${cardHeight}" viewBox="0 0 ${dynamicWidth} ${cardHeight}">
   <defs>
@@ -91,7 +94,7 @@ export function generateUmlClassCardSvg(classData) {
   <path d="M 1,9 Q 1,1 9,1 L ${dynamicWidth - 9},1 Q ${dynamicWidth - 1},1 ${dynamicWidth - 1},9 L ${dynamicWidth - 1},${HEADER_HEIGHT} L 1,${HEADER_HEIGHT} Z" fill="${headerBg}" />
   <line x1="1" y1="${HEADER_HEIGHT}" x2="${dynamicWidth - 1}" y2="${HEADER_HEIGHT}" stroke="${borderStroke}" stroke-width="1.2" />
 
-  <rect x="${dynamicWidth / 2 - 50}" y="6" width="100" height="14" rx="7" ry="7" fill="${stereotypeBg}" />
+  <rect x="${stereotypePillX}" y="6" width="${stereotypePillWidth}" height="15" rx="7.5" ry="7.5" fill="${stereotypeBg}" />
   <text x="${dynamicWidth / 2}" y="16.5" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${stereotypeColor}" text-anchor="middle">&lt;&lt;${escapeXml(badgeText)}&gt;&gt;</text>
   <text x="${dynamicWidth / 2}" y="38" font-family="JetBrains Mono, -apple-system, sans-serif" font-size="12.5" font-weight="700" fill="${titleColor}" text-anchor="middle">${escapeXml(name)}</text>
 `;
@@ -205,10 +208,13 @@ export function generatePackageFolderSvg(pkgData) {
 `;
 
   if (isCollapsed || childCount > 0) {
+    const pkgBadgeText = `📦 ${childCount} Items (Click to Focus)`;
+    const pkgBadgeWidth = Math.max(140, Math.min(width - 24, Math.round(pkgBadgeText.length * 5.8 + 24)));
+    const pkgBadgeX = Math.round((width - pkgBadgeWidth) / 2);
     svg += `
-  <rect x="${width / 2 - 80}" y="${height - 24}" width="160" height="18" rx="9" fill="${isDark ? '#1F2937' : '#FFFFFF'}" stroke="${borderColor}" stroke-width="1" />
+  <rect x="${pkgBadgeX}" y="${height - 24}" width="${pkgBadgeWidth}" height="18" rx="9" fill="${isDark ? '#1F2937' : '#FFFFFF'}" stroke="${borderColor}" stroke-width="1" />
   <text x="${width / 2}" y="${height - 12}" font-family="JetBrains Mono, monospace" font-size="9" font-weight="700" fill="${textColor}" text-anchor="middle">
-    📦 ${childCount} Items (Click to Focus)
+    ${pkgBadgeText}
   </text>`;
   }
 

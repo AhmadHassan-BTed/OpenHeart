@@ -1,56 +1,86 @@
 /**
- * OpenHeart Dark Theme CSS Tokens
+ * OpenHeart Engineered Design System Tokens — Dark Palette
+ * Deep slate palette with calibrated luminance steps for zero eye strain
  */
 body.dark-theme, [data-theme="dark"] {
-  --bg-app: #0B0F19;
-  --bg-surface: #111827;
-  --bg-subtle: #1F2937;
-  --bg-muted: #374151;
-  --bg-card: #111827;
-  --bg-header: rgba(17, 24, 39, 0.95);
-  --bg-footer: rgba(17, 24, 39, 0.95);
-  --bg-canvas: #0B0F19;
-  --bg-tree: #111827;
-  --bg-tree-header: #1F2937;
-  --bg-tree-hover: #1F2937;
-  --bg-tree-active: #1E3A8A;
-  --bg-tabs: #1F2937;
-  --bg-tab-active: #111827;
-  --bg-badge: #374151;
-  --bg-breadcrumb: #1F2937;
-  --bg-slider: #1F2937;
-  --bg-floating: rgba(17, 24, 39, 0.96);
+  /* ── 1. Elevation & Background Surface Hierarchy ── */
+  --bg-app: #080C14;                  /* True deep canvas base */
+  --bg-surface: #0E1422;              /* Primary workspace cards (sidebar, canvas, inspector) */
+  --bg-subtle: #161F32;               /* Secondary inputs, toolbars, search bar */
+  --bg-muted: #1E293B;                /* Inactive pressed fills, badges, divider tracks */
+  --bg-card: #0E1422;
+  --bg-hover: #1C273F;                /* Interactive hover state */
+  --bg-active: #1E3A8A;               /* Selected/active state fill */
+  --bg-elevated: rgba(14, 20, 34, 0.88); /* Floating HUD, popovers, dropdowns */
+  --bg-header: rgba(14, 20, 34, 0.90);
+  --bg-footer: rgba(14, 20, 34, 0.90);
+  --bg-canvas: #080C14;
+  --bg-floating: rgba(14, 20, 34, 0.88);
+  --bg-backdrop: rgba(0, 0, 0, 0.65);
 
-  --border-light: #1F2937;
-  --border-medium: #374151;
-  --border-focus: #60A5FA;
-  --border-slider: #374151;
+  /* Tree & Editor Specific */
+  --bg-tree: #0E1422;
+  --bg-tree-header: #131A2B;
+  --bg-tree-hover: #182238;
+  --bg-tree-active: #172A4E;
+  --bg-tabs: #131A2B;
+  --bg-tab-active: #0E1422;
+  --bg-badge: #1E293B;
+  --bg-breadcrumb: #131A2B;
+  --bg-slider: #161F32;
 
-  --text-main: #F9FAFB;
-  --text-muted: #9CA3AF;
-  --text-faint: #6B7280;
-  --text-inverse: #0F172A;
-  --text-badge: #D1D5DB;
-  --text-tree-folder: #E5E7EB;
-  --text-tree-file: #F3F4F6;
-  --text-tree-active: #93C5FD;
-  --text-breadcrumb-root: #9CA3AF;
-  --text-breadcrumb-pkg: #60A5FA;
-  --text-breadcrumb-file: #F9FAFB;
+  /* ── 2. Unified Border System (Crisp, High-Precision Contrast) ── */
+  --border-subtle: #182336;           /* Hairline internal dividers (1px) */
+  --border-default: #22304A;          /* Standard component perimeter border (card borders, headers) */
+  --border-light: #22304A;            /* Backward-compatible alias */
+  --border-medium: #2D3E5E;           /* Interactive control borders (buttons, inputs) */
+  --border-strong: #3D537D;           /* High-contrast control borders */
+  --border-hover: #38BDF8;            /* Subtle interactive hover highlight */
+  --border-focus: #38BDF8;            /* Active focus ring */
+  --border-slider: #2D3E5E;
 
-  --accent-blue: #60A5FA;
-  --accent-blue-subtle: #1E3A8A;
+  /* ── 3. High-Contrast Typography Hierarchy ── */
+  --text-main: #F8FAFC;               /* Pure readable high-contrast text */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;          /* Secondary body text & readable labels */
+  --text-muted: #94A3B8;              /* Subtitles, secondary pill labels */
+  --text-faint: #64748B;              /* Meta descriptions, timestamps, placeholders */
+  --text-disabled: #475569;
+  --text-inverse: #080C14;            /* Text on bright buttons or badges */
+  --text-badge: #CBD5E1;
+  --text-tree-folder: #E2E8F0;
+  --text-tree-file: #F8FAFC;
+  --text-tree-active: #60A5FA;
+  --text-breadcrumb-root: #64748B;
+  --text-breadcrumb-pkg: #38BDF8;
+  --text-breadcrumb-file: #F8FAFC;
+
+  /* ── 4. Accent & Semantic Color Palette ── */
+  --accent-blue: #38BDF8;
+  --accent-blue-hover: #0EA5E9;
+  --accent-blue-subtle: rgba(56, 189, 248, 0.14);
+  --accent-blue-border: rgba(56, 189, 248, 0.35);
+
   --accent-purple: #A78BFA;
+  --accent-purple-subtle: rgba(167, 139, 250, 0.14);
+
   --accent-emerald: #34D399;
-  --accent-emerald-subtle: #064E3B;
+  --accent-emerald-subtle: rgba(52, 211, 153, 0.14);
+  --accent-emerald-border: rgba(52, 211, 153, 0.35);
+
   --accent-amber: #FBBF24;
+  --accent-amber-subtle: rgba(251, 191, 36, 0.14);
+
   --accent-rose: #F87171;
+  --accent-rose-subtle: rgba(248, 113, 113, 0.14);
 
-  --canvas-grid-dot: rgba(255, 255, 255, 0.12);
-  --canvas-grid-line: rgba(255, 255, 255, 0.03);
+  /* ── 5. Canvas Grid Patterns ── */
+  --canvas-grid-dot: rgba(255, 255, 255, 0.14);
+  --canvas-grid-line: rgba(255, 255, 255, 0.025);
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 20px 40px -8px rgba(0, 0, 0, 0.7);
+  /* ── 6. Elevation Shadows ── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 4px 16px -2px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 20px 48px -4px rgba(0, 0, 0, 0.75), 0 8px 16px rgba(0, 0, 0, 0.5);
 }

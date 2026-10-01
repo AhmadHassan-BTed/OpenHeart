@@ -1,15 +1,24 @@
 /**
- * OpenHeart Light Theme CSS Tokens
+ * OpenHeart Engineered Design System Tokens — Light Palette
+ * Built for high-density, low-fatigue developer tools (Linear / Apple Developer / GitHub Primer standard)
  */
 :root, [data-theme="light"] {
-  --bg-app: #FAFCFE;
-  --bg-surface: #FFFFFF;
-  --bg-subtle: #F8FAFC;
-  --bg-muted: #F1F5F9;
+  /* ── 1. Elevation & Background Surface Hierarchy ── */
+  --bg-app: #F6F8FA;                  /* Foundation canvas floor */
+  --bg-surface: #FFFFFF;              /* Primary workspace cards (sidebar, canvas, inspector) */
+  --bg-subtle: #F1F5F9;               /* Secondary inputs, toolbars, search bar */
+  --bg-muted: #E2E8F0;                /* Inactive pressed fills, badges, divider tracks */
   --bg-card: #FFFFFF;
-  --bg-header: rgba(255, 255, 255, 0.95);
-  --bg-footer: rgba(255, 255, 255, 0.95);
+  --bg-hover: #EAEFF5;                /* Interactive hover state */
+  --bg-active: #E0E7FF;               /* Selected/active state fill */
+  --bg-elevated: rgba(255, 255, 255, 0.94); /* Floating HUD, popovers, dropdowns */
+  --bg-header: rgba(255, 255, 255, 0.92);
+  --bg-footer: rgba(255, 255, 255, 0.92);
   --bg-canvas: #FAFCFE;
+  --bg-floating: rgba(255, 255, 255, 0.94);
+  --bg-backdrop: rgba(15, 23, 42, 0.45);
+
+  /* Tree & Editor Specific */
   --bg-tree: #FFFFFF;
   --bg-tree-header: #F8FAFC;
   --bg-tree-hover: #F1F5F9;
@@ -17,40 +26,61 @@
   --bg-tabs: #F8FAFC;
   --bg-tab-active: #FFFFFF;
   --bg-badge: #E2E8F0;
-  --bg-breadcrumb: #F1F5F9;
+  --bg-breadcrumb: #F8FAFC;
   --bg-slider: #F1F5F9;
-  --bg-floating: rgba(255, 255, 255, 0.96);
 
-  --border-light: #E2E8F0;
-  --border-medium: #CBD5E1;
-  --border-focus: #2563EB;
-  --border-slider: #E2E8F0;
+  /* ── 2. Unified Border System (Engineered Contrast & No Disjointed Lines) ── */
+  --border-subtle: #E5E7EB;           /* Hairline internal dividers (1px) */
+  --border-default: #D1D5DB;          /* Standard component perimeter border */
+  --border-light: #E5E7EB;            /* Backward-compatible alias */
+  --border-medium: #CBD5E1;           /* Interactive control borders (buttons, inputs) */
+  --border-strong: #94A3B8;           /* High-contrast control borders */
+  --border-hover: #93C5FD;            /* Subtle interactive hover highlight */
+  --border-focus: #0284C7;            /* Active focus ring */
+  --border-slider: #CBD5E1;
 
-  --text-main: #0F172A;
-  --text-muted: #475569;
-  --text-faint: #64748B;
-  --text-inverse: #FFFFFF;
-  --text-badge: #475569;
-  --text-tree-folder: #334155;
-  --text-tree-file: #1E293B;
-  --text-tree-active: #1D4ED8;
-  --text-breadcrumb-root: #475569;
-  --text-breadcrumb-pkg: #2563EB;
+  /* ── 3. High-Contrast Typography Hierarchy ── */
+  --text-main: #0F172A;               /* Primary high-contrast text */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;          /* Secondary body text & readable labels */
+  --text-muted: #475569;              /* Subtitles, secondary pill labels */
+  --text-faint: #64748B;              /* Meta descriptions, timestamps, placeholders */
+  --text-disabled: #94A3B8;
+  --text-inverse: #FFFFFF;            /* Text on dark buttons or badges */
+  --text-badge: #334155;
+  --text-tree-folder: #1E293B;
+  --text-tree-file: #0F172A;
+  --text-tree-active: #0284C7;
+  --text-breadcrumb-root: #64748B;
+  --text-breadcrumb-pkg: #0284C7;
   --text-breadcrumb-file: #0F172A;
 
-  --accent-blue: #2563EB;
-  --accent-blue-subtle: #EFF6FF;
+  /* ── 4. Accent & Semantic Color Palette ── */
+  --accent-blue: #0284C7;
+  --accent-blue-hover: #0369A1;
+  --accent-blue-subtle: #E0F2FE;
+  --accent-blue-border: #7DD3FC;
+
   --accent-purple: #7C3AED;
+  --accent-purple-subtle: #F3E8FF;
+
   --accent-emerald: #059669;
   --accent-emerald-subtle: #ECFDF5;
+  --accent-emerald-border: #A7F3D0;
+
   --accent-amber: #D97706;
+  --accent-amber-subtle: #FFFBEB;
+
   --accent-rose: #DC2626;
+  --accent-rose-subtle: #FEF2F2;
 
+  /* ── 5. Canvas Grid Patterns ── */
   --canvas-grid-dot: #CBD5E1;
-  --canvas-grid-line: rgba(0, 0, 0, 0.02);
+  --canvas-grid-line: rgba(0, 0, 0, 0.03);
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* ── 6. Elevation Shadows ── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
-  --shadow-card: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
-  --shadow-modal: 0 12px 32px -4px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-modal: 0 16px 36px -4px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.08);
 }
