@@ -57,6 +57,9 @@ out_*/
 output_diagrams/
 target_repos/
 sample_project/
+sample_projects/
+sample_codebase/*
+!sample_codebase/.gitkeep
 big_project_output/
 huge_output/
 scpg_output/
@@ -73,6 +76,8 @@ fractal_android_output_answer/
 # ── 7. Media Storage & Scratch Workspaces ──
 .tempmediaStorage/
 scratch/
+docs/assets/*.webp
+docs/assets/*.mp4
 
 # ── 8. Operating System Metadata ──
 .DS_Store

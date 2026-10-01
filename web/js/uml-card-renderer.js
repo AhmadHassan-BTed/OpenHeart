@@ -183,6 +183,7 @@ export function generatePackageFolderSvg(pkgData) {
     borderColor = isDomainTier ? '#2563EB' : '#7C3AED';
     textColor = isDomainTier ? '#1E40AF' : '#581C87';
     titleColor = '#0F172A';
+  }
   const borderStyle = '';
 
   let svg = `
@@ -519,7 +520,7 @@ export function generateCfgBlockSvg(data) {
 
 /** ── 11. ROBDD Decision Gate Node ── */
 export function generateBddGateSvg(data) {
-  const { varName = "var", id = "", isTerminal = false, terminalValue = 1, isDark = false } = data;
+  const { varName = "var", id = "", isTerminal = false, terminalValue = 1, isDark = false, width = 130, height = 60 } = data;
   const theme = getTheme(isDark);
   const t = theme.cards.bdd;
 

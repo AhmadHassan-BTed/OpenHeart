@@ -19,6 +19,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js"></script>
+  <!-- JSZip for in-browser ZIP codebase decompression -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -34,8 +37,8 @@
 
         <div class="header-divider"></div>
 
-        <!-- GitHub Repository Import Bar -->
-        <div class="repo-import-bar">
+        <!-- GitHub Repository Import Bar with Project History Dropdown -->
+        <div class="repo-import-bar" style="position: relative;">
           <span class="repo-import-icon">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
@@ -45,10 +48,29 @@
             type="text" 
             id="input-repo-url" 
             class="repo-import-input" 
-            placeholder="Paste GitHub URL (e.g. spring-petclinic, java-design-patterns)..." 
+            placeholder="Paste GitHub URL or select past project..." 
             value="https://github.com/iluwatar/java-design-patterns"
+            autocomplete="off"
           />
+          <button id="btn-repo-dropdown-toggle" class="btn-repo-dropdown-toggle" title="Recent Projects & Presets">▾</button>
           <button id="btn-import-repo" class="btn-analyze-pill">Analyze Repo</button>
+
+          <!-- Floating Project History & Presets Dropdown Popover -->
+          <div id="repo-history-dropdown" class="repo-history-dropdown hidden-dropdown">
+            <!-- Dynamically populated from JavaScript -->
+          </div>
+        </div>
+
+        <!-- Local Folder & ZIP Codebase Import Buttons -->
+        <div class="codebase-upload-group" style="display: flex; gap: 6px; align-items: center;">
+          <input type="file" id="input-folder-picker" webkitdirectory directory multiple style="display: none;" />
+          <input type="file" id="input-zip-picker" accept=".zip,application/zip" style="display: none;" />
+          <button id="btn-import-folder" class="btn-header-action" title="Select a local folder on your computer to generate diagrams" style="cursor: pointer;">
+            <span style="color: #38bdf8;">📁</span> <span>Folder</span>
+          </button>
+          <button id="btn-import-zip" class="btn-header-action" title="Upload a ZIP archive to generate diagrams" style="cursor: pointer;">
+            <span style="color: #facc15;">📦</span> <span>ZIP</span>
+          </button>
         </div>
 
         <!-- Quick Repository Preset Chips -->
@@ -142,6 +164,46 @@
               <span class="pan-slider-label">⚡ Pan</span>
               <input type="range" id="pan-sensitivity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
               <span id="pan-sensitivity-val">10%</span>
+            </div>
+            <button id="btn-pan-lock" class="hud-pill-btn" title="Toggle Pan Lock (Lock diagram layout for pure panning & viewing)">
+              <span id="icon-pan-lock">🔓</span> <span id="label-pan-lock">Unlocked</span>
+            </button>
+            <div class="export-dropdown-wrapper" style="position: relative;">
+              <button id="btn-export-menu" class="hud-pill-btn" title="Save or Export Diagram">
+                <span>💾 Save / Export ▾</span>
+              </button>
+              <div id="export-menu-dropdown" class="export-menu-dropdown hidden-dropdown">
+                <button class="export-item-btn" id="btn-save-json">
+                  <span class="export-item-icon">💾</span>
+                  <div class="export-item-text">
+                    <strong>Save Diagram State (.json)</strong>
+                    <small>Preserves exact layout to resume later</small>
+                  </div>
+                </button>
+                <button class="export-item-btn" id="btn-load-json">
+                  <span class="export-item-icon">📥</span>
+                  <div class="export-item-text">
+                    <strong>Load Saved State (.json)</strong>
+                    <small>Resume previously saved diagram</small>
+                  </div>
+                </button>
+                <input type="file" id="input-load-json" accept=".json" style="display:none;" />
+                <div class="export-menu-divider"></div>
+                <button class="export-item-btn" id="btn-export-png">
+                  <span class="export-item-icon">📷</span>
+                  <div class="export-item-text">
+                    <strong>Export High-Res PNG</strong>
+                    <small>Crisp raster image for reports</small>
+                  </div>
+                </button>
+                <button class="export-item-btn" id="btn-export-svg">
+                  <span class="export-item-icon">🖼️</span>
+                  <div class="export-item-text">
+                    <strong>Export Vector SVG</strong>
+                    <small>Infinite resolution vector graphic</small>
+                  </div>
+                </button>
+              </div>
             </div>
             <button id="btn-zoom-in" class="hud-round-btn" title="Zoom In (+)">+</button>
             <button id="btn-zoom-out" class="hud-round-btn" title="Zoom Out (−)">−</button>
@@ -306,6 +368,13 @@
               btn.classList.add('active');
               localStorage.setItem('openheart_active_graph', diag.id);
               canvas.renderGraph(diag.id);
+              if (canvas.customGraphIr) {
+                const customName = sessionStorage.getItem('openheart_custom_name') || 'Local Codebase';
+                const hudText = document.getElementById('hud-status-text');
+                if (hudText) {
+                  hudText.innerHTML = `✅ Active codebase: <strong>${customName}</strong> · ${diag.name} (${diag.phase})`;
+                }
+              }
             });
 
             li.appendChild(btn);
@@ -379,6 +448,34 @@
         paneSource.style.display = 'block';
         paneExplorer.style.display = 'none';
       });
+
+      // ── Persistent Custom Codebase Restoration (Preserves loaded codebase across reloads) ──
+      const savedCustomIr = sessionStorage.getItem('openheart_custom_graph_ir');
+      if (savedCustomIr) {
+        try {
+          const parsedIr = JSON.parse(savedCustomIr);
+          const customName = sessionStorage.getItem('openheart_custom_name') || 'Local Codebase';
+          canvas.customGraphIr = parsedIr;
+
+          const savedFiles = sessionStorage.getItem('openheart_custom_files');
+          if (savedFiles) {
+            const fileEntries = JSON.parse(savedFiles);
+            editor.setMultipleSources(new Map(fileEntries));
+          }
+
+          const inputEl = document.getElementById('input-repo-url');
+          if (inputEl) {
+            inputEl.value = `📁 ${customName} (Active Codebase)`;
+          }
+
+          const hudText = document.getElementById('hud-status-text');
+          if (hudText) {
+            hudText.innerHTML = `✅ Persistent codebase restored: <strong>${customName}</strong> · Ready`;
+          }
+        } catch (restoreErr) {
+          console.warn('[OpenHeart Studio] Failed restoring custom codebase from storage:', restoreErr);
+        }
+      }
 
       canvas.init();
       editor.init();
@@ -539,6 +636,19 @@
         const progressTrack = document.getElementById('clone-progress-bar-container');
         const progressFill = document.getElementById('clone-progress-fill');
 
+        // Guard against analyzing active local codebase as a GitHub URL
+        if (repoUrl.startsWith('local:') || repoUrl.startsWith('📁') || repoUrl.startsWith('📦') || repoUrl.includes('(Active Codebase)') || repoUrl.includes('(Local Codebase)') || (canvas.customGraphIr && !repoUrl.startsWith('http') && !repoUrl.includes('/'))) {
+          if (canvas.customGraphIr) {
+            const cbName = sessionStorage.getItem('openheart_custom_name') || canvas.customGraphIr.title || 'Local Codebase';
+            hudText.innerHTML = `✅ Active codebase: <strong>${cbName}</strong> · Rendering ${canvas.currentGraphType.toUpperCase()}`;
+            await canvas.renderGraph(canvas.currentGraphType);
+            return;
+          } else {
+            hudText.innerHTML = `<span style="color: #facc15;">Please choose your local folder using the "📁 Folder" button above.</span>`;
+            return;
+          }
+        }
+
         const parts = repoUrl.trim().split('/');
         const repoName = parts[parts.length - 1] || 'repository';
 
@@ -626,6 +736,14 @@
             const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
             hudText.innerHTML = `✅ [5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
+            addToProjectHistory({
+              id: repoUrl,
+              name: repoName,
+              type: 'github',
+              icon: '🐙',
+              url: repoUrl,
+              badge: 'GitHub'
+            });
             await canvas.renderGraph(canvas.currentGraphType);
           } else {
             // Attempt 2: Zero-Backend In-Browser GitHub Engine (GitHub Pages Native)
@@ -646,6 +764,14 @@
             const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
             hudText.innerHTML = `✅ [5/5] In-Browser Graph Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
+            addToProjectHistory({
+              id: repoUrl,
+              name: repoName,
+              type: 'github',
+              icon: '🐙',
+              url: repoUrl,
+              badge: 'GitHub'
+            });
             await canvas.renderCustomGraphIr(ghResult.graph_ir);
           }
 
@@ -666,6 +792,181 @@
       };
 
 
+      // ── Custom Local Folder & ZIP Codebase Ingestion ──
+      const importCustomCodebase = async (fileItems, name) => {
+        const hudText = document.getElementById('hud-status-text');
+        const hashBadge = document.getElementById('header-hash-badge');
+        const progressTrack = document.getElementById('clone-progress-bar-container');
+        const progressFill = document.getElementById('clone-progress-fill');
+        const startTime = Date.now();
+
+        if (progressTrack) progressTrack.classList.add('active');
+        if (progressFill) progressFill.style.width = '15%';
+
+        try {
+          hudText.innerHTML = `⚡ Ingesting &amp; analyzing codebase: <strong>${name}</strong>...`;
+
+          const result = await GitHubEngine.analyzeSourceFiles(fileItems, name, (pct, msg) => {
+            if (progressFill) progressFill.style.width = `${pct}%`;
+            hudText.innerHTML = `Analyzing <strong>${name}</strong>: ${msg}`;
+          });
+
+          // Cache source code in Monaco editor
+          if (result.fileCache) {
+            editor.setMultipleSources(result.fileCache);
+          }
+
+          // Persist to sessionStorage so all 19 diagram types and page reloads keep this codebase active!
+          try {
+            sessionStorage.setItem('openheart_custom_graph_ir', JSON.stringify(result.graph_ir));
+            sessionStorage.setItem('openheart_custom_name', name);
+            if (result.fileCache) {
+              sessionStorage.setItem('openheart_custom_files', JSON.stringify(Array.from(result.fileCache.entries())));
+            }
+          } catch (storageErr) {
+            console.warn('[OpenHeart Studio] Could not save custom codebase to sessionStorage:', storageErr);
+          }
+
+          if (progressFill) progressFill.style.width = '100%';
+          const scpgHash = '0x' + (result.session_id ? result.session_id.slice(-8).toUpperCase() : '9BAF8700');
+          hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
+
+          const filesCount = result.stats ? result.stats.files_processed : 0;
+          const classesCount = result.stats ? result.stats.total_classes : 0;
+          const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+          hudText.innerHTML = `✅ [5/5] In-Browser Graph Generated for <strong>${name}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
+          document.getElementById('input-repo-url').value = `📁 ${name} (Active Codebase)`;
+
+          addToProjectHistory({
+            id: name,
+            name: name,
+            type: 'local',
+            icon: '📁',
+            url: `📁 ${name} (Active Codebase)`,
+            badge: 'Local Codebase'
+          });
+
+          await canvas.renderCustomGraphIr(result.graph_ir);
+        } catch (err) {
+          console.error('[OpenHeart Studio] Codebase import error:', err);
+          hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}</span>`;
+        } finally {
+          setTimeout(() => {
+            if (progressTrack) progressTrack.classList.remove('active');
+            if (progressFill) progressFill.style.width = '0%';
+          }, 800);
+        }
+      };
+
+      // Folder Picker Action
+      const inputFolder = document.getElementById('input-folder-picker');
+      const btnFolder = document.getElementById('btn-import-folder');
+      if (btnFolder && inputFolder) {
+        btnFolder.addEventListener('click', () => {
+          inputFolder.value = '';
+          inputFolder.click();
+        });
+
+        inputFolder.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length === 0) return;
+          const firstPath = files[0].webkitRelativePath || files[0].name;
+          const folderName = firstPath.split('/')[0] || 'LocalFolder';
+
+          const fileItems = files.map(f => ({
+            path: f.webkitRelativePath || f.name,
+            getText: () => f.text()
+          }));
+
+          await importCustomCodebase(fileItems, folderName);
+        });
+      }
+
+      // ZIP Picker Action
+      const inputZip = document.getElementById('input-zip-picker');
+      const btnZip = document.getElementById('btn-import-zip');
+      if (btnZip && inputZip) {
+        btnZip.addEventListener('click', () => {
+          inputZip.value = '';
+          inputZip.click();
+        });
+
+        inputZip.addEventListener('change', async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const zipName = file.name.replace(/\.zip$/i, '');
+
+          if (typeof JSZip === 'undefined') {
+            alert('JSZip library is still loading. Please try again in a moment.');
+            return;
+          }
+
+          const hudText = document.getElementById('hud-status-text');
+          hudText.innerHTML = `📦 Unpacking ZIP archive: <strong>${file.name}</strong>...`;
+
+          try {
+            const zip = await JSZip.loadAsync(file);
+            const fileItems = [];
+            zip.forEach((relPath, zipEntry) => {
+              if (!zipEntry.dir) {
+                fileItems.push({
+                  path: relPath,
+                  getText: () => zipEntry.async('string')
+                });
+              }
+            });
+
+            await importCustomCodebase(fileItems, zipName);
+          } catch (zipErr) {
+            console.error('[OpenHeart Studio] ZIP read error:', zipErr);
+            hudText.innerHTML = `<span style="color: #f87171;">Failed to read ZIP: ${zipErr.message}</span>`;
+          }
+        });
+      }
+
+      // Drag and Drop ZIP / Folder onto window
+      window.addEventListener('dragover', (e) => e.preventDefault());
+      window.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const files = Array.from(e.dataTransfer?.files || []);
+        if (files.length === 0) return;
+
+        const zipFile = files.find(f => f.name.toLowerCase().endsWith('.zip'));
+        if (zipFile && typeof JSZip !== 'undefined') {
+          const zipName = zipFile.name.replace(/\.zip$/i, '');
+          const zip = await JSZip.loadAsync(zipFile);
+          const fileItems = [];
+          zip.forEach((relPath, zipEntry) => {
+            if (!zipEntry.dir) {
+              fileItems.push({
+                path: relPath,
+                getText: () => zipEntry.async('string')
+              });
+            }
+          });
+          await importCustomCodebase(fileItems, zipName);
+        } else if (files.length > 0 && files[0].webkitRelativePath) {
+          const folderName = files[0].webkitRelativePath.split('/')[0] || 'LocalFiles';
+          const fileItems = files.map(f => ({
+            path: f.webkitRelativePath || f.name,
+            getText: () => f.text()
+          }));
+          await importCustomCodebase(fileItems, folderName);
+        }
+      });
+
+      const inputRepoEl = document.getElementById('input-repo-url');
+      if (inputRepoEl) {
+        inputRepoEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const url = inputRepoEl.value.trim();
+            if (url) importRepo(url);
+          }
+        });
+      }
+
       document.getElementById('btn-import-repo').addEventListener('click', () => {
         const url = document.getElementById('input-repo-url').value.trim();
         if (url) {
@@ -675,6 +976,14 @@
 
       document.querySelectorAll('.preset-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
+          // Clear custom codebase state when user explicitly chooses a preset
+          canvas.customGraphIr = null;
+          try {
+            sessionStorage.removeItem('openheart_custom_graph_ir');
+            sessionStorage.removeItem('openheart_custom_name');
+            sessionStorage.removeItem('openheart_custom_files');
+          } catch (e) {}
+
           const chipEl = e.currentTarget;
           const repo = chipEl.getAttribute('data-repo');
           let targetUrl = 'https://github.com/spring-projects/spring-petclinic';
@@ -688,6 +997,278 @@
           document.getElementById('input-repo-url').value = targetUrl;
           importRepo(targetUrl);
         });
+      });
+
+      // ── Project History & Recent Projects Dropdown ──
+      function getProjectHistory() {
+        try {
+          return JSON.parse(localStorage.getItem('openheart_project_history') || '[]');
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function addToProjectHistory(item) {
+        let history = getProjectHistory();
+        history = history.filter(h => h.id !== item.id && h.name !== item.name);
+        history.unshift(item);
+        if (history.length > 8) history = history.slice(0, 8);
+        try {
+          localStorage.setItem('openheart_project_history', JSON.stringify(history));
+        } catch (e) {}
+        renderProjectHistoryDropdown();
+      }
+
+      function renderProjectHistoryDropdown() {
+        const dropdown = document.getElementById('repo-history-dropdown');
+        if (!dropdown) return;
+        const history = getProjectHistory();
+
+        let html = '';
+        if (history.length > 0) {
+          html += `
+            <div class="repo-history-section-title">
+              <span>Recent Projects</span>
+              <button class="repo-history-clear-btn" id="btn-clear-history">Clear</button>
+            </div>
+          `;
+          history.forEach(item => {
+            html += `
+              <button class="repo-history-item" data-history-id="${encodeURIComponent(item.id)}" data-history-type="${item.type}" data-history-url="${encodeURIComponent(item.url)}">
+                <span class="repo-history-icon">${item.icon || '📁'}</span>
+                <span class="repo-history-text">${item.name}</span>
+                <span class="repo-history-badge">${item.badge || item.type}</span>
+              </button>
+            `;
+          });
+          html += '<div class="repo-history-divider"></div>';
+        }
+
+        html += `
+          <div class="repo-history-section-title">
+            <span>Presets & Demo Codebases</span>
+          </div>
+          <button class="repo-history-item" data-preset="patterns" data-history-url="https://github.com/iluwatar/java-design-patterns">
+            <span class="repo-history-icon">📐</span>
+            <span class="repo-history-text">iluwatar/java-design-patterns</span>
+            <span class="repo-history-badge">Preset</span>
+          </button>
+          <button class="repo-history-item" data-preset="petclinic" data-history-url="https://github.com/spring-projects/spring-petclinic">
+            <span class="repo-history-icon">☕</span>
+            <span class="repo-history-text">spring-projects/spring-petclinic</span>
+            <span class="repo-history-badge">Preset</span>
+          </button>
+          <button class="repo-history-item" data-preset="fractal" data-history-url="https://github.com/Fractal-Compute-Orchestrations/FractalAndroid">
+            <span class="repo-history-icon">⚡</span>
+            <span class="repo-history-text">FractalAndroid (Mobile SDK)</span>
+            <span class="repo-history-badge">Preset</span>
+          </button>
+        `;
+
+        dropdown.innerHTML = html;
+
+        const btnClear = document.getElementById('btn-clear-history');
+        if (btnClear) {
+          btnClear.addEventListener('click', (e) => {
+            e.stopPropagation();
+            localStorage.removeItem('openheart_project_history');
+            renderProjectHistoryDropdown();
+          });
+        }
+
+        dropdown.querySelectorAll('.repo-history-item').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.add('hidden-dropdown');
+            const rawUrl = decodeURIComponent(btn.getAttribute('data-history-url') || '');
+            const type = btn.getAttribute('data-history-type');
+            const id = decodeURIComponent(btn.getAttribute('data-history-id') || '');
+
+            if (type === 'local' || type === 'zip') {
+              const activeName = sessionStorage.getItem('openheart_custom_name');
+              if (activeName === id && canvas.customGraphIr) {
+                document.getElementById('input-repo-url').value = rawUrl;
+                canvas.renderGraph(canvas.currentGraphType);
+              } else {
+                document.getElementById('input-repo-url').value = rawUrl;
+                const hudText = document.getElementById('hud-status-text');
+                if (hudText) {
+                  hudText.innerHTML = `💡 Project <strong>${id}</strong> selected. Click <strong>📁 Folder</strong> or <strong>📦 ZIP</strong> to load its files.`;
+                }
+              }
+            } else {
+              document.getElementById('input-repo-url').value = rawUrl;
+              importRepo(rawUrl);
+            }
+          });
+        });
+      }
+
+      renderProjectHistoryDropdown();
+
+      const btnHistoryToggle = document.getElementById('btn-repo-dropdown-toggle');
+      const repoHistoryDropdown = document.getElementById('repo-history-dropdown');
+      if (btnHistoryToggle && repoHistoryDropdown) {
+        btnHistoryToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          renderProjectHistoryDropdown();
+          repoHistoryDropdown.classList.toggle('hidden-dropdown');
+        });
+      }
+
+      if (inputRepoEl && repoHistoryDropdown) {
+        inputRepoEl.addEventListener('focus', () => {
+          renderProjectHistoryDropdown();
+          repoHistoryDropdown.classList.remove('hidden-dropdown');
+        });
+      }
+
+      // ── Pan Lock (View Only Mode) Toggle ──
+      const btnPanLock = document.getElementById('btn-pan-lock');
+      const iconPanLock = document.getElementById('icon-pan-lock');
+      const labelPanLock = document.getElementById('label-pan-lock');
+      if (btnPanLock) {
+        btnPanLock.addEventListener('click', () => {
+          const isLocked = canvas.togglePanLock();
+          if (iconPanLock) iconPanLock.innerText = isLocked ? '🔒' : '🔓';
+          if (labelPanLock) labelPanLock.innerText = isLocked ? 'Locked' : 'Unlocked';
+          btnPanLock.classList.toggle('active-locked', isLocked);
+          const hudText = document.getElementById('hud-status-text');
+          if (hudText) {
+            hudText.innerHTML = isLocked
+              ? `🔒 <strong>Pan Lock Active</strong>: Layout locked. Pure pan &amp; inspect mode enabled.`
+              : `🔓 <strong>Pan Lock Disabled</strong>: Diagram nodes can be repositioned freely.`;
+          }
+        });
+      }
+
+      // ── Save / Export & Load Diagram State ──
+      const btnExportMenu = document.getElementById('btn-export-menu');
+      const exportMenuDropdown = document.getElementById('export-menu-dropdown');
+      if (btnExportMenu && exportMenuDropdown) {
+        btnExportMenu.addEventListener('click', (e) => {
+          e.stopPropagation();
+          exportMenuDropdown.classList.toggle('hidden-dropdown');
+        });
+      }
+
+      function downloadBlob(content, mimeType, filename) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      function downloadDataUri(dataUri, filename) {
+        const a = document.createElement('a');
+        a.href = dataUri;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      // 1. Save Diagram State (.json)
+      const btnSaveJson = document.getElementById('btn-save-json');
+      if (btnSaveJson) {
+        btnSaveJson.addEventListener('click', () => {
+          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
+          const state = canvas.getDiagramStateJson();
+          if (!state) return;
+          const jsonText = JSON.stringify(state, null, 2);
+          const filename = `${state.codebase_name || 'OpenHeart'}_${canvas.currentGraphType}_diagram.json`;
+          downloadBlob(jsonText, 'application/json', filename);
+          const hudText = document.getElementById('hud-status-text');
+          if (hudText) {
+            hudText.innerHTML = `💾 Diagram state saved as <strong>${filename}</strong>!`;
+          }
+        });
+      }
+
+      // 2. Load Saved State (.json)
+      const btnLoadJson = document.getElementById('btn-load-json');
+      const inputLoadJson = document.getElementById('input-load-json');
+      if (btnLoadJson && inputLoadJson) {
+        btnLoadJson.addEventListener('click', () => {
+          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
+          inputLoadJson.value = '';
+          inputLoadJson.click();
+        });
+
+        inputLoadJson.addEventListener('change', async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const text = await file.text();
+            const savedState = JSON.parse(text);
+            canvas.loadDiagramState(savedState);
+            const hudText = document.getElementById('hud-status-text');
+            if (hudText) {
+              hudText.innerHTML = `✅ Successfully loaded diagram state from <strong>${file.name}</strong> (${savedState.diagram_type.toUpperCase()})`;
+            }
+            // Update active sidebar tab button
+            document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+              btn.classList.toggle('active', btn.getAttribute('data-graph-type') === savedState.diagram_type);
+            });
+          } catch (err) {
+            console.error('Failed to load diagram state:', err);
+            alert(`Could not load diagram JSON: ${err.message}`);
+          }
+        });
+      }
+
+      // 3. Export High-Res PNG
+      const btnExportPng = document.getElementById('btn-export-png');
+      if (btnExportPng) {
+        btnExportPng.addEventListener('click', () => {
+          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
+          const pngData = canvas.exportPng();
+          if (!pngData) return;
+          const name = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
+          const filename = `${name}_${canvas.currentGraphType}.png`;
+          downloadDataUri(pngData, filename);
+          const hudText = document.getElementById('hud-status-text');
+          if (hudText) {
+            hudText.innerHTML = `📷 High-res PNG exported as <strong>${filename}</strong>!`;
+          }
+        });
+      }
+
+      // 4. Export Vector SVG
+      const btnExportSvg = document.getElementById('btn-export-svg');
+      if (btnExportSvg) {
+        btnExportSvg.addEventListener('click', () => {
+          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
+          const name = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
+          const filename = `${name}_${canvas.currentGraphType}.svg`;
+          const svgData = canvas.exportSvg();
+          if (svgData) {
+            downloadBlob(svgData, 'image/svg+xml;charset=utf-8', filename);
+            const hudText = document.getElementById('hud-status-text');
+            if (hudText) {
+              hudText.innerHTML = `🖼️ Vector SVG exported as <strong>${filename}</strong>!`;
+            }
+          } else {
+            // Fallback to high-res PNG if cytoscape-svg plugin isn't active
+            const pngData = canvas.exportPng();
+            if (pngData) downloadDataUri(pngData, `${name}_${canvas.currentGraphType}.png`);
+          }
+        });
+      }
+
+      // ── Close Popover Dropdowns on Outside Click ──
+      window.addEventListener('click', (e) => {
+        if (repoHistoryDropdown && !repoHistoryDropdown.contains(e.target) && e.target !== btnHistoryToggle && e.target !== inputRepoEl) {
+          repoHistoryDropdown.classList.add('hidden-dropdown');
+        }
+        if (exportMenuDropdown && !exportMenuDropdown.contains(e.target) && e.target !== btnExportMenu && !btnExportMenu?.contains(e.target)) {
+          exportMenuDropdown.classList.add('hidden-dropdown');
+        }
       });
     });
   </script>

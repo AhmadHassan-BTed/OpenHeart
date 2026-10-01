@@ -34,6 +34,22 @@ export class SourceEditorModule {
     this.renderInitialPlaceholder();
   }
 
+  setSource(fileName, content) {
+    if (!fileName || !content) return;
+    this.sourceCache.set(fileName, content);
+    const baseName = fileName.split('/').pop();
+    if (baseName && baseName !== fileName) {
+      this.sourceCache.set(baseName, content);
+    }
+  }
+
+  setMultipleSources(fileMap) {
+    if (!fileMap) return;
+    fileMap.forEach((content, fileName) => {
+      this.setSource(fileName, content);
+    });
+  }
+
   bindToolbarControls() {
     const btnFontDec = document.getElementById('btn-code-font-dec');
     const btnFontInc = document.getElementById('btn-code-font-inc');
