@@ -726,7 +726,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - 290px);
   pointer-events: auto;
   transition: all 0.15s ease;
 }
@@ -922,6 +922,12 @@ html, body {
   height: 100%;
   display: block;
   cursor: crosshair;
+}
+
+.minimap-body.navigating,
+.minimap-body.navigating .minimap-canvas,
+.minimap-body.navigating .minimap-viewfinder {
+  cursor: grabbing !important;
 }
 
 /* ── Interactive Viewfinder Frame with Pointer Capture ── */

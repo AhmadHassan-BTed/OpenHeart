@@ -168,80 +168,48 @@ export class MinimapNavigator {
       header.addEventListener('dblclick', () => this.toggleCollapse());
     }
 
-    // Viewfinder Pointer Drag (Uses Pointer Capture for glitch-free sweep)
-    if (this.viewfinderEl) {
-      this.viewfinderEl.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
-        this.isDraggingViewfinder = true;
-        this.dragStart = { x: e.clientX, y: e.clientY };
-        this.viewfinderEl.setPointerCapture(e.pointerId);
-        this.viewfinderEl.classList.add('dragging');
-      });
-
-      this.viewfinderEl.addEventListener('pointermove', (e) => {
-        if (!this.isDraggingViewfinder || !this.graphCanvas.cy) return;
-        e.stopPropagation();
-        e.preventDefault();
-
-        const dx = e.clientX - this.dragStart.x;
-        const dy = e.clientY - this.dragStart.y;
-        this.dragStart = { x: e.clientX, y: e.clientY };
-
-        if (this.scale > 0) {
-          const cy = this.graphCanvas.cy;
-          const worldDx = dx / this.scale;
-          const worldDy = dy / this.scale;
-          cy.panBy({
-            x: -worldDx * cy.zoom(),
-            y: -worldDy * cy.zoom()
-          });
-        }
-      });
-
-      const stopDrag = (e) => {
-        if (this.isDraggingViewfinder) {
-          this.isDraggingViewfinder = false;
-          try {
-            this.viewfinderEl.releasePointerCapture(e.pointerId);
-          } catch (err) {}
-          this.viewfinderEl.classList.remove('dragging');
-        }
-      };
-
-      this.viewfinderEl.addEventListener('pointerup', stopDrag);
-      this.viewfinderEl.addEventListener('pointercancel', stopDrag);
-    }
-
-    // Click Minimap Canvas to Pan Viewport Immediately
+    // Universal Minimap Pointer Interaction (Click or Drag ANYWHERE on the minimap)
     const minimapBody = this.minimapCard?.querySelector('#minimap-body');
     if (minimapBody) {
-      minimapBody.addEventListener('click', (e) => {
-        if (e.target === this.viewfinderEl || this.viewfinderEl?.contains(e.target)) return;
+      const handleMinimapNav = (e) => {
         if (!this.graphCanvas.cy) return;
-
         const rect = this.canvasEl.getBoundingClientRect();
-        const clickU = e.clientX - rect.left;
-        const clickV = e.clientY - rect.top;
+        const u = e.clientX - rect.left;
+        const v = e.clientY - rect.top;
 
-        const targetWorldX = this.worldBounds.x1 + (clickU - this.offsetX) / this.scale;
-        const targetWorldY = this.worldBounds.y1 + (clickV - this.offsetY) / this.scale;
+        const targetWorldX = this.worldBounds.x1 + (u - this.offsetX) / this.scale;
+        const targetWorldY = this.worldBounds.y1 + (v - this.offsetY) / this.scale;
 
         const cy = this.graphCanvas.cy;
         const targetPanX = Math.round(cy.width() / 2 - targetWorldX * cy.zoom());
         const targetPanY = Math.round(cy.height() / 2 - targetWorldY * cy.zoom());
 
-        cy.animate({
-          pan: { x: targetPanX, y: targetPanY },
-          duration: 180,
-          easing: 'ease-out-cubic'
-        });
+        cy.pan({ x: targetPanX, y: targetPanY });
+      };
+
+      minimapBody.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || !this.graphCanvas.cy) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.isDraggingViewfinder = true;
+        minimapBody.setPointerCapture(e.pointerId);
+        minimapBody.classList.add('navigating');
+        this.viewfinderEl?.classList.add('dragging');
+
+        // Immediately teleport camera to clicked coordinate and start continuous drag
+        handleMinimapNav(e);
       });
 
-      // Hover Tooltip inspection over minimap
-      minimapBody.addEventListener('mousemove', (e) => {
-        if (this.isDraggingViewfinder || !this.hoverTooltipEl) return;
+      minimapBody.addEventListener('pointermove', (e) => {
+        if (this.isDraggingViewfinder) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleMinimapNav(e);
+          return;
+        }
+
+        // Hover Tooltip inspection over minimap when not dragging
+        if (!this.hoverTooltipEl) return;
         const rect = this.canvasEl.getBoundingClientRect();
         const u = e.clientX - rect.left;
         const v = e.clientY - rect.top;
@@ -262,9 +230,19 @@ export class MinimapNavigator {
         }
       });
 
-      minimapBody.addEventListener('mouseleave', () => {
-        if (this.hoverTooltipEl) this.hoverTooltipEl.style.display = 'none';
-      });
+      const stopDrag = (e) => {
+        if (this.isDraggingViewfinder) {
+          this.isDraggingViewfinder = false;
+          try {
+            minimapBody.releasePointerCapture(e.pointerId);
+          } catch (_) {}
+          minimapBody.classList.remove('navigating');
+          this.viewfinderEl?.classList.remove('dragging');
+        }
+      };
+
+      minimapBody.addEventListener('pointerup', stopDrag);
+      minimapBody.addEventListener('pointercancel', stopDrag);
     }
 
     // Magnifier Loupe Cursor Tracking
@@ -630,9 +608,9 @@ export class MinimapNavigator {
     const relX = mouseX - rect.left;
     const relY = mouseY - rect.top;
 
-    // Position loupe centered at cursor (100px radius)
+    // Position loupe centered at cursor (100px radius) relative to canvas container
     const lensRadius = 100;
-    this.loupeEl.style.transform = `translate3d(${mouseX - lensRadius}px, ${mouseY - lensRadius}px, 0)`;
+    this.loupeEl.style.transform = `translate3d(${(relX - lensRadius).toFixed(1)}px, ${(relY - lensRadius).toFixed(1)}px, 0)`;
 
     // Cached Cytoscape canvas layers query
     if (!this.cachedCyCanvases || this.cachedCyCanvases.length === 0) {
