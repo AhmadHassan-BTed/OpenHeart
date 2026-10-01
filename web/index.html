@@ -168,6 +168,12 @@
             <button id="btn-pan-lock" class="hud-pill-btn" title="Toggle Pan Lock (Lock diagram layout for pure panning & viewing)">
               <span id="icon-pan-lock">🔓</span> <span id="label-pan-lock">Unlocked</span>
             </button>
+            <button id="btn-toggle-minimap" class="hud-pill-btn active-pill" title="Toggle Minimap Radar (Shortcut: M)">
+              <span>🗺️ Minimap</span>
+            </button>
+            <button id="btn-toggle-loupe" class="hud-pill-btn" title="Toggle Cursor Magnifier Lens (Shortcut: L)">
+              <span>🔍 Loupe</span>
+            </button>
             <div class="export-dropdown-wrapper" style="position: relative;">
               <button id="btn-export-menu" class="hud-pill-btn" title="Save or Export Diagram">
                 <span>💾 Save / Export ▾</span>
@@ -1139,6 +1145,21 @@
               ? `🔒 <strong>Pan Lock Active</strong>: Layout locked. Pure pan &amp; inspect mode enabled.`
               : `🔓 <strong>Pan Lock Disabled</strong>: Diagram nodes can be repositioned freely.`;
           }
+        });
+      }
+
+      // ── Minimap & Loupe Controls ──
+      const btnToggleMinimap = document.getElementById('btn-toggle-minimap');
+      if (btnToggleMinimap) {
+        btnToggleMinimap.addEventListener('click', () => {
+          canvas.toggleMinimap();
+        });
+      }
+
+      const btnToggleLoupe = document.getElementById('btn-toggle-loupe');
+      if (btnToggleLoupe) {
+        btnToggleLoupe.addEventListener('click', () => {
+          canvas.toggleLoupe();
         });
       }
 

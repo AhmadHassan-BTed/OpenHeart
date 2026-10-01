@@ -14,6 +14,7 @@ import { computeDeterministicLayout } from './uml-layout.js';
 import { loadGraphIrToCytoscape } from './graph-loader.js';
 import { generatePackageFolderSvg } from './uml-card-renderer.js';
 import { getTheme, onThemeChange, buildCytoscapeStylesheet } from './themes/index.js';
+import { MinimapNavigator } from './minimap-navigator.js';
 
 export class InteractiveGraphCanvas {
   constructor(containerId = 'interactive-canvas') {
@@ -32,12 +33,16 @@ export class InteractiveGraphCanvas {
     this.hiddenEdgeKinds = new Set();
     this.isPanLocked = false;
     this.domListenersBound = false;
+    this.minimap = new MinimapNavigator(this);
   }
 
   init() {
     const container = document.getElementById(this.containerId);
     if (!container) return;
     this.bindContainerDomListeners(container);
+    if (this.minimap) {
+      this.minimap.mount(this.containerId);
+    }
     this.renderGraph(this.currentGraphType);
 
     onThemeChange((theme, isDark) => {
@@ -684,6 +689,13 @@ export class InteractiveGraphCanvas {
     this.attachEventListeners(container);
     this.cy.fit(undefined, 60);
 
+    if (this.minimap) {
+      this.minimap.onGraphRendered();
+      this.cy.on('pan zoom viewport', () => {
+        this.minimap.onViewportChange();
+      });
+    }
+
     if (this.onRenderCompleteCallback) {
       this.onRenderCompleteCallback(elements);
     }
@@ -1051,5 +1063,19 @@ export class InteractiveGraphCanvas {
       },
       duration: 250
     });
+  }
+
+  toggleMinimap(state = null) {
+    if (this.minimap) {
+      return this.minimap.toggleVisibility(state);
+    }
+    return false;
+  }
+
+  toggleLoupe(state = null) {
+    if (this.minimap) {
+      return this.minimap.toggleLoupe(state);
+    }
+    return false;
   }
 }

@@ -816,6 +816,266 @@ html, body {
   box-shadow: none !important;
 }
 
+/* ==========================================================================
+   INTERACTIVE MINIMAP OVERVIEW RADAR & CURSOR MAGNIFIER LOUPE
+   ========================================================================== */
+
+/* ── Floating Glassmorphic Minimap Card (Mode A) ── */
+.canvas-minimap-card {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  width: 254px;
+  background: var(--bg-floating);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), height 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.canvas-minimap-card:hover {
+  border-color: var(--border-medium);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.45);
+}
+
+.canvas-minimap-card.collapsed {
+  width: 140px;
+  height: 34px;
+}
+
+.canvas-minimap-card.collapsed .minimap-body {
+  display: none !important;
+}
+
+.minimap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-light);
+  cursor: default;
+}
+
+.minimap-title-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.minimap-icon {
+  font-size: 13px;
+}
+
+.minimap-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.minimap-action-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+}
+
+.minimap-action-btn:hover {
+  background: var(--border-light);
+  color: var(--text-main);
+}
+
+.minimap-body {
+  position: relative;
+  width: 240px;
+  height: 150px;
+  margin: 6px auto;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-light);
+}
+
+.minimap-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+/* ── Interactive Viewfinder Frame with Pointer Capture ── */
+.minimap-viewfinder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 1.5px solid var(--accent-blue);
+  background: rgba(56, 189, 248, 0.18);
+  border-radius: 2px;
+  cursor: grab;
+  pointer-events: auto;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35), inset 0 0 6px rgba(56, 189, 248, 0.2);
+  will-change: transform, width, height;
+  z-index: 5;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.minimap-viewfinder:hover {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.24);
+}
+
+.minimap-viewfinder.dragging {
+  cursor: grabbing;
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+}
+
+.viewfinder-lens-grid {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── Hover Inspection Micro-Tooltip ── */
+.minimap-hover-tooltip {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  background: var(--bg-header);
+  border: 1px solid var(--border-medium);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+
+/* ── Precision Optical Cursor Magnifier Loupe (Mode B) ── */
+.canvas-magnifier-loupe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+  z-index: 100;
+  will-change: transform;
+  border-radius: 50%;
+}
+
+.loupe-rim {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2.5px solid var(--accent-blue);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 20px rgba(56, 189, 248, 0.4), inset 0 0 16px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  background: var(--bg-canvas);
+}
+
+.loupe-rim canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+}
+
+.loupe-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.loupe-reticle::before,
+.loupe-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(56, 189, 248, 0.65);
+}
+
+.loupe-reticle::before {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  transform: translateY(-50%);
+}
+
+.loupe-reticle::after {
+  top: 0;
+  left: 50%;
+  width: 1.5px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+.loupe-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud-pill-btn.active-lens,
+.minimap-action-btn.active-lens {
+  background: rgba(56, 189, 248, 0.18) !important;
+  border-color: var(--accent-blue) !important;
+  color: var(--accent-blue) !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+.hud-pill-btn.active-pill {
+  background: var(--bg-subtle);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
 /* Right Inspector Panel */
 .inspector-card {
   background: var(--bg-surface);
