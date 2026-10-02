@@ -1418,6 +1418,589 @@ export class InteractiveGraphCanvas {
     return null;
   }
 
+  /**
+   * Normalizes a field definition (from object or raw string) into a structured AST property object.
+   */
+  parseFieldDefinition(f) {
+    if (!f) return null;
+
+    if (typeof f === 'object') {
+      const name = f.name || 'field';
+      const type = f.type || f.type_name || 'unknown';
+      let visibility = f.visibility || 'private';
+      if (visibility === '+') visibility = 'public';
+      else if (visibility === '-') visibility = 'private';
+      else if (visibility === '#') visibility = 'protected';
+      else if (visibility === '~') visibility = 'package';
+
+      const isStatic = Boolean(f.is_static || f.isStatic);
+      const isFinal = Boolean(f.is_final || f.isFinal || f.is_readonly || f.readonly);
+      const isCollection = Boolean(f.is_collection || f.isCollection || /List|Set|Map|Collection|Iterable|Array|Vec|\[\]/i.test(type));
+      const defaultValue = f.default_value || f.defaultValue || null;
+      const signature = f.signature || `${visibility} ${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}${name}: ${type}${defaultValue ? ` = ${defaultValue}` : ''}`.trim();
+
+      return {
+        name,
+        type,
+        visibility,
+        is_static: isStatic,
+        is_final: isFinal,
+        is_collection: isCollection,
+        default_value: defaultValue,
+        signature
+      };
+    }
+
+    if (typeof f === 'string') {
+      const raw = f.trim();
+      if (!raw) return null;
+
+      const isStatic = /\{static\}|\bstatic\b/i.test(raw);
+      const isFinal = /\{final\}|\{readonly\}|\bfinal\b|\bconst\b|\breadonly\b/i.test(raw);
+
+      // Strip annotations like {static}, {abstract} first to correctly inspect visibility prefix
+      const stripped = raw.replace(/\{[^}]+\}\s*/g, '').trim();
+
+      let visibility = 'private';
+      if (stripped.startsWith('+') || /\bpublic\b/i.test(stripped)) visibility = 'public';
+      else if (stripped.startsWith('#') || /\bprotected\b/i.test(stripped)) visibility = 'protected';
+      else if (stripped.startsWith('~') || /\bpackage\b/i.test(stripped)) visibility = 'package';
+      else if (stripped.startsWith('-') || /\bprivate\b/i.test(stripped)) visibility = 'private';
+
+      let clean = stripped
+        .replace(/^[+\-#~]\s*/, '')
+        .replace(/\b(public|protected|private|static|final|readonly|const|val|var|let|mut)\b/gi, '')
+        .replace(/;$/, '')
+        .trim();
+
+      let defaultValue = null;
+      if (clean.includes('=')) {
+        const parts = clean.split('=');
+        clean = parts[0].trim();
+        defaultValue = parts.slice(1).join('=').trim();
+      }
+
+      let name = 'field';
+      let type = 'unknown';
+
+      if (clean.includes(':')) {
+        const parts = clean.split(':');
+        name = parts[0].trim().replace(/[^a-zA-Z0-9_$]/g, '');
+        type = parts[1].trim();
+      } else if (clean.includes(' ')) {
+        const tokens = clean.split(/\s+/).filter(Boolean);
+        if (tokens.length >= 2) {
+          name = tokens[tokens.length - 1].replace(/[^a-zA-Z0-9_$]/g, '');
+          type = tokens.slice(0, -1).join(' ');
+        } else if (tokens.length === 1) {
+          name = tokens[0].replace(/[^a-zA-Z0-9_$]/g, '');
+          type = 'any';
+        }
+      } else {
+        name = clean.replace(/[^a-zA-Z0-9_$]/g, '') || 'field';
+        type = 'any';
+      }
+
+      const isCollection = /List|Set|Map|Collection|Iterable|Array|Vec|\[\]|<[^>]+>/i.test(type);
+      const signature = `${visibility} ${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}${name}: ${type}${defaultValue ? ` = ${defaultValue}` : ''}`.trim();
+
+      return {
+        name,
+        type,
+        visibility,
+        is_static: isStatic,
+        is_final: isFinal,
+        is_collection: isCollection,
+        default_value: defaultValue,
+        signature
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Normalizes a method definition (from object or raw string) into a structured AST method object.
+   */
+  parseMethodDefinition(m) {
+    if (!m) return null;
+
+    if (typeof m === 'object') {
+      const name = m.name || 'method';
+      const returnType = m.return_type || m.returnType || m.type_name || 'void';
+      let visibility = m.visibility || 'public';
+      if (visibility === '+') visibility = 'public';
+      else if (visibility === '-') visibility = 'private';
+      else if (visibility === '#') visibility = 'protected';
+      else if (visibility === '~') visibility = 'package';
+
+      const isStatic = Boolean(m.is_static || m.isStatic);
+      const isAbstract = Boolean(m.is_abstract || m.isAbstract);
+      const isAsync = Boolean(m.is_async || m.isAsync);
+
+      let parameters = [];
+      if (Array.isArray(m.parameters)) {
+        parameters = m.parameters.map(p => {
+          if (typeof p === 'object' && p !== null) {
+            return { name: p.name || 'arg', type: p.type || p.type_name || 'any' };
+          }
+          return { name: String(p), type: 'any' };
+        });
+      }
+
+      const paramSig = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+      const signature = m.signature || `${visibility} ${isStatic ? 'static ' : ''}${isAbstract ? 'abstract ' : ''}${isAsync ? 'async ' : ''}${name}(${paramSig}): ${returnType}`.trim();
+
+      return {
+        name,
+        return_type: returnType,
+        visibility,
+        is_static: isStatic,
+        is_abstract: isAbstract,
+        is_async: isAsync,
+        parameters,
+        signature
+      };
+    }
+
+    if (typeof m === 'string') {
+      const raw = m.trim();
+      if (!raw) return null;
+
+      const isStatic = /\{static\}|\bstatic\b/i.test(raw);
+      const isAbstract = /\{abstract\}|\babstract\b/i.test(raw);
+      const isAsync = /\basync\b/i.test(raw);
+
+      // Strip annotations like {static}, {abstract} first to correctly inspect visibility prefix
+      const stripped = raw.replace(/\{[^}]+\}\s*/g, '').trim();
+
+      let visibility = 'public';
+      if (stripped.startsWith('-') || /\bprivate\b/i.test(stripped)) visibility = 'private';
+      else if (stripped.startsWith('#') || /\bprotected\b/i.test(stripped)) visibility = 'protected';
+      else if (stripped.startsWith('~') || /\bpackage\b/i.test(stripped)) visibility = 'package';
+      else if (stripped.startsWith('+') || /\bpublic\b/i.test(stripped)) visibility = 'public';
+
+      let clean = stripped
+        .replace(/^[+\-#~]\s*/, '')
+        .replace(/\b(public|protected|private|static|abstract|async|fun|fn|def|function)\b/gi, '')
+        .replace(/;$/, '')
+        .trim();
+
+      const paramMatch = clean.match(/\(([^)]*)\)/);
+      const paramsRaw = paramMatch ? paramMatch[1].trim() : '';
+      const parameters = [];
+
+      if (paramsRaw) {
+        const parts = paramsRaw.split(',');
+        for (const p of parts) {
+          const trimmed = p.trim();
+          if (!trimmed) continue;
+          if (trimmed.includes(':')) {
+            const [pName, pType] = trimmed.split(':').map(s => s.trim());
+            parameters.push({ name: pName.replace(/[^a-zA-Z0-9_$]/g, '') || 'arg', type: pType || 'any' });
+          } else {
+            const tokens = trimmed.replace(/\bfinal\b|\bval\b|\bvar\b/g, '').trim().split(/\s+/);
+            if (tokens.length >= 2) {
+              const pType = tokens.slice(0, -1).join(' ');
+              const pName = tokens[tokens.length - 1].replace(/[^a-zA-Z0-9_$]/g, '');
+              parameters.push({ name: pName || 'arg', type: pType });
+            } else if (tokens.length === 1) {
+              parameters.push({ name: tokens[0].replace(/[^a-zA-Z0-9_$]/g, '') || 'arg', type: 'any' });
+            }
+          }
+        }
+      }
+
+      let returnType = 'void';
+      let name = 'method';
+
+      const afterParenMatch = clean.match(/\)\s*:\s*([A-Za-z0-9_<>[\]?]+)/);
+      if (afterParenMatch) {
+        returnType = afterParenMatch[1].trim();
+      }
+
+      const beforeParen = clean.split('(')[0].trim();
+      const nameTokens = beforeParen.split(/\s+/).filter(Boolean);
+      if (nameTokens.length >= 2) {
+        name = nameTokens[nameTokens.length - 1].replace(/[^a-zA-Z0-9_$]/g, '');
+        if (returnType === 'void') {
+          returnType = nameTokens.slice(0, -1).join(' ');
+        }
+      } else if (nameTokens.length === 1) {
+        name = nameTokens[0].replace(/[^a-zA-Z0-9_$]/g, '');
+      }
+
+      const paramSig = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+      const signature = `${visibility} ${isStatic ? 'static ' : ''}${isAbstract ? 'abstract ' : ''}${isAsync ? 'async ' : ''}${name}(${paramSig}): ${returnType}`.trim();
+
+      return {
+        name,
+        return_type: returnType,
+        visibility,
+        is_static: isStatic,
+        is_abstract: isAbstract,
+        is_async: isAsync,
+        parameters,
+        signature
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Generates natural language semantic explanation for an architectural relationship.
+   */
+  describeRelationSemantics(srcName, tgtName, kind, arrow, label) {
+    const k = (kind || '').toLowerCase();
+    const lblStr = label ? ` ('${label}')` : '';
+
+    if (k === 'generalization' || arrow === '--|>' || arrow === '<|--') {
+      return `${srcName} inherits from and specializes ${tgtName} (Generalization / Extends)`;
+    }
+    if (k === 'realization' || arrow === '..|>' || arrow === '<|..') {
+      return `${srcName} realizes and implements contract of ${tgtName} (Realization / Implements)`;
+    }
+    if (k === 'composition' || arrow.includes('*--') || arrow.includes('--*')) {
+      return `${srcName} strongly composes ${tgtName} with strict lifecycle ownership (Composition)`;
+    }
+    if (k === 'aggregation' || arrow.includes('o--') || arrow.includes('--o')) {
+      return `${srcName} aggregates and references ${tgtName} (Aggregation)`;
+    }
+    if (k === 'dependency' || arrow.includes('..>') || arrow.includes('<..')) {
+      return `${srcName} depends on and consumes ${tgtName}${lblStr} (Dependency)`;
+    }
+    if (k === 'association' || arrow.includes('-->') || arrow.includes('<--')) {
+      return `${srcName} is associated with and calls ${tgtName}${lblStr} (Association)`;
+    }
+    if (k === 'message') {
+      return `${srcName} sends message '${label || 'invokes'}' to ${tgtName} (Sequence Message)`;
+    }
+    if (k === 'transition') {
+      return `${srcName} transitions to ${tgtName}${label ? ` on event '${label}'` : ''} (State Transition)`;
+    }
+    if (k === 'control_flow') {
+      return `${srcName} directs control flow to ${tgtName}${label ? ` condition '${label}'` : ''} (Control Flow)`;
+    }
+    if (k === 'data_flow') {
+      return `${srcName} transmits data to ${tgtName}${lblStr} (Data Flow)`;
+    }
+    return `${srcName} connects to ${tgtName}${lblStr} (${kind})`;
+  }
+
+  /**
+   * Exports pure semantic AST code structure without any coordinates, dimensions, SVG data URIs, or styling.
+   * Tailored specifically for AI / LLM reasoning, code generation, and architectural analysis.
+   */
+  getCodeStructureForAi() {
+    if (!this.cy) return null;
+
+    const codebaseName = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+
+    const nodeById = new Map();
+    const packageNodes = [];
+    const typeNodes = [];
+
+    nodes.forEach(node => {
+      const d = node.data() || {};
+      nodeById.set(node.id(), d);
+
+      const isPkg = Boolean(d.isPackage || d.isLeafPackage || d.kind === 'package' || node.isParent());
+      if (isPkg) {
+        packageNodes.push({ id: node.id(), data: d });
+      } else {
+        typeNodes.push({ id: node.id(), data: d });
+      }
+    });
+
+    const packageMembersMap = new Map();
+    packageNodes.forEach(p => {
+      const rawName = p.data.rawName || p.data.name || p.id;
+      packageMembersMap.set(p.id, {
+        id: p.id,
+        name: rawName,
+        is_domain_tier: Boolean(p.data.isDomainTier),
+        members: []
+      });
+    });
+
+    const relationships = [];
+    const outgoingByNode = new Map();
+    const incomingByNode = new Map();
+
+    edges.forEach((edge, idx) => {
+      const ed = edge.data() || {};
+      const srcId = edge.source().id();
+      const tgtId = edge.target().id();
+      const srcData = nodeById.get(srcId) || {};
+      const tgtData = nodeById.get(tgtId) || {};
+
+      const srcName = srcData.name || srcData.label || srcId;
+      const tgtName = tgtData.name || tgtData.label || tgtId;
+      const umlKind = ed.uml_kind || ed.kind || 'association';
+      const arrow = ed.arrow || '-->';
+      const label = (ed.label || '').trim();
+
+      const semantics = this.describeRelationSemantics(srcName, tgtName, umlKind, arrow, label);
+
+      const relObj = {
+        id: ed.id || `rel_${idx}_${srcId}_${tgtId}`,
+        source: srcName,
+        source_id: srcId,
+        target: tgtName,
+        target_id: tgtId,
+        relation_type: umlKind,
+        arrow: arrow,
+        label: label || undefined,
+        semantics: semantics
+      };
+
+      relationships.push(relObj);
+
+      if (!outgoingByNode.has(srcId)) outgoingByNode.set(srcId, []);
+      outgoingByNode.get(srcId).push({
+        target: tgtName,
+        relation_type: umlKind,
+        semantics: semantics,
+        label: label || undefined
+      });
+
+      if (!incomingByNode.has(tgtId)) incomingByNode.set(tgtId, []);
+      incomingByNode.get(tgtId).push({
+        source: srcName,
+        relation_type: umlKind,
+        semantics: semantics,
+        label: label || undefined
+      });
+    });
+
+    const types = [];
+    let totalProperties = 0;
+    let totalMethods = 0;
+    let classCount = 0;
+    let interfaceCount = 0;
+    let enumCount = 0;
+    let abstractCount = 0;
+
+    typeNodes.forEach(t => {
+      const d = t.data;
+      const typeId = t.id;
+      const typeName = d.name || d.label || typeId;
+      const kind = (d.kind || 'class').toLowerCase();
+      const stereotype = d.stereotype || `<<${kind}>>`;
+
+      if (kind === 'interface') interfaceCount++;
+      else if (kind === 'enum') enumCount++;
+      else if (kind === 'abstract' || stereotype.includes('abstract')) abstractCount++;
+      else classCount++;
+
+      let packageName = d.package || null;
+      if (!packageName && d.parent) {
+        const parentPkg = packageMembersMap.get(d.parent);
+        if (parentPkg) {
+          packageName = parentPkg.name;
+          if (!parentPkg.members.includes(typeName)) parentPkg.members.push(typeName);
+        }
+      } else if (packageName) {
+        let existing = null;
+        for (const [_, pkg] of packageMembersMap) {
+          if (pkg.name === packageName) {
+            existing = pkg;
+            break;
+          }
+        }
+        if (!existing) {
+          existing = { id: packageName, name: packageName, members: [] };
+          packageMembersMap.set(packageName, existing);
+        }
+        if (!existing.members.includes(typeName)) existing.members.push(typeName);
+      }
+
+      const extendsList = [];
+      const implementsList = [];
+
+      if (d.extends) {
+        if (Array.isArray(d.extends)) extendsList.push(...d.extends);
+        else extendsList.push(d.extends);
+      }
+      if (d.implements) {
+        if (Array.isArray(d.implements)) implementsList.push(...d.implements);
+        else implementsList.push(d.implements);
+      }
+
+      const outgoing = outgoingByNode.get(typeId) || [];
+      outgoing.forEach(rel => {
+        if (rel.relation_type === 'generalization' && !extendsList.includes(rel.target)) {
+          extendsList.push(rel.target);
+        } else if (rel.relation_type === 'realization' && !implementsList.includes(rel.target)) {
+          implementsList.push(rel.target);
+        }
+      });
+
+      const rawFields = Array.isArray(d.fields) ? d.fields : [];
+      const properties = rawFields
+        .map(f => this.parseFieldDefinition(f))
+        .filter(Boolean);
+      totalProperties += properties.length;
+
+      const rawMethods = Array.isArray(d.methods) ? d.methods : [];
+      const methods = rawMethods
+        .map(m => this.parseMethodDefinition(m))
+        .filter(Boolean);
+      totalMethods += methods.length;
+
+      types.push({
+        id: typeId,
+        name: typeName,
+        kind: kind,
+        stereotype: stereotype,
+        package: packageName || undefined,
+        file_path: d.file || `${typeName}.java`,
+        extends: extendsList.length > 0 ? (extendsList.length === 1 ? extendsList[0] : extendsList) : undefined,
+        implements: implementsList.length > 0 ? implementsList : undefined,
+        properties: properties,
+        methods: methods,
+        outgoing_relations: outgoing,
+        incoming_relations: incomingByNode.get(typeId) || []
+      });
+    });
+
+    const packages = Array.from(packageMembersMap.values()).map(p => ({
+      name: p.name,
+      is_domain_tier: p.is_domain_tier || undefined,
+      member_count: p.members.length,
+      members: p.members
+    }));
+
+    return {
+      $schema: "https://openheart.dev/schema/v1/code-structure.ai.json",
+      generator: "OpenHeart Studio 2026 - AI Code Structure Exporter",
+      project_name: codebaseName,
+      diagram_type: this.currentGraphType,
+      export_timestamp: new Date().toISOString(),
+      description: "Semantic codebase architecture AST, complete type contracts, and relationship matrix for AI/LLM contextual understanding, reasoning, and code generation. Layout coordinates and UI formatting are excluded.",
+      summary: {
+        total_packages: packages.length,
+        total_types: types.length,
+        total_classes: classCount,
+        total_interfaces: interfaceCount,
+        total_abstract_classes: abstractCount,
+        total_enums: enumCount,
+        total_relationships: relationships.length,
+        total_properties: totalProperties,
+        total_methods: totalMethods
+      },
+      packages: packages,
+      types: types,
+      relationships: relationships
+    };
+  }
+
+  /**
+   * Generates a prompt-ready Markdown document formatted for pasting directly into LLMs (ChatGPT, Claude, Gemini, etc.).
+   */
+  getCodeStructureMarkdownForAi() {
+    const data = this.getCodeStructureForAi();
+    if (!data) return '';
+
+    const lines = [];
+    lines.push(`# Codebase Architecture & Semantic Model: ${data.project_name}`);
+    lines.push(`> Exported from OpenHeart Studio for AI & LLM Contextual Reasoning (Type Contracts, AST, & Relationship Matrix)`);
+    lines.push('');
+    lines.push(`## Architectural Overview`);
+    lines.push(`- **Project Name:** ${data.project_name}`);
+    lines.push(`- **Diagram Projection:** ${data.diagram_type.toUpperCase()}`);
+    lines.push(`- **Total Packages:** ${data.summary.total_packages}`);
+    lines.push(`- **Total Types:** ${data.summary.total_types} (${data.summary.total_classes} Classes, ${data.summary.total_interfaces} Interfaces, ${data.summary.total_abstract_classes} Abstract Classes, ${data.summary.total_enums} Enums)`);
+    lines.push(`- **Total Properties / Fields:** ${data.summary.total_properties}`);
+    lines.push(`- **Total Functions / Methods:** ${data.summary.total_methods}`);
+    lines.push(`- **Total Architectural Couplings:** ${data.summary.total_relationships}`);
+    lines.push('');
+
+    if (data.packages.length > 0) {
+      lines.push(`## Packages & Namespaces`);
+      data.packages.forEach(pkg => {
+        const membersStr = pkg.members.length > 0 ? pkg.members.join(', ') : 'None';
+        lines.push(`- **\`${pkg.name}\`** (${pkg.member_count} types): ${membersStr}`);
+      });
+      lines.push('');
+    }
+
+    lines.push(`## Type Definitions & Declarations`);
+    lines.push('');
+
+    data.types.forEach(t => {
+      const kindHeader = `${t.kind || 'class'} ${t.name}`;
+      lines.push(`### \`${kindHeader}\``);
+      if (t.package) lines.push(`- **Package:** \`${t.package}\``);
+      if (t.file_path) lines.push(`- **Source File:** \`${t.file_path}\``);
+      if (t.extends) {
+        const extStr = Array.isArray(t.extends) ? t.extends.join(', ') : t.extends;
+        lines.push(`- **Extends / Base:** \`${extStr}\``);
+      }
+      if (t.implements && t.implements.length > 0) {
+        lines.push(`- **Implements:** \`${t.implements.join(', ')}\``);
+      }
+
+      if (t.properties.length > 0) {
+        lines.push('');
+        lines.push(`#### Properties & Fields (${t.properties.length})`);
+        t.properties.forEach(p => {
+          const modStr = [
+            p.visibility,
+            p.is_static ? 'static' : '',
+            p.is_final ? 'final' : '',
+            p.is_collection ? 'collection' : ''
+          ].filter(Boolean).join(' ');
+          const valStr = p.default_value ? ` = ${p.default_value}` : '';
+          lines.push(`- \`${modStr ? modStr + ' ' : ''}${p.name}: ${p.type}${valStr}\``);
+        });
+      }
+
+      if (t.methods.length > 0) {
+        lines.push('');
+        lines.push(`#### Methods & Functions (${t.methods.length})`);
+        t.methods.forEach(m => {
+          const modStr = [
+            m.visibility,
+            m.is_static ? 'static' : '',
+            m.is_abstract ? 'abstract' : '',
+            m.is_async ? 'async' : ''
+          ].filter(Boolean).join(' ');
+          const paramStr = m.parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+          lines.push(`- \`${modStr ? modStr + ' ' : ''}${m.name}(${paramStr}): ${m.return_type}\``);
+        });
+      }
+
+      if (t.outgoing_relations.length > 0 || t.incoming_relations.length > 0) {
+        lines.push('');
+        lines.push(`#### Coupling & Relations`);
+        t.outgoing_relations.forEach(r => {
+          lines.push(`- Outgoing: ${r.semantics}`);
+        });
+        t.incoming_relations.forEach(r => {
+          lines.push(`- Incoming: ${r.semantics}`);
+        });
+      }
+
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+    });
+
+    if (data.relationships.length > 0) {
+      lines.push(`## Relationship Coupling Matrix`);
+      data.relationships.forEach(r => {
+        lines.push(`- **\`${r.source}\`** ${r.arrow} **\`${r.target}\`** : ${r.semantics}`);
+      });
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
+
   attachEventListeners(container) {
     if (!this.cy || !container) return;
 

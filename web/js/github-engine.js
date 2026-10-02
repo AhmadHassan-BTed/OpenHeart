@@ -303,6 +303,36 @@ export class GitHubEngine {
       
       const heritageParts = heritage.split(',').map(s => s.trim().split('<')[0].replace(/extends|implements|permits/g, '').trim()).filter(Boolean);
 
+      const extendsList = [];
+      const implementsList = [];
+      if (heritage) {
+        const extMatch = heritage.match(/extends\s+([A-Za-z0-9_<>,\s]+?)(?:\s+implements|$)/);
+        if (extMatch) {
+          extMatch[1].split(',').forEach(item => {
+            const clean = item.trim().split('<')[0].trim();
+            if (clean && !['Object', 'Enum', 'Any', 'ValueType'].includes(clean)) extendsList.push(clean);
+          });
+        }
+        const impMatch = heritage.match(/implements\s+([A-Za-z0-9_<>,\s]+)/);
+        if (impMatch) {
+          impMatch[1].split(',').forEach(item => {
+            const clean = item.trim().split('<')[0].trim();
+            if (clean) implementsList.push(clean);
+          });
+        }
+        if (extendsList.length === 0 && implementsList.length === 0 && heritage.includes(':')) {
+          const parts = heritage.replace(/^:/, '').split(',');
+          parts.forEach((item, idx) => {
+            const clean = item.trim().split('<')[0].trim();
+            if (!clean || ['Object', 'Enum', 'Any'].includes(clean)) return;
+            const isIface = (clean.startsWith('I') && clean.length > 1 && clean[1].toUpperCase() === clean[1]) || kind === 'interface';
+            if (isIface) implementsList.push(clean);
+            else if (idx === 0) extendsList.push(clean);
+            else implementsList.push(clean);
+          });
+        }
+      }
+
       // Extract fields and methods from class block
       const classBody = code.slice(match.index + match[0].length);
       const fields = this.extractFields(classBody);
@@ -316,6 +346,8 @@ export class GitHubEngine {
         packageId: pkgId,
         filePath: filePath,
         rawUrl: rawUrl,
+        extends: extendsList.length > 0 ? (extendsList.length === 1 ? extendsList[0] : extendsList) : undefined,
+        implements: implementsList.length > 0 ? implementsList : undefined,
         fields: fields,
         methods: methods
       };
@@ -369,15 +401,29 @@ export class GitHubEngine {
 
   static extractFields(body) {
     const fields = [];
-    const fieldRegex = /(?:private|protected|public|val|var|let|mut)?\s+(?:final\s+|static\s+)*([A-Za-z0-9_<>]+)\s+([a-zA-Z0-9_]+)\s*(?:=|;|,|\))/g;
+    const fieldRegex = /(?:(public|protected|private|val|var|let|mut)\s+)?(?:(static)\s+)?(?:(final|readonly)\s+)?([A-Za-z0-9_<>[\]]+)\s+([a-zA-Z0-9_]+)\s*(?:=\s*([^;,)\n]+))?\s*(?:=|;|,|\))/g;
     let m;
     let count = 0;
-    while ((m = fieldRegex.exec(body)) !== null && count < 6) {
-      const type = m[1];
-      const name = m[2];
-      if (['if', 'for', 'while', 'switch', 'return', 'import', 'package', 'class', 'fun', 'fn', 'function'].includes(name)) continue;
-      const isCollection = type.includes('List') || type.includes('Set') || type.includes('Map') || type.includes('Vec') || type.includes('[]');
-      fields.push({ name, type, isCollection });
+    while ((m = fieldRegex.exec(body)) !== null && count < 250) {
+      const rawVis = m[1] || 'private';
+      const isStatic = Boolean(m[2]);
+      const isFinal = Boolean(m[3]);
+      const type = m[4];
+      const name = m[5];
+      const defaultVal = m[6] ? m[6].trim() : null;
+      if (['if', 'for', 'while', 'switch', 'return', 'import', 'package', 'class', 'fun', 'fn', 'function', 'new', 'throw'].includes(name)) continue;
+      const isCollection = type.includes('List') || type.includes('Set') || type.includes('Map') || type.includes('Vec') || type.includes('[]') || type.includes('Array');
+      const visibility = rawVis === 'public' ? '+' : (rawVis === 'protected' ? '#' : '-');
+      fields.push({
+        name,
+        type,
+        visibility,
+        isStatic,
+        isFinal,
+        isCollection,
+        defaultValue: defaultVal,
+        signature: `${name}: ${type}${defaultVal ? ` = ${defaultVal}` : ''}`
+      });
       count++;
     }
     return fields;
@@ -385,14 +431,54 @@ export class GitHubEngine {
 
   static extractMethods(body) {
     const methods = [];
-    const methodRegex = /(?:public|protected|private|fun|fn|def)?\s+(?:abstract\s+|static\s+|final\s+|async\s+)*([A-Za-z0-9_<>[\]]+)?\s*([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*(?:\{|;|->|:)/g;
+    const methodRegex = /(?:(public|protected|private|fun|fn|def)\s+)?(?:(abstract|static|final|async)\s+)*([A-Za-z0-9_<>[\]]+)?\s*([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*(?:\{|;|->|:)/g;
     let m;
     let count = 0;
-    while ((m = methodRegex.exec(body)) !== null && count < 8) {
-      const returnType = m[1] || 'void';
-      const name = m[2];
-      if (!['if', 'for', 'while', 'switch', 'catch', 'when', 'match'].includes(name)) {
-        methods.push({ name, returnType });
+    while ((m = methodRegex.exec(body)) !== null && count < 250) {
+      const rawVis = m[1] || 'public';
+      const modifiers = m[2] || '';
+      const returnType = m[3] || 'void';
+      const name = m[4];
+      const paramsRaw = m[5] || '';
+      if (!['if', 'for', 'while', 'switch', 'catch', 'when', 'match', 'synchronized'].includes(name)) {
+        const visibility = rawVis === 'private' ? '-' : (rawVis === 'protected' ? '#' : '+');
+        const isStatic = modifiers.includes('static');
+        const isAbstract = modifiers.includes('abstract');
+        const isAsync = modifiers.includes('async');
+
+        const parameters = [];
+        if (paramsRaw.trim()) {
+          const parts = paramsRaw.split(',');
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (!trimmed) continue;
+            if (trimmed.includes(':')) {
+              const [pName, pType] = trimmed.split(':').map(s => s.trim());
+              parameters.push({ name: pName || 'param', type: pType || 'any' });
+            } else {
+              const tokens = trimmed.replace(/\bfinal\b|\bval\b|\bvar\b/g, '').trim().split(/\s+/);
+              if (tokens.length >= 2) {
+                const pType = tokens.slice(0, -1).join(' ');
+                const pName = tokens[tokens.length - 1];
+                parameters.push({ name: pName, type: pType });
+              } else if (tokens.length === 1) {
+                parameters.push({ name: tokens[0], type: 'any' });
+              }
+            }
+          }
+        }
+
+        const paramSig = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
+        methods.push({
+          name,
+          returnType,
+          visibility,
+          isStatic,
+          isAbstract,
+          isAsync,
+          parameters,
+          signature: `${name}(${paramSig}): ${returnType}`
+        });
         count++;
       }
     }
@@ -438,21 +524,27 @@ export class GitHubEngine {
         file: c.filePath,
         raw_url: c.rawUrl,
         lines: [1, 5, 10],
+        extends: c.extends,
+        implements: c.implements,
         fields: c.fields.map(f => ({
-          visibility: '-',
+          visibility: f.visibility || '-',
           name: f.name,
           type_name: f.type,
-          signature: `${f.name}: ${f.type}`,
-          is_static: false,
-          is_final: false
+          signature: f.signature || `${f.name}: ${f.type}`,
+          is_static: Boolean(f.isStatic),
+          is_final: Boolean(f.isFinal),
+          is_collection: Boolean(f.isCollection),
+          default_value: f.defaultValue
         })),
         methods: c.methods.map(m => ({
-          visibility: '+',
+          visibility: m.visibility || '+',
           name: m.name,
           type_name: m.returnType,
-          signature: `${m.name}(): ${m.returnType}`,
-          is_static: false,
-          is_final: false
+          signature: m.signature || `${m.name}(): ${m.returnType}`,
+          parameters: m.parameters || [],
+          is_static: Boolean(m.isStatic),
+          is_abstract: Boolean(m.isAbstract),
+          is_async: Boolean(m.isAsync)
         })),
         instructions: []
       });

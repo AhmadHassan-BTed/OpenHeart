@@ -444,9 +444,13 @@ function registerClassNode(block, nodeMap, elements, packageStack) {
   const node = {
     data: {
       id: block.id,
+      name: block.name,
       label: '',
       textLabel: `${block.stereotype}\n${block.name}`,
       kind: block.kind || 'class',
+      stereotype: block.stereotype,
+      fields: block.fields || [],
+      methods: block.methods || [],
       width: svgData.width,
       height: svgData.height,
       svgDataUri: svgData.dataUri,
@@ -494,9 +498,13 @@ function ensureNodeExists(id, nodeMap, elements, packageStack, diagramType) {
   const node = {
     data: {
       id: id,
+      name: label,
       label: '',
       textLabel: `<<class>>\n${label}`,
       kind: id.includes('init') || id.includes('start') || id.includes('entry') ? 'entry' : 'class',
+      stereotype: '<<class>>',
+      fields: [],
+      methods: [],
       width: svgData.width,
       height: svgData.height,
       svgDataUri: svgData.dataUri,

@@ -207,9 +207,15 @@ export function loadGraphIrToCytoscape(graphIr) {
     const cytoscapeNode = {
       data: {
         id: node.id,
+        name: node.name || node.id,
         label: '',
         textLabel: `${node.stereotype || '<<class>>'}\n${node.name}`,
         kind: node.kind || 'class',
+        stereotype: node.stereotype || `<<${node.kind || 'class'}>>`,
+        fields: node.fields || [],
+        methods: node.methods || [],
+        extends: node.extends || undefined,
+        implements: node.implements || undefined,
         width: svgData.width,
         height: svgData.height,
         svgDataUri: svgData.dataUri,
