@@ -1007,9 +1007,13 @@ export class InteractiveGraphCanvas {
       }
     }, { passive: false });
 
-    // ── 2. Figma Middle Mouse Button Pan (Scroll Wheel Click & Drag) ──
+    // ── 2 & 3. Unified Pan Drag Engine: Middle-Click, Spacebar Hand Tool, and Pan Lock Active Drag ──
     let isMiddleDragging = false;
-    let middleStartPos = { x: 0, y: 0 };
+    let isSpacePressed = false;
+    let isLeftHandDragging = false;
+    let leftHandStartPos = { x: 0, y: 0 };
+    let hasLeftHandMoved = false;
+
     let dragRafId = null;
     let pendingDragDx = 0;
     let pendingDragDy = 0;
@@ -1027,29 +1031,52 @@ export class InteractiveGraphCanvas {
     };
 
     container.addEventListener('mousedown', (e) => {
-      if (e.button === 1) { // Middle click
+      // Middle click pan (button 1)
+      if (e.button === 1) {
         e.preventDefault();
         e.stopPropagation();
         isMiddleDragging = true;
-        middleStartPos = { x: e.clientX, y: e.clientY };
+        leftHandStartPos = { x: e.clientX, y: e.clientY };
         container.classList.add('cursor-grabbing');
         navPhysics.targetPanDx = 0;
         navPhysics.targetPanDy = 0;
+        return;
       }
-    });
+
+      // Left click pan when either Pan Lock is active OR Spacebar is held
+      // Operates anywhere across canvas, diagrams, box models, packages, and edges
+      if (e.button === 0 && (this.isPanLocked || isSpacePressed)) {
+        e.preventDefault();
+        e.stopPropagation();
+        isLeftHandDragging = true;
+        leftHandStartPos = { x: e.clientX, y: e.clientY };
+        hasLeftHandMoved = false;
+        container.classList.remove('cursor-grab');
+        container.classList.add('cursor-grabbing');
+        navPhysics.targetPanDx = 0;
+        navPhysics.targetPanDy = 0;
+        return;
+      }
+    }, { capture: true });
 
     window.addEventListener('mousemove', (e) => {
       if (isMiddleDragging && this.cy) {
-        pendingDragDx += e.clientX - middleStartPos.x;
-        pendingDragDy += e.clientY - middleStartPos.y;
-        middleStartPos = { x: e.clientX, y: e.clientY };
+        pendingDragDx += e.clientX - leftHandStartPos.x;
+        pendingDragDy += e.clientY - leftHandStartPos.y;
+        leftHandStartPos = { x: e.clientX, y: e.clientY };
         dispatchPendingDrag();
         return;
       }
-      if (isSpaceDragging && this.cy) {
-        pendingDragDx += e.clientX - spaceStartPos.x;
-        pendingDragDy += e.clientY - spaceStartPos.y;
-        spaceStartPos = { x: e.clientX, y: e.clientY };
+
+      if (isLeftHandDragging && this.cy) {
+        const dx = e.clientX - leftHandStartPos.x;
+        const dy = e.clientY - leftHandStartPos.y;
+        if (Math.hypot(dx, dy) > 2) {
+          hasLeftHandMoved = true;
+        }
+        pendingDragDx += dx;
+        pendingDragDy += dy;
+        leftHandStartPos = { x: e.clientX, y: e.clientY };
         dispatchPendingDrag();
         return;
       }
@@ -1059,14 +1086,45 @@ export class InteractiveGraphCanvas {
       if (e.button === 1 && isMiddleDragging) {
         isMiddleDragging = false;
         container.classList.remove('cursor-grabbing');
+        if (this.isPanLocked || isSpacePressed) {
+          container.classList.add('cursor-grab');
+        }
+        return;
       }
-    });
 
-    // ── 3. Figma Hand Tool (Spacebar + Left Click Drag) ──
-    let isSpacePressed = false;
-    let isSpaceDragging = false;
-    let spaceStartPos = { x: 0, y: 0 };
+      if (e.button === 0 && isLeftHandDragging) {
+        isLeftHandDragging = false;
+        container.classList.remove('cursor-grabbing');
+        if (this.isPanLocked || isSpacePressed) {
+          container.classList.add('cursor-grab');
+        }
 
+        // If user tapped without dragging, trigger selection/inspection on node under cursor
+        if (!hasLeftHandMoved && this.cy) {
+          const rect = container.getBoundingClientRect();
+          const renderedPos = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+          };
+          const targetNode = this.getNodeAtRenderedPos(renderedPos);
+          if (targetNode) {
+            if (targetNode.data('isPackage')) {
+              this.togglePackageCollapse(targetNode);
+            } else {
+              this.selectedNode = targetNode.data();
+              this.cy.nodes().unselect();
+              targetNode.select();
+              if (this.onNodeSelectedCallback) {
+                this.onNodeSelectedCallback(this.selectedNode);
+              }
+            }
+          }
+        }
+        return;
+      }
+    }, { capture: true });
+
+    // ── 3. Figma Hand Tool (Spacebar Key Listeners) ──
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !e.repeat) {
         const activeTag = document.activeElement ? document.activeElement.tagName : '';
@@ -1082,47 +1140,28 @@ export class InteractiveGraphCanvas {
       }
     });
 
-    container.addEventListener('mousedown', (e) => {
-      if (isSpacePressed && e.button === 0) { // Left click while Space is held
-        e.preventDefault();
-        e.stopPropagation();
-        isSpaceDragging = true;
-        spaceStartPos = { x: e.clientX, y: e.clientY };
-        container.classList.remove('cursor-grab');
-        container.classList.add('cursor-grabbing');
-        navPhysics.targetPanDx = 0;
-        navPhysics.targetPanDy = 0;
-      }
-    });
-
-    window.addEventListener('mouseup', (e) => {
-      if (isSpaceDragging) {
-        isSpaceDragging = false;
-        container.classList.remove('cursor-grabbing');
-        if (isSpacePressed) {
-          container.classList.add('cursor-grab');
-        }
-      }
-    });
-
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space') {
         isSpacePressed = false;
-        isSpaceDragging = false;
-        container.classList.remove('cursor-grab', 'cursor-grabbing');
-        if (this.cy && !this.isPanLocked) {
-          this.cy.autoungrabify(false);
+        isLeftHandDragging = false;
+        if (!this.isPanLocked) {
+          container.classList.remove('cursor-grab', 'cursor-grabbing');
+          if (this.cy) {
+            this.cy.autoungrabify(false);
+          }
         }
       }
     });
 
     window.addEventListener('blur', () => {
       isSpacePressed = false;
-      isSpaceDragging = false;
+      isLeftHandDragging = false;
       isMiddleDragging = false;
-      container.classList.remove('cursor-grab', 'cursor-grabbing');
-      if (this.cy && !this.isPanLocked) {
-        this.cy.autoungrabify(false);
+      if (!this.isPanLocked) {
+        container.classList.remove('cursor-grab', 'cursor-grabbing');
+        if (this.cy) {
+          this.cy.autoungrabify(false);
+        }
       }
     });
 
@@ -1270,9 +1309,9 @@ export class InteractiveGraphCanvas {
     const container = document.getElementById(this.containerId);
     if (container) {
       if (this.isPanLocked) {
-        container.classList.add('pan-locked');
+        container.classList.add('pan-locked', 'cursor-grab');
       } else {
-        container.classList.remove('pan-locked');
+        container.classList.remove('pan-locked', 'cursor-grab', 'cursor-grabbing');
       }
     }
     return this.isPanLocked;
@@ -1280,6 +1319,25 @@ export class InteractiveGraphCanvas {
 
   togglePanLock() {
     return this.setPanLock(!this.isPanLocked);
+  }
+
+  getNodeAtRenderedPos(renderedPos) {
+    if (!this.cy || !renderedPos) return null;
+    const pan = this.cy.pan();
+    const zoom = this.cy.zoom();
+    const modelX = (renderedPos.x - pan.x) / zoom;
+    const modelY = (renderedPos.y - pan.y) / zoom;
+
+    const hitNodes = this.cy.nodes().filter(node => {
+      if (node.style('display') === 'none') return false;
+      const bb = node.boundingBox();
+      return modelX >= bb.x1 && modelX <= bb.x2 && modelY >= bb.y1 && modelY <= bb.y2;
+    });
+
+    if (hitNodes.length === 0) return null;
+    // Prefer innermost leaf nodes (classes/interfaces) over parent compound packages
+    const leafNodes = hitNodes.filter(n => !n.isParent());
+    return leafNodes.length > 0 ? leafNodes[leafNodes.length - 1] : hitNodes[hitNodes.length - 1];
   }
 
   getDiagramStateJson() {

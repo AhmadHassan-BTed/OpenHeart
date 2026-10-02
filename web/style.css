@@ -710,21 +710,29 @@ html, body {
   background-size: 24px 24px;
 }
 
-#interactive-canvas.pan-locked {
+#interactive-canvas.pan-locked,
+#interactive-canvas.pan-locked *,
+#interactive-canvas.pan-locked canvas {
   cursor: grab !important;
 }
 
-#interactive-canvas.pan-locked:active {
+#interactive-canvas.pan-locked.cursor-grabbing,
+#interactive-canvas.pan-locked.cursor-grabbing *,
+#interactive-canvas.pan-locked.cursor-grabbing canvas,
+#interactive-canvas.pan-locked:active,
+#interactive-canvas.pan-locked:active * {
   cursor: grabbing !important;
 }
 
 #interactive-canvas.cursor-grab,
-#interactive-canvas.cursor-grab * {
+#interactive-canvas.cursor-grab *,
+#interactive-canvas.cursor-grab canvas {
   cursor: grab !important;
 }
 
 #interactive-canvas.cursor-grabbing,
-#interactive-canvas.cursor-grabbing * {
+#interactive-canvas.cursor-grabbing *,
+#interactive-canvas.cursor-grabbing canvas {
   cursor: grabbing !important;
 }
 
