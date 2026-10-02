@@ -676,10 +676,10 @@ export class InteractiveGraphCanvas {
       userZoomingEnabled: false,
       userPanningEnabled: true,
       autoungrabify: this.isPanLocked,
-      minZoom: 0.05,
-      maxZoom: 4.0,
+      minZoom: 0.04,
+      maxZoom: 5.0,
       pixelRatio: 'auto',
-      textureOnViewport: true,
+      textureOnViewport: false,
       hideEdgesOnViewport: false,
       motionBlur: false,
       wheelSensitivity: 0.05,
@@ -811,82 +811,200 @@ export class InteractiveGraphCanvas {
     if (this.domListenersBound || !container) return;
     this.domListenersBound = true;
 
-    // ── 1. Figma Mouse Wheel Navigation: Pan, Shift-Pan, Ctrl/Alt-Zoom ──
+    // ── 1. Figma-Grade Smooth Navigation Engine (60fps/120fps RAF Inertia & Easing) ──
+    const navPhysics = {
+      targetPanDx: 0,
+      targetPanDy: 0,
+      targetZoom: null,
+      zoomAnchor: null,
+      panRafId: null,
+      zoomRafId: null
+    };
+
+    const startPanLoop = () => {
+      if (navPhysics.panRafId) return;
+      const step = () => {
+        if (!this.cy) {
+          navPhysics.panRafId = null;
+          return;
+        }
+
+        const remainingX = navPhysics.targetPanDx;
+        const remainingY = navPhysics.targetPanDy;
+
+        if (Math.abs(remainingX) < 0.25 && Math.abs(remainingY) < 0.25) {
+          if (remainingX !== 0 || remainingY !== 0) {
+            this.cy.panBy({ x: remainingX, y: remainingY });
+          }
+          navPhysics.targetPanDx = 0;
+          navPhysics.targetPanDy = 0;
+          navPhysics.panRafId = null;
+          return;
+        }
+
+        // Exponential ease-out friction (smooth, organic glide)
+        const moveX = remainingX * 0.28;
+        const moveY = remainingY * 0.28;
+        this.cy.panBy({ x: moveX, y: moveY });
+        navPhysics.targetPanDx -= moveX;
+        navPhysics.targetPanDy -= moveY;
+
+        navPhysics.panRafId = requestAnimationFrame(step);
+      };
+      navPhysics.panRafId = requestAnimationFrame(step);
+    };
+
+    const startZoomLoop = () => {
+      if (navPhysics.zoomRafId) return;
+      const step = () => {
+        if (!this.cy || navPhysics.targetZoom === null || !navPhysics.zoomAnchor) {
+          navPhysics.zoomRafId = null;
+          return;
+        }
+
+        const currentZoom = this.cy.zoom();
+        const diff = navPhysics.targetZoom - currentZoom;
+
+        if (Math.abs(diff) < 0.001) {
+          this.cy.zoom({
+            level: navPhysics.targetZoom,
+            renderedPosition: navPhysics.zoomAnchor
+          });
+          navPhysics.targetZoom = null;
+          navPhysics.zoomAnchor = null;
+          navPhysics.zoomRafId = null;
+          return;
+        }
+
+        // Smooth ease-out zoom convergence
+        const nextZoom = currentZoom + diff * 0.30;
+        this.cy.zoom({
+          level: nextZoom,
+          renderedPosition: navPhysics.zoomAnchor
+        });
+
+        navPhysics.zoomRafId = requestAnimationFrame(step);
+      };
+      navPhysics.zoomRafId = requestAnimationFrame(step);
+    };
+
     container.addEventListener('wheel', (e) => {
       e.preventDefault();
       if (!this.cy) return;
 
-      // Normalize line-based wheel scroll (Windows mouse wheel) vs pixel-based (trackpad)
-      const deltaModeMultiplier = e.deltaMode === 1 ? 28 : (e.deltaMode === 2 ? 500 : 1);
-      const rawDx = e.deltaX * deltaModeMultiplier;
-      const rawDy = e.deltaY * deltaModeMultiplier;
+      const rect = container.getBoundingClientRect();
+      const pointerPos = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
 
-      // Sensitivity multiplier from slider (0.10 default gives ~1.0x natural speed)
       const userSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
       const speed = userSensitivity * 10.0;
 
       // ── Condition A: ZOOM (Ctrl + Wheel, Cmd + Wheel, Alt + Wheel, or Trackpad Pinch) ──
       if (e.ctrlKey || e.metaKey || e.altKey) {
-        const rect = container.getBoundingClientRect();
-        const renderedPos = {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        };
+        navPhysics.targetPanDx = 0;
+        navPhysics.targetPanDy = 0;
 
-        // Smooth exponential zoom centered at mouse cursor location
-        const isPinch = Math.abs(e.deltaY) < 15 && (e.ctrlKey || e.metaKey);
-        const zoomStep = isPinch
-          ? -e.deltaY * 0.015
-          : -Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0032;
-        const factor = Math.exp(zoomStep);
+        const isTrackpadPinch = Math.abs(e.deltaY) < 25 && (e.ctrlKey || e.metaKey);
 
-        const currentZoom = this.cy.zoom();
-        const newZoom = Math.min(5.0, Math.max(0.04, currentZoom * factor));
-
-        this.cy.zoom({
-          level: newZoom,
-          renderedPosition: renderedPos
-        });
+        if (isTrackpadPinch) {
+          // Continuous trackpad pinch: instantaneous 1:1 proportional zoom
+          const currentZoom = this.cy.zoom();
+          const zoomFactor = Math.exp(-e.deltaY * 0.008);
+          const newZoom = Math.min(5.0, Math.max(0.04, currentZoom * zoomFactor));
+          this.cy.zoom({
+            level: newZoom,
+            renderedPosition: pointerPos
+          });
+          navPhysics.targetZoom = null;
+        } else {
+          // Discrete mouse wheel notch: smooth 10% zoom with organic ease-out glide
+          const baseZoom = navPhysics.targetZoom !== null ? navPhysics.targetZoom : this.cy.zoom();
+          const zoomMultiplier = e.deltaY < 0 ? 1.10 : (1 / 1.10);
+          navPhysics.targetZoom = Math.min(5.0, Math.max(0.04, baseZoom * zoomMultiplier));
+          navPhysics.zoomAnchor = pointerPos;
+          startZoomLoop();
+        }
         return;
       }
 
-      // ── Condition B: HORIZONTAL PAN (Shift + Wheel) ──
+      // ── Condition B: PANNING (Standard Wheel or Shift + Wheel) ──
+      const isDiscreteWheel = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 40 || Math.abs(e.deltaX) >= 40;
+
+      let dx = 0;
+      let dy = 0;
+
       if (e.shiftKey) {
-        // In Figma, Shift + Wheel scrolls horizontally
-        const delta = (Math.abs(rawDx) > Math.abs(rawDy) ? rawDx : rawDy) * speed;
-        this.cy.panBy({
-          x: -delta,
-          y: 0
-        });
-        return;
+        // Shift + Wheel -> Horizontal Pan
+        const raw = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
+        dx = -Math.sign(raw) * (isDiscreteWheel ? 54 : Math.abs(raw)) * speed;
+        dy = 0;
+      } else {
+        if (isDiscreteWheel) {
+          dx = -Math.sign(e.deltaX || 0) * (e.deltaX ? 54 : 0) * speed;
+          dy = -Math.sign(e.deltaY) * 54 * speed;
+        } else {
+          // Smooth continuous trackpad 2-finger scroll
+          dx = -e.deltaX * speed;
+          dy = -e.deltaY * speed;
+        }
       }
 
-      // ── Condition C: VERTICAL & 2D PAN (Standard Wheel / 2-Finger Trackpad) ──
-      this.cy.panBy({
-        x: -rawDx * speed,
-        y: -rawDy * speed
-      });
+      if (isDiscreteWheel) {
+        navPhysics.targetPanDx += dx;
+        navPhysics.targetPanDy += dy;
+        startPanLoop();
+      } else {
+        this.cy.panBy({ x: dx, y: dy });
+      }
     }, { passive: false });
 
     // ── 2. Figma Middle Mouse Button Pan (Scroll Wheel Click & Drag) ──
     let isMiddleDragging = false;
     let middleStartPos = { x: 0, y: 0 };
+    let dragRafId = null;
+    let pendingDragDx = 0;
+    let pendingDragDy = 0;
+
+    const dispatchPendingDrag = () => {
+      if (dragRafId) return;
+      dragRafId = requestAnimationFrame(() => {
+        dragRafId = null;
+        if (this.cy && (pendingDragDx !== 0 || pendingDragDy !== 0)) {
+          this.cy.panBy({ x: pendingDragDx, y: pendingDragDy });
+          pendingDragDx = 0;
+          pendingDragDy = 0;
+        }
+      });
+    };
 
     container.addEventListener('mousedown', (e) => {
       if (e.button === 1) { // Middle click
         e.preventDefault();
+        e.stopPropagation();
         isMiddleDragging = true;
         middleStartPos = { x: e.clientX, y: e.clientY };
         container.classList.add('cursor-grabbing');
+        navPhysics.targetPanDx = 0;
+        navPhysics.targetPanDy = 0;
       }
     });
 
     window.addEventListener('mousemove', (e) => {
       if (isMiddleDragging && this.cy) {
-        const dx = e.clientX - middleStartPos.x;
-        const dy = e.clientY - middleStartPos.y;
-        this.cy.panBy({ x: dx, y: dy });
+        pendingDragDx += e.clientX - middleStartPos.x;
+        pendingDragDy += e.clientY - middleStartPos.y;
         middleStartPos = { x: e.clientX, y: e.clientY };
+        dispatchPendingDrag();
+        return;
+      }
+      if (isSpaceDragging && this.cy) {
+        pendingDragDx += e.clientX - spaceStartPos.x;
+        pendingDragDy += e.clientY - spaceStartPos.y;
+        spaceStartPos = { x: e.clientX, y: e.clientY };
+        dispatchPendingDrag();
+        return;
       }
     });
 
@@ -920,19 +1038,13 @@ export class InteractiveGraphCanvas {
     container.addEventListener('mousedown', (e) => {
       if (isSpacePressed && e.button === 0) { // Left click while Space is held
         e.preventDefault();
+        e.stopPropagation();
         isSpaceDragging = true;
         spaceStartPos = { x: e.clientX, y: e.clientY };
         container.classList.remove('cursor-grab');
         container.classList.add('cursor-grabbing');
-      }
-    });
-
-    window.addEventListener('mousemove', (e) => {
-      if (isSpaceDragging && this.cy) {
-        const dx = e.clientX - spaceStartPos.x;
-        const dy = e.clientY - spaceStartPos.y;
-        this.cy.panBy({ x: dx, y: dy });
-        spaceStartPos = { x: e.clientX, y: e.clientY };
+        navPhysics.targetPanDx = 0;
+        navPhysics.targetPanDy = 0;
       }
     });
 
