@@ -15,7 +15,7 @@ export class GitHubEngine {
       .replace(/^\//, '')
       .replace(/\/$/, '');
 
-    if (clean.startsWith('local:') || clean.startsWith('📁') || clean.startsWith('📦') || clean.includes('(Local') || clean.includes('(Active')) {
+    if (clean.startsWith('local:') || clean.includes('(Local') || clean.includes('(Active')) {
       return null;
     }
 
@@ -46,7 +46,7 @@ export class GitHubEngine {
     }
 
     const { owner, repo } = repoInfo;
-    if (onProgress) onProgress(15, `📡 Querying GitHub Tree API for ${owner}/${repo}...`);
+    if (onProgress) onProgress(15, `Querying GitHub Tree API for ${owner}/${repo}...`);
 
     // 1. Fetch Repository Metadata to get default branch
     let defaultBranch = repoInfo.branch !== 'HEAD' ? repoInfo.branch : 'main';
@@ -83,7 +83,7 @@ export class GitHubEngine {
       throw new Error(`Could not access repository tree for ${owner}/${repo}. Check if the repository is public.`);
     }
 
-    if (onProgress) onProgress(35, `📂 Discovered ${treeData.tree.length} files. Filtering source code...`);
+    if (onProgress) onProgress(35, `Discovered ${treeData.tree.length} files. Filtering source code...`);
 
     // 3. Filter Source Files (Java, Kotlin, Rust, TS/JS, Python, C#)
     const validExtensions = ['.java', '.kt', '.rs', '.ts', '.js', '.py', '.cs', '.go', '.cpp', '.hpp', '.c', '.h'];
@@ -97,7 +97,7 @@ export class GitHubEngine {
       throw new Error(`No source code files found in repository ${owner}/${repo}.`);
     }
 
-    if (onProgress) onProgress(50, `🧠 Ingesting ${sourceFiles.length} source files & extracting AST declarations...`);
+    if (onProgress) onProgress(50, `Ingesting ${sourceFiles.length} source files & extracting AST declarations...`);
 
     // 4. Sample primary source files for responsive in-browser parsing
     const filesToFetch = sourceFiles.slice(0, 30);
@@ -120,7 +120,7 @@ export class GitHubEngine {
       fetchedCount++;
       if (onProgress) {
         const p = 50 + Math.floor((fetchedCount / filesToFetch.length) * 35);
-        onProgress(p, `⚡ Parsing AST (${fetchedCount}/${filesToFetch.length} files): ${file.path.split('/').pop()}`);
+        onProgress(p, `Parsing AST (${fetchedCount}/${filesToFetch.length} files): ${file.path.split('/').pop()}`);
       }
     }
 
@@ -147,12 +147,12 @@ export class GitHubEngine {
       });
     }
 
-    if (onProgress) onProgress(90, `🎨 Synthesizing deterministic UML 2.5 Graph IR...`);
+    if (onProgress) onProgress(90, `Synthesizing deterministic UML 2.5 Graph IR...`);
 
     // 5. Build Complete Graph IR Schema
     const graphIr = this.buildGraphIr(owner, repo, classes, packages, relations);
 
-    if (onProgress) onProgress(100, `✅ Successfully compiled SCPG for ${repo}!`);
+    if (onProgress) onProgress(100, `Successfully compiled SCPG for ${repo}!`);
 
     return {
       status: 'success',
@@ -178,7 +178,7 @@ export class GitHubEngine {
       throw new Error('No files provided for analysis.');
     }
 
-    if (onProgress) onProgress(15, `📂 Scanning ${fileList.length} files in ${codebaseName}...`);
+    if (onProgress) onProgress(15, `Scanning ${fileList.length} files in ${codebaseName}...`);
 
     const validExtensions = ['.java', '.kt', '.rs', '.ts', '.js', '.py', '.cs', '.go', '.cpp', '.hpp', '.c', '.h'];
     const ignoredDirs = ['node_modules', '.git', 'bin', 'obj', 'target', 'dist', 'build', '.vs', '.idea', '__pycache__', 'vendor'];
@@ -194,7 +194,7 @@ export class GitHubEngine {
       throw new Error(`No supported source code files found in "${codebaseName}". Supported extensions: Java, Kotlin, C#, Rust, TypeScript, JavaScript, Python, Go, C/C++.`);
     }
 
-    if (onProgress) onProgress(35, `🧠 Discovered ${sourceFiles.length} code files. Parsing AST declarations...`);
+    if (onProgress) onProgress(35, `Discovered ${sourceFiles.length} code files. Parsing AST declarations...`);
 
     // Sample primary files (up to 80 files for snappy, collision-free Cytoscape layout)
     const filesToParse = sourceFiles.slice(0, 80);
@@ -215,7 +215,7 @@ export class GitHubEngine {
       processedCount++;
       if (onProgress) {
         const p = 35 + Math.floor((processedCount / filesToParse.length) * 50);
-        onProgress(p, `⚡ Parsing AST (${processedCount}/${filesToParse.length} files): ${f.path.split('/').pop()}`);
+        onProgress(p, `Parsing AST (${processedCount}/${filesToParse.length} files): ${f.path.split('/').pop()}`);
       }
     }
 
@@ -240,11 +240,11 @@ export class GitHubEngine {
       });
     }
 
-    if (onProgress) onProgress(90, `🎨 Synthesizing deterministic UML 2.5 Graph IR...`);
+    if (onProgress) onProgress(90, `Synthesizing deterministic UML 2.5 Graph IR...`);
 
     const graphIr = this.buildGraphIr(codebaseName, 'Local', classes, packages, relations);
 
-    if (onProgress) onProgress(100, `✅ Successfully compiled SCPG for ${codebaseName}!`);
+    if (onProgress) onProgress(100, `Successfully compiled SCPG for ${codebaseName}!`);
 
     return {
       status: 'success',

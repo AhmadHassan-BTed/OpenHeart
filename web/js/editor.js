@@ -95,7 +95,7 @@ export class SourceEditorModule {
         try {
           await navigator.clipboard.writeText(this.currentContent);
           const orig = btnCopy.innerHTML;
-          btnCopy.innerHTML = '✓ Copied';
+          btnCopy.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polyline points="2.5 8.5 6 12 13.5 4"/></svg> Copied';
           btnCopy.classList.add('copied');
           setTimeout(() => {
             btnCopy.innerHTML = orig;

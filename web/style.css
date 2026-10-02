@@ -153,7 +153,7 @@ html, body {
   align-items: center;
   background: var(--bg-subtle);
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   height: 32px;
   min-height: 32px;
   max-height: 32px;
@@ -208,7 +208,7 @@ html, body {
   max-height: 26px;
   line-height: 26px;
   padding: 0 11px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
@@ -502,7 +502,7 @@ html, body {
   max-height: 30px;
   line-height: 28px;
   padding: 0 10px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   white-space: nowrap !important;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -510,12 +510,14 @@ html, body {
   box-sizing: border-box;
 }
 
-.live-pulse {
+.live-pulse,
+.status-indicator-dot {
   width: 6px;
   height: 6px;
   background: var(--accent-emerald);
   border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--accent-emerald-subtle);
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 /* Live Cloning Progress Track */
@@ -524,7 +526,7 @@ html, body {
   top: var(--h-header);
   left: 0;
   width: 100%;
-  height: 2.5px;
+  height: 2px;
   background: transparent;
   z-index: 120;
   overflow: hidden;
@@ -538,9 +540,8 @@ html, body {
 .clone-progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-emerald) 100%);
-  box-shadow: 0 0 8px var(--accent-blue);
-  transition: width 0.3s ease-out;
+  background: var(--accent-blue);
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-spinner {
@@ -750,7 +751,7 @@ html, body {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   pointer-events: auto;
   display: inline-flex;
@@ -784,7 +785,7 @@ html, body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
   height: var(--h-control);
   min-height: var(--h-control);
@@ -832,7 +833,7 @@ html, body {
   font-weight: 600;
   font-size: 11px;
   cursor: pointer;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   transition: all 0.12s ease;
   white-space: nowrap !important;
   user-select: none;

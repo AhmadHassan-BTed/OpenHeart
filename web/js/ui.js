@@ -80,12 +80,12 @@ export class StudioUIController {
       btnFetch.addEventListener('click', () => {
         const url = repoUrlInput ? repoUrlInput.value.trim() : '';
         if (!url || !url.startsWith('https://github.com/')) {
-          this.showToast('⚠️ Please enter a valid GitHub repository URL.');
+          this.showToast('Please enter a valid GitHub repository URL.');
           return;
         }
 
         if (StudioState.selectedDiagrams.size === 0) {
-          this.showToast('⚠️ Please select at least one UML diagram projection.');
+          this.showToast('Please select at least one UML diagram projection.');
           return;
         }
 
@@ -105,7 +105,7 @@ export class StudioUIController {
         const code = StudioState.generatedDiagrams[StudioState.currentActiveTab];
         if (code) {
           navigator.clipboard.writeText(code);
-          this.showToast('📋 Diagram source copied to clipboard!');
+          this.showToast('Diagram source copied to clipboard.');
         }
       });
     }
@@ -115,7 +115,7 @@ export class StudioUIController {
         const code = StudioState.generatedDiagrams[StudioState.currentActiveTab];
         if (code) {
           this.downloadFile(`openheart_${StudioState.currentActiveTab}.puml`, code, 'text/plain');
-          this.showToast(`💾 Downloaded ${StudioState.currentActiveTab}.puml`);
+          this.showToast(`Downloaded ${StudioState.currentActiveTab}.puml`);
         }
       });
     }
@@ -124,7 +124,7 @@ export class StudioUIController {
       btnExportXmi.addEventListener('click', () => {
         const code = `<?xml version="1.0" encoding="UTF-8"?>\n<xmi:XMI xmi:version="2.5" xmlns:uml="http://www.omg.org/spec/UML/20131001">\n  <!-- OpenHeart XMI Export -->\n</xmi:XMI>`;
         this.downloadFile(`openheart_${StudioState.currentActiveTab}.xmi`, code, 'application/xml');
-        this.showToast(`💾 Exported XMI 2.5 metadata.`);
+        this.showToast(`Exported XMI 2.5 metadata.`);
       });
     }
 
@@ -132,7 +132,7 @@ export class StudioUIController {
       btnExportJson.addEventListener('click', () => {
         const json = JSON.stringify(StudioState.generatedDiagrams, null, 2);
         this.downloadFile(`openheart_analysis.json`, json, 'application/json');
-        this.showToast(`💾 Exported analysis JSON.`);
+        this.showToast(`Exported analysis JSON.`);
       });
     }
   }
@@ -156,7 +156,7 @@ export class StudioUIController {
           repoUrlInput.value = url;
         }
         this.setPreset(['class', 'object', 'component', 'deployment', 'package', 'composite', 'profile', 'usecase', 'activity', 'statemachine', 'sequence', 'communication', 'interaction', 'timing']);
-        this.showToast(`⚡ Loaded sample: ${chip.textContent.trim()}`);
+        this.showToast(`Loaded sample: ${chip.textContent.trim()}`);
         this.runPipelineExecution(url);
       });
     });
@@ -448,12 +448,12 @@ export class StudioUIController {
       StudioState.setTraceabilityList(result.traceability || []);
       StudioState.setGeneratedDiagrams(result.diagrams);
 
-      this.showToast('✅ 10-Phase SCPG Compilation Complete!');
+      this.showToast('10-Phase SCPG Compilation Complete');
       await this.sleep(400);
       if (pipelineStatus) pipelineStatus.classList.add('hidden');
     } else {
       if (statusStepTitle) statusStepTitle.textContent = 'ERROR IN PIPELINE EXECUTION';
-      this.showToast('❌ Error in pipeline execution.');
+      this.showToast('Error in pipeline execution.');
     }
   }
 

@@ -1041,14 +1041,14 @@ export class InteractiveGraphCanvas {
         pkgNode.removeClass('package-collapsed');
         pkgNode.data('width', pkgNode.data('origWidth') || 650);
         pkgNode.data('height', pkgNode.data('origHeight') || 400);
-        pkgNode.data('label', isDomainTier ? `📂 [−] DOMAIN LAYER: ${rawName.toUpperCase()}` : `📂 [−] package [${shortName}]`);
+        pkgNode.data('label', isDomainTier ? `[−] DOMAIN LAYER: ${rawName.toUpperCase()}` : `[−] package [${shortName}]`);
         children.style('display', 'element');
         children.connectedEdges().style('display', 'element');
       } else {
         // Collapse (Close)
         this.collapsedPackages.add(pkgId);
         pkgNode.addClass('package-collapsed');
-        pkgNode.data('label', isDomainTier ? `📁 [+] DOMAIN LAYER: ${rawName.toUpperCase()} (${children.length} subpackages)` : `📁 [+] package [${shortName}] (${children.length} classes)`);
+        pkgNode.data('label', isDomainTier ? `[+] DOMAIN LAYER: ${rawName.toUpperCase()} (${children.length} subpackages)` : `[+] package [${shortName}] (${children.length} classes)`);
         children.style('display', 'none');
         children.connectedEdges().style('display', 'none');
       }

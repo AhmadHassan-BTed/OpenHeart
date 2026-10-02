@@ -65,11 +65,13 @@
         <div class="codebase-upload-group">
           <input type="file" id="input-folder-picker" webkitdirectory directory multiple style="display: none;" />
           <input type="file" id="input-zip-picker" accept=".zip,application/zip" style="display: none;" />
-          <button id="btn-import-folder" class="btn-upload-segment" title="Select a local folder on your computer to generate diagrams">
-            <span>📁</span> <span>Folder</span>
+          <button id="btn-import-folder" class="btn-upload-segment" title="Select local directory">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg>
+            <span>Folder</span>
           </button>
-          <button id="btn-import-zip" class="btn-upload-segment" title="Upload a ZIP archive to generate diagrams">
-            <span>📦</span> <span>ZIP</span>
+          <button id="btn-import-zip" class="btn-upload-segment" title="Upload ZIP archive">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="1.5" y="2.5" width="13" height="3" rx="0.5"/><path d="M2.5 5.5v7.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V5.5"/><line x1="6.5" y1="8" x2="9.5" y2="8"/></svg>
+            <span>ZIP</span>
           </button>
         </div>
 
@@ -84,12 +86,18 @@
 
       <div class="header-right-col">
         <div class="status-pill-badge">
-          <span class="live-pulse"></span>
+          <span class="status-indicator-dot"></span>
           <span id="header-hash-badge">SCPG 0x83D202B2 · Verified</span>
         </div>
 
-        <button id="btn-theme-toggle" class="btn-header-action" title="Toggle Light / Dark Theme">🌙 Dark</button>
-        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn-header-action" title="View OpenHeart on GitHub">GitHub</a>
+        <button id="btn-theme-toggle" class="btn-header-action" title="Toggle Light / Dark Theme">
+          <span id="theme-toggle-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 8.8A6 6 0 1 1 7.2 2.5a4.7 4.7 0 0 0 6.3 6.3z"/></svg></span>
+          <span id="theme-toggle-label">Theme</span>
+        </button>
+        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn-header-action" title="View OpenHeart on GitHub">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="studio-icon"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span>GitHub</span>
+        </a>
       </div>
     </header>
 
@@ -154,13 +162,13 @@
         <!-- Floating Canvas HUD Pill -->
         <div class="canvas-floating-toolbar">
           <div class="hud-status-capsule" id="hud-status">
-            <span class="live-pulse"></span>
+            <span class="status-indicator-dot"></span>
             <span id="hud-status-text">Two-finger scroll to Pan · Two-finger pinch to Zoom · Hover to trace path</span>
           </div>
           <div class="hud-action-controls hud-toolbar-cluster">
             <div class="hud-group">
               <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag: 1% to 50%)">
-                <span class="pan-slider-label">⚡ Pan</span>
+                <span class="pan-slider-label"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><line x1="2" y1="4.5" x2="14" y2="4.5"/><circle cx="5" cy="4.5" r="1.5"/><line x1="2" y1="11.5" x2="14" y2="11.5"/><circle cx="11" cy="11.5" r="1.5"/></svg> Pan</span>
                 <input type="range" id="pan-sensitivity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
                 <span id="pan-sensitivity-val">10%</span>
               </div>
@@ -170,13 +178,13 @@
 
             <div class="hud-group">
               <button id="btn-pan-lock" class="hud-tool-btn hud-pill-btn" title="Toggle Pan Lock (Lock diagram layout for pure panning & viewing)">
-                <span id="icon-pan-lock">🔓</span> <span id="label-pan-lock" class="btn-text-label">Unlocked</span>
+                <span id="icon-pan-lock"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="3" y="7" width="10" height="7.5" rx="1.5"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0"/></svg></span> <span id="label-pan-lock" class="btn-text-label">Unlocked</span>
               </button>
               <button id="btn-toggle-minimap" class="hud-tool-btn hud-pill-btn active-pill" title="Toggle Minimap Radar (Shortcut: M)">
-                <span>🗺️</span> <span class="btn-text-label">Radar</span>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="8" cy="8" r="3"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="8" y1="11" x2="8" y2="14"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="11" y1="8" x2="14" y2="8"/></svg> <span class="btn-text-label">Radar</span>
               </button>
               <button id="btn-toggle-loupe" class="hud-tool-btn hud-pill-btn" title="Toggle Cursor Magnifier Lens (Shortcut: L)">
-                <span>🔍</span> <span class="btn-text-label">Loupe</span>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/><line x1="4.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="6.5" y1="4.5" x2="6.5" y2="8.5"/></svg> <span class="btn-text-label">Loupe</span>
               </button>
             </div>
 
@@ -185,18 +193,18 @@
             <div class="hud-group">
               <div class="export-dropdown-wrapper" style="position: relative;">
                 <button id="btn-export-menu" class="hud-tool-btn hud-pill-btn" title="Save or Export Diagram">
-                  <span>💾</span> <span class="btn-text-label">Export</span> <span style="font-size: 8px; opacity: 0.7;">▾</span>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 10v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3"/><polyline points="11 5.5 8 2.5 5 5.5"/><line x1="8" y1="2.5" x2="8" y2="10.5"/></svg> <span class="btn-text-label">Export</span> <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;"><polyline points="4 6 8 10 12 6"/></svg>
                 </button>
                 <div id="export-menu-dropdown" class="export-menu-dropdown hidden-dropdown">
                   <button class="export-item-btn" id="btn-save-json">
-                    <span class="export-item-icon">💾</span>
+                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M12.5 14.5h-9a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h7l3 3v9a1 1 0 0 1-1 1z"/><polyline points="11 14.5 11 9 5 9 5 14.5"/><polyline points="5 1.5 5 4.5 9.5 4.5"/></svg></span>
                     <div class="export-item-text">
                       <strong>Save Diagram State (.json)</strong>
                       <small>Preserves exact layout to resume later</small>
                     </div>
                   </button>
                   <button class="export-item-btn" id="btn-load-json">
-                    <span class="export-item-icon">📥</span>
+                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 10v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3"/><polyline points="5 7.5 8 10.5 11 7.5"/><line x1="8" y1="10.5" x2="8" y2="2.5"/></svg></span>
                     <div class="export-item-text">
                       <strong>Load Saved State (.json)</strong>
                       <small>Resume previously saved diagram</small>
@@ -205,14 +213,14 @@
                   <input type="file" id="input-load-json" accept=".json" style="display:none;" />
                   <div class="export-menu-divider"></div>
                   <button class="export-item-btn" id="btn-export-png">
-                    <span class="export-item-icon">📷</span>
+                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="12" height="12" rx="1.5"/><circle cx="5.5" cy="5.5" r="1.5"/><polyline points="14 10 10.5 6.5 4 13"/><polyline points="10 10 12 12"/></svg></span>
                     <div class="export-item-text">
                       <strong>Export High-Res PNG</strong>
                       <small>Crisp raster image for reports</small>
                     </div>
                   </button>
                   <button class="export-item-btn" id="btn-export-svg">
-                    <span class="export-item-icon">🖼️</span>
+                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="4" height="4" rx="0.5"/><rect x="10" y="2" width="4" height="4" rx="0.5"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><rect x="2" y="10" width="4" height="4" rx="0.5"/><line x1="6" y1="4" x2="10" y2="4"/><line x1="4" y1="6" x2="4" y2="10"/><line x1="12" y1="6" x2="12" y2="10"/><line x1="6" y1="12" x2="10" y2="12"/></svg></span>
                     <div class="export-item-text">
                       <strong>Export Vector SVG</strong>
                       <small>Infinite resolution vector graphic</small>
@@ -239,7 +247,7 @@
         <div class="canvas-floating-layers-bar" id="canvas-layers-panel">
           <div class="layers-panel-header">
             <div class="layers-title">
-              <span class="layers-icon">⚡</span>
+              <span class="layers-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polygon points="8 1.5 14.5 5 8 8.5 1.5 5 8 1.5"/><polyline points="1.5 8 8 11.5 14.5 8"/><polyline points="1.5 11 8 14.5 14.5 11"/></svg></span>
               <span>Relationship Layers</span>
               <span class="phase-chip" id="layers-total-count">0 EDGES</span>
             </div>
@@ -258,11 +266,13 @@
       <aside class="inspector-card">
         <div class="inspector-nav-tabs">
           <button class="inspector-tab-btn active" id="tab-btn-explorer">
-            <span>📁 Project Explorer</span>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg>
+            <span>Project Explorer</span>
             <span class="badge-count">35</span>
           </button>
           <button class="inspector-tab-btn" id="tab-btn-source">
-            <span>⚡ Details</span>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="11"/><circle cx="8" cy="5" r="0.75" fill="currentColor"/></svg>
+            <span>Details</span>
           </button>
         </div>
 
@@ -303,7 +313,7 @@
 
         <div class="monaco-editor-card">
           <div class="monaco-breadcrumb-bar">
-            <span class="breadcrumb-root">📁 src / main / java</span>
+            <span class="breadcrumb-root"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg> src / main / java</span>
             <span class="breadcrumb-divider">/</span>
             <span class="breadcrumb-pkg" id="breadcrumb-package">com / patterns / structural / facade</span>
             <span class="breadcrumb-divider">/</span>
@@ -320,7 +330,7 @@
                 <button type="button" class="btn-code-tool" id="btn-code-font-inc" title="Increase font size">A+</button>
               </div>
               <button type="button" class="btn-code-tool" id="btn-code-wrap" title="Toggle Word Wrap">Wrap</button>
-              <button type="button" class="btn-code-tool" id="btn-code-copy" title="Copy Code to Clipboard">📋 Copy</button>
+              <button type="button" class="btn-code-tool" id="btn-code-copy" title="Copy Code to Clipboard"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M2.5 10.5v-7a1 1 0 0 1 1-1h7"/></svg> Copy</button>
               <span class="sync-status-pill">Synchronized</span>
             </div>
           </div>
@@ -346,6 +356,7 @@
 
   <!-- Application Bootstrap Module -->
   <script type="module">
+    import { Icons } from './js/icons.js';
     import { InteractiveGraphCanvas } from './js/graph-canvas.js';
     import { SourceEditorModule } from './js/editor.js';
     import { FileTreeExplorer } from './js/file-tree.js';
@@ -393,7 +404,7 @@
                 const customName = sessionStorage.getItem('openheart_custom_name') || 'Local Codebase';
                 const hudText = document.getElementById('hud-status-text');
                 if (hudText) {
-                  hudText.innerHTML = `✅ Active codebase: <strong>${customName}</strong> · ${diag.name} (${diag.phase})`;
+                  hudText.innerHTML = `Active codebase: <strong>${customName}</strong> · ${diag.name} (${diag.phase})`;
                 }
               }
             });
@@ -486,12 +497,12 @@
 
           const inputEl = document.getElementById('input-repo-url');
           if (inputEl) {
-            inputEl.value = `📁 ${customName} (Active Codebase)`;
+            inputEl.value = `${customName} (Active Codebase)`;
           }
 
           const hudText = document.getElementById('hud-status-text');
           if (hudText) {
-            hudText.innerHTML = `✅ Persistent codebase restored: <strong>${customName}</strong> · Ready`;
+            hudText.innerHTML = `Persistent codebase restored: <strong>${customName}</strong> · Ready`;
           }
         } catch (restoreErr) {
           console.warn('[OpenHeart Studio] Failed restoring custom codebase from storage:', restoreErr);
@@ -633,7 +644,10 @@
       const btnTheme = document.getElementById('btn-theme-toggle');
       onThemeChange((theme, isDark) => {
         if (btnTheme) {
-          btnTheme.innerHTML = isDark ? '☀️ Light' : '🌙 Dark';
+          const iconSpan = btnTheme.querySelector('#theme-toggle-icon');
+          const labelSpan = btnTheme.querySelector('#theme-toggle-label');
+          if (iconSpan) iconSpan.innerHTML = isDark ? Icons.sun : Icons.moon;
+          if (labelSpan) labelSpan.textContent = isDark ? 'Light' : 'Dark';
         }
       });
       initTheme();
@@ -658,14 +672,14 @@
         const progressFill = document.getElementById('clone-progress-fill');
 
         // Guard against analyzing active local codebase as a GitHub URL
-        if (repoUrl.startsWith('local:') || repoUrl.startsWith('📁') || repoUrl.startsWith('📦') || repoUrl.includes('(Active Codebase)') || repoUrl.includes('(Local Codebase)') || (canvas.customGraphIr && !repoUrl.startsWith('http') && !repoUrl.includes('/'))) {
+        if (repoUrl.startsWith('local:') || repoUrl.includes('(Active Codebase)') || repoUrl.includes('(Local Codebase)') || (canvas.customGraphIr && !repoUrl.startsWith('http') && !repoUrl.includes('/'))) {
           if (canvas.customGraphIr) {
             const cbName = sessionStorage.getItem('openheart_custom_name') || canvas.customGraphIr.title || 'Local Codebase';
-            hudText.innerHTML = `✅ Active codebase: <strong>${cbName}</strong> · Rendering ${canvas.currentGraphType.toUpperCase()}`;
+            hudText.innerHTML = `Active codebase: <strong>${cbName}</strong> · Rendering ${canvas.currentGraphType.toUpperCase()}`;
             await canvas.renderGraph(canvas.currentGraphType);
             return;
           } else {
-            hudText.innerHTML = `<span style="color: #facc15;">Please choose your local folder using the "📁 Folder" button above.</span>`;
+            hudText.innerHTML = `<span style="color: var(--accent-amber);">Select your local folder using the Folder button above.</span>`;
             return;
           }
         }
@@ -684,10 +698,10 @@
         let progress = 10;
 
         const phases = [
-          { p: 25, label: `[1/5] 📡 Connecting to GitHub & Cloning repository (git clone --depth 1)...` },
-          { p: 45, label: `[2/5] 📂 Scanning source tree & parsing ASTs...` },
-          { p: 70, label: `[3/5] 🧠 Compiling SCPG program graphs (Dominators, SSA, ROBDD)...` },
-          { p: 90, label: `[4/5] 🎨 Synthesizing deterministic UML 2.5 projections & layouts...` }
+          { p: 25, label: `[1/5] Connecting to GitHub & Cloning repository...` },
+          { p: 45, label: `[2/5] Scanning source tree & parsing ASTs...` },
+          { p: 70, label: `[3/5] Compiling SCPG program graphs (Dominators, SSA, ROBDD)...` },
+          { p: 90, label: `[4/5] Synthesizing deterministic UML 2.5 projections & layouts...` }
         ];
 
         let phaseIdx = 0;
@@ -756,19 +770,19 @@
             const timeMs = backendData.stats ? backendData.stats.execution_time_ms : 0;
             const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-            hudText.innerHTML = `✅ [5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
+            hudText.innerHTML = `[5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
             addToProjectHistory({
               id: repoUrl,
               name: repoName,
               type: 'github',
-              icon: '🐙',
+              icon: 'github',
               url: repoUrl,
               badge: 'GitHub'
             });
             await canvas.renderGraph(canvas.currentGraphType);
           } else {
             // Attempt 2: Zero-Backend In-Browser GitHub Engine (GitHub Pages Native)
-            hudText.innerHTML = `⚡ Activating GitHub Client Engine for <strong>${repoName}</strong>...`;
+            hudText.innerHTML = `Activating GitHub Client Engine for <strong>${repoName}</strong>...`;
             
             const ghResult = await GitHubEngine.analyzeGitHubRepo(repoUrl, (pct, msg) => {
               if (progressFill) progressFill.style.width = `${pct}%`;
@@ -784,12 +798,12 @@
             const classesCount = ghResult.stats ? ghResult.stats.total_classes : 0;
             const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-            hudText.innerHTML = `✅ [5/5] In-Browser Graph Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
+            hudText.innerHTML = `[5/5] In-Browser Graph Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
             addToProjectHistory({
               id: repoUrl,
               name: repoName,
               type: 'github',
-              icon: '🐙',
+              icon: 'github',
               url: repoUrl,
               badge: 'GitHub'
             });
@@ -825,7 +839,7 @@
         if (progressFill) progressFill.style.width = '15%';
 
         try {
-          hudText.innerHTML = `⚡ Ingesting &amp; analyzing codebase: <strong>${name}</strong>...`;
+          hudText.innerHTML = `Ingesting &amp; analyzing codebase: <strong>${name}</strong>...`;
 
           const result = await GitHubEngine.analyzeSourceFiles(fileItems, name, (pct, msg) => {
             if (progressFill) progressFill.style.width = `${pct}%`;
@@ -856,15 +870,15 @@
           const classesCount = result.stats ? result.stats.total_classes : 0;
           const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
 
-          hudText.innerHTML = `✅ [5/5] In-Browser Graph Generated for <strong>${name}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
-          document.getElementById('input-repo-url').value = `📁 ${name} (Active Codebase)`;
+          hudText.innerHTML = `[5/5] In-Browser Graph Generated for <strong>${name}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
+          document.getElementById('input-repo-url').value = `${name} (Active Codebase)`;
 
           addToProjectHistory({
             id: name,
             name: name,
             type: 'local',
-            icon: '📁',
-            url: `📁 ${name} (Active Codebase)`,
+            icon: 'folder',
+            url: `${name} (Active Codebase)`,
             badge: 'Local Codebase'
           });
 
@@ -924,7 +938,7 @@
           }
 
           const hudText = document.getElementById('hud-status-text');
-          hudText.innerHTML = `📦 Unpacking ZIP archive: <strong>${file.name}</strong>...`;
+          hudText.innerHTML = `Unpacking ZIP archive: <strong>${file.name}</strong>...`;
 
           try {
             const zip = await JSZip.loadAsync(file);
@@ -1054,9 +1068,10 @@
             </div>
           `;
           history.forEach(item => {
+            const iconSvg = Icons[item.icon] || (item.type === 'github' ? Icons.github : (item.type === 'zip' ? Icons.archive : Icons.folder));
             html += `
               <button class="repo-history-item" data-history-id="${encodeURIComponent(item.id)}" data-history-type="${item.type}" data-history-url="${encodeURIComponent(item.url)}">
-                <span class="repo-history-icon">${item.icon || '📁'}</span>
+                <span class="repo-history-icon">${iconSvg}</span>
                 <span class="repo-history-text">${item.name}</span>
                 <span class="repo-history-badge">${item.badge || item.type}</span>
               </button>
@@ -1070,17 +1085,17 @@
             <span>Presets & Demo Codebases</span>
           </div>
           <button class="repo-history-item" data-preset="patterns" data-history-url="https://github.com/iluwatar/java-design-patterns">
-            <span class="repo-history-icon">📐</span>
+            <span class="repo-history-icon">${Icons.fileCode}</span>
             <span class="repo-history-text">iluwatar/java-design-patterns</span>
             <span class="repo-history-badge">Preset</span>
           </button>
           <button class="repo-history-item" data-preset="petclinic" data-history-url="https://github.com/spring-projects/spring-petclinic">
-            <span class="repo-history-icon">☕</span>
+            <span class="repo-history-icon">${Icons.fileCode}</span>
             <span class="repo-history-text">spring-projects/spring-petclinic</span>
             <span class="repo-history-badge">Preset</span>
           </button>
           <button class="repo-history-item" data-preset="fractal" data-history-url="https://github.com/Fractal-Compute-Orchestrations/FractalAndroid">
-            <span class="repo-history-icon">⚡</span>
+            <span class="repo-history-icon">${Icons.fileCode}</span>
             <span class="repo-history-text">FractalAndroid (Mobile SDK)</span>
             <span class="repo-history-badge">Preset</span>
           </button>
@@ -1114,7 +1129,7 @@
                 document.getElementById('input-repo-url').value = rawUrl;
                 const hudText = document.getElementById('hud-status-text');
                 if (hudText) {
-                  hudText.innerHTML = `💡 Project <strong>${id}</strong> selected. Click <strong>📁 Folder</strong> or <strong>📦 ZIP</strong> to load its files.`;
+                  hudText.innerHTML = `Project <strong>${id}</strong> selected. Choose Folder or ZIP to load its files.`;
                 }
               }
             } else {
@@ -1151,14 +1166,14 @@
       if (btnPanLock) {
         btnPanLock.addEventListener('click', () => {
           const isLocked = canvas.togglePanLock();
-          if (iconPanLock) iconPanLock.innerText = isLocked ? '🔒' : '🔓';
+          if (iconPanLock) iconPanLock.innerHTML = isLocked ? Icons.lock : Icons.unlock;
           if (labelPanLock) labelPanLock.innerText = isLocked ? 'Locked' : 'Unlocked';
           btnPanLock.classList.toggle('active-locked', isLocked);
           const hudText = document.getElementById('hud-status-text');
           if (hudText) {
             hudText.innerHTML = isLocked
-              ? `🔒 <strong>Pan Lock Active</strong>: Layout locked. Pure pan &amp; inspect mode enabled.`
-              : `🔓 <strong>Pan Lock Disabled</strong>: Diagram nodes can be repositioned freely.`;
+              ? `<strong>Pan Lock Active</strong>: Layout locked. Pure pan &amp; inspect mode enabled.`
+              : `<strong>Pan Lock Disabled</strong>: Diagram nodes can be repositioned freely.`;
           }
         });
       }
@@ -1221,7 +1236,7 @@
           downloadBlob(jsonText, 'application/json', filename);
           const hudText = document.getElementById('hud-status-text');
           if (hudText) {
-            hudText.innerHTML = `💾 Diagram state saved as <strong>${filename}</strong>!`;
+            hudText.innerHTML = `Diagram state saved as <strong>${filename}</strong>`;
           }
         });
       }
@@ -1245,7 +1260,7 @@
             await canvas.loadDiagramState(savedState);
             const hudText = document.getElementById('hud-status-text');
             if (hudText) {
-              hudText.innerHTML = `✅ Successfully loaded diagram state from <strong>${file.name}</strong> (${(savedState.diagram_type || 'DIAGRAM').toUpperCase()})`;
+              hudText.innerHTML = `Successfully loaded diagram state from <strong>${file.name}</strong> (${(savedState.diagram_type || 'DIAGRAM').toUpperCase()})`;
             }
             // Update active sidebar tab button
             document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
@@ -1258,7 +1273,7 @@
             if (btnPanLock && iconPanLock && labelPanLock) {
               const isLocked = canvas.isPanLocked;
               btnPanLock.classList.toggle('active-locked', isLocked);
-              iconPanLock.textContent = isLocked ? '🔒' : '🔓';
+              iconPanLock.innerHTML = isLocked ? Icons.lock : Icons.unlock;
               labelPanLock.textContent = isLocked ? 'Locked' : 'Unlocked';
             }
           } catch (err) {
@@ -1280,7 +1295,7 @@
           downloadDataUri(pngData, filename);
           const hudText = document.getElementById('hud-status-text');
           if (hudText) {
-            hudText.innerHTML = `📷 High-res PNG exported as <strong>${filename}</strong>!`;
+            hudText.innerHTML = `High-res PNG exported as <strong>${filename}</strong>`;
           }
         });
       }
@@ -1297,7 +1312,7 @@
             downloadBlob(svgData, 'image/svg+xml;charset=utf-8', filename);
             const hudText = document.getElementById('hud-status-text');
             if (hudText) {
-              hudText.innerHTML = `🖼️ Vector SVG exported as <strong>${filename}</strong>!`;
+              hudText.innerHTML = `Vector SVG exported as <strong>${filename}</strong>`;
             }
           } else {
             // Fallback to high-res PNG if cytoscape-svg plugin isn't active

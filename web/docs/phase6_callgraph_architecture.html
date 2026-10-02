@@ -222,7 +222,7 @@
 
     <div class="grid-2">
         <div class="card">
-            <h2><span class="icon">⚡</span> 6.1 Mandate & Boundaries</h2>
+            <h2>6.1 Mandate & Boundaries</h2>
             <p>Phase 6 assembles the inter-procedural skeleton of the SCPG. It resolves every call site in the BP AST (direct, virtual, interface, constructor, dynamic) to possible callee symbols using CHA and 1-CFA, runs Anderson points-to analysis, and extracts recursive cycles using Tarjan's SCC algorithm.</p>
             <pre>
 Inputs:  .bpa (AST), .sta (Symbols), .cfa (CFG), .ssa (SSA)
@@ -232,7 +232,7 @@ Header:  64-byte aligned header with ssa_hash & sta_hash links
         </div>
 
         <div class="card">
-            <h2><span class="icon">📐</span> 6.2 Formal Graph Definition</h2>
+            <h2>6.2 Formal Graph Definition</h2>
             <p>The Call Graph is defined as <code>G_CG = (V_CG, E_CG)</code> where <code>V_CG</code> is the set of callable symbols (methods, constructors, lambdas) and <code>E_CG</code> is the set of typed, annotated call edges.</p>
             <table>
                 <thead>
@@ -252,7 +252,7 @@ Header:  64-byte aligned header with ssa_hash & sta_hash links
 
     <div class="grid-2">
         <div class="card">
-            <h2><span class="icon">🔍</span> 6.3 Dispatch Resolution Algorithms</h2>
+            <h2>6.3 Dispatch Resolution Algorithms</h2>
             <p>Resolution combines Class Hierarchy Analysis (CHA) with 1-CFA allocation-site sensitivity to bound virtual dispatch fan-out efficiently.</p>
             <pre>
 1. Direct/Special: STA symbol lookup (1 target)
@@ -262,7 +262,7 @@ Header:  64-byte aligned header with ssa_hash & sta_hash links
         </div>
 
         <div class="card">
-            <h2><span class="icon">🔄</span> 6.4 Anderson Points-To Analysis</h2>
+            <h2>6.4 Anderson Points-To Analysis</h2>
             <p>Inclusion-based constraint solver computing global points-to sets <code>pts: SsaId -> Set&lt;AllocTypeSymId&gt;</code> via worklist fixpoint propagation.</p>
             <pre>
 v^i = new T()   -> {alloc_T} ⊆ pts(v^i)
@@ -273,7 +273,7 @@ v^i = phi(...)   -> pts(arg) ⊆ pts(v^i)
     </div>
 
     <div class="card">
-        <h2><span class="icon">💾</span> 6.5 CallGraphArtifact Binary Layout (.cga)</h2>
+        <h2>6.5 CallGraphArtifact Binary Layout (.cga)</h2>
         <table>
             <thead>
                 <tr><th>Section</th><th>Fixed Record Size</th><th>Description</th></tr>

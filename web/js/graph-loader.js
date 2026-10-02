@@ -43,8 +43,8 @@ export function loadGraphIrToCytoscape(graphIr) {
       const isDomainTier = node.is_domain_tier || (node.nest_level === 0);
 
       const displayLabel = isDomainTier
-        ? `📂 DOMAIN: ${shortName.toUpperCase()}`
-        : `📁 package [${shortName}]`;
+        ? `DOMAIN: ${shortName.toUpperCase()}`
+        : `package [${shortName}]`;
 
       if (isParent) {
         const pkgNode = {

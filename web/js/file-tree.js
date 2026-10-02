@@ -3,6 +3,8 @@
  * Dynamically builds the VS Code / Android Studio directory tree from parsed compiler elements.
  */
 
+import { Icons } from './icons.js';
+
 export class FileTreeExplorer {
   constructor(containerId, onFileSelectCallback) {
     this.container = document.getElementById(containerId);
@@ -118,11 +120,11 @@ export class FileTreeExplorer {
     if (isFolder) {
       const arrow = document.createElement('span');
       arrow.className = 'tree-arrow';
-      arrow.textContent = node.expanded ? '▼' : '▶';
+      arrow.innerHTML = node.expanded ? Icons.chevronDown : Icons.chevronRight;
 
       const folderIcon = document.createElement('span');
       folderIcon.className = 'tree-icon folder-icon';
-      folderIcon.textContent = node.expanded ? '📂' : '📁';
+      folderIcon.innerHTML = node.expanded ? Icons.folderOpen : Icons.folder;
 
       const label = document.createElement('span');
       label.className = 'tree-folder-label';
@@ -145,8 +147,8 @@ export class FileTreeExplorer {
       row.addEventListener('click', (e) => {
         e.stopPropagation();
         node.expanded = !node.expanded;
-        arrow.textContent = node.expanded ? '▼' : '▶';
-        folderIcon.textContent = node.expanded ? '📂' : '📁';
+        arrow.innerHTML = node.expanded ? Icons.chevronDown : Icons.chevronRight;
+        folderIcon.innerHTML = node.expanded ? Icons.folderOpen : Icons.folder;
         childrenContainer.style.display = node.expanded ? 'block' : 'none';
       });
 
@@ -202,8 +204,8 @@ export class FileTreeExplorer {
             if (folderRow) {
               const arrow = folderRow.querySelector('.tree-arrow');
               const icon = folderRow.querySelector('.folder-icon');
-              if (arrow) arrow.textContent = '▼';
-              if (icon) icon.textContent = '📂';
+              if (arrow) arrow.innerHTML = Icons.chevronDown;
+              if (icon) icon.innerHTML = Icons.folderOpen;
             }
           }
           parent = parent.parentElement;

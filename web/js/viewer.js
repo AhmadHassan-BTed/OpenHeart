@@ -176,7 +176,7 @@ export class DiagramViewerModule {
         this.renderContainer.innerHTML = `
           <div class="plantuml-canvas" style="height:100%; overflow:auto;">
             <div style="padding: 0.75rem 1.5rem; background: #1a1a1a; color: #ffaa00; font-family: monospace; font-size: 0.8rem; border-bottom: 1px solid #333;">
-              ⚠️ VECTOR SVG GENERATOR OFFLINE. DISPLAYING 100% SCROLLABLE PLANTUML SOURCE CODE.
+              [NOTICE] VECTOR SVG GENERATOR OFFLINE. DISPLAYING 100% SCROLLABLE PLANTUML SOURCE CODE.
             </div>
             <pre class="plantuml-code-editor"><code>${this.escapeHtml(pumlCode)}</code></pre>
           </div>`;

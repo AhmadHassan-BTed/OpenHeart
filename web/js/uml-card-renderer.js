@@ -194,7 +194,7 @@ export function generatePackageFolderSvg(pkgData) {
   <!-- Package Folder Tab Ear -->
   <path d="M 2,${TAB_HEIGHT} L 2,6 Q 2,2 6,2 L ${tabWidth - 10},2 Q ${tabWidth - 4},2 ${tabWidth + 6},${TAB_HEIGHT} Z" fill="${tabBg}" stroke="${borderColor}" stroke-width="1.8" />
   <text x="12" y="${TAB_HEIGHT - 9}" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="800" fill="${textColor}">
-    ${isCollapsed ? '📁 [+]' : '📁'} ${escapeXml(shortName)}
+    ${isCollapsed ? '[+] ' : ''}${escapeXml(shortName)}
   </text>
   <!-- Package Folder Body Container (Solid Clean Vector Border) -->
   <rect x="2" y="${TAB_HEIGHT}" width="${width - 4}" height="${height - TAB_HEIGHT - 2}" rx="6" ry="6" fill="${bodyBg}" stroke="${borderColor}" stroke-width="1.8" />
@@ -208,7 +208,7 @@ export function generatePackageFolderSvg(pkgData) {
 `;
 
   if (isCollapsed || childCount > 0) {
-    const pkgBadgeText = `📦 ${childCount} Items (Click to Focus)`;
+    const pkgBadgeText = `${childCount} Items (Click to Focus)`;
     const pkgBadgeWidth = Math.max(140, Math.min(width - 24, Math.round(pkgBadgeText.length * 5.8 + 24)));
     const pkgBadgeX = Math.round((width - pkgBadgeWidth) / 2);
     svg += `
@@ -380,7 +380,7 @@ export function generateDeploymentNodeSvg(data) {
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" stroke-dasharray="4 3"/>
   <text x="${width / 2}" y="24" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;artifact&gt;&gt;</text>
-  <text x="${width / 2}" y="48" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">📦 ${escapeXml(name)}</text>
+  <text x="${width / 2}" y="48" font-family="JetBrains Mono, monospace" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
     return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
   }
@@ -391,7 +391,7 @@ export function generateDeploymentNodeSvg(data) {
   <polygon points="12,1 12,12 1,12" fill="${tabFill}" stroke="${strokeColor}" stroke-width="1.2" />
   <rect x="1" y="12" width="${width - 14}" height="${height - 14}" rx="4" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
   <text x="${(width - 14) / 2}" y="32" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">&lt;&lt;device&gt;&gt;</text>
-  <text x="${(width - 14) / 2}" y="52" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">🖥️ ${escapeXml(name)}</text>
+  <text x="${(width - 14) / 2}" y="52" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
 </svg>`;
 
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
@@ -503,7 +503,7 @@ export function generateCfgBlockSvg(data) {
   <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.5" />
   <path d="M 1,6 Q 1,1 6,1 L ${width - 6},1 Q ${width - 1},1 ${width - 1},6 L ${width - 1},${HEADER_HEIGHT} L 1,${HEADER_HEIGHT} Z" fill="${headerBg}" />
   <line x1="1" y1="${HEADER_HEIGHT}" x2="${width - 1}" y2="${HEADER_HEIGHT}" stroke="${strokeColor}" stroke-width="1.2" />
-  <text x="12" y="23" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="${titleColor}">⚡ BASIC BLOCK #${escapeXml(id)}</text>
+  <text x="12" y="23" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="${titleColor}">BASIC BLOCK #${escapeXml(id)}</text>
 `;
 
   let instY = HEADER_HEIGHT + 16;
@@ -573,7 +573,7 @@ export function generateCompositeCardSvg(data) {
   <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="6" ry="6" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
   <rect x="1" y="1" width="${width - 2}" height="32" rx="6" fill="${headerBg}" />
   <line x1="1" y1="32" x2="${width - 1}" y2="32" stroke="${strokeColor}" stroke-width="1.2" />
-  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">⚙️ ${escapeXml(name)}</text>
+  <text x="${width / 2}" y="21" font-family="JetBrains Mono, sans-serif" font-size="11.5" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
   <!-- Port Pins on left and right borders with center alignment -->
   <rect x="-4" y="24" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />
   <rect x="${width - 4}" y="24" width="8" height="8" fill="${strokeColor}" stroke="#FFFFFF" stroke-width="1.2" />

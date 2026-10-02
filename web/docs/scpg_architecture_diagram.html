@@ -73,25 +73,25 @@ body{margin:0;font-family:var(--font-sans,"anthropic-sans",sans-serif)}
   <div class="section-label">SCPG vertex partition layers</div>
   <div class="layers-grid">
     <div class="layer-card" onclick="sendPrompt('Explain the BP-encoded AST layer of the SCPG in detail — how does the Balanced Parentheses encoding work and what operations does it support?')">
-      <div class="lc-icon">🌲</div>
+      <div class="lc-icon">T</div>
       <div class="lc-title">V_tok ∪ V_syn</div>
       <div class="lc-sub">Ordinal forest. BP-encoded: 2 bits/node. O(1) parent, child, LCA.</div>
       <div class="lc-badge" style="background:#E1F5EE;color:#085041">AST layer</div>
     </div>
     <div class="layer-card" onclick="sendPrompt('Explain the CFG layer of the SCPG — how is CSR encoding used and how does the wavelet tree enable type-filtered edge traversal?')">
-      <div class="lc-icon">🔀</div>
+      <div class="lc-icon">G</div>
       <div class="lc-title">V_bb</div>
       <div class="lc-sub">Basic blocks. CSR adjacency + wavelet tree edge labels. O(log σ) type-filtered traversal.</div>
       <div class="lc-badge" style="background:#E6F1FB;color:#0C447C">CFG layer</div>
     </div>
     <div class="layer-card" onclick="sendPrompt('Explain the SSA/DFG layer of the SCPG — how does SSA form reduce the data flow graph and what is the IFDS framework?')">
-      <div class="lc-icon">🔗</div>
+      <div class="lc-icon">λ</div>
       <div class="lc-title">V_ssa</div>
       <div class="lc-sub">SSA def-use chains. One definition per variable. φ-functions at dominance frontiers.</div>
       <div class="lc-badge" style="background:#FAEEDA;color:#633806">DFG layer</div>
     </div>
     <div class="layer-card" onclick="sendPrompt('Explain the symbol table and type hierarchy layers of the SCPG — what UML metadata is stored here?')">
-      <div class="lc-icon">📐</div>
+      <div class="lc-icon">Σ</div>
       <div class="lc-title">V_sym</div>
       <div class="lc-sub">Functions, classes, fields. Type hierarchy DAG. UML semantic metadata record.</div>
       <div class="lc-badge" style="background:#EEEDFE;color:#3C3489">Symbol layer</div>

@@ -51,7 +51,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
       const isDomainTier = nestLevel === 0;
 
       const shortName = pkgName.split('.').pop();
-      const displayLabel = isDomainTier ? `📂 DOMAIN: ${pkgName.toUpperCase()}` : `📁 package [${shortName}]`;
+      const displayLabel = isDomainTier ? `DOMAIN: ${pkgName.toUpperCase()}` : `package [${shortName}]`;
 
       if (!nodeMap.has(pkgId)) {
         const pkgNode = {
@@ -404,7 +404,7 @@ export function parsePumlToCytoscape(pumlContent, diagramType = 'class') {
         isDark
       });
       el.data.label = '';
-      el.data.textLabel = el.data.isDomainTier ? `📂 DOMAIN: ${shortName.toUpperCase()}` : `📁 package [${shortName}]`;
+      el.data.textLabel = el.data.isDomainTier ? `DOMAIN: ${shortName.toUpperCase()}` : `package [${shortName}]`;
       el.data.width = svgData.width;
       el.data.height = svgData.height;
       el.data.svgDataUri = svgData.dataUri;

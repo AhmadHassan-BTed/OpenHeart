@@ -16,6 +16,7 @@
  */
 
 import { isDarkMode } from './themes/index.js';
+import { Icons } from './icons.js';
 
 export class MinimapNavigator {
   /**
@@ -80,14 +81,14 @@ export class MinimapNavigator {
     card.innerHTML = `
       <div class="minimap-header" id="minimap-header">
         <div class="minimap-title-box">
-          <span class="minimap-icon">🗺️</span>
+          <span class="minimap-icon">${Icons.radar}</span>
           <span class="minimap-title">Radar</span>
         </div>
         <div class="minimap-actions">
-          <button type="button" class="minimap-action-btn" id="minimap-btn-fit" title="Fit View (⊡)">⊡</button>
-          <button type="button" class="minimap-action-btn" id="minimap-btn-loupe" title="Toggle Magnifier Lens (L)">🔍</button>
-          <button type="button" class="minimap-action-btn" id="minimap-btn-collapse" title="Collapse / Expand (━)">${this.isCollapsed ? '▢' : '━'}</button>
-          <button type="button" class="minimap-action-btn" id="minimap-btn-close" title="Close Minimap (M)">✕</button>
+          <button type="button" class="minimap-action-btn" id="minimap-btn-fit" title="Fit View">${Icons.zoomReset}</button>
+          <button type="button" class="minimap-action-btn" id="minimap-btn-loupe" title="Toggle Magnifier Lens (L)">${Icons.loupe}</button>
+          <button type="button" class="minimap-action-btn" id="minimap-btn-collapse" title="Collapse / Expand">${this.isCollapsed ? Icons.chevronRight : Icons.chevronDown}</button>
+          <button type="button" class="minimap-action-btn" id="minimap-btn-close" title="Close Minimap (M)">${Icons.close}</button>
         </div>
       </div>
       <div class="minimap-body" id="minimap-body">
@@ -294,8 +295,8 @@ export class MinimapNavigator {
     const hudText = document.getElementById('hud-status-text');
     if (hudText) {
       hudText.innerHTML = this.isVisible
-        ? `🗺️ <strong>Minimap Radar Active</strong> (Press <kbd>M</kbd> to toggle · <kbd>L</kbd> for Loupe)`
-        : `🗺️ <strong>Minimap Hidden</strong> (Press <kbd>M</kbd> to restore)`;
+        ? `<strong>Minimap Radar Active</strong> (Press <kbd>M</kbd> to toggle · <kbd>L</kbd> for Loupe)`
+        : `<strong>Minimap Hidden</strong> (Press <kbd>M</kbd> to restore)`;
     }
   }
 
@@ -305,7 +306,7 @@ export class MinimapNavigator {
     if (this.minimapCard) {
       this.minimapCard.classList.toggle('collapsed', this.isCollapsed);
       const btn = this.minimapCard.querySelector('#minimap-btn-collapse');
-      if (btn) btn.textContent = this.isCollapsed ? '▢' : '━';
+      if (btn) btn.innerHTML = this.isCollapsed ? Icons.chevronRight : Icons.chevronDown;
     }
   }
 
@@ -327,8 +328,8 @@ export class MinimapNavigator {
     const hudText = document.getElementById('hud-status-text');
     if (hudText) {
       hudText.innerHTML = this.isLoupeActive
-        ? `🔍 <strong>Magnifier Loupe Active</strong>: Hover over diagram to inspect at 2.5× (Press <kbd>L</kbd> to exit)`
-        : `🔍 <strong>Magnifier Loupe Deactivated</strong>`;
+        ? `<strong>Magnifier Loupe Active</strong>: Hover over diagram to inspect at 2.5× (Press <kbd>L</kbd> to exit)`
+        : `<strong>Magnifier Loupe Deactivated</strong>`;
     }
 
     if (this.isLoupeActive) {
