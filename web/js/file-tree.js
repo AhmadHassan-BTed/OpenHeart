@@ -4,7 +4,7 @@
  * from parsed compiler elements and real project file paths.
  */
 
-import { Icons } from './icons.js';
+import { Icons } from './icons.js?v=20261002_02';
 
 export class FileTreeExplorer {
   constructor(containerId, onFileSelectCallback) {
@@ -39,13 +39,26 @@ export class FileTreeExplorer {
     // Extract valid code file elements
     const fileElements = elements.filter(el => el.data && el.data.file && !el.data.isPackage && !el.data.source);
 
-    // If still no rootName, infer from file paths or active repo input
+    // If still no rootName, infer from plurality of file paths or active repo input
     if (!rootName && fileElements.length > 0) {
       const normalizedPaths = fileElements.map(el => (el.data.file || '').replace(/\\/g, '/').replace(/^\/+/, ''));
-      // Check if all paths share a common top-level directory (e.g. "NCacheClient/...")
-      const firstDirs = normalizedPaths.map(p => p.includes('/') ? p.split('/')[0] : null).filter(Boolean);
-      if (firstDirs.length === normalizedPaths.length && firstDirs.length > 0 && firstDirs.every(d => d === firstDirs[0])) {
-        rootName = firstDirs[0];
+      const counts = new Map();
+      normalizedPaths.forEach(p => {
+        if (p.includes('/')) {
+          const top = p.split('/')[0];
+          counts.set(top, (counts.get(top) || 0) + 1);
+        }
+      });
+      let bestDir = null;
+      let maxCount = 0;
+      counts.forEach((cnt, dir) => {
+        if (cnt > maxCount) {
+          maxCount = cnt;
+          bestDir = dir;
+        }
+      });
+      if (bestDir && maxCount >= Math.floor(fileElements.length * 0.25)) {
+        rootName = bestDir;
       }
     }
 
@@ -127,13 +140,13 @@ export class FileTreeExplorer {
 
       // Determine relative path stripped of top-level root if repeated
       let relPath = fullPath;
-      if (relPath.startsWith(`${rootName}/`)) {
+      if (rootName && relPath.toLowerCase().startsWith(`${rootName.toLowerCase()}/`)) {
         relPath = relPath.slice(rootName.length + 1);
       }
 
       const pathSegments = relPath.split('/').filter(Boolean);
       let folderSegments = [];
-      let baseFileName = fullPath;
+      let baseFileName = relPath.split('/').pop() || fullPath.split('/').pop() || fullPath;
 
       if (pathSegments.length > 1) {
         folderSegments = pathSegments.slice(0, -1);

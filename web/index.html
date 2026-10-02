@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>OpenHeart — Precision Program Graph Studio</title>
   <meta name="description" content="OpenHeart Interactive SCPG & UML Program Analysis Studio with live GitHub repository import." />
 
@@ -356,12 +359,12 @@
 
   <!-- Application Bootstrap Module -->
   <script type="module">
-    import { Icons } from './js/icons.js';
-    import { InteractiveGraphCanvas } from './js/graph-canvas.js';
-    import { SourceEditorModule } from './js/editor.js';
-    import { FileTreeExplorer } from './js/file-tree.js';
-    import { GitHubEngine } from './js/github-engine.js';
-    import { initTheme, toggleTheme, onThemeChange, fetchManifest, getCachedManifest, isDarkMode } from './js/themes/index.js';
+    import { Icons } from './js/icons.js?v=20261002_02';
+    import { InteractiveGraphCanvas } from './js/graph-canvas.js?v=20261002_02';
+    import { SourceEditorModule } from './js/editor.js?v=20261002_02';
+    import { FileTreeExplorer } from './js/file-tree.js?v=20261002_02';
+    import { GitHubEngine } from './js/github-engine.js?v=20261002_02';
+    import { initTheme, toggleTheme, onThemeChange, fetchManifest, getCachedManifest, isDarkMode } from './js/themes/index.js?v=20261002_02';
 
     window.addEventListener('DOMContentLoaded', async () => {
       const canvas = new InteractiveGraphCanvas('interactive-canvas');

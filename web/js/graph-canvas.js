@@ -9,12 +9,12 @@
  *  - Orthogonal Taxi Wiring for Clean, Non-Entangled Routing
  */
 
-import { parsePumlToCytoscape } from './puml-parser.js';
-import { computeDeterministicLayout } from './uml-layout.js';
-import { loadGraphIrToCytoscape } from './graph-loader.js';
-import { generatePackageFolderSvg } from './uml-card-renderer.js';
-import { getTheme, onThemeChange, buildCytoscapeStylesheet } from './themes/index.js';
-import { MinimapNavigator } from './minimap-navigator.js';
+import { parsePumlToCytoscape } from './puml-parser.js?v=20261002_02';
+import { computeDeterministicLayout } from './uml-layout.js?v=20261002_02';
+import { loadGraphIrToCytoscape } from './graph-loader.js?v=20261002_02';
+import { generatePackageFolderSvg } from './uml-card-renderer.js?v=20261002_02';
+import { getTheme, onThemeChange, buildCytoscapeStylesheet } from './themes/index.js?v=20261002_02';
+import { MinimapNavigator } from './minimap-navigator.js?v=20261002_02';
 
 export class InteractiveGraphCanvas {
   constructor(containerId = 'interactive-canvas') {

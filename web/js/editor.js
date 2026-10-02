@@ -5,7 +5,7 @@
  * highlighting, configurable font scaling, word-wrap toggling, and theme reactivity.
  */
 
-import { isDarkMode, onThemeChange } from './themes/index.js';
+import { isDarkMode, onThemeChange } from './themes/index.js?v=20261002_02';
 
 export class SourceEditorModule {
   constructor(containerId = "monaco-container") {
