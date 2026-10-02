@@ -4,7 +4,7 @@
  * from parsed compiler elements and real project file paths.
  */
 
-import { Icons } from './icons.js?v=20261002_02';
+import { Icons } from './icons.js';
 
 export class FileTreeExplorer {
   constructor(containerId, onFileSelectCallback) {

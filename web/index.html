@@ -16,7 +16,7 @@
 
   <link rel="stylesheet" href="themes/light.css" />
   <link rel="stylesheet" href="themes/dark.css" />
-  <link rel="stylesheet" href="style.css?v=11.0.0" />
+  <link rel="stylesheet" href="style.css" />
 
   <!-- Cytoscape.js & Dagre for Hierarchical Layout -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
@@ -359,12 +359,12 @@
 
   <!-- Application Bootstrap Module -->
   <script type="module">
-    import { Icons } from './js/icons.js?v=20261002_02';
-    import { InteractiveGraphCanvas } from './js/graph-canvas.js?v=20261002_02';
-    import { SourceEditorModule } from './js/editor.js?v=20261002_02';
-    import { FileTreeExplorer } from './js/file-tree.js?v=20261002_02';
-    import { GitHubEngine } from './js/github-engine.js?v=20261002_02';
-    import { initTheme, toggleTheme, onThemeChange, fetchManifest, getCachedManifest, isDarkMode } from './js/themes/index.js?v=20261002_02';
+    import { Icons } from './js/icons.js';
+    import { InteractiveGraphCanvas } from './js/graph-canvas.js';
+    import { SourceEditorModule } from './js/editor.js';
+    import { FileTreeExplorer } from './js/file-tree.js';
+    import { GitHubEngine } from './js/github-engine.js';
+    import { initTheme, toggleTheme, onThemeChange, fetchManifest, getCachedManifest, isDarkMode } from './js/themes/index.js';
 
     window.addEventListener('DOMContentLoaded', async () => {
       const canvas = new InteractiveGraphCanvas('interactive-canvas');
