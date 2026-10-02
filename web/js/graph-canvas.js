@@ -876,8 +876,8 @@ export class InteractiveGraphCanvas {
           return;
         }
 
-        // Smooth ease-out zoom convergence
-        const nextZoom = currentZoom + diff * 0.30;
+        // Smooth ease-out zoom convergence (snappy 80-100ms)
+        const nextZoom = currentZoom + diff * 0.45;
         this.cy.zoom({
           level: nextZoom,
           renderedPosition: navPhysics.zoomAnchor
@@ -888,30 +888,76 @@ export class InteractiveGraphCanvas {
       navPhysics.zoomRafId = requestAnimationFrame(step);
     };
 
-    container.addEventListener('wheel', (e) => {
+    // ── Prevent Windows Menu Bar / Chrome Shortcut Capture on Alt Key ──
+    let isAltHeld = false;
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (!['INPUT', 'TEXTAREA'].includes(activeTag) && !document.activeElement?.isContentEditable) {
+          e.preventDefault();
+          isAltHeld = true;
+        }
+      }
+    }, { capture: true });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (!['INPUT', 'TEXTAREA'].includes(activeTag) && !document.activeElement?.isContentEditable) {
+          e.preventDefault();
+          isAltHeld = false;
+        }
+      }
+    }, { capture: true });
+
+    window.addEventListener('blur', () => {
+      isAltHeld = false;
+    });
+
+    // Attach wheel listener to full viewport area (canvas + overlay card)
+    const viewportTarget = container.closest('.canvas-card') || container;
+
+    viewportTarget.addEventListener('wheel', (e) => {
       e.preventDefault();
       if (!this.cy) return;
 
       const rect = container.getBoundingClientRect();
       const pointerPos = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+        x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height, e.clientY - rect.top))
       };
 
       const userSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
       const speed = userSensitivity * 10.0;
 
-      // ── Condition A: ZOOM (Ctrl + Wheel, Cmd + Wheel, Alt + Wheel, or Trackpad Pinch) ──
-      if (e.ctrlKey || e.metaKey || e.altKey) {
+      // Extract raw delta across all OS drivers (some remap Alt+wheel to deltaX or wheelDelta)
+      let rawDelta = 0;
+      if (Math.abs(e.deltaY) >= Math.abs(e.deltaX) && e.deltaY !== 0) {
+        rawDelta = e.deltaY;
+      } else if (e.deltaX !== 0) {
+        rawDelta = e.deltaX;
+      } else if (e.detail) {
+        rawDelta = e.detail * 40;
+      } else if (e.wheelDelta) {
+        rawDelta = -e.wheelDelta;
+      }
+
+      if (rawDelta === 0) return;
+
+      const isZoomGesture = e.ctrlKey || e.metaKey || e.altKey || isAltHeld;
+
+      // ── Condition A: ZOOM (Ctrl, Cmd, Alt, or Trackpad Pinch) ──
+      if (isZoomGesture) {
         navPhysics.targetPanDx = 0;
         navPhysics.targetPanDy = 0;
 
-        const isTrackpadPinch = Math.abs(e.deltaY) < 25 && (e.ctrlKey || e.metaKey);
+        const isTrackpadPinch = Math.abs(rawDelta) < 25 && (e.ctrlKey || e.metaKey);
 
         if (isTrackpadPinch) {
           // Continuous trackpad pinch: instantaneous 1:1 proportional zoom
           const currentZoom = this.cy.zoom();
-          const zoomFactor = Math.exp(-e.deltaY * 0.008);
+          const zoomFactor = Math.exp(-rawDelta * 0.008);
           const newZoom = Math.min(5.0, Math.max(0.04, currentZoom * zoomFactor));
           this.cy.zoom({
             level: newZoom,
@@ -920,8 +966,10 @@ export class InteractiveGraphCanvas {
           navPhysics.targetZoom = null;
         } else {
           // Discrete mouse wheel notch: smooth 10% zoom with organic ease-out glide
-          const baseZoom = navPhysics.targetZoom !== null ? navPhysics.targetZoom : this.cy.zoom();
-          const zoomMultiplier = e.deltaY < 0 ? 1.10 : (1 / 1.10);
+          const baseZoom = (navPhysics.targetZoom !== null && !isNaN(navPhysics.targetZoom))
+            ? navPhysics.targetZoom
+            : this.cy.zoom();
+          const zoomMultiplier = rawDelta < 0 ? 1.10 : (1 / 1.10);
           navPhysics.targetZoom = Math.min(5.0, Math.max(0.04, baseZoom * zoomMultiplier));
           navPhysics.zoomAnchor = pointerPos;
           startZoomLoop();
@@ -930,24 +978,23 @@ export class InteractiveGraphCanvas {
       }
 
       // ── Condition B: PANNING (Standard Wheel or Shift + Wheel) ──
-      const isDiscreteWheel = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 40 || Math.abs(e.deltaX) >= 40;
+      const isDiscreteWheel = e.deltaMode !== 0 || Math.abs(rawDelta) >= 40;
 
       let dx = 0;
       let dy = 0;
 
       if (e.shiftKey) {
         // Shift + Wheel -> Horizontal Pan
-        const raw = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
-        dx = -Math.sign(raw) * (isDiscreteWheel ? 54 : Math.abs(raw)) * speed;
+        dx = -Math.sign(rawDelta) * (isDiscreteWheel ? 54 : Math.abs(rawDelta)) * speed;
         dy = 0;
       } else {
         if (isDiscreteWheel) {
           dx = -Math.sign(e.deltaX || 0) * (e.deltaX ? 54 : 0) * speed;
-          dy = -Math.sign(e.deltaY) * 54 * speed;
+          dy = -Math.sign(rawDelta) * 54 * speed;
         } else {
           // Smooth continuous trackpad 2-finger scroll
           dx = -e.deltaX * speed;
-          dy = -e.deltaY * speed;
+          dy = -rawDelta * speed;
         }
       }
 
