@@ -215,7 +215,8 @@ export class SourceEditorModule {
     }
 
     if (!content) {
-      content = `// Source file: ${fileName}\n// Package: ${nodeData?.parent || 'default'}\n\npublic class ${fileName.replace(/\.java$/, '')} {\n    // Compiled SCPG AST Node\n}\n`;
+      const baseClean = fileName.replace(/\\/g, '/').split('/').pop().replace(/\.[^/.]+$/, '');
+      content = `// Source file: ${fileName}\n// Package / Namespace: ${nodeData?.parent || 'default'}\n\npublic class ${baseClean} {\n    // Compiled SCPG AST Node\n}\n`;
     }
 
     this.currentContent = content;
@@ -224,8 +225,9 @@ export class SourceEditorModule {
   }
 
   synthesizeSourceFromNode(fileName, nodeData) {
-    const className = fileName.replace(/\.java$/, '').replace(/\.kt$/, '');
-    let pkg = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, '.') : 'com.openheart.architecture';
+    const baseClean = fileName.replace(/\\/g, '/').split('/').pop().replace(/\.[^/.]+$/, '');
+    const className = baseClean;
+    let pkg = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, '.') : 'OpenHeart.Architecture';
     if (nodeData.package_name) {
       pkg = nodeData.package_name;
     }

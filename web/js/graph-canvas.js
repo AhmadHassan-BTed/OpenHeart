@@ -718,8 +718,17 @@ export class InteractiveGraphCanvas {
   }
 
   focusNodeByFile(fileName) {
-    if (!this.cy) return;
-    const node = this.cy.nodes().filter(n => n.data('file') === fileName)[0];
+    if (!this.cy || !fileName) return;
+    const baseName = fileName.replace(/\\/g, '/').split('/').pop();
+    const node = this.cy.nodes().filter(n => {
+      const f = n.data('file');
+      const id = n.data('id');
+      return f === fileName ||
+             (baseName && f && (f.endsWith('/' + baseName) || f === baseName)) ||
+             id === fileName ||
+             id === baseName;
+    })[0];
+
     if (node) {
       this.cy.animate({
         center: { eles: node },
@@ -732,6 +741,22 @@ export class InteractiveGraphCanvas {
         this.onNodeSelectedCallback(node.data());
       }
     }
+  }
+
+  getNodeDataByFile(fileName) {
+    if (!this.cy || !fileName) return null;
+    const baseName = fileName.replace(/\\/g, '/').split('/').pop();
+    const node = this.cy.nodes().filter(n => {
+      const f = n.data('file');
+      return f === fileName || (baseName && f && (f.endsWith('/' + baseName) || f === baseName));
+    })[0];
+    return node ? node.data() : null;
+  }
+
+  getNodeDataById(nodeId) {
+    if (!this.cy || !nodeId) return null;
+    const node = this.cy.getElementById(nodeId);
+    return (node && node.length > 0) ? node.data() : null;
   }
 
   getModernStyleSheet() {

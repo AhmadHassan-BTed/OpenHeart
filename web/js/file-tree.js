@@ -1,6 +1,7 @@
 /**
  * OpenHeart Dynamic File Hierarchy Tree Explorer (Zero Hardcoding)
- * Dynamically builds the VS Code / Android Studio directory tree from parsed compiler elements.
+ * Dynamically builds the VS Code / JetBrains / Solution Explorer directory tree
+ * from parsed compiler elements and real project file paths.
  */
 
 import { Icons } from './icons.js';
@@ -11,7 +12,7 @@ export class FileTreeExplorer {
     this.onFileSelect = onFileSelectCallback;
     this.activeFile = null;
     this.treeData = {
-      name: "src/main/java",
+      name: "Workspace",
       type: "folder",
       expanded: true,
       children: []
@@ -21,77 +22,158 @@ export class FileTreeExplorer {
   /**
    * Dynamically constructs the file tree from Cytoscape / PlantUML elements
    */
-  updateFromElements(elements) {
+  updateFromElements(elements, explicitRootName = null) {
     if (!elements || elements.length === 0) return;
 
+    // 1. Determine Project Root Name dynamically
+    let rootName = explicitRootName;
+    if (!rootName) {
+      try {
+        const customName = sessionStorage.getItem('openheart_custom_name');
+        if (customName && customName !== 'Local Codebase' && customName !== 'OpenHeart') {
+          rootName = customName;
+        }
+      } catch (_) {}
+    }
+
+    // Extract valid code file elements
+    const fileElements = elements.filter(el => el.data && el.data.file && !el.data.isPackage && !el.data.source);
+
+    // If still no rootName, infer from file paths or active repo input
+    if (!rootName && fileElements.length > 0) {
+      const normalizedPaths = fileElements.map(el => (el.data.file || '').replace(/\\/g, '/').replace(/^\/+/, ''));
+      // Check if all paths share a common top-level directory (e.g. "NCacheClient/...")
+      const firstDirs = normalizedPaths.map(p => p.includes('/') ? p.split('/')[0] : null).filter(Boolean);
+      if (firstDirs.length === normalizedPaths.length && firstDirs.length > 0 && firstDirs.every(d => d === firstDirs[0])) {
+        rootName = firstDirs[0];
+      }
+    }
+
+    if (!rootName) {
+      const inputEl = document.getElementById('input-repo-url');
+      if (inputEl && inputEl.value) {
+        const v = inputEl.value.replace(' (Active Codebase)', '').trim();
+        const match = v.match(/github\.com\/[^\/]+\/([^\/\?#]+)/);
+        if (match) {
+          rootName = match[1].replace(/\.git$/, '');
+        } else if (v && !v.startsWith('http')) {
+          rootName = v;
+        }
+      }
+    }
+
+    if (!rootName) {
+      rootName = 'Workspace';
+    }
+
     const root = {
-      name: "src/main/java",
+      name: rootName,
       type: "folder",
       expanded: true,
       children: []
     };
 
+    // 2. Build Package / Namespace Map for fallback grouping
     const packageMap = new Map();
     elements.forEach(el => {
       if (el.data && el.data.isPackage) {
         const pkgPath = el.data.rawName || el.data.id.replace(/^pkg_/, '').replace(/_/g, '.');
         packageMap.set(el.data.id, {
+          id: el.data.id,
           path: pkgPath,
-          parent: el.data.parent,
-          children: []
+          parent: el.data.parent
         });
       }
     });
 
-    // Group files by parent package
-    elements.forEach(el => {
-      if (el.data && el.data.file && !el.data.isPackage && !el.data.source) {
-        const fileName = el.data.file;
-        const kind = el.data.kind || 'class';
-        let kindLetter = 'C';
-        if (fileName.endsWith('.kt')) kindLetter = 'K';
-        else if (fileName.endsWith('.rs')) kindLetter = 'R';
-        else if (fileName.endsWith('.ts') || fileName.endsWith('.tsx') || fileName.endsWith('.js')) kindLetter = 'T';
-        else if (fileName.endsWith('.py')) kindLetter = 'P';
-        else if (kind === 'interface') kindLetter = 'I';
-        else if (kind === 'abstract') kindLetter = 'A';
-        else if (kind === 'enum') kindLetter = 'E';
-        else if (kind === 'actor' || kind === 'usecase') kindLetter = 'U';
-        else if (kind === 'bb') kindLetter = 'B';
-        else if (kind === 'timing_track') kindLetter = 'T';
+    // Helper: Insert file node into nested directory structure
+    const insertIntoTree = (folderNode, segments, fileEntry) => {
+      let current = folderNode;
+      for (const seg of segments) {
+        let childFolder = current.children.find(c => c.type === 'folder' && c.name === seg);
+        if (!childFolder) {
+          childFolder = {
+            name: seg,
+            type: 'folder',
+            expanded: true,
+            children: []
+          };
+          current.children.push(childFolder);
+        }
+        current = childFolder;
+      }
+      current.children.push(fileEntry);
+    };
 
-        const fileEntry = {
-          name: fileName,
-          type: kind,
-          kind: kindLetter,
-          nodeId: el.data.id,
-          data: el.data
-        };
+    // 3. Populate files into directory structure
+    fileElements.forEach(el => {
+      const fullPath = (el.data.file || '').replace(/\\/g, '/').replace(/^\/+/, '');
+      const kind = el.data.kind || 'class';
+      let kindLetter = 'C';
+      const lower = fullPath.toLowerCase();
 
-        const parentId = el.data.parent;
-        if (parentId && packageMap.has(parentId)) {
-          packageMap.get(parentId).children.push(fileEntry);
-        } else {
-          root.children.push(fileEntry);
+      if (lower.endsWith('.kt')) kindLetter = 'K';
+      else if (lower.endsWith('.rs')) kindLetter = 'R';
+      else if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.js') || lower.endsWith('.jsx')) kindLetter = 'T';
+      else if (lower.endsWith('.py')) kindLetter = 'P';
+      else if (lower.endsWith('.cs')) kindLetter = 'C';
+      else if (lower.endsWith('.go')) kindLetter = 'G';
+      else if (kind === 'interface') kindLetter = 'I';
+      else if (kind === 'abstract') kindLetter = 'A';
+      else if (kind === 'enum') kindLetter = 'E';
+      else if (kind === 'actor' || kind === 'usecase') kindLetter = 'U';
+      else if (kind === 'bb') kindLetter = 'B';
+      else if (kind === 'timing_track') kindLetter = 'T';
+
+      // Determine relative path stripped of top-level root if repeated
+      let relPath = fullPath;
+      if (relPath.startsWith(`${rootName}/`)) {
+        relPath = relPath.slice(rootName.length + 1);
+      }
+
+      const pathSegments = relPath.split('/').filter(Boolean);
+      let folderSegments = [];
+      let baseFileName = fullPath;
+
+      if (pathSegments.length > 1) {
+        folderSegments = pathSegments.slice(0, -1);
+        baseFileName = pathSegments[pathSegments.length - 1];
+      } else if (pathSegments.length === 1) {
+        baseFileName = pathSegments[0];
+        // If file has no directory slashes, check parent package
+        const parentPkg = el.data.parent ? packageMap.get(el.data.parent) : null;
+        if (parentPkg && parentPkg.path) {
+          folderSegments = [parentPkg.path];
         }
       }
+
+      const fileEntry = {
+        name: baseFileName,
+        fullPath: fullPath,
+        type: kind,
+        kind: kindLetter,
+        nodeId: el.data.id,
+        data: el.data
+      };
+
+      insertIntoTree(root, folderSegments, fileEntry);
     });
 
-    // Build hierarchical folder nodes
-    packageMap.forEach((pkgInfo, pkgId) => {
-      if (pkgInfo.children.length > 0) {
-        const folderNode = {
-          name: pkgInfo.path,
-          type: "folder",
-          expanded: true,
-          children: pkgInfo.children
-        };
-        root.children.push(folderNode);
-      }
-    });
+    // 4. Sort folders and files recursively (folders first, alphabetical)
+    const sortTree = (node) => {
+      if (!node.children || node.children.length === 0) return;
+      node.children.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === 'folder' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      });
+      node.children.forEach(c => {
+        if (c.type === 'folder') sortTree(c);
+      });
+    };
 
-    // Sort folders and files
-    root.children.sort((a, b) => a.name.localeCompare(b.name));
+    sortTree(root);
 
     this.treeData = root;
     this.render();
@@ -113,7 +195,8 @@ export class FileTreeExplorer {
     row.className = isFolder ? 'tree-folder-row' : 'tree-file-row';
     row.style.paddingLeft = `${depth * 14 + 8}px`;
 
-    if (!isFolder && node.name === this.activeFile) {
+    const fileIdentifier = node.fullPath || node.name;
+    if (!isFolder && (fileIdentifier === this.activeFile || node.name === this.activeFile)) {
       row.classList.add('active');
     }
 
@@ -162,18 +245,21 @@ export class FileTreeExplorer {
       const label = document.createElement('span');
       label.className = 'tree-file-label';
       label.textContent = node.name;
+      label.title = node.fullPath || node.name;
 
       row.setAttribute('data-node-id', node.nodeId || '');
-      row.setAttribute('data-file-name', node.name || '');
+      row.setAttribute('data-file-name', node.fullPath || node.name || '');
+      row.setAttribute('data-base-name', node.name || '');
 
       row.appendChild(badge);
       row.appendChild(label);
 
       row.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.selectFile(node.name, node.nodeId);
+        const targetPath = node.fullPath || node.name;
+        this.selectFile(targetPath, node.nodeId);
         if (this.onFileSelect) {
-          this.onFileSelect(node.name, node);
+          this.onFileSelect(targetPath, node);
         }
       });
 
@@ -187,11 +273,19 @@ export class FileTreeExplorer {
     this.activeFile = fileName;
     if (!this.container) return;
 
+    const baseName = fileName ? fileName.replace(/\\/g, '/').split('/').pop() : null;
+
     const allFileRows = this.container.querySelectorAll('.tree-file-row');
     allFileRows.forEach(r => {
       const rowNodeId = r.getAttribute('data-node-id');
       const rowFileName = r.getAttribute('data-file-name');
-      const isMatch = (nodeId && rowNodeId === nodeId) || (rowFileName === fileName);
+      const rowBaseName = r.getAttribute('data-base-name');
+
+      const isMatch = (nodeId && rowNodeId === nodeId) ||
+                      (rowFileName === fileName) ||
+                      (rowBaseName === fileName) ||
+                      (baseName && rowBaseName === baseName) ||
+                      (fileName && rowFileName && rowFileName.endsWith('/' + fileName));
 
       if (isMatch) {
         r.classList.add('active');
@@ -216,3 +310,4 @@ export class FileTreeExplorer {
     });
   }
 }
+

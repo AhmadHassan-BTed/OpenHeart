@@ -313,15 +313,15 @@
 
         <div class="monaco-editor-card">
           <div class="monaco-breadcrumb-bar">
-            <span class="breadcrumb-root"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg> src / main / java</span>
-            <span class="breadcrumb-divider">/</span>
-            <span class="breadcrumb-pkg" id="breadcrumb-package">com / patterns / structural / facade</span>
-            <span class="breadcrumb-divider">/</span>
-            <span class="breadcrumb-file" id="breadcrumb-filename">VideoConversionFacade.java</span>
+            <span class="breadcrumb-root" id="breadcrumb-root"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg> <span id="breadcrumb-root-label">Workspace</span></span>
+            <span class="breadcrumb-divider" id="breadcrumb-divider-pkg">/</span>
+            <span class="breadcrumb-pkg" id="breadcrumb-package">Package</span>
+            <span class="breadcrumb-divider" id="breadcrumb-divider-file">/</span>
+            <span class="breadcrumb-file" id="breadcrumb-filename">Ready</span>
           </div>
           <div class="monaco-tab-bar">
             <div class="editor-tab-left">
-              <span id="editor-filename">VideoConversionFacade.java</span>
+              <span id="editor-filename">Ready</span>
             </div>
             <div class="editor-tab-right">
               <div class="code-font-controls">
@@ -419,16 +419,88 @@
 
       renderSidebarFromManifest(manifest || getCachedManifest());
 
+      function updateStudioBreadcrumbs(selectedFile, nodeData) {
+        const rootLabel = document.getElementById('breadcrumb-root-label');
+        const pkgEl = document.getElementById('breadcrumb-package');
+        const fileEl = document.getElementById('breadcrumb-filename');
+        const divPkg = document.getElementById('breadcrumb-divider-pkg');
+        const divFile = document.getElementById('breadcrumb-divider-file');
+        const editorFilename = document.getElementById('editor-filename');
+
+        // Resolve active root name
+        let rootName = (typeof fileTree !== 'undefined' && fileTree && fileTree.treeData && fileTree.treeData.name) || sessionStorage.getItem('openheart_custom_name');
+        if (!rootName || rootName === 'Local Codebase' || rootName === 'OpenHeart') {
+          const inputEl = document.getElementById('input-repo-url');
+          if (inputEl && inputEl.value) {
+            const v = inputEl.value.replace(' (Active Codebase)', '').trim();
+            const match = v.match(/github\.com\/[^\/]+\/([^\/\?#]+)/);
+            rootName = match ? match[1].replace(/\.git$/, '') : (v || 'Workspace');
+          } else {
+            rootName = 'Workspace';
+          }
+        }
+
+        if (rootLabel) rootLabel.textContent = rootName;
+
+        if (!selectedFile) {
+          if (pkgEl) pkgEl.style.display = 'none';
+          if (divPkg) divPkg.style.display = 'none';
+          if (divFile) divFile.style.display = 'none';
+          if (fileEl) fileEl.textContent = 'Ready';
+          if (editorFilename) editorFilename.textContent = 'Ready';
+          return;
+        }
+
+        const normalized = selectedFile.replace(/\\/g, '/').replace(/^\/+/, '');
+        let parts = normalized.split('/').filter(Boolean);
+
+        // Strip project root prefix if present in file path
+        if (parts.length > 1 && parts[0].toLowerCase() === rootName.toLowerCase()) {
+          parts = parts.slice(1);
+        }
+
+        const baseFileName = parts.length > 0 ? parts[parts.length - 1] : selectedFile;
+        const folderParts = parts.slice(0, parts.length - 1);
+
+        if (editorFilename) {
+          editorFilename.textContent = baseFileName;
+          editorFilename.title = normalized;
+        }
+
+        if (fileEl) {
+          fileEl.textContent = baseFileName;
+          fileEl.title = normalized;
+        }
+
+        let folderText = '';
+        if (folderParts.length > 0) {
+          folderText = folderParts.join(' / ');
+        } else if (nodeData && nodeData.parent) {
+          folderText = nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ');
+        }
+
+        if (pkgEl) {
+          if (folderText) {
+            pkgEl.textContent = folderText;
+            pkgEl.style.display = '';
+            if (divPkg) divPkg.style.display = '';
+            if (divFile) divFile.style.display = '';
+          } else {
+            pkgEl.textContent = '';
+            pkgEl.style.display = 'none';
+            if (divPkg) divPkg.style.display = 'none';
+            if (divFile) divFile.style.display = '';
+          }
+        }
+      }
+
       const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile, fileEntry) => {
         const nodeData = fileEntry?.data || canvas.getNodeDataByFile(selectedFile) || canvas.getNodeDataById(fileEntry?.nodeId);
         editor.loadFile(selectedFile, nodeData, [1, 5]);
         canvas.focusNodeByFile(selectedFile);
         
-        document.getElementById('editor-filename').innerText = selectedFile;
-        document.getElementById('breadcrumb-filename').innerText = selectedFile;
+        updateStudioBreadcrumbs(selectedFile, nodeData);
         if (nodeData) {
-          const pkgPath = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ') : 'default';
-          document.getElementById('breadcrumb-package').innerText = pkgPath;
           document.getElementById('prop-kind').innerText = (nodeData.kind || 'CLASS').toUpperCase();
         }
       });
@@ -440,6 +512,10 @@
         if (countBadge) {
           const fileCount = elements.filter(e => e.data && e.data.file && !e.data.isPackage && !e.data.source).length;
           countBadge.textContent = fileCount.toString();
+        }
+        const rootLabel = document.getElementById('breadcrumb-root-label');
+        if (rootLabel && fileTree.treeData && fileTree.treeData.name) {
+          rootLabel.textContent = fileTree.treeData.name;
         }
       });
 
@@ -515,7 +591,10 @@
       // Hook canvas selection to Monaco editor and File Tree Explorer dynamically
       canvas.setNodeSelectCallback((nodeData) => {
         const fileName = nodeData.file || (nodeData.id ? `${nodeData.id}.java` : 'Source.java');
-        const pkgPath = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ') : 'default';
+        updateStudioBreadcrumbs(fileName, nodeData);
+        if (typeof fileTree !== 'undefined' && fileTree) {
+          fileTree.selectFile(fileName, nodeData.id);
+        }
 
         const labelHeader = nodeData.textLabel ? nodeData.textLabel.split('\n')[0] : (nodeData.label ? nodeData.label.split('\n')[0] : nodeData.id);
         document.getElementById('inspect-headline').innerText = labelHeader;
@@ -524,10 +603,6 @@
         const nodeKinds = manifest?.node_kinds || {};
         const kindConf = nodeKinds[nodeData.kind] || { label: (nodeData.kind || 'CLASS').toUpperCase() };
         document.getElementById('prop-kind').innerText = kindConf.label.toUpperCase();
-        
-        document.getElementById('editor-filename').innerText = fileName;
-        document.getElementById('breadcrumb-package').innerText = pkgPath;
-        document.getElementById('breadcrumb-filename').innerText = fileName;
 
         // Rich compiler metrics
         if (nodeData.bddSatCount !== undefined) {
