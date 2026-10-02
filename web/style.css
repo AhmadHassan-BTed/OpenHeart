@@ -880,6 +880,23 @@ html, body {
   color: var(--accent-rose) !important;
 }
 
+.hud-tool-btn.disabled,
+.hud-tool-btn:disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+@keyframes hudPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.hud-status-capsule.status-pulse {
+  animation: hudPulse 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Pan Sensitivity Slider Box (Engineered inside Cluster) */
 .pan-sensitivity-slider-box {
   display: inline-flex;

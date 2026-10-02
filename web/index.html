@@ -235,6 +235,23 @@
 
             <div class="hud-divider"></div>
 
+            <div class="hud-group history-group">
+              <button id="btn-canvas-undo" class="hud-tool-btn hud-round-btn icon-only disabled" title="Undo (Ctrl+Z)" aria-label="Undo">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7h7a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H4"/>
+                  <polyline points="7 4 4 7 7 10"/>
+                </svg>
+              </button>
+              <button id="btn-canvas-redo" class="hud-tool-btn hud-round-btn icon-only disabled" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" aria-label="Redo">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 7H5a4 4 0 0 0-4 4v0a4 4 0 0 0 4 4h7"/>
+                  <polyline points="9 4 12 7 9 10"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="hud-divider"></div>
+
             <div class="hud-group zoom-group">
               <button id="btn-zoom-in" class="hud-tool-btn hud-round-btn icon-only" title="Zoom In (+)">+</button>
               <button id="btn-zoom-out" class="hud-tool-btn hud-round-btn icon-only" title="Zoom Out (−)">−</button>

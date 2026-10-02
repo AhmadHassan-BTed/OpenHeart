@@ -34,12 +34,17 @@ export class InteractiveGraphCanvas {
     this.isPanLocked = false;
     this.domListenersBound = false;
     this.minimap = new MinimapNavigator(this);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxHistory = 50;
+    this._hudStatusTimer = null;
   }
 
   init() {
     const container = document.getElementById(this.containerId);
     if (!container) return;
     this.bindContainerDomListeners(container);
+    this.bindHistoryControls();
     if (this.minimap) {
       this.minimap.mount(this.containerId);
     }
@@ -692,6 +697,9 @@ export class InteractiveGraphCanvas {
     this.attachEventListeners(container);
     if (!preservePositions) {
       this.cy.fit(undefined, 60);
+      this.undoStack = [];
+      this.redoStack = [];
+      this.updateUndoRedoButtons();
     }
 
     if (this.minimap) {
@@ -966,8 +974,33 @@ export class InteractiveGraphCanvas {
         return;
       }
 
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const isZ = e.key === 'z' || e.key === 'Z' || e.code === 'KeyZ';
+      const isY = e.key === 'y' || e.key === 'Y' || e.code === 'KeyY';
+
+      // ── Figma Undo: Ctrl + Z / Cmd + Z (without Shift) ──
+      if (isCtrl && !e.shiftKey && isZ) {
+        e.preventDefault();
+        this.undo();
+        return;
+      }
+
+      // ── Figma Redo: Ctrl + Shift + Z / Cmd + Shift + Z OR Ctrl + Y / Cmd + Y ──
+      if ((isCtrl && e.shiftKey && isZ) || (isCtrl && isY)) {
+        e.preventDefault();
+        this.redo();
+        return;
+      }
+
+      // ── Delete / Backspace: Remove selected node with full undo/redo ──
+      if ((e.key === 'Delete' || e.key === 'Backspace') && (this.selectedNode || (this.cy && this.cy.nodes(':selected').length > 0))) {
+        e.preventDefault();
+        this.deleteSelectedNode();
+        return;
+      }
+
       // Ctrl/Cmd + = / + : Zoom In
-      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+      if (isCtrl && (e.key === '=' || e.key === '+')) {
         e.preventDefault();
         this.zoomIn();
         return;
@@ -1225,35 +1258,120 @@ export class InteractiveGraphCanvas {
         this.onNodeSelectedCallback(this.selectedNode);
       }
     });
+
+    // ── Node Reposition Tracking for Figma-Style Undo / Redo ──
+    const dragStartPositions = new Map();
+
+    this.cy.on('grab', 'node', () => {
+      dragStartPositions.clear();
+      this.cy.nodes().forEach(n => {
+        dragStartPositions.set(n.id(), { ...n.position() });
+      });
+    });
+
+    this.cy.on('free', 'node', () => {
+      if (dragStartPositions.size === 0) return;
+      const movedNodes = [];
+      dragStartPositions.forEach((oldPos, id) => {
+        const node = this.cy.getElementById(id);
+        if (node && node.length > 0) {
+          const currentPos = node.position();
+          if (Math.hypot(currentPos.x - oldPos.x, currentPos.y - oldPos.y) > 1.0) {
+            movedNodes.push({
+              id,
+              oldPos: { x: oldPos.x, y: oldPos.y },
+              newPos: { x: currentPos.x, y: currentPos.y }
+            });
+          }
+        }
+      });
+      dragStartPositions.clear();
+
+      if (movedNodes.length > 0) {
+        const targetLabel = movedNodes.length === 1
+          ? (this.cy.getElementById(movedNodes[0].id).data('label') || movedNodes[0].id)
+          : `${movedNodes.length} nodes`;
+
+        this.pushUndoAction({
+          type: 'move',
+          description: `Move ${targetLabel}`,
+          undo: () => {
+            const canAnimate = movedNodes.length <= 15;
+            movedNodes.forEach(({ id, oldPos }) => {
+              const n = this.cy.getElementById(id);
+              if (n && n.length > 0) {
+                if (canAnimate) {
+                  n.animate({ position: oldPos }, { duration: 180 });
+                } else {
+                  n.position(oldPos);
+                }
+              }
+            });
+            if (this.minimap) this.minimap.onViewportChange();
+          },
+          redo: () => {
+            const canAnimate = movedNodes.length <= 15;
+            movedNodes.forEach(({ id, newPos }) => {
+              const n = this.cy.getElementById(id);
+              if (n && n.length > 0) {
+                if (canAnimate) {
+                  n.animate({ position: newPos }, { duration: 180 });
+                } else {
+                  n.position(newPos);
+                }
+              }
+            });
+            if (this.minimap) this.minimap.onViewportChange();
+          }
+        });
+      }
+    });
   }
 
-  togglePackageCollapse(pkgNode) {
-    const pkgId = pkgNode.id();
+  togglePackageCollapse(pkgNode, recordUndo = true) {
+    if (!pkgNode || (typeof pkgNode.id !== 'function' && !pkgNode.length)) return;
+    const actualNode = pkgNode.length !== undefined ? pkgNode[0] : pkgNode;
+    const pkgId = actualNode.id();
     const children = this.cy.nodes(`[parent = "${pkgId}"]`);
     const isCollapsed = this.collapsedPackages.has(pkgId);
-    const rawName = pkgNode.data('rawName') || pkgId.replace(/^pkg_/, '').replace(/_/g, '.');
+    const rawName = actualNode.data('rawName') || pkgId.replace(/^pkg_/, '').replace(/_/g, '.');
     const shortName = rawName.split('.').pop();
-    const isDomainTier = pkgNode.data('isDomainTier');
+    const isDomainTier = actualNode.data('isDomainTier');
 
     this.cy.batch(() => {
       if (isCollapsed) {
         // Expand (Open)
         this.collapsedPackages.delete(pkgId);
-        pkgNode.removeClass('package-collapsed');
-        pkgNode.data('width', pkgNode.data('origWidth') || 650);
-        pkgNode.data('height', pkgNode.data('origHeight') || 400);
-        pkgNode.data('label', isDomainTier ? `[−] DOMAIN LAYER: ${rawName.toUpperCase()}` : `[−] package [${shortName}]`);
+        actualNode.removeClass('package-collapsed');
+        actualNode.data('width', actualNode.data('origWidth') || 650);
+        actualNode.data('height', actualNode.data('origHeight') || 400);
+        actualNode.data('label', isDomainTier ? `[−] DOMAIN LAYER: ${rawName.toUpperCase()}` : `[−] package [${shortName}]`);
         children.style('display', 'element');
         children.connectedEdges().style('display', 'element');
       } else {
         // Collapse (Close)
         this.collapsedPackages.add(pkgId);
-        pkgNode.addClass('package-collapsed');
-        pkgNode.data('label', isDomainTier ? `[+] DOMAIN LAYER: ${rawName.toUpperCase()} (${children.length} subpackages)` : `[+] package [${shortName}] (${children.length} classes)`);
+        actualNode.addClass('package-collapsed');
+        actualNode.data('label', isDomainTier ? `[+] DOMAIN LAYER: ${rawName.toUpperCase()} (${children.length} subpackages)` : `[+] package [${shortName}] (${children.length} classes)`);
         children.style('display', 'none');
         children.connectedEdges().style('display', 'none');
       }
     });
+
+    if (recordUndo) {
+      this.pushUndoAction({
+        type: 'package-collapse',
+        description: isCollapsed ? `Expand ${shortName}` : `Collapse ${shortName}`,
+        undo: () => {
+          const p = this.cy.getElementById(pkgId);
+          if (p && p.length > 0) this.togglePackageCollapse(p, false);
+        },
+        redo: () => {
+          const p = this.cy.getElementById(pkgId);
+          if (p && p.length > 0) this.togglePackageCollapse(p, false);
+        }
+      });
+    }
   }
 
   zoomIn() {
@@ -1301,5 +1419,164 @@ export class InteractiveGraphCanvas {
       return this.minimap.toggleLoupe(state);
     }
     return false;
+  }
+
+  // ── 6. Figma-Grade Undo / Redo & Manipulation History Engine ──
+  bindHistoryControls() {
+    const btnUndo = document.getElementById('btn-canvas-undo');
+    const btnRedo = document.getElementById('btn-canvas-redo');
+
+    if (btnUndo) {
+      btnUndo.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.undo();
+      });
+    }
+
+    if (btnRedo) {
+      btnRedo.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.redo();
+      });
+    }
+
+    this.updateUndoRedoButtons();
+  }
+
+  pushUndoAction(action) {
+    this.undoStack.push(action);
+    if (this.undoStack.length > this.maxHistory) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+    this.updateUndoRedoButtons();
+    if (action.description && action.type !== 'move') {
+      this.showCanvasNotification(action.description);
+    }
+  }
+
+  undo() {
+    if (this.undoStack.length === 0) {
+      this.showCanvasNotification('Nothing to undo');
+      return;
+    }
+    const action = this.undoStack.pop();
+    try {
+      action.undo();
+      this.redoStack.push(action);
+      this.showCanvasNotification(`Undo: ${action.description || 'Action'}`);
+    } catch (err) {
+      console.error('Error during undo:', err);
+    }
+    this.updateUndoRedoButtons();
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) {
+      this.showCanvasNotification('Nothing to redo');
+      return;
+    }
+    const action = this.redoStack.pop();
+    try {
+      action.redo();
+      this.undoStack.push(action);
+      this.showCanvasNotification(`Redo: ${action.description || 'Action'}`);
+    } catch (err) {
+      console.error('Error during redo:', err);
+    }
+    this.updateUndoRedoButtons();
+  }
+
+  updateUndoRedoButtons() {
+    const btnUndo = document.getElementById('btn-canvas-undo');
+    const btnRedo = document.getElementById('btn-canvas-redo');
+
+    if (btnUndo) {
+      if (this.undoStack.length > 0) {
+        btnUndo.classList.remove('disabled');
+        btnUndo.removeAttribute('disabled');
+        const lastAction = this.undoStack[this.undoStack.length - 1];
+        btnUndo.setAttribute('title', `Undo ${lastAction.description || ''} (Ctrl+Z)`);
+      } else {
+        btnUndo.classList.add('disabled');
+        btnUndo.setAttribute('disabled', 'true');
+        btnUndo.setAttribute('title', 'Undo (Ctrl+Z)');
+      }
+    }
+
+    if (btnRedo) {
+      if (this.redoStack.length > 0) {
+        btnRedo.classList.remove('disabled');
+        btnRedo.removeAttribute('disabled');
+        const nextAction = this.redoStack[this.redoStack.length - 1];
+        btnRedo.setAttribute('title', `Redo ${nextAction.description || ''} (Ctrl+Y or Ctrl+Shift+Z)`);
+      } else {
+        btnRedo.classList.add('disabled');
+        btnRedo.setAttribute('disabled', 'true');
+        btnRedo.setAttribute('title', 'Redo (Ctrl+Y or Ctrl+Shift+Z)');
+      }
+    }
+  }
+
+  showCanvasNotification(msg) {
+    const statusText = document.getElementById('hud-status-text');
+    const hudStatus = document.getElementById('hud-status');
+    if (statusText) {
+      statusText.textContent = msg;
+      if (hudStatus) {
+        hudStatus.classList.remove('status-pulse');
+        void hudStatus.offsetWidth;
+        hudStatus.classList.add('status-pulse');
+      }
+      clearTimeout(this._hudStatusTimer);
+      this._hudStatusTimer = setTimeout(() => {
+        if (statusText) {
+          statusText.textContent = 'Two-finger scroll to Pan · Two-finger pinch to Zoom · Hover to trace path';
+        }
+      }, 2500);
+    }
+  }
+
+  deleteSelectedNode() {
+    if (!this.cy) return;
+    const selectedNodes = this.cy.nodes(':selected');
+    const targetNodes = selectedNodes.length > 0
+      ? selectedNodes
+      : (this.selectedNode ? this.cy.getElementById(this.selectedNode.id) : null);
+
+    if (!targetNodes || targetNodes.length === 0) return;
+
+    const validTargets = targetNodes.filter(n => n.id() !== 'interactive-canvas');
+    if (validTargets.length === 0) return;
+
+    const toDelete = validTargets.union(validTargets.connectedEdges());
+    const elesJson = toDelete.jsons();
+    const label = validTargets.length === 1
+      ? (validTargets[0].data('label') || validTargets[0].id())
+      : `${validTargets.length} nodes`;
+
+    toDelete.remove();
+    this.selectedNode = null;
+    if (this.minimap) this.minimap.onViewportChange();
+
+    this.pushUndoAction({
+      type: 'delete',
+      description: `Delete ${label}`,
+      undo: () => {
+        const added = this.cy.add(elesJson);
+        if (this.minimap) this.minimap.onViewportChange();
+        added.nodes().select();
+      },
+      redo: () => {
+        elesJson.forEach(item => {
+          const el = this.cy.getElementById(item.data.id);
+          if (el && el.length > 0) el.remove();
+        });
+        this.selectedNode = null;
+        if (this.minimap) this.minimap.onViewportChange();
+      }
+    });
+
+    this.showCanvasNotification(`Deleted ${label}`);
   }
 }
