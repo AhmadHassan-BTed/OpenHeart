@@ -718,6 +718,16 @@ html, body {
   cursor: grabbing !important;
 }
 
+#interactive-canvas.cursor-grab,
+#interactive-canvas.cursor-grab * {
+  cursor: grab !important;
+}
+
+#interactive-canvas.cursor-grabbing,
+#interactive-canvas.cursor-grabbing * {
+  cursor: grabbing !important;
+}
+
 /* Floating Toolbar: Guaranteed Single Row & No Double Height */
 .canvas-floating-toolbar {
   position: absolute;

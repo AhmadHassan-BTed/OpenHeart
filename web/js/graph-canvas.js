@@ -803,41 +803,218 @@ export class InteractiveGraphCanvas {
     if (this.domListenersBound || !container) return;
     this.domListenersBound = true;
 
-    // ── Two-Finger Trackpad Pan vs Pinch-to-Zoom ──
+    // ── 1. Figma Mouse Wheel Navigation: Pan, Shift-Pan, Ctrl/Alt-Zoom ──
     container.addEventListener('wheel', (e) => {
       e.preventDefault();
+      if (!this.cy) return;
 
-      if (e.ctrlKey || e.metaKey) {
-        // Pinch gesture or Ctrl+Wheel -> Controlled, smooth zoom centered at cursor
-        // Normalized and clamped delta to prevent runaway zoom
-        const clampedDelta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 50);
-        const zoomFactor = 1 - (clampedDelta * 0.0018); // ~4-8% per notch
-        if (!this.cy) return;
+      // Normalize line-based wheel scroll (Windows mouse wheel) vs pixel-based (trackpad)
+      const deltaModeMultiplier = e.deltaMode === 1 ? 28 : (e.deltaMode === 2 ? 500 : 1);
+      const rawDx = e.deltaX * deltaModeMultiplier;
+      const rawDy = e.deltaY * deltaModeMultiplier;
 
-        const currentZoom = this.cy.zoom();
-        const newZoom = Math.min(4.0, Math.max(0.05, currentZoom * zoomFactor));
+      // Sensitivity multiplier from slider (0.10 default gives ~1.0x natural speed)
+      const userSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
+      const speed = userSensitivity * 10.0;
+
+      // ── Condition A: ZOOM (Ctrl + Wheel, Cmd + Wheel, Alt + Wheel, or Trackpad Pinch) ──
+      if (e.ctrlKey || e.metaKey || e.altKey) {
         const rect = container.getBoundingClientRect();
         const renderedPos = {
           x: e.clientX - rect.left,
           y: e.clientY - rect.top
         };
 
+        // Smooth exponential zoom centered at mouse cursor location
+        const isPinch = Math.abs(e.deltaY) < 15 && (e.ctrlKey || e.metaKey);
+        const zoomStep = isPinch
+          ? -e.deltaY * 0.015
+          : -Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0032;
+        const factor = Math.exp(zoomStep);
+
+        const currentZoom = this.cy.zoom();
+        const newZoom = Math.min(5.0, Math.max(0.04, currentZoom * factor));
+
         this.cy.zoom({
           level: newZoom,
           renderedPosition: renderedPos
         });
-      } else {
-        // Two-Finger Trackpad Gesture / Scroll -> Pan canvas in 2D
-        if (!this.cy) return;
-        const panSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
-        this.cy.panBy({
-          x: -e.deltaX * panSensitivity,
-          y: -e.deltaY * panSensitivity
-        });
+        return;
       }
+
+      // ── Condition B: HORIZONTAL PAN (Shift + Wheel) ──
+      if (e.shiftKey) {
+        // In Figma, Shift + Wheel scrolls horizontally
+        const delta = (Math.abs(rawDx) > Math.abs(rawDy) ? rawDx : rawDy) * speed;
+        this.cy.panBy({
+          x: -delta,
+          y: 0
+        });
+        return;
+      }
+
+      // ── Condition C: VERTICAL & 2D PAN (Standard Wheel / 2-Finger Trackpad) ──
+      this.cy.panBy({
+        x: -rawDx * speed,
+        y: -rawDy * speed
+      });
     }, { passive: false });
 
-    // ── Multi-Touch Support (2-Finger Pinch & Pan for Touchscreens) ──
+    // ── 2. Figma Middle Mouse Button Pan (Scroll Wheel Click & Drag) ──
+    let isMiddleDragging = false;
+    let middleStartPos = { x: 0, y: 0 };
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.button === 1) { // Middle click
+        e.preventDefault();
+        isMiddleDragging = true;
+        middleStartPos = { x: e.clientX, y: e.clientY };
+        container.classList.add('cursor-grabbing');
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isMiddleDragging && this.cy) {
+        const dx = e.clientX - middleStartPos.x;
+        const dy = e.clientY - middleStartPos.y;
+        this.cy.panBy({ x: dx, y: dy });
+        middleStartPos = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 1 && isMiddleDragging) {
+        isMiddleDragging = false;
+        container.classList.remove('cursor-grabbing');
+      }
+    });
+
+    // ── 3. Figma Hand Tool (Spacebar + Left Click Drag) ──
+    let isSpacePressed = false;
+    let isSpaceDragging = false;
+    let spaceStartPos = { x: 0, y: 0 };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !e.repeat) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        if (['INPUT', 'TEXTAREA'].includes(activeTag) || document.activeElement?.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        isSpacePressed = true;
+        container.classList.add('cursor-grab');
+        if (this.cy) {
+          this.cy.autoungrabify(true);
+        }
+      }
+    });
+
+    container.addEventListener('mousedown', (e) => {
+      if (isSpacePressed && e.button === 0) { // Left click while Space is held
+        e.preventDefault();
+        isSpaceDragging = true;
+        spaceStartPos = { x: e.clientX, y: e.clientY };
+        container.classList.remove('cursor-grab');
+        container.classList.add('cursor-grabbing');
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isSpaceDragging && this.cy) {
+        const dx = e.clientX - spaceStartPos.x;
+        const dy = e.clientY - spaceStartPos.y;
+        this.cy.panBy({ x: dx, y: dy });
+        spaceStartPos = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (isSpaceDragging) {
+        isSpaceDragging = false;
+        container.classList.remove('cursor-grabbing');
+        if (isSpacePressed) {
+          container.classList.add('cursor-grab');
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        isSpacePressed = false;
+        isSpaceDragging = false;
+        container.classList.remove('cursor-grab', 'cursor-grabbing');
+        if (this.cy && !this.isPanLocked) {
+          this.cy.autoungrabify(false);
+        }
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      isSpacePressed = false;
+      isSpaceDragging = false;
+      isMiddleDragging = false;
+      container.classList.remove('cursor-grab', 'cursor-grabbing');
+      if (this.cy && !this.isPanLocked) {
+        this.cy.autoungrabify(false);
+      }
+    });
+
+    // ── 4. Figma Keyboard Shortcuts (Ctrl + / -, Ctrl 0, Shift 1, Arrow Keys) ──
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName : '';
+      if (['INPUT', 'TEXTAREA'].includes(activeTag) || document.activeElement?.isContentEditable) {
+        return;
+      }
+
+      // Ctrl/Cmd + = / + : Zoom In
+      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        this.zoomIn();
+        return;
+      }
+
+      // Ctrl/Cmd + - : Zoom Out
+      if ((e.ctrlKey || e.metaKey) && (e.key === '-' || e.key === '_')) {
+        e.preventDefault();
+        this.zoomOut();
+        return;
+      }
+
+      // Ctrl/Cmd + 0 : Reset Zoom to 100%
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        if (this.cy) {
+          this.cy.animate({
+            zoom: {
+              level: 1.0,
+              renderedPosition: { x: this.cy.width() / 2, y: this.cy.height() / 2 }
+            },
+            duration: 200
+          });
+        }
+        return;
+      }
+
+      // Shift + 1 OR Ctrl + 1 : Zoom to Fit (Fit all diagram elements into screen)
+      if (((e.shiftKey || e.ctrlKey || e.metaKey) && e.key === '1') || e.key === '!') {
+        e.preventDefault();
+        this.resetView();
+        return;
+      }
+
+      // Arrow Keys: Nudge/pan canvas when not inspecting or typing
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !this.selectedNode) {
+        e.preventDefault();
+        const dist = e.shiftKey ? 120 : 40;
+        const dx = e.key === 'ArrowLeft' ? dist : (e.key === 'ArrowRight' ? -dist : 0);
+        const dy = e.key === 'ArrowUp' ? dist : (e.key === 'ArrowDown' ? -dist : 0);
+        if (this.cy) {
+          this.cy.panBy({ x: dx, y: dy });
+        }
+      }
+    });
+
+    // ── 5. Multi-Touch Support (2-Finger Pinch & Pan for Touchscreens) ──
     let touchStartDist = 0;
     let touchStartCenter = null;
     let touchStartZoom = 1;
@@ -866,9 +1043,8 @@ export class InteractiveGraphCanvas {
           y: (t1.clientY + t2.clientY) / 2
         };
 
-        // 1. Pinch to Zoom with gentle damping
         const scale = 1 + (currentDist / touchStartDist - 1) * 0.4;
-        const newZoom = Math.min(4.0, Math.max(0.05, touchStartZoom * scale));
+        const newZoom = Math.min(5.0, Math.max(0.04, touchStartZoom * scale));
         const rect = container.getBoundingClientRect();
 
         this.cy.zoom({
@@ -879,10 +1055,10 @@ export class InteractiveGraphCanvas {
           }
         });
 
-        // 2. Pure Two-Finger Pan
-        const panSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
-        const deltaX = (currentCenter.x - touchStartCenter.x) * panSensitivity;
-        const deltaY = (currentCenter.y - touchStartCenter.y) * panSensitivity;
+        const userSensitivity = this.panSensitivity !== undefined ? this.panSensitivity : 0.10;
+        const speed = userSensitivity * 10.0;
+        const deltaX = (currentCenter.x - touchStartCenter.x) * speed;
+        const deltaY = (currentCenter.y - touchStartCenter.y) * speed;
         this.cy.panBy({ x: deltaX, y: deltaY });
         touchStartCenter = currentCenter;
       }
