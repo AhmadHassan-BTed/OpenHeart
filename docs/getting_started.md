@@ -23,6 +23,20 @@ Paste any public GitHub repository URL (`https://github.com/owner/repo`) to inge
 
 ---
 
+## ⚡ Quick Run (One-Click / One-Command)
+
+- **Windows**: Double-click `run.bat` or run:
+  ```cmd
+  run.bat
+  ```
+- **Linux / macOS**: Run:
+  ```bash
+  ./run.sh
+  ```
+*Automatically detects Rust/Cargo or Python, starts the server on port 8080, and launches your default browser directly to OpenHeart Studio.*
+
+---
+
 ## 💻 Local Setup & Quickstart
 
 1. **Clone the Repository**:

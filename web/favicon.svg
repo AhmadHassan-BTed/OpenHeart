@@ -1,18 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Seamless Dark Circle Canvas for Browser Tabs -->
-  <circle cx="32" cy="32" r="30" fill="#080808" />
-
-  <!-- Ultra-Clean Neo-Brutalist 3D Spiky Orb Line Art -->
-  <g fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
-    <!-- Outer Spiky Contour -->
-    <polygon points="32,8 37,17 46,12 43,22 53,22 47,30 56,34 47,40 54,49 43,49 45,60 35,53 32,60 29,53 19,60 21,49 10,49 17,40 8,34 17,30 11,22 21,22 18,12 27,17" />
-    
-    <!-- Inner Metallic Facet Geometry -->
-    <line x1="32" y1="8" x2="32" y2="56" stroke="#ffffff" stroke-width="1.2" opacity="0.8" />
-    <line x1="8" y1="34" x2="56" y2="34" stroke="#ffffff" stroke-width="1.2" opacity="0.8" />
-    
-    <!-- Inner Crystalline Core -->
-    <polygon points="32,20 44,32 32,44 20,32" stroke="#ffffff" stroke-width="1.4" fill="#171717" />
-    <circle cx="32" cy="32" r="4" fill="#ffffff" />
-  </g>
+  <style>
+    .brand-bg {
+      fill: #0f172a;
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 2;
+    }
+    .brand-symbol {
+      fill: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      .brand-bg {
+        fill: #f8fafc;
+        stroke: rgba(0, 0, 0, 0.2);
+        stroke-width: 2;
+      }
+      .brand-symbol {
+        fill: #080c14;
+      }
+    }
+  </style>
+  <rect class="brand-bg" x="2" y="2" width="60" height="60" rx="14" />
+  <path class="brand-symbol" d="M48.48 49.5H35.13V44.75Q42.53 39.11 42.53 30.73Q42.53 25.52 39.61 22.48Q36.69 19.45 32.08 19.45Q27.43 19.45 24.46 22.49Q21.5 25.54 21.5 30.82Q21.5 39.13 28.87 44.75V49.5H15.52V44.75H23.78Q15.54 39.37 15.54 30.18Q15.54 22.88 20.06 18.69Q24.57 14.5 31.94 14.5Q39.48 14.5 43.98 18.65Q48.48 22.81 48.48 30.13Q48.48 39.32 40.15 44.75H48.48Z" />
 </svg>

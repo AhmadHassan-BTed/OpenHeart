@@ -76,16 +76,16 @@ export class DiagramViewerModule {
     });
 
     viewport.addEventListener('wheel', (e) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        let current = StudioState.currentZoom || 1.0;
-        if (e.deltaY < 0) {
-          current = Math.min(2.5, current + 0.1);
-        } else {
-          current = Math.max(0.4, current - 0.1);
-        }
-        StudioState.setZoom(current);
-      }
+      e.preventDefault();
+      let current = StudioState.currentZoom || 1.0;
+      let rawDelta = e.deltaY;
+      if (e.deltaMode === 1) rawDelta *= 33;
+      else if (e.deltaMode === 2) rawDelta *= 600;
+
+      const clampedDelta = Math.max(-300, Math.min(300, rawDelta));
+      const factor = Math.exp(-clampedDelta * 0.0012);
+      const newZoom = Math.min(3.0, Math.max(0.3, current * factor));
+      StudioState.setZoom(parseFloat(newZoom.toFixed(3)));
     }, { passive: false });
   }
 

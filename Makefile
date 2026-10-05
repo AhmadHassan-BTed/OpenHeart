@@ -31,6 +31,10 @@ docs:
 ci:
 	./scripts/ci_check.sh
 
+## Launch OpenHeart Studio (Auto-detects engine & opens browser)
+run:
+	./run.sh
+
 ## Launch Native OpenHeart Web Server (with auto-cleanup)
 server:
 	./scripts/restart_server.sh 8080

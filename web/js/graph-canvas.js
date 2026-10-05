@@ -857,7 +857,7 @@ export class InteractiveGraphCanvas {
     const startZoomLoop = () => {
       if (navPhysics.zoomRafId) return;
       const step = () => {
-        if (!this.cy || navPhysics.targetZoom === null || !navPhysics.zoomAnchor) {
+        if (!this.cy || (typeof this.cy.destroyed === 'function' && this.cy.destroyed()) || navPhysics.targetZoom === null || !navPhysics.zoomAnchor) {
           navPhysics.zoomRafId = null;
           return;
         }
@@ -865,7 +865,7 @@ export class InteractiveGraphCanvas {
         const currentZoom = this.cy.zoom();
         const diff = navPhysics.targetZoom - currentZoom;
 
-        if (Math.abs(diff) < 0.001) {
+        if (Math.abs(diff) < 0.0008) {
           this.cy.zoom({
             level: navPhysics.targetZoom,
             renderedPosition: navPhysics.zoomAnchor
@@ -876,8 +876,8 @@ export class InteractiveGraphCanvas {
           return;
         }
 
-        // Smooth ease-out zoom convergence (snappy 80-100ms)
-        const nextZoom = currentZoom + diff * 0.45;
+        // Smooth ease-out zoom convergence (fast and buttery ~120-150ms glide)
+        const nextZoom = currentZoom + diff * 0.35;
         this.cy.zoom({
           level: nextZoom,
           renderedPosition: navPhysics.zoomAnchor
@@ -945,66 +945,77 @@ export class InteractiveGraphCanvas {
 
       if (rawDelta === 0) return;
 
-      const isZoomGesture = e.ctrlKey || e.metaKey || e.altKey || isAltHeld;
-
-      // ── Condition A: ZOOM (Ctrl, Cmd, Alt, or Trackpad Pinch) ──
-      if (isZoomGesture) {
-        navPhysics.targetPanDx = 0;
-        navPhysics.targetPanDy = 0;
-
-        const isTrackpadPinch = Math.abs(rawDelta) < 25 && (e.ctrlKey || e.metaKey);
-
-        if (isTrackpadPinch) {
-          // Continuous trackpad pinch: instantaneous 1:1 proportional zoom
-          const currentZoom = this.cy.zoom();
-          const zoomFactor = Math.exp(-rawDelta * 0.008);
-          const newZoom = Math.min(5.0, Math.max(0.04, currentZoom * zoomFactor));
-          this.cy.zoom({
-            level: newZoom,
-            renderedPosition: pointerPos
-          });
-          navPhysics.targetZoom = null;
+      // ── Condition A: Shift + Wheel or Pure Horizontal Scroll -> Horizontal Pan ──
+      const isHorizontalPan = e.shiftKey || (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaY) === 0);
+      if (isHorizontalPan) {
+        const rawHDelta = e.shiftKey ? (e.deltaY !== 0 ? e.deltaY : e.deltaX) : e.deltaX;
+        if (rawHDelta === 0) return;
+        const isDiscreteWheel = e.deltaMode !== 0 || Math.abs(rawHDelta) >= 40;
+        const dx = -Math.sign(rawHDelta) * (isDiscreteWheel ? 54 : Math.abs(rawHDelta)) * speed;
+        if (isDiscreteWheel) {
+          navPhysics.targetPanDx += dx;
+          startPanLoop();
         } else {
-          // Discrete mouse wheel notch: smooth 10% zoom with organic ease-out glide
-          const baseZoom = (navPhysics.targetZoom !== null && !isNaN(navPhysics.targetZoom))
-            ? navPhysics.targetZoom
-            : this.cy.zoom();
-          const zoomMultiplier = rawDelta < 0 ? 1.10 : (1 / 1.10);
-          navPhysics.targetZoom = Math.min(5.0, Math.max(0.04, baseZoom * zoomMultiplier));
-          navPhysics.zoomAnchor = pointerPos;
-          startZoomLoop();
+          this.cy.panBy({ x: dx, y: 0 });
         }
         return;
       }
 
-      // ── Condition B: PANNING (Standard Wheel or Shift + Wheel) ──
-      const isDiscreteWheel = e.deltaMode !== 0 || Math.abs(rawDelta) >= 40;
+      // ── Condition B: ZOOM (Mouse Wheel & Trackpad Gestures) ──
+      // Cancel any ongoing pan motion so zoom centers cleanly on cursor
+      navPhysics.targetPanDx = 0;
+      navPhysics.targetPanDy = 0;
 
-      let dx = 0;
-      let dy = 0;
+      // Fast-path: trackpad pinch-to-zoom (instantaneous 1:1 proportional zoom)
+      const isTrackpadPinch = Math.abs(rawDelta) < 25 && (e.ctrlKey || e.metaKey);
+      if (isTrackpadPinch) {
+        const currentZoom = this.cy.zoom();
+        const zoomFactor = Math.exp(-rawDelta * 0.008);
+        const newZoom = Math.min(5.0, Math.max(0.04, currentZoom * zoomFactor));
+        this.cy.zoom({
+          level: newZoom,
+          renderedPosition: pointerPos
+        });
+        navPhysics.targetZoom = null;
+        return;
+      }
 
-      if (e.shiftKey) {
-        // Shift + Wheel -> Horizontal Pan
-        dx = -Math.sign(rawDelta) * (isDiscreteWheel ? 54 : Math.abs(rawDelta)) * speed;
-        dy = 0;
-      } else {
-        if (isDiscreteWheel) {
-          dx = -Math.sign(e.deltaX || 0) * (e.deltaX ? 54 : 0) * speed;
-          dy = -Math.sign(rawDelta) * 54 * speed;
-        } else {
-          // Smooth continuous trackpad 2-finger scroll
-          dx = -e.deltaX * speed;
-          dy = -rawDelta * speed;
+      // Normalize wheel delta across delta modes:
+      // deltaMode 0: DOM_DELTA_PIXEL
+      // deltaMode 1: DOM_DELTA_LINE (~33px per line)
+      // deltaMode 2: DOM_DELTA_PAGE (~600px per page)
+      let normalizedDelta = rawDelta;
+      if (e.deltaMode === 1) {
+        normalizedDelta = rawDelta * 33;
+      } else if (e.deltaMode === 2) {
+        normalizedDelta = rawDelta * 600;
+      }
+
+      const currentZoom = this.cy.zoom();
+
+      // Determine starting base zoom:
+      // If a zoom animation is already in flight, accumulate targetZoom.
+      // However, if the user reverses wheel direction, reset base to current actual zoom
+      // so it immediately reverses without lingering opposite momentum!
+      let baseZoom = (navPhysics.targetZoom !== null && !isNaN(navPhysics.targetZoom))
+        ? navPhysics.targetZoom
+        : currentZoom;
+
+      if (navPhysics.targetZoom !== null) {
+        const currentDiff = navPhysics.targetZoom - currentZoom;
+        if ((currentDiff > 0 && normalizedDelta > 0) || (currentDiff < 0 && normalizedDelta < 0)) {
+          baseZoom = currentZoom;
         }
       }
 
-      if (isDiscreteWheel) {
-        navPhysics.targetPanDx += dx;
-        navPhysics.targetPanDy += dy;
-        startPanLoop();
-      } else {
-        this.cy.panBy({ x: dx, y: dy });
-      }
+      // Smooth exponential zoom factor (~12-14% per standard 100-120px wheel notch)
+      // Clamped to avoid extreme single-event jumps if an anomalous delta arrives
+      const clampedDelta = Math.max(-400, Math.min(400, normalizedDelta));
+      const zoomMultiplier = Math.exp(-clampedDelta * 0.0012);
+
+      navPhysics.targetZoom = Math.min(5.0, Math.max(0.04, baseZoom * zoomMultiplier));
+      navPhysics.zoomAnchor = pointerPos;
+      startZoomLoop();
     }, { passive: false });
 
     // ── 2 & 3. Unified Pan Drag Engine: Middle-Click, Spacebar Hand Tool, and Pan Lock Active Drag ──
@@ -2331,7 +2342,7 @@ export class InteractiveGraphCanvas {
       clearTimeout(this._hudStatusTimer);
       this._hudStatusTimer = setTimeout(() => {
         if (statusText) {
-          statusText.textContent = 'Two-finger scroll to Pan · Two-finger pinch to Zoom · Hover to trace path';
+          statusText.textContent = 'Mouse wheel to Zoom · Drag to Pan · Shift+Wheel to Pan H · Hover to trace path';
         }
       }, 2500);
     }
