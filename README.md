@@ -2,10 +2,6 @@
 
 # OpenHeart
 
-<p align="center">
-  <img src="docs/assets/web_preview.webp" alt="OpenHeart Live Web Studio Preview" width="100%" />
-</p>
-
 ### Succinct Compositional Program Graph (SCPG) Engine & Universal UML 2.5 Studio
 
 [![Language: Rust](https://img.shields.io/badge/language-Rust_1.75+-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
