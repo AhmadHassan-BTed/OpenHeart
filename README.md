@@ -17,11 +17,11 @@
   <a href="https://trendshift.io/repositories/276412?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-276412">
     <img src="https://trendshift.io/api/badge/trendshift/repositories/276412/daily?language=Rust" width="250" height="55" alt="Trendshift Daily Rust"/>
   </a>
-  <a href="https://trendshift.io/repositories/276412?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-276412">
-    <img src="https://trendshift.io/api/badge/trendshift/repositories/276412/daily" width="250" height="55" alt="Trendshift Daily"/>
+    <a href="https://trendshift.io/repositories/276412?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-276412">
+    <img src="https://trendshift.io/api/badge/trendshift/repositories/276412/weekly?language=Rust" width="250" height="55" alt="Trendshift Weekly Rust"/>
   </a>
   <a href="https://trendshift.io/repositories/276412?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-276412">
-    <img src="https://trendshift.io/api/badge/trendshift/repositories/276412/weekly?language=Rust" width="250" height="55" alt="Trendshift Weekly Rust"/>
+    <img src="https://trendshift.io/api/badge/trendshift/repositories/276412/daily" width="250" height="55" alt="Trendshift Daily"/>
   </a>
 </p>
 
