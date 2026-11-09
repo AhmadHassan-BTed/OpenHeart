@@ -1,0 +1,1087 @@
+[
+ {
+  "id": "HO-fix_ENG_1-1",
+  "from": "fix:ENG:1",
+  "file": "Cargo.toml [dependencies]",
+  "change": "Replace tree-sitter = \"0.20\", tree-sitter-java = \"0.20\" and tree-sitter-javascript = \"0.20\" with tree-sitter = \"0.25\" (or current 0.26), tree-sitter-java = \"0.23\" and tree-sitter-javascript = \"0.23\" (or current). Add tree-sitter-kotlin-ng = \"1\". Every grammar must declare a rust-version of 1.88 or lower, or rust-version in [package] must be raised with it.",
+  "reason": "LANG-01/CORE-01/ENG-01/COMP-01/AUTO-05/ENG-14: current grammars, Kotlin's included, need the LanguageFn API, which tree-sitter 0.20 does not have. This is more than the one dependency line my paths allow."
+ },
+ {
+  "id": "HO-fix_ENG_1-2",
+  "from": "fix:ENG:1",
+  "file": "src/ingestion/adapter/kotlin.rs, src/ingestion/adapter/*.rs, src/ast/adapter/*.rs, src/ingestion/parser/tree_sitter.rs",
+  "change": "After the upgrade, replace tree_sitter_java::language() with tree_sitter_java::LANGUAGE.into() and pass a reference to parser.set_language(&lang). Make KotlinLanguageAdapter::ts_language return tree_sitter_kotlin_ng::LANGUAGE.into(). Delete the JavaScript-grammar fallback in both registries and skip unsupported extensions with a diagnostic.",
+  "reason": "LANG-01/CORE-01/AUTO-05: Kotlin is parsed with the Java grammar, and unknown languages fall back to JavaScript."
+ },
+ {
+  "id": "HO-fix_ENG_1-3",
+  "from": "fix:ENG:1",
+  "file": "src/uma/visitor.rs:214",
+  "change": "Replace the plain `+=` over sat_count values with checked_add, and record an explicit inexact/overflow marker when it fails (or use saturating_add plus a flag).",
+  "reason": "BDD-16: overflow checks are now on in dev and test (Cargo.toml [profile.dev]/[profile.test]), so summing saturated u64::MAX counts panics there instead of wrapping silently."
+ },
+ {
+  "id": "HO-fix_ENG_1-4",
+  "from": "fix:ENG:1",
+  "file": "src/lib.rs (or a new Cargo.toml [lints] table)",
+  "change": "Add #![deny(unsafe_code)] crate-wide and #[allow(unsafe_code)] only on core/io/mmap.rs, with documented invariants. Or add [lints.rust] unsafe_code = \"deny\", and consider [lints.clippy] unwrap_used/expect_used/panic = \"deny\" for library code.",
+  "reason": "TST-05/ENG-07: [lints] is outside my [package]/[profile.*] paths."
+ },
+ {
+  "id": "HO-fix_ENG_1-5",
+  "from": "fix:ENG:1",
+  "file": "src/psa/bdd/mod.rs, src/psa/bdd/unique_table.rs",
+  "change": "Remove the slice::from_raw_parts read view in apply, apply_not and restrict. Read nodes by index from self.nodes, since ids below len are never mutated.",
+  "reason": "TST-05: the slice dangles when the Vec reallocates. `make miri` and `make asan` are ready to exercise the fix."
+ },
+ {
+  "id": "HO-fix_ENG_1-6",
+  "from": "fix:ENG:1",
+  "file": ".github/workflows/ci.yml",
+  "change": "Run `make ci CARGO_FLAGS=--locked` on ubuntu-latest, windows-latest and macos-latest. Add jobs for `make msrv`, `make deny`, `make machete`, `make coverage` and `make docker-smoke`, plus nightly `make miri` and `make asan`. Add top-level `permissions: contents: read`, pin actions by commit SHA, and use Swatinem/rust-cache.",
+  "reason": "ENG-10/TST-17/AUTO-15/ENG-15: the Makefile now provides every gate. Calling it from CI keeps local and CI commands identical."
+ },
+ {
+  "id": "HO-fix_ENG_1-7",
+  "from": "fix:ENG:1",
+  "file": "scripts/ci_check.sh",
+  "change": "Replace the three inline cargo commands with `exec make ci \"$@\"`.",
+  "reason": "ENG-10: `make ci` no longer calls this script; it now runs fmt-check, check, lint, test (with doctests) and doc. Delegating keeps the two from drifting."
+ },
+ {
+  "id": "HO-fix_ENG_1-8",
+  "from": "fix:ENG:1",
+  "file": "Dockerfile",
+  "change": "Use `FROM rust:1.88-slim AS builder` to match rust-version in Cargo.toml. Set `CMD [\"openheart\", \"server\", \"8080\"]`. Add a non-root USER and a HEALTHCHECK on /api/health (debian slim needs curl installed, or another probe).",
+  "reason": "AUTO-07/ENG-13/E2E-08: the image cannot build with rust:1.80 and exits on `serve --port`. `make docker-smoke` fails until this is fixed."
+ },
+ {
+  "id": "HO-fix_ENG_1-9",
+  "from": "fix:ENG:1",
+  "file": ".github/workflows/release.yml",
+  "change": "Stop uploading target/release/libopenheart.rlib. Use an OS matrix (linux/macos/windows) that runs `make dist` and uploads dist/openheart-<version>-<triple>.tar.gz plus its .sha256 file. Add `permissions: contents: write` and `needs` on CI success.",
+  "reason": "COMP-09/ENG-13/AUTO-15: the new dist target produces the usable binary archive and checksum."
+ },
+ {
+  "id": "HO-fix_ENG_1-10",
+  "from": "fix:ENG:1",
+  "file": "README.md:7, docs/getting_started.md:19, docs/contributing.md",
+  "change": "State the minimum Rust version as 1.88 (matching rust-version in Cargo.toml) instead of 1.75. Document the new make targets (ci, msrv, lint, doc, coverage, miri, asan, deny, dist, docker-smoke). Replace the static CI badge with the workflow status badge.",
+  "reason": "AUTO-07/ENG-10/BENCH-14: the docs disagree with the declared MSRV and the actual gates."
+ },
+ {
+  "id": "HO-fix_ENG_1-11",
+  "from": "fix:ENG:1",
+  "file": "src/main.rs:32, src/adapters/server.rs:80,93",
+  "change": "Replace the hard-coded \"0.1.0\" in the CLI banner, /api/health and /api/version with env!(\"CARGO_PKG_VERSION\").",
+  "reason": "ENG-13: the version must come from Cargo.toml [package] version, which is now the single source the Makefile and the dist archive names use."
+ },
+ {
+  "id": "HO-fix_ENG_1-12",
+  "from": "fix:ENG:1",
+  "file": "CHANGELOG.md:10, SECURITY.md:9-13",
+  "change": "Align the released and supported versions with Cargo.toml version 0.1.0 (no tag exists yet), instead of 2.0.0 and 1.1.x/1.0.x.",
+  "reason": "ENG-13: version numbers disagree across files."
+ },
+ {
+  "id": "HO-fix_ENG_1-13",
+  "from": "fix:ENG:1",
+  "file": "deny.toml (new, repo root)",
+  "change": "Add a cargo-deny config: advisories (deny unmaintained/yanked), licenses allow-list (MIT, Apache-2.0, Unicode-3.0, BSD-3-Clause, ISC, Zlib as needed by the lockfile), bans (multiple-versions = warn) and sources (only crates.io).",
+  "reason": "ENG-15/AUTO-15: `make deny` checks advisories, bans and sources by default and adds licenses automatically once deny.toml exists. The default license policy rejects everything."
+ },
+ {
+  "id": "HO-fix_ENG_1-14",
+  "from": "fix:ENG:1",
+  "file": "Cargo.toml [dependencies] thiserror line",
+  "change": "Adopt thiserror for typed per-layer errors (ENG-07), or remove the line.",
+  "reason": "ENG-14/AUTO-15/CORE-14: it is still unused, and `make machete` reports it until one of these happens."
+ },
+ {
+  "id": "HO-fix_ENG_1-15",
+  "from": "fix:ENG:1",
+  "file": "Cargo.toml [dependencies] + src/ingestion, src/ast, src/core/pipeline.rs",
+  "change": "Add rayon = \"1\" together with par_iter over files (per-thread Parser via map_init) and over functions in Phases 4, 5, 8 and 9.",
+  "reason": "SCALE-10/COMP-08: the dependency is useful only together with the code that uses it."
+ },
+ {
+  "id": "HO-fix_ENG_1-16",
+  "from": "fix:ENG:1",
+  "file": "src/adapters/server.rs",
+  "change": "Read PORT and HOST from the environment (the Dockerfile sets them). Remove ./target_repos/FractalAndroid and the other hard-coded paths in favour of flags or env vars.",
+  "reason": "AUTO-20: the Makefile now passes PORT through, but the server ignores the environment."
+ },
+ {
+  "id": "HO-fix_ENG_2-1",
+  "from": "fix:ENG:2",
+  "file": "Cargo.lock",
+  "change": "Regenerate the lockfile against the new Cargo.toml with `cargo update --workspace` (`make lock`) and commit it. It must then resolve tree-sitter 0.25.x plus tree-sitter-java 0.23.x, tree-sitter-javascript 0.23.x, tree-sitter-kotlin-ng 1.x, tree-sitter-c 0.23.x, tree-sitter-cpp 0.23.x and tree-sitter-c-sharp 0.23.x, all through tree-sitter-language 0.1.",
+  "reason": "HO-fix_ENG_1-1 / MANDATE: the lock still pins tree-sitter 0.20. The Makefile now passes --locked by default (ENG2-35), so every cargo target fails until the lock matches Cargo.toml."
+ },
+ {
+  "id": "HO-fix_ENG_2-2",
+  "from": "fix:ENG:2",
+  "file": "src/ingestion/adapter/java.rs, src/ingestion/adapter/javascript.rs, src/ast/adapter/java.rs, src/ast/adapter/registry.rs",
+  "change": "Replace `tree_sitter_java::language()` with `tree_sitter_java::LANGUAGE.into()` (ingestion/adapter/java.rs:36, ast/adapter/java.rs:23). Replace `tree_sitter_javascript::language()` with `tree_sitter_javascript::LANGUAGE.into()` (ingestion/adapter/javascript.rs:31, ast/adapter/registry.rs:22).",
+  "reason": "The 0.23 grammars export `LANGUAGE: LanguageFn` and no longer have `language()`, and `tree_sitter::Language: From<LanguageFn>` is how 0.25 builds a Language."
+ },
+ {
+  "id": "HO-fix_ENG_2-3",
+  "from": "fix:ENG:2",
+  "file": "src/ingestion/parser/tree_sitter.rs",
+  "change": "Change `self.parser.set_language(language)` to `self.parser.set_language(&language)` (0.22+ takes &Language and returns LanguageError). Replace the deprecated `Parser::set_timeout_micros` with a deadline enforced in `parse_with_options`. Compute `let deadline = (self.timeout_micros > 0).then(|| Instant::now() + Duration::from_micros(self.timeout_micros));`, then call `self.parser.parse_with_options(&mut |i, _| source.get(i..).unwrap_or(&[]), old_tree, Some(ParseOptions::new().progress_callback(&mut |_: &ParseState| deadline.is_some_and(|d| Instant::now() >= d))))` (in 0.25 a callback that returns true cancels the parse). Keep the TimedOut/Aborted mapping and the `reset()` after a None result.",
+  "reason": "set_timeout_micros is deprecated since tree-sitter 0.25, so `make lint` (clippy -D warnings) would fail. The by-value set_language no longer compiles."
+ },
+ {
+  "id": "HO-fix_ENG_2-4",
+  "from": "fix:ENG:2",
+  "file": "src/ingestion/adapter/kotlin.rs, src/ast/adapter/registry.rs, src/ast/adapter (new kotlin adapter)",
+  "change": "Use the now-available grammar `tree_sitter_kotlin_ng::LANGUAGE.into()` for Kotlin in both Phase 1 and Phase 2, register a Kotlin AST adapter in the Phase 2 registry, and stop flagging .kt/.kts files FILE_FLAG_LEXICAL_ONLY once they have a real syntax tree.",
+  "reason": "MANDATE / HO-fix_ENG_1-1: tree-sitter-kotlin-ng = \"1\" is now in Cargo.toml so Kotlin gets a real CST; until code uses it, `make machete` reports it."
+ },
+ {
+  "id": "HO-fix_ENG_2-5",
+  "from": "fix:ENG:2",
+  "file": "src/lang/c.rs, src/lang/cpp.rs, src/lang/csharp.rs (frontends being written)",
+  "change": "Take the grammars from `tree_sitter_c::LANGUAGE.into()`, `tree_sitter_cpp::LANGUAGE.into()` and `tree_sitter_c_sharp::LANGUAGE.into()` (crates tree-sitter-c, tree-sitter-cpp and tree-sitter-c-sharp 0.23). Do not call `language()`; the tree-sitter-c-sharp 0.20.0 line was replaced with 0.23 because a 0.20 grammar links tree-sitter 0.20's distinct Language type, which the 0.25 Parser cannot accept.",
+  "reason": "MANDATE: one tree-sitter core for all grammars. The c/cpp/c-sharp lines are unused until these frontends land, and `make machete` reports them until then."
+ },
+ {
+  "id": "HO-fix_ENG_2-6",
+  "from": "fix:ENG:2",
+  "file": "src/ingestion/mod.rs, src/ast/mod.rs, src/core/pipeline.rs (and Cargo.toml [dependencies])",
+  "change": "When the parallel file and function loops are written (par_iter over files with a per-thread Parser via map_init; par_iter over functions in Phases 4, 5, 8 and 9), add `rayon = \"1\"` to [dependencies] in the same change.",
+  "reason": "HO-fix_ENG_1-15: a rayon line without code that uses it fails `make machete`, so I did not add it."
+ },
+ {
+  "id": "HO-fix_ENG_2-7",
+  "from": "fix:ENG:2",
+  "file": "src/lib.rs, src/adapters/mod.rs, src/adapters/env.rs",
+  "change": "In src/adapters/mod.rs, put `#[cfg(feature = \"server\")]` on `mod http;`, `mod security;`, `pub mod server;`, `mod session;`, `pub mod web_repo;` and `pub use server::{OpenHeartServer, ServerConfig};`. Keep runner and env unconditional. Gate or `#[cfg_attr(not(feature = \"server\"), allow(dead_code))]` the env.rs readers that only the server uses. In the lib.rs doc, reference `adapters::server` only under `#[cfg_attr(feature = \"server\", doc = ...)]` or as plain text.",
+  "reason": "SRV2-60: Cargo.toml now declares `server` (default on), makes the openheart bin require it, and `make check` runs `cargo check --lib --no-default-features`. The gating itself lives in src."
+ },
+ {
+  "id": "HO-fix_ENG_2-8",
+  "from": "fix:ENG:2",
+  "file": ".github/workflows/ci.yml",
+  "change": "Add top-level `permissions: contents: read`, `concurrency: {group: ci-${{ github.ref }}, cancel-in-progress: true}` and `workflow_dispatch`. Matrix job over os [ubuntu-latest, windows-latest, macos-latest] x rust [stable, beta] with `fail-fast: false`, `continue-on-error: ${{ matrix.rust == 'beta' }}` and timeout-minutes: 45. Install the toolchain with rustfmt and clippy, use Swatinem/rust-cache instead of actions/cache (it keys on rustc -vV and prunes target/), then run `make ci CARGO_FLAGS=--locked`. Separate jobs: `make msrv`, `make deny`, `make machete`, `make coverage`, `make docker-smoke` and `make studio-smoke`, plus a scripts job that installs ruff and node and runs `make ci-scripts`. Nightly (schedule) jobs: `make miri` and `make asan`. Pin every action by commit SHA with a version comment.",
+  "reason": "HO-fix_ENG_1-6, ENG2-13, ENG2-33, ENG2-34, ENG2-35, SRV2-08: keeps CI identical to the local Makefile gates; ci-scripts and studio-smoke are new targets."
+ },
+ {
+  "id": "HO-fix_ENG_2-9",
+  "from": "fix:ENG:2",
+  "file": "scripts/ci_check.sh",
+  "change": "Replace the three inline cargo commands with `cd \"$(dirname \"$0\")/..\" && exec make ci \"$@\"`.",
+  "reason": "HO-fix_ENG_1-7 / ENG2-35: `make ci` runs fmt-check, check (including --no-default-features), lint, test with doctests and doc, all with --locked by default."
+ },
+ {
+  "id": "HO-fix_ENG_2-10",
+  "from": "fix:ENG:2",
+  "file": ".github/workflows/release.yml",
+  "change": "Add job-level `permissions: contents: write`. Require a passing CI run, via a `needs` job that runs `make ci CARGO_FLAGS=--locked` or a `workflow_run` gate. Assert that `${GITHUB_REF_NAME#v}` equals the version in Cargo.toml. Run an OS matrix (ubuntu, macos, windows) of `make dist`. Upload dist/openheart-<version>-<triple>.tar.gz and its .sha256 file with softprops/action-gh-release v2, pinned by SHA. Stop uploading target/release/libopenheart.rlib.",
+  "reason": "HO-fix_ENG_1-9, ENG2-15, ENG2-35: `make dist` already builds with --locked and writes the archive plus checksum."
+ },
+ {
+  "id": "HO-fix_ENG_2-11",
+  "from": "fix:ENG:2",
+  "file": ".github/workflows/deploy_pages.yml",
+  "change": "Trigger on `workflow_run` of 'Continuous Integration' with `if: github.event.workflow_run.conclusion == 'success'` (keep workflow_dispatch), and filter paths to ['web/**', '.github/workflows/deploy_pages.yml']. Pin checkout, configure-pages, upload-pages-artifact and deploy-pages by SHA, and set `persist-credentials: false` on checkout. Run `make js-check` before upload. Exclude unreferenced files (web/diagrams/*.mmd, state.json, use_case.json, web/docs unless linked) from the uploaded artifact. Add a post-deploy curl check of the page URL.",
+  "reason": "ENG2-14, WEB2-52, WEB2-55."
+ },
+ {
+  "id": "HO-fix_ENG_2-12",
+  "from": "fix:ENG:2",
+  "file": ".github/dependabot.yml",
+  "change": "In the cargo entry, add `groups: {tree-sitter: {patterns: [\"tree-sitter\", \"tree-sitter-*\"]}}` and `labels: [dependencies]`. Add an ignore/allow policy or label so semver-major updates are reviewed by hand. Add a `package-ecosystem: docker` entry for directory \"/\".",
+  "reason": "ENG2-36: the runtime and the six grammars are ABI-coupled and must move in one PR, as the Cargo.toml comment now says. The Dockerfile base image is not watched."
+ },
+ {
+  "id": "HO-fix_ENG_2-13",
+  "from": "fix:ENG:2",
+  "file": "Dockerfile",
+  "change": "Pin `rust:1.88-slim-bookworm` and the runtime image by `@sha256:` digest, keeping the tag as a comment, and add `--locked` to both `cargo build --release --bin openheart` invocations.",
+  "reason": "SRV2-08, ENG2-35: reproducible image builds that match Cargo.toml's rust-version and the committed lockfile."
+ },
+ {
+  "id": "HO-fix_ENG_2-14",
+  "from": "fix:ENG:2",
+  "file": "scripts/restart_server.sh",
+  "change": "Change the last line to `exec cargo run --release --locked -- server --host \"${HOST}\" --port \"${PORT}\"`. When lsof is missing, fall back to `ss -ltnpH \"sport = :${PORT}\"` or `fuser -n tcp \"${PORT}\"` for PID discovery, and keep the openheart-only check before signalling.",
+  "reason": "SRV2-74: the script runs a debug build and cannot detect a server without lsof. The Makefile already avoids calling it on Windows."
+ },
+ {
+  "id": "HO-fix_ENG_2-15",
+  "from": "fix:ENG:2",
+  "file": "scripts/*.py (benchmark_all_java_design_patterns, test_ruthless_popular_datasets, test_authored_design_patterns, test_diagrams_outputs_refresh, test_full_suite, verify_all_14_uml_diagrams), new scripts/harness/",
+  "change": "Move post_analyze, run_cmd, log_test and server bootstrap into one scripts/harness module. That module resolves the repo root from Path(__file__).resolve(), takes the binary from OPENHEART_BIN (default: run `cargo build --release --locked` and use target/release/openheart[.exe]), starts the server on a free port obtained via socket.bind(('127.0.0.1', 0)), tracks the Popen PID, polls /api/health with a deadline, writes server output to a tempfile log and prints it on failure, and stops with terminate(), wait(10) and then kill(). Remove every `fuser -k`. Read port and timeouts from env. Pass argument lists to subprocess.run (no shell=True), use sys.executable instead of 'python3', call sys.stdout.reconfigure(encoding='utf-8'), and stop the server before running cargo test. Print only computed counts and ratios, guard divisions by zero, and make docstrings match the checks actually done (all 10 artifacts; inheritance precision and recall). Read 'errors', not 'error'.",
+  "reason": "ENG2-08, ENG2-10, ENG2-11, ENG2-12, ENG2-26, ENG2-28, ENG2-29. `make py-lint` now enforces F401, BLE001, S602 and S108 on these files."
+ },
+ {
+  "id": "HO-fix_ENG_2-16",
+  "from": "fix:ENG:2",
+  "file": "scripts/generate_diagrams.py",
+  "change": "Resolve the config as Path(__file__).resolve().parents[1] / 'ruthless_config.json' and exit non-zero when it is missing or when zero diagrams are saved. Fix the hint to scripts/restart_server.sh. Derive repo_name with `name[:-4] if name.endswith('.git') else name`, and reject names that are empty, '.', '..' or contain path separators.",
+  "reason": "ENG2-02, ENG2-32."
+ },
+ {
+  "id": "HO-fix_ENG_2-17",
+  "from": "fix:ENG:2",
+  "file": "ruthless_verify.py",
+  "change": "Use IGNORE_DIRS and PKG_STMT_PATTERNS from the config, through one walk_sources() helper. Delete the hard-coded dict and the unused defaultdict import. Precompute newline offsets once per file and bisect into them. Tokenize template literals in one pass. Share one extension set that includes .mts and .cts. Key the oracle by FQN (package plus enclosing types), not simple name. Replace `except (URLError, Exception)` with specific exceptions logged in detail.",
+  "reason": "ENG2-21, ENG2-22, ENG2-29, FIT-10."
+ },
+ {
+  "id": "HO-fix_ENG_2-18",
+  "from": "fix:ENG:2",
+  "file": "src/scpg/diagram/export/plantuml.rs, src/scpg/diagram/export/json.rs, src/symbol/passes/pass4_members.rs",
+  "change": "Use the FQN or the symbol id as node identity in every exporter, with display aliases (`class \"Config\" as a.Config`). Key class_by_name and the edges by that identity. In pass 4, resolve types through the scope graph and imports instead of the simple-name class_name_to_sym map.",
+  "reason": "FIT-10: same-named classes in different packages are merged."
+ },
+ {
+  "id": "HO-fix_ENG_2-19",
+  "from": "fix:ENG:2",
+  "file": "src/adapters/server.rs, web/index.html",
+  "change": "When ./target_repos/<name> is absent and the clone fails, return an error status (HTTP 4xx) and no diagrams, instead of falling back to the first directory. Include the resolved path and commit SHA in every response. Remove or replace the payment-service preset URL.",
+  "reason": "FIT-11."
+ },
+ {
+  "id": "HO-fix_ENG_2-20",
+  "from": "fix:ENG:2",
+  "file": "src/uma/behavioral/sequence_diagram.rs",
+  "change": "Add configurable per-scenario depth and message caps. Collapse polymorphic CHA targets into one message to the declared type. Widen ordinal from u16 to u32 and increment it with checked_add, returning an explicit truncation marker when the cap is hit.",
+  "reason": "UML2-07: overflow checks are now on in dev and test (Cargo.toml), so the u16 wrap would panic instead of wrapping silently."
+ },
+ {
+  "id": "HO-fix_ENG_2-21",
+  "from": "fix:ENG:2",
+  "file": "README.md, docs/succinct_structures.md, docs/overview.md, benches/ (new), Makefile follow-up",
+  "change": "Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and the integration-test count. Publish a benchmark manifest (URL, commit SHA, licence) and committed results JSON. Add criterion benches. Once benches/ exists, a `make bench` target can be added in the Makefile.",
+  "reason": "FIT-15: no benchmark harness exists yet to back a bench target; .gitignore does not block committing the manifest or results."
+ },
+ {
+  "id": "HO-fix_ENG_2-22",
+  "from": "fix:ENG:2",
+  "file": "README.md, CHANGELOG.md, docs/architecture.md, docs/codebase-guide.md, ruthless_config.json, docs/assets/scpg_overview.svg",
+  "change": "Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (02 and 05 currently disagree). Regenerate the hero SVG figures (CSR ratio, diagram count) from the same data.",
+  "reason": "ENG2-52."
+ },
+ {
+  "id": "HO-fix_ENG_2-23",
+  "from": "fix:ENG:2",
+  "file": ".github/ISSUE_TEMPLATE/feature_request.md, .github/ISSUE_TEMPLATE/bug_report.md, .github/ISSUE_TEMPLATE/config.yml (new), .github/PULL_REQUEST_TEMPLATE.md",
+  "change": "List phases 1-10. Add language, CLI-vs-server mode and artifact fields to the bug report. Add a config.yml whose contact_links point security reports to SECURITY.md. Add `make lint` and `make ci-scripts` to the PR checklist.",
+  "reason": "ENG2-56."
+ },
+ {
+  "id": "HO-fix_ENG_2-24",
+  "from": "fix:ENG:2",
+  "file": "run.bat (working copy)",
+  "change": "Run `git add --renormalize run.bat` (or `git add --renormalize .`) once and commit, so the existing checkout picks up the new `*.bat text eol=crlf` rule.",
+  "reason": "SRV2-72 / ENG2-40: I may not run git commands that change state."
+ },
+ {
+  "id": "HO-fix_BDD_1-1",
+  "from": "fix:BDD:1",
+  "file": "src/core/types/ssa.rs",
+  "change": "Widen SSARecord.def_block from u8 to u32 and drop the `& 0xFF` in SSARecord::new; update src/ssa/serializer.rs to write and read it as u32.",
+  "reason": "Until then Phase 7 (src/tra/backward/ssa_bi.rs) cannot resolve the def block of a non-phi definition in functions with more than 256 blocks and falls back to the function span (BDD-09, CORE-05, FLOW-18)."
+ },
+ {
+  "id": "HO-fix_BDD_1-2",
+  "from": "fix:BDD:1",
+  "file": "src/ssa (Phase 5)",
+  "change": "Emit canonical branch predicates: for every two-way branch block, crate::psa::BranchPredicate { block_id, predicate_id, true_edge_when }. predicate_id is a value number of the side-effect-free condition over SSA operand versions; normalize !e, != as not-==, a>b as b<a; exclude calls, field and array reads, assignments and ++/--. Collect them into crate::psa::BranchPredicateTable keyed by function sym_id.",
+  "reason": "Phase 8's feasibility filter is now sound and allocates predicate variables on their own levels, but Phase 8's inputs carry no condition expressions to canonicalize (BDD-05)."
+ },
+ {
+  "id": "HO-fix_BDD_1-3",
+  "from": "fix:BDD:1",
+  "file": "src/core/pipeline.rs, src/adapters/runner.rs, src/main.rs, src/adapters/server.rs",
+  "change": "Call Phase8Stage::run_with(&cfa, &ssa, &cga, &cfa_bytes, Some(&predicate_table), &config, &out) once Phase 5 provides the table. In the server, pass a Phase8Config with tighter max_bdd_nodes, bdd_time_budget, sift_time_budget and worker_threads per request.",
+  "reason": "Enables feasibility filtering (BDD-05) and lets /api/analyze bound Phase 8 per request (BDD-03). The plain run() signature is unchanged."
+ },
+ {
+  "id": "HO-fix_BDD_1-4",
+  "from": "fix:BDD:1",
+  "file": "src/uma/visitor.rs:214",
+  "change": "Replace `self.total_sat_path_count += method.sat_count` with saturating_add, and mark the total as a lower bound when any contributing FunctionPSAHeader has PSA_FLAG_COUNT_SATURATED (header.sat_count_is_exact()).",
+  "reason": "overflow-checks are off, so the plain add wraps. PSA sat_count is now clamped to u64::MAX with an explicit flag (BDD-16)."
+ },
+ {
+  "id": "HO-fix_BDD_1-5",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/diagram/views/analysis.rs (variable_label, robdd_view)",
+  "change": "Decode ordering-table entries with crate::psa::ordering::VarKey::from_code(code): codes with LOOP_ENTRY_FLAG are loop-entry variables of header block `code & !LOOP_ENTRY_FLAG`, not CFA edge ids. Label functions with PSA_FLAG_BDD_UNAVAILABLE (root_node == PSA_NO_ROOT) as 'summary unavailable'.",
+  "reason": "PSA v2 ordering tables hold Ball-Larus loop-entry variables next to edge ids, and over-budget functions store no ROBDD (BDD-02, BDD-03)."
+ },
+ {
+  "id": "HO-fix_BDD_1-6",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/query/robdd.rs",
+  "change": "Replace the local restriction, count and witness code with psa.path_view(sym_id)? then count_paths, paths_through_edge, is_feasible and witness (exact PathCount, validated arrays, loop-entry aware). Return an Option or error for unknown sym_ids and for PSA_FLAG_BDD_UNAVAILABLE instead of default metrics. Update the doc that says ordering[var] is always an edge id.",
+  "reason": "The local engine assumes one variable per edge and u64 counts. psa::query is the validated implementation (BDD-12, SCPG-15)."
+ },
+ {
+  "id": "HO-fix_BDD_1-7",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/query/navigation.rs",
+  "change": "to_source becomes tra.source_range(sym_id) (O(1) via uml_slots). from_source becomes tra.innermost_symbol_at(file_id, token_id) or tra.symbols_at(file_id, token_id) (O(log N + depth)). Treat links with file_id == UML_LINK_NO_FILE (link.has_source() == false) as having no source.",
+  "reason": "Removes the O(n) scans; missing links now carry sentinels instead of (0,0,0,0,0) (BDD-10, SCPG-15, BDD-09)."
+ },
+ {
+  "id": "HO-fix_BDD_1-8",
+  "from": "fix:BDD:1",
+  "file": "src/uma/structural/class_diagram.rs:304-308",
+  "change": "Replace tra.uml_links.iter().find(|l| l.sym_id == id) with tra.uml_link(id).copied().",
+  "reason": "O(1) dense-slot lookup instead of O(C*U) (BDD-10)."
+ },
+ {
+  "id": "HO-fix_BDD_1-9",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/incremental/mod.rs",
+  "change": "Replace apply_delta's `current_hash ^ 0x0101_0101` with tra::DeltaApplicator::compute_delta(&old_tra, &new_tra), then DeltaApplicator::propagate(&mut delta, &new_sta, &new_cga). Key snapshots on tra.hashes.chain_digest.",
+  "reason": "Per-entity staleness (stable keys plus content digests) now exists in the TRA (BDD-08, COMP-07)."
+ },
+ {
+  "id": "HO-fix_BDD_1-10",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/query/cache.rs, src/scpg/serializer/mod.rs",
+  "change": "Key the query cache and the SCPG header source hash by tra.hashes.chain_digest (256-bit SHA-256 chain) instead of the 32-bit XOR fold. tra::uml_link::digest::{digest_tca, …, digest_cga} are the shared per-artifact definitions.",
+  "reason": "One hash definition shared with TRA; removes the XOR cancellation and 32-bit collisions (SCPG-14)."
+ },
+ {
+  "id": "HO-fix_BDD_1-11",
+  "from": "fix:BDD:1",
+  "file": "src/cfg/builder/mod.rs, src/cfg/builder/state.rs",
+  "change": "Emit succ_edge_id[] and pred_edge_id[] arrays parallel to succ_adj and pred_adj in FunctionCFGData.",
+  "reason": "Phase 8 currently rebuilds the edge-id CSR itself in PathGraph; emitting it in Phase 4 would let every consumer use O(1) edge ids (BDD-13)."
+ },
+ {
+  "id": "HO-fix_BDD_1-12",
+  "from": "fix:BDD:1",
+  "file": "src/core/io/mmap.rs:15",
+  "change": "Add a SAFETY comment on the unsafe Mmap::map stating the invariant (the file is not truncated or modified while mapped), or copy the file into memory instead.",
+  "reason": "AUTO-03 flags the undocumented unsafe block; src/psa and src/tra are now forbid(unsafe_code)."
+ },
+ {
+  "id": "HO-fix_BDD_1-13",
+  "from": "fix:BDD:1",
+  "file": "src/ingestion/serializer.rs (crc64_ecma)",
+  "change": "Make crc64_ecma table-driven (slice-by-8) while keeping the exact algorithm and output (poly 0x42F0E1EBA9EA3693, init 0, no reflection, no xorout).",
+  "reason": "PSA and TRA now share this CRC, and the bit-serial loop is slow on large artifacts (BDD-17)."
+ },
+ {
+  "id": "HO-fix_BDD_1-14",
+  "from": "fix:BDD:1",
+  "file": "src/uma/serializer.rs, src/symbol/serializer.rs, src/ast/serializer.rs, src/main.rs (inspect)",
+  "change": "Parse through a bounds-checked cursor that validates every declared count against the remaining bytes before Vec::with_capacity, replacing the bytes[a..b].try_into().unwrap() calls. Mirror the Cursor in src/psa/serializer.rs and src/tra/serializer.rs.",
+  "reason": "Malformed or crafted artifacts must yield InvalidData, not a panic or a huge allocation (AUTO-09, SRV-09)."
+ },
+ {
+  "id": "HO-fix_BDD_1-15",
+  "from": "fix:BDD:1",
+  "file": "src/cg/call_sites.rs, src/cg/mod.rs, src/cg/scc.rs",
+  "change": "Record the call name token, the explicit argument count and the containing CFG block. Restrict CG nodes to callables. Document and test that Tarjan's output is callee-first.",
+  "reason": "Phase 8 now consumes cga.sccs in emitted order as callee-first without .rev() (FLOW-19, BDD-12)."
+ },
+ {
+  "id": "HO-fix_BDD_1-16",
+  "from": "fix:BDD:1",
+  "file": "src/symbol (Phase 3 name resolution)",
+  "change": "Record use-site occurrences (file_id, token range, sym_id, role: definition/reference/read/write/import) so Phase 7 can add an occurrence table next to the new stable keys.",
+  "reason": "TRA has stable symbol identity now, but find-references needs use sites that only Phase 3 knows (BDD-14)."
+ },
+ {
+  "id": "HO-fix_BDD_1-17",
+  "from": "fix:BDD:1",
+  "file": "src/ingestion/mod.rs, src/core/types/token.rs, src/core/types/cg.rs",
+  "change": "Widen file ids, columns and SCC member_count, and replace narrowing `as` casts with try_from returning errors.",
+  "reason": "Remaining CORE-05 limits outside psa and tra."
+ },
+ {
+  "id": "HO-fix_BDD_1-18",
+  "from": "fix:BDD:1",
+  "file": "tests/research_paper_theorems_tests.rs, tests/psa_tests.rs",
+  "change": "Path-count tests should compare header.sat_count with brute-force ENTRY→EXIT path enumeration on structured CFGs, not with model counts of hand-built formulas. .psa and .tra are now format version 2 and v1 files are rejected.",
+  "reason": "BDD-02 changed what sat_count means (exact acyclic path count). Test-only, so not done here."
+ },
+ {
+  "id": "HO-fix_BDD_1-19",
+  "from": "fix:BDD:1",
+  "file": "docs/openheart_research_paper.tex, docs/plans/phase8.md, docs/traceability_and_incremental.md, README.md",
+  "change": "Update the claims to match the code: exact Ball-Larus counting with loops flagged, sifting on the final ROBDD, budgets and degradation, SHA-256 hash chain plus per-entity digests, O(log N + depth) forward queries and O(1) uml_link, PSA/TRA format v2, no interprocedural composition or recursion unwinding.",
+  "reason": "Several published claims (BDD-06, BDD-07, BDD-10, BDD-12) were false before this change; docs are outside my paths."
+ },
+ {
+  "id": "HO-fix_CORE_1-1",
+  "from": "fix:CORE:1",
+  "file": "tests/ast_tests.rs",
+  "change": "Lines 128-131: replace the jump_table.match_pos invariant with a per-node check, e.g. for n in 0..artifact.node_count { let o = artifact.open_position(n).unwrap(); let c = artifact.close_position(n).unwrap(); assert_eq!(artifact.rmq.find_open(&artifact.bp_encoder, &artifact.rank_select, c), Some(o)); }",
+  "reason": "BPASTArtifact no longer carries the 32-bit-per-bit jump table (CORE-04/BENCH-03); field access no longer compiles."
+ },
+ {
+  "id": "HO-fix_CORE_1-2",
+  "from": "fix:CORE:1",
+  "file": "tests/pipeline_accuracy_tests.rs",
+  "change": "Line 96: expect openheart::ingestion::serializer::TCA_VERSION (now 2) instead of 1; line ~142: function_count expectation should count constructor bodies (now an NN_BLOCK child of NN_CONSTRUCTOR_DECL).",
+  "reason": ".tca format v2 (u32 string/path lengths, DIAG section) and FLOW-02 constructor-body fix."
+ },
+ {
+  "id": "HO-fix_CORE_1-3",
+  "from": "fix:CORE:1",
+  "file": "src/cg/serializer.rs",
+  "change": "Line 89: write_u16(scc.member_count) -> write_u32(scc.member_count); line 237: r.read_u16()? -> r.read_u32()? for member_count (bump .cga version).",
+  "reason": "SCCRecord.member_count is now u32 (FLOW-18/CORE-05); current line 89 no longer compiles."
+ },
+ {
+  "id": "HO-fix_CORE_1-4",
+  "from": "fix:CORE:1",
+  "file": "src/cg/scc.rs",
+  "change": "Line 38: replace `raw_members.len() as u16` with u32::try_from(raw_members.len()) and an explicit error, pass the u32 to SCCRecord::new.",
+  "reason": "Remove the silent 65,535-member truncation (CORE-05)."
+ },
+ {
+  "id": "HO-fix_CORE_1-5",
+  "from": "fix:CORE:1",
+  "file": "src/tra/uml_link/digest.rs",
+  "change": "Line 344: h.u8(r.def_block) -> h.u32(r.def_block); line 416: h.u16(s.member_count) -> h.u32(s.member_count).",
+  "reason": "SSARecord.def_block and SCCRecord.member_count are now u32; these lines no longer compile."
+ },
+ {
+  "id": "HO-fix_CORE_1-6",
+  "from": "fix:CORE:1",
+  "file": "src/ssa/serializer.rs, src/ssa/renaming.rs, src/tra/backward/ssa_bi.rs",
+  "change": "Update comments that say SSARecord::def_block keeps 8 bits; the def_blocks side vectors and the 256-block limit constant in ssa_bi.rs:26 can use rec.def_block directly.",
+  "reason": "def_block widened to u32 (BDD-05/BDD-09/FLOW-18)."
+ },
+ {
+  "id": "HO-fix_CORE_1-7",
+  "from": "fix:CORE:1",
+  "file": "src/lang/kotlin/reduce.rs",
+  "change": "Line 324: fn classify(&self, kind: &str, node: &Node, ctx: &crate::ast::adapter::ReductionContext) -> ReductionDecision; line 566: fn encode_attrs(&self, kind: &str, node: &Node, source: &[u8], ctx: &ReductionContext) -> u32; optionally implement name_node and use ReductionDecision::Wrap.",
+  "reason": "ASTReductionAdapter now passes ancestor kinds and the field name (needed for context-dependent classification); the old signatures no longer match the trait."
+ },
+ {
+  "id": "HO-fix_CORE_1-8",
+  "from": "fix:CORE:1",
+  "file": "src/lib.rs, Cargo.toml, src/main.rs, src/adapters/server.rs",
+  "change": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
+  "reason": "CORE-01/COMP-01/FLOW-20: registering a grammar adapter replaces the Kotlin lexical frontend; the grammar crate and lang module are outside my paths."
+ },
+ {
+  "id": "HO-fix_CORE_1-9",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/passes/pass2_imports.rs",
+  "change": "Consume NN_IMPORT_DECL children of NN_MODULE: read AUX_IMPORT_STATIC / AUX_IMPORT_ON_DEMAND via NodeAttr::unpack_aux_flags, take the qualified name from the single NN_IDENTIFIER_EXPR child's token range concatenated WITHOUT separators; use NN_PACKAGE_DECL for the package scope.",
+  "reason": "SYM-01: Phase 2 now emits import/package nodes; the current pass still looks for EXPR_STMT/TYPE_REF and joins tokens with spaces."
+ },
+ {
+  "id": "HO-fix_CORE_1-10",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/passes/pass1_discovery.rs",
+  "change": "Prefer bpa.name_token(pre) (token id -> tca.token_records[t].text_id) over token heuristics; for NN_FIELD_DECL / NN_LOCAL_VAR_DECL statements whose children are NN_LOCAL_VAR_DECL declarators, create one symbol per declarator named by its name token; skip the secondary token sweep for files where tca.file_records[f].has_syntax_tree(); map NodeAttr::LANG_JAVA_DEFAULT/VARARGS/NON_SEALED/STRICTFP and LANG_DEPRECATED to SymbolModifiers; delete the hardcoded Spring/Lombok name list.",
+  "reason": "SYM-02/SYM-04/SYM-15."
+ },
+ {
+  "id": "HO-fix_CORE_1-11",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/adapter/java.rs",
+  "change": "Treat NN_ENUM_CONSTANT as a declaration (SK_ENUM_CONSTANT), NN_ANON_CLASS_BODY as SK_ANON_CLASS (ScopeKind::Anon), NN_PACKAGE_DECL as SK_PACKAGE; synthesize private final field + accessor for NN_PARAM_DECL with AUX_PARAM_RECORD_COMPONENT.",
+  "reason": "SYM-12: these nodes now exist in the AST."
+ },
+ {
+  "id": "HO-fix_CORE_1-12",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/passes/pass3_types.rs, src/symbol/passes/pass4_members.rs",
+  "change": "Use NN_TYPE_REF aux flags: AUX_TYPE_GENERIC (first child = head, remaining NN_TYPE_REF children = type args), AUX_TYPE_ARRAY (lang byte = dimensions), AUX_TYPE_QUALIFIED (concatenate token range), AUX_TYPE_WILDCARD (lang byte = bound kind); one NN_TYPE_PARAM per type parameter named by name_token.",
+  "reason": "SYM-07/UML-08: generic, array, qualified and wildcard types are no longer dropped."
+ },
+ {
+  "id": "HO-fix_CORE_1-13",
+  "from": "fix:CORE:1",
+  "file": "src/cfg/stmts/switch_stmt.rs, src/cfg/mod.rs, src/cg/call_sites.rs",
+  "change": "Read AUX_CASE_ARROW / AUX_CASE_DEFAULT on NN_SWITCH_CASE (CaseInfo.arrow no longer needs token text); NN_JAVA_INSTANCE_INIT now wraps an NN_BLOCK; explicit this()/super() are NN_CALL_EXPR with AUX_CALL_EXPLICIT_CTOR / AUX_CALL_SUPER_TARGET; call_sites.rs:153 find_method_name_token should prefer bpa.name_token(call_node).",
+  "reason": "FLOW-02/FLOW-12: Phase 2 now records these facts structurally."
+ },
+ {
+  "id": "HO-fix_CORE_1-14",
+  "from": "fix:CORE:1",
+  "file": "src/main.rs, src/adapters/server.rs",
+  "change": "main.rs:151-161 and server.rs:527-560: use IngestionStage::run_with_report, then ASTStage::run_in_memory(&tca, report.tca_hash(), &bpa_path), pass &report.tca_bytes to Phase3Stage::run (server.rs:536 currently passes fs::read(..).unwrap_or_default()); or call SCPGPipelineBuilder.",
+  "reason": "CORE-08/CORE-10/CORE-14: avoid the .tca read-back/mapping and empty-byte fallbacks."
+ },
+ {
+  "id": "HO-fix_CORE_1-15",
+  "from": "fix:CORE:1",
+  "file": "src/main.rs",
+  "change": "cmd_inspect (lines ~373-388): call TokenCorpusSerializer::decode(&bytes) and BPASTSerializer::verify_bytes(&bytes), print the real version/counts, and print 'VERIFIED VALID' only on Ok.",
+  "reason": "CORE-07: inspect currently claims validity after matching only the magic."
+ },
+ {
+  "id": "HO-fix_CORE_1-16",
+  "from": "fix:CORE:1",
+  "file": "src/uma/serializer.rs, src/symbol/serializer.rs, src/tra/serializer.rs, src/psa/serializer.rs",
+  "change": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
+  "reason": "AUTO-09: these readers still panic or over-allocate on malformed input."
+ },
+ {
+  "id": "HO-fix_CORE_1-17",
+  "from": "fix:CORE:1",
+  "file": "README.md, docs/succinct_structures.md, docs/overview.md, src/adapters/server.rs",
+  "change": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
+  "reason": "CORE-01/AUTO-05/BENCH-02/BENCH-03/CORE-04."
+ },
+ {
+  "id": "HO-fix_CORE_1-18",
+  "from": "fix:CORE:1",
+  "file": ".env.example",
+  "change": "Document OPENHEART_FILE_LOG (file-sink level), OPENHEART_LOG_MAX_BYTES (persistent log rotation), OPENHEART_NUM_THREADS (Phase 1/2 workers, 0 = per core), RUST_LOG as fallback for OPENHEART_LOG, and that SCPGPipelineBuilder also honors OPENHEART_ARTIFACT_DIR.",
+  "reason": "SRV-14/AUTO-21: these are now read by the code."
+ },
+ {
+  "id": "HO-fix_CORE_1-19",
+  "from": "fix:CORE:1",
+  "file": "src/cg/call_sites.rs and other log_trace/log_debug(&format!(..)) call sites",
+  "change": "Replace log_trace(&format!(..)) / log_debug(&format!(..)) with crate::oh_trace!(..) / crate::oh_debug!(..).",
+  "reason": "CORE-13: the macros skip formatting when the level is disabled."
+ },
+ {
+  "id": "HO-fix_CORE_1-20",
+  "from": "fix:CORE:1",
+  "file": "src/main.rs, src/adapters/server.rs",
+  "change": "collect_source_files: walk without following symlinks (ignore::WalkBuilder is now a dependency), log and skip unreadable entries, honor .gitignore and build/generated directories.",
+  "reason": "CORE-16: Phase 1 now dedups canonical paths and caps file size, but discovery is outside my paths."
+ },
+ {
+  "id": "HO-fix_CORE_1-21",
+  "from": "fix:CORE:1",
+  "file": "src/uma/structural/class_diagram.rs",
+  "change": "Line ~132: normalize the path (replace('\\\\', \"/\")) before matching \"/src/test/\".",
+  "reason": "UML-05: Windows paths keep test classes."
+ },
+ {
+  "id": "HO-fix_CORE_1-22",
+  "from": "fix:CORE:1",
+  "file": "src/uma/label_extraction.rs",
+  "change": "Lines 22-35: node_attr is a packed attribute word, not a token index; use bpa.token_range(node) / bpa.name_token(node) for label text.",
+  "reason": "UML-12."
+ },
+ {
+  "id": "HO-fix_DOCS_1-1",
+  "from": "fix:DOCS:1",
+  "file": ".github/workflows/ci.yml",
+  "change": "Add jobs: clippy --all-targets -D warnings (make lint), RUSTDOCFLAGS=-D warnings cargo doc (make doc), doctests (make test), MSRV check on 1.88 (make msrv), nightly Miri on psa (make miri), cargo-deny and cargo-machete, a Windows/macOS matrix, Docker build plus smoke run (make docker-smoke), a lychee link check over *.md and docs/, and a nightly accuracy tier per docs/status.md §7",
+  "reason": "ENG-10, BENCH-14, TST-09, AUTO-19, ENG-03. The README now shows the real workflow badge and documents these gates"
+ },
+ {
+  "id": "HO-fix_DOCS_1-2",
+  "from": "fix:DOCS:1",
+  "file": "Dockerfile",
+  "change": "Base image rust:1.88-slim or newer (>= Cargo.toml rust-version); exec-form CMD [\"openheart\",\"server\",\"8080\"]; non-root USER; HEALTHCHECK on /api/health",
+  "reason": "AUTO-07, ENG-13. The CLI has no 'serve' subcommand or --port flag"
+ },
+ {
+  "id": "HO-fix_DOCS_1-3",
+  "from": "fix:DOCS:1",
+  "file": ".github/workflows/release.yml",
+  "change": "Stop uploading target/release/libopenheart.rlib; build per-platform binaries with SHA-256 files (make dist), add permissions: contents: write, and tag 0.1.0 so tag, Cargo.toml and CHANGELOG agree",
+  "reason": "ENG-13. CHANGELOG now says no release has been tagged"
+ },
+ {
+  "id": "HO-fix_DOCS_1-4",
+  "from": "fix:DOCS:1",
+  "file": ".env.example",
+  "change": "List exactly the variables code reads (docs/status.md §8: OPENHEART_LOG, RUST_LOG, OPENHEART_FILE_LOG, OPENHEART_LOG_MAX_BYTES, OPENHEART_NUM_THREADS, plus OPENHEART_MAX_FILES, OPENHEART_MAX_FILE_KB, OPENHEART_MAX_SOURCE_MB, OPENHEART_STACK_MB, OPENHEART_ALLOWED_HOSTS and OPENHEART_CORS_ORIGINS once the adapters/runner.rs and adapters/security.rs readers are wired). Remove OPENHEART_ARTIFACT_DIR, OPENHEART_MAX_MEMORY_MB and OPENHEART_STRICT_INVARIANTS",
+  "reason": "SRV-14, ENG-17. No code reads the removed knobs"
+ },
+ {
+  "id": "HO-fix_DOCS_1-5",
+  "from": "fix:DOCS:1",
+  "file": "docs/status.md (docs owner, next pass)",
+  "change": "When the server-side env readers (src/adapters/runner.rs, security.rs) are compiled in, add their variables to §8. When any fix lands with an expected-result test, update its row in §4/§5/§6, the matching README status rows and the ROADMAP item. Rows are anchored to audited baseline fc218cd until then",
+  "reason": "The status rule (ADR-010). About 177 source files are being changed in parallel, so rows record the baseline until each fix is proven"
+ },
+ {
+  "id": "HO-fix_DOCS_1-6",
+  "from": "fix:DOCS:1",
+  "file": "run.sh",
+  "change": "Replace `cargo run -- server --port \"${PORT}\"` with `cargo run --release -- server \"${PORT}\"` (run.bat likewise if it passes --port)",
+  "reason": "The CLI takes `server [PORT]`. '--port' fails to parse and silently falls back to 8080, which contradicts getting_started"
+ },
+ {
+  "id": "HO-fix_DOCS_1-7",
+  "from": "fix:DOCS:1",
+  "file": "src/adapters/server.rs",
+  "change": "Generate /api/supported-languages from the adapter registry: list only languages with Phase 1-3 adapters (Java), not a hard-coded java/python/typescript/javascript/cpp/rust/go list",
+  "reason": "LANG-08, COMP-01, AUTO-05"
+ },
+ {
+  "id": "HO-fix_DOCS_1-8",
+  "from": "fix:DOCS:1",
+  "file": "src/main.rs",
+  "change": "The help text says '.java source files' but the CLI collects .kt/.kts, so align it. cmd_inspect must validate magic, version, lengths and CRC before printing 'VERIFIED VALID', and drop 'SYSTEM PRODUCTION READY'",
+  "reason": "LANG-08, SCPG-07, CORE-07"
+ },
+ {
+  "id": "HO-fix_DOCS_1-9",
+  "from": "fix:DOCS:1",
+  "file": "web/js/github-engine.js",
+  "change": "Show the sampling cap (30 GitHub / 80 local files) and the true processed count in the UI; replace the hard-coded execution_time_ms (280/150) with measured time or omit it; label the result as a heuristic preview",
+  "reason": "BENCH-15, SCALE-18, ENG-08"
+ },
+ {
+  "id": "HO-fix_DOCS_1-10",
+  "from": "fix:DOCS:1",
+  "file": ".github/workflows/deploy_pages.yml and web/docs/*.html",
+  "change": "Generate web/docs/ from docs/ during the Pages deploy instead of committing copies. The docs/ HTML pages now carry a design-status banner linking to the absolute GitHub URL of docs/status.md, so the copies have diverged further",
+  "reason": "AUTO-19, ENG-17"
+ },
+ {
+  "id": "HO-fix_DOCS_1-11",
+  "from": "fix:DOCS:1",
+  "file": "ruthless_verify.py, ruthless_config.json, scripts/test_ruthless_popular_datasets.py, scripts/benchmark_all_java_design_patterns.py",
+  "change": "Remove the shared 'keywords' exclusion list and the renaming/unconditional-pass hacks; make the benchmark exit non-zero on failure; replace the oracle with an independent FQN-based one (javac SemanticDB / JavaParser / JDT) per docs/status.md §7, or label the script non-benchmark",
+  "reason": "BENCH-01, TST-09, E2E-11, UML-06"
+ },
+ {
+  "id": "HO-fix_DOCS_1-12",
+  "from": "fix:DOCS:1",
+  "file": "src/uma/structural/class_diagram.rs",
+  "change": "Delete the 188-name class blocklist and the Binding/ALL_CAPS/lowercase filters; filter by symbol kind and origin only",
+  "reason": "E2E-11. Real classes such as Configuration and Logger are dropped"
+ },
+ {
+  "id": "HO-fix_DOCS_1-13",
+  "from": "fix:DOCS:1",
+  "file": "src/psa/construction/constraints.rs, src/psa/construction/mod.rs",
+  "change": "Encode flow conservation per the paper's Def. 'Feasible Path Function': AMO(in), AMO(out), in<->out, EXO(out(entry)), EXO(in(exit)); exclude restricted variables from the sat_count variable count; add a Ball-Larus count as reference",
+  "reason": "BDD-02. docs/plans/phase8.md and the paper now specify this encoding"
+ },
+ {
+  "id": "HO-fix_DOCS_1-14",
+  "from": "fix:DOCS:1",
+  "file": "src/psa/ordering/sifting.rs",
+  "change": "Implement real in-place adjacent-level swaps with live node counts, or remove the pass",
+  "reason": "BDD-06"
+ },
+ {
+  "id": "HO-fix_DOCS_1-15",
+  "from": "fix:DOCS:1",
+  "file": "src/scpg/diagram/export/{json,plantuml,mermaid}.rs",
+  "change": "Render CFG/DFG/CDG/CG/ROBDD from .cfa/.ssa/.cga/.psa through a diagram context, or report 'unavailable'; never emit the fixed templates",
+  "reason": "SCPG-01, FLOW-06. README and status.md list these as templates until fixed"
+ },
+ {
+  "id": "HO-fix_DOCS_1-16",
+  "from": "fix:DOCS:1",
+  "file": "src/scpg/serializer/mod.rs, src/scpg/mmap/mod.rs, src/scpg/types.rs",
+  "change": "Write real section payloads; populate source_hash with SHA-256 of sorted (path, content_sha256) pairs; keep creation_ts_ns out of hashed bytes and honour SOURCE_DATE_EPOCH; validate magic, version, counts, offsets and checksums before allocating; print the magic as bytes in errors",
+  "reason": "SCPG-02, SCPG-07, SCPG2-06, SCPG2-31, SCPG-13, matching docs/plans/phase10.md §10.2"
+ },
+ {
+  "id": "HO-fix_DOCS_1-17",
+  "from": "fix:DOCS:1",
+  "file": "src/scpg/incremental/mod.rs",
+  "change": "Add RebuildScope::PositionsOnly for comment/whitespace edits, keep None only for offset-free edits with an unchanged hash, and stop XORing the hash with a constant",
+  "reason": "SCPG-10, SCPG2-07, matching phase10 §10.6.2"
+ },
+ {
+  "id": "HO-fix_DOCS_1-18",
+  "from": "fix:DOCS:1",
+  "file": "src/tra/uml_link/hash_chain.rs, src/scpg/serializer/integrity.rs",
+  "change": "Keep one table-driven CRC implementation in core and reuse it",
+  "reason": "SCPG2-29"
+ },
+ {
+  "id": "HO-fix_DOCS_1-19",
+  "from": "fix:DOCS:1",
+  "file": "src/lib.rs",
+  "change": "Optionally add #![doc = include_str!(\"../README.md\")] so the README is the crate root doc",
+  "reason": "ENG-17 recommendation"
+ },
+ {
+  "id": "HO-fix_DOCS_1-20",
+  "from": "fix:DOCS:1",
+  "file": "tests/research_paper_theorems_tests.rs",
+  "change": "For the test phase: assert the path count equals a Ball-Larus/brute-force count (it currently accepts (1,1,1) as a path) and the ROBDD size is <= m(d+1), matching the corrected Lemma lem:pathchar and Theorem thm:robdd",
+  "reason": "BDD-02. The paper's theorem statements changed"
+ },
+ {
+  "id": "HO-fix_SRV_1-1",
+  "from": "fix:SRV:1",
+  "file": "web/index.html",
+  "change": "POST /api/analyze with {\"repo_url\":...,\"async\":true}, drop the 2500 ms AbortController, poll GET /api/jobs/<job_id> until state != 'running', then render. The 202 response sets an openheart_session_<port> cookie, so same-origin fetch('diagrams/<type>.json') resolves to that analysis; /api/sessions/<id>/diagrams/<type>.json also works. Show backendData.scpg_hash instead of session_id.slice(-8). Do not label GitHubEngine fallback results 'SCPG ... Verified'. Add integrity=sha384 and crossorigin=anonymous to the five CDN scripts, plus a CSP meta tag for the Pages build",
+  "reason": "COMP-R3-2 and SRV-12. The server now supports async jobs and per-session diagrams but no longer writes into web/diagrams, so the studio must poll instead of aborting"
+ },
+ {
+  "id": "HO-fix_SRV_1-2",
+  "from": "fix:SRV:1",
+  "file": "web/js/editor.js",
+  "change": "Request /api/source?file=<repo-relative path>, adding &session=<id> when known. On 409, show or choose from the 'candidates' array. Remove the hardcoded examples/test_patterns_codebase candidate path list",
+  "reason": "COMP-R3-1 and COMP-10. /api/source now resolves only against the analysis manifest (exact path, unique suffix, or unique file or class name) and returns 409 when a name is ambiguous"
+ },
+ {
+  "id": "HO-fix_SRV_1-3",
+  "from": "fix:SRV:1",
+  "file": "ruthless_verify.py",
+  "change": "Replace repo_url 'https://github.com/local/<name>' with {\"local_repo\": \"<name>\"} and start the server with OPENHEART_LOCAL_REPOS=<dataset root> (or 'openheart server --local-repos <dir>'). Do the same in any script that pre-stages directories under ./target_repos/<name>",
+  "reason": "SRV-02 and SRV-07. Fake GitHub URLs now fail clone instead of silently analyzing ./target_repos/<name>. The clone cache is <workspace>/repos/<owner>/<repo>/<ref-key> with origin verification"
+ },
+ {
+  "id": "HO-fix_SRV_1-4",
+  "from": "fix:SRV:1",
+  "file": "scripts/test_full_suite.py",
+  "change": "OPTIONS /api/analyze without Origin now returns 204 with an 'Allow' header and no ACAO, and a foreign Origin returns 403, so do not expect ACAO '*'. The malformed-body test must send Content-Type: application/json (other content types get 415), after which it receives 400",
+  "reason": "SRV-05: CORS * removed, and POST /api/analyze requires a JSON content type as CSRF defense in depth"
+ },
+ {
+  "id": "HO-fix_SRV_1-5",
+  "from": "fix:SRV:1",
+  "file": ".dockerignore",
+  "change": "Create it with: target/, .git/, target_repos/, openheart_output/, *_output/, node_modules/, __pycache__/, *.tca, *.bpa, *.sta, *.cfa, *.ssa, *.cga, *.tra, *.psa, *.uma, *.scpg",
+  "reason": "SRV-11: build context is unbounded; the file is outside my paths"
+ },
+ {
+  "id": "HO-fix_SRV_1-6",
+  "from": "fix:SRV:1",
+  "file": "src/core/pipeline.rs",
+  "change": "Make SCPGPipelineBuilder::execute delegate to crate::adapters::runner::run_pipeline, using a runner::WorkDir instead of fixed names in std::env::temp_dir(). Alternatively move runner.rs into core and have adapters re-export it, so only one orchestration remains",
+  "reason": "CORE-14, CORE-08 and SRV-13: the CLI and server now share adapters::runner, but the library builder is still a third copy and writes predictable temp paths"
+ },
+ {
+  "id": "HO-fix_SRV_1-7",
+  "from": "fix:SRV:1",
+  "file": "src/tra/mod.rs, src/psa/mod.rs, src/uma/mod.rs, src/scpg/mod.rs",
+  "change": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "reason": "The runner currently contains their panic-on-write behavior via catch_unwind; a signature change will break the build at those call sites"
+ },
+ {
+  "id": "HO-fix_SRV_1-8",
+  "from": "fix:SRV:1",
+  "file": "src/ingestion/adapter/registry.rs",
+  "change": "Expose whether a LangId has a dedicated grammar, e.g. pub fn has_dedicated_grammar(&self, LangId) -> bool. Once Kotlin has its own grammar, change kotlin's status in adapters/runner.rs SOURCE_LANGUAGES from 'experimental' to 'supported' (or derive it from the registry)",
+  "reason": "CORE-01, AUTO-05 and COMP-01: /api/supported-languages should report frontend maturity from the registry, not a static label"
+ },
+ {
+  "id": "HO-fix_SRV_1-9",
+  "from": "fix:SRV:1",
+  "file": "src/scpg/mmap/mod.rs (OpenHeartEngine::open)",
+  "change": "Once the .scpg loader verifies its checksum, change ArtifactKind::Scpg in src/main.rs integrity_line() to the 'CRC verified' wording",
+  "reason": "SCPG-07: inspect currently reports the .scpg checksum as NOT VERIFIED, which is accurate today"
+ },
+ {
+  "id": "HO-fix_SRV_1-10",
+  "from": "fix:SRV:1",
+  "file": "README.md, docs/getting_started.md, docs/security-architecture.md, SECURITY.md",
+  "change": "Document: 'openheart server [--host] [--port] [--workspace] [--web-root] [--source-root] [--local-repos] [--allow-clone|--no-clone]' and its 'serve' alias; 'openheart health'; the analyze options (--output, --include-tests, --no-ignore, --diagrams, --formats, --max-*); exit codes 0/1/2; loopback default bind with token login at /?token=; OPENHEART_CORS_ORIGINS and OPENHEART_ALLOWED_HOSTS; async jobs at /api/jobs/<id>; sessions at /api/sessions/<id>; run.json; the environment variables in .env.example. Remove OPENHEART_MAX_MEMORY_MB and the other unimplemented knobs. Correct the supported-version table",
+  "reason": "SRV-14, AUTO-07 and SRV-05: the docs describe the old CLI and server contract"
+ },
+ {
+  "id": "HO-fix_SRV_1-11",
+  "from": "fix:SRV:1",
+  "file": ".github/workflows/ci.yml",
+  "change": "Add a job that runs 'make docker-smoke' (Docker build plus /api/health probe) and an MSRV 1.88 job",
+  "reason": "AUTO-07, SRV-03 and SRV-11: keep the container and the MSRV from regressing"
+ },
+ {
+  "id": "HO-fix_SRV_1-12",
+  "from": "fix:SRV:1",
+  "file": "src/lib.rs (owned by me, for the other teams)",
+  "change": "When src/analysis, src/ir, src/lang and src/memory are complete, add 'pub mod analysis; pub mod ir; pub mod lang; pub mod memory;' to src/lib.rs. They are not declared yet: lang/mod.rs names submodules that do not exist, so declaring them now would break the build",
+  "reason": "These module trees exist on disk but are not compiled; nothing references them yet"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-1",
+  "from": "fix:SCPGX:1",
+  "file": "src/main.rs",
+  "change": "In cmd_analyze's auto-export loop (~lines 256-309): build `let diag_ctx = openheart::scpg::diagram::DiagramContext::new(&uma_artifact, &sta_artifact, &tca_artifact).with_bpa(&bpa_artifact).with_cfa(&cfa_artifact).with_ssa(&ssa_artifact).with_cga(&cga_artifact).with_psa(&psa_artifact).with_tra(&tra_artifact);`, iterate `openheart::scpg::diagram::ViewKind::ALL` (use `kind.key()` as the file stem) and call `diag_engine.export_diagram_with_context(format, kind.key(), &diag_ctx)` for PlantUML, Mermaid and JSON; also write `model.xmi` from `export_diagram_with_context(DiagramFormat::XMI, \"model\", &diag_ctx)` and `patterns.sarif` from `openheart::scpg::diagram::SarifExporter::export_patterns(&diag_ctx)`.",
+  "reason": "SCPG-01/FLOW-06/SCPG-11: the CFG, DFG, CDG, call graph and ROBDD views now render from the analysis artifacts and come out as explicit 'not available' notices when only uma/sta/tca are passed; XMI and SARIF were unreachable from the CLI."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-2",
+  "from": "fix:SCPGX:1",
+  "file": "src/adapters/server.rs",
+  "change": "Around lines 619-688: build the same DiagramContext (bpa, cfa, ssa, cga, psa and tra are all in scope) and use `diag_engine.export_diagram_with_context(...)`. Replace the 21-entry list with `ViewKind::ALL` keys so each type is written once (drop the 'use_case' and 'state' aliases that produced duplicate files). Remove the unused `puml_*` locals at 620-634 or render them through the context. Also write `model.xmi`.",
+  "reason": "AUTO-08 duplicate files, SCPG-01/FLOW-06 real compiler-IR views, SCPG-11 XMI reachability."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-3",
+  "from": "fix:SCPGX:1",
+  "file": "src/scpg/api/mod.rs",
+  "change": "Lines 83-85: `export_xmi(&self, classes: &[ClassRecord])` can only emit unnamed classifiers. Add (or switch callers to) `pub fn export_xmi_model(&self, uma: &UMLMetadataArtifact, sta: &SymbolTableArtifact, tca: &TokenCorpusArtifact) -> String { XMIExporter::export_model(&crate::scpg::diagram::DiagramContext::new(uma, sta, tca)) }`.",
+  "reason": "SCPG-11: the legacy record-only entry point is kept for compatibility, but it has no symbol table, so it cannot name elements."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-4",
+  "from": "fix:SCPGX:1",
+  "file": "tests/scpg_tests.rs",
+  "change": "Lines 295-298: the Mermaid package assertions expect raw ids such as `subgraph AppFrontend[\"AppFrontend\"]`. Ids are now unique prefixed aliases built from the full package path (`pkg_AppFrontend`, `pkg_AppFrontend_Interface`), and labels may include detail lines. Assert on `subgraph pkg_AppFrontend[` and on the label text instead.",
+  "reason": "SCPG-04: same-named packages and classes must get distinct ids, so ids can no longer be bare leaf names."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-5",
+  "from": "fix:SCPGX:1",
+  "file": "src/uma/patterns/decorator.rs, composite.rs, facade.rs, adapter.rs, strategy.rs, query.rs, mod.rs",
+  "change": "Build the supertype index from TH_EXTENDS and TH_IMPLEMENTS only. Exclude primitive and external types from the structural predicates. Require forwarding-call evidence for Decorator, Composite and Adapter.",
+  "reason": "UML-02: the exporters display detector output as recorded, so precision has to come from the detectors."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-6",
+  "from": "fix:SCPGX:1",
+  "file": "src/uma/structural/class_diagram.rs",
+  "change": "Delete the reserved-name blacklist and the lexical filters (lines ~97-166 and 346-538). Normalize path separators before test-path detection.",
+  "reason": "UML-05: the exporters no longer filter classes by name, but the extractor still drops legitimate types."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-7",
+  "from": "fix:SCPGX:1",
+  "file": "src/symbol/uml_meta/associations.rs, src/symbol/passes/pass5_hierarchy.rs",
+  "change": "Implement the TypeRef and multiplicity decision table: value types become attributes, collections, maps and arrays give 0..*, Optional gives 0..1, and composition needs lifecycle evidence. Feed FieldRecord.assoc_kind, mult_min/mult_max and element_type_sym_id.",
+  "reason": "SYM-08/UML-08/SCPG-18: the exporters now render exactly these UMA fields."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-8",
+  "from": "fix:SCPGX:1",
+  "file": "src/uma/behavioral/sequence_diagram.rs",
+  "change": "Line ~203: `scenario_name` stores an interner text id, while the other UMA text references (states, guards, objects) are label ids. Either store a label id or document the difference.",
+  "reason": "Consistency. The exporter titles scenarios from entry_method_sym and only falls back to interner text."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-9",
+  "from": "fix:SCPGX:1",
+  "file": "README.md",
+  "change": "Lines 48, 56 and 64-91: say that the CFG, DFG, CDG, call graph and ROBDD views need the full artifact context; that deployment, use case and timing diagrams are reported as not statically derivable; and that XMI output is OMG XMI 2.5.1 / UML 2.5.1.",
+  "reason": "SCPG-01/UML-01/BENCH-17: these claims do not match the code."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-10",
+  "from": "fix:SCPGX:1",
+  "file": "web/diagrams/* and CI workflow",
+  "change": "Regenerate every showcase file from a pinned sample with the CLI, fail CI on drift, delete the hand-written JSON files with fabricated hashes, and list the .mmd files in manifest.json.",
+  "reason": "AUTO-04/AUTO-08: the exporters now emit real digests and content hashes, but the committed showcase files are still hand-written."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-11",
+  "from": "fix:SCPGX:1",
+  "file": "web/js/editor.js, web/js/graph-loader.js, web/js/ui.js",
+  "change": "Navigate with `node.span.path`/`span.line_start` (or the now-real `file`/`lines`) instead of guessing example paths. Show `metadata.provenance` and `metadata.notes`: unavailable views have zero nodes and a reason. Replace the empty XMI export stub (ui.js:123-127) with the server's XMI output.",
+  "reason": "COMP-10/SCPG-05/COMP-06: real source spans and provenance are emitted but not yet used by the studio."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-12",
+  "from": "fix:SCPGX:1",
+  "file": "src/scpg/query/navigation.rs",
+  "change": "Lines 8-27: resolve symbol-to-source in O(1) through `TraceabilityArtifact::uml_link` / `source_range` (uml_slots) instead of linear scans.",
+  "reason": "COMP-10: the traceability claim depends on this lookup, which lies outside the diagram paths."
+ },
+ {
+  "id": "HO-fix_SCPGX_1-13",
+  "from": "fix:SCPGX:1",
+  "file": "src/ingestion/manifest.rs",
+  "change": "Ingest build and deployment descriptors (pom.xml, build.gradle, module-info.java, Dockerfile, compose, Kubernetes/Helm) into an artifact that Phase 9 can turn into module components and deployment nodes.",
+  "reason": "UML-14: the deployment view is reported unavailable because no such data exists in the artifacts."
+ },
+ {
+  "id": "HO-fix_UML_1-1",
+  "from": "fix:UML:1",
+  "file": "tests/scpg_tests.rs",
+  "change": "At line 229 add to the ClassRecord literal: generalization_syms: vec![], dependency_syms: vec![], qualified_name_id: openheart::uma::types::NO_LABEL. At line 268 add to the UMLMetadataArtifact literal: object_links: vec![], communications: vec![], interaction_overviews: vec![], package_dependencies: vec![], package_metrics: vec![], composite_structures: vec![], pattern_instances: vec![].",
+  "reason": "The UMA model was extended (UML-08/UML-11/UML-14); the test will not compile without these fields."
+ },
+ {
+  "id": "HO-fix_UML_1-2",
+  "from": "fix:UML:1",
+  "file": "src/main.rs, src/adapters/server.rs, src/core/pipeline.rs",
+  "change": "Add an --include-tests CLI flag or request option and call Phase9Stage::run_with_options(..., &openheart::uma::Phase9Options { include_tests, ..Default::default() }).",
+  "reason": "UML-05: test inclusion must be a flag; the option is now provided by UMA."
+ },
+ {
+  "id": "HO-fix_UML_1-3",
+  "from": "fix:UML:1",
+  "file": "src/scpg/diagram/export/{plantuml,mermaid,json,xmi}.rs",
+  "change": "Render generalization_syms (multiple super-interfaces) and dependency_syms («use»/«create»). Use FieldRecord.assoc_kind/mult_min/mult_max/element_type_sym_id instead of final/name heuristics. Print signatures from MethodRecord.param_syms/param_type_syms. Key elements by the qualified_name_id label. Emit null file/lines when !uml_link_is_known(&link) and drop the fabricated file/lines/compiler_hash/verified. Use pattern_kind_name() for kinds 12-23. Render states/transitions (TRANSITION_FROM_ANY, INITIAL_STATE_UNKNOWN), objects/object_links, component provided/required lists, activity edge guards via uma.label(), and sequence fragments/reply/async/create messages, one diagram per SequenceDiagramRecord. Declare the actor lifeline with the same id (EXTERNAL_ACTOR_ID) used in its messages. Emit a 'no data' note when there are no records.",
+  "reason": "SCPG-03/SCPG-05/SCPG-18/UML-07/UML-08/UML-12/UML-14: UMA now carries the modeled facts and explicit unknowns."
+ },
+ {
+  "id": "HO-fix_UML_1-4",
+  "from": "fix:UML:1",
+  "file": "src/cg/resolution.rs",
+  "change": "Delete step 4 of resolve_method_target (the token-range enclosing match at about lines 224-234), which returns the enclosing caller method for unresolved calls; return None instead.",
+  "reason": "It creates spurious self call edges; UMA now drops edges whose callee name does not match the invoked identifier, but the CGA should not emit them in the first place (UML-02/UML-07)."
+ },
+ {
+  "id": "HO-fix_UML_1-5",
+  "from": "fix:UML:1",
+  "file": "src/symbol/passes/pass3_types.rs",
+  "change": "In step 3 (import-map resolution), resolve imported names against declared types' qualified names before creating SK_EXTERNAL placeholders.",
+  "reason": "Cross-file user types become externals; UMA works around this with UMAIndex::canon, but the other phases are still affected (UML-02/UML-04)."
+ },
+ {
+  "id": "HO-fix_UML_1-6",
+  "from": "fix:UML:1",
+  "file": "src/symbol/uml_meta/associations.rs",
+  "change": "Line 40: builder.std_lib.stubs.contains_key(\"List\") is always true, so every association becomes Aggregation 0..*. Test the field's own type instead.",
+  "reason": "UML-08: sta.associations is unusable as is, so UMA computes association kinds itself."
+ },
+ {
+  "id": "HO-fix_UML_1-7",
+  "from": "fix:UML:1",
+  "file": "src/symbol/uml_meta/patterns.rs",
+  "change": "Delete the unused PatternDetector (is_singleton/is_factory are never called).",
+  "reason": "UML-04: dead duplicate pattern detector."
+ },
+ {
+  "id": "HO-fix_UML_1-8",
+  "from": "fix:UML:1",
+  "file": "src/ast/adapter/java.rs",
+  "change": "Add arms for enum_constant (to produce SK_ENUM_CONSTANT), constructor_body, generic_type (keep the head type_identifier plus type arguments), catch_formal_parameter, resource_specification and compact_constructor_declaration.",
+  "reason": "SYM-12/SYM-06/UML-03: UMA consumes enum constants and has to scan constructor bodies from tokens because the AST drops them."
+ },
+ {
+  "id": "HO-fix_UML_1-9",
+  "from": "fix:UML:1",
+  "file": "src/symbol/passes/pass1_discovery.rs",
+  "change": "Disable the secondary token sweep for languages with an AST adapter, remove the hardcoded Spring/Lombok blocklist, and take declaration names from tree-sitter name fields.",
+  "reason": "SYM-02/SYM-04: UMA now excludes Java types without a declaration node, but the root cause is in pass1."
+ },
+ {
+  "id": "HO-fix_UML_1-10",
+  "from": "fix:UML:1",
+  "file": "src/symbol/builder.rs",
+  "change": "Make append_child unlink from the previous sibling chain, or derive children from parent_sym; do not reparent orphans under symbol 0.",
+  "reason": "SYM-05: UMA uses parent_sym only; other consumers still read the corrupted chains."
+ },
+ {
+  "id": "HO-fix_UML_1-11",
+  "from": "fix:UML:1",
+  "file": "src/symbol/passes/pass5_hierarchy.rs",
+  "change": "Read supertypes from the superclass/interfaces/extends_interfaces fields, not by token scan; report cycles as diagnostics instead of deleting edges.",
+  "reason": "SYM-06: UMA validates edges against declaration headers, but the TH graph is still wrong for the CGA."
+ },
+ {
+  "id": "HO-fix_UML_1-12",
+  "from": "fix:UML:1",
+  "file": "README.md, docs/overview.md",
+  "change": "Withdraw the 'F1 = 1.0000 across six languages' claim (README.md:60, overview.md:102-111) until it is re-measured; ruthless_config.json:59-92 no longer mirrors any engine filter.",
+  "reason": "BENCH-01: the engine-side shared denylist was removed."
+ },
+ {
+  "id": "HO-fix_UML_1-13",
+  "from": "fix:UML:1",
+  "file": "docs/openheart_research_paper.tex, ROADMAP.md",
+  "change": "Correct the claims about IFDS type-state state machines and thread-analysis timing diagrams (paper lines 811-812 and 1158-1162, ROADMAP line 107): state machines come from enum-field assignments with guards, and timing/deployment diagrams are not produced.",
+  "reason": "UML-03: the claims do not match the implementation."
+ },
+ {
+  "id": "HO-fix_UML_1-14",
+  "from": "fix:UML:1",
+  "file": "Cargo.toml",
+  "change": "Remove overflow-checks = false from [profile.dev].",
+  "reason": "AUTO-16: I am only allowed to change dependency lines in Cargo.toml."
+ },
+ {
+  "id": "HO-fix_UML_1-15",
+  "from": "fix:UML:1",
+  "file": "src/psa/bdd/sat_count.rs",
+  "change": "Return an exactness flag or use BigUint for counts above 2^64.",
+  "reason": "BDD-16: UMA now saturates and flags, but cannot tell an exact count from a clamped one."
+ },
+ {
+  "id": "HO-fix_UML_1-16",
+  "from": "fix:UML:1",
+  "file": "src/ingestion/*, src/core/types/token.rs",
+  "change": "Widen file_id and column beyond u16, as recommended in CORE-05.",
+  "reason": "CORE-05: UMA receives u16 file ids from TCA."
+ },
+ {
+  "id": "HO-fix_UML_1-17",
+  "from": "fix:UML:1",
+  "file": "src/main.rs",
+  "change": "inspect (lines 459-466): also print the counts of the new v2 sections (pattern_instances, objects, label_texts).",
+  "reason": "UML-10: UMASerializer::read now really validates the CRC and section structure, so the inspect report can show the new sections."
+ },
+ {
+  "id": "HO-fix_SCPG_1-1",
+  "from": "fix:SCPG:1",
+  "file": "tests/scpg_tests.rs",
+  "change": "Line 123: replace `SliceEngine::backward_slice(5, &sta, &ssa, &cga, 3)` with `SliceEngine::backward_slice(5, &cfa, &ssa, &cga, 3)`.",
+  "reason": "Statement-level slicing needs the CFG to map statements to blocks for control dependence; the signature is now (root_sym, &CFGArtifact, &SSAArtifact, &CallGraphArtifact, depth)."
+ },
+ {
+  "id": "HO-fix_SCPG_1-2",
+  "from": "fix:SCPG:1",
+  "file": "src/main.rs",
+  "change": "In the Scpg inspect branch (~line 937), after OpenHeartEngine::open: print engine.digest_hex() and engine.stats(), and run engine.verify() (via EngineBuilder::new().with_verification(VerifyPolicy::Full).open(path), or engine.verify()). Print the VerificationReport sections/checksums and fail on Some(Err). Add subcommands `query <file.scpg> <program|@file>` -> engine.run_query_json(program), `query --list` -> openheart::scpg::query::{RELATIONS, STARTER_QUERIES}, and `export --format ohb-json <file.scpg>` -> serde_json::to_string_pretty(&engine.export_ohb_json(&ExportInputs::default())).",
+  "reason": "SCPG-07/15, COMP-05, BENCH-09: the library APIs exist but the CLI routes are outside my paths."
+ },
+ {
+  "id": "HO-fix_SCPG_1-3",
+  "from": "fix:SCPG:1",
+  "file": "src/adapters/server.rs",
+  "change": "Add POST /api/query (bounded body = Datalog program, response = engine.run_query_json), GET /api/navigate?sym= (engine.to_source), GET /api/entities?file=&line=&col= (engine.entities_at), GET /api/export/ohb-json (engine.export_ohb_json). Share engine.queries() (Arc<QueryEngine>, Sync, no global lock) across worker threads.",
+  "reason": "COMP-05/SCPG-15/COMP-10: expose the queries over HTTP."
+ },
+ {
+  "id": "HO-fix_SCPG_1-4",
+  "from": "fix:SCPG:1",
+  "file": "src/adapters/runner.rs",
+  "change": "When building ohb-json, pass phase timings into scpg::api::ExportInputs { phase_timings_ms: Some(&[(name, ms)]) , cfg: Some(&cfa), ssa: Some(&ssa), .. }. For incremental runs: build SourceDelta::from_texts(file_id, old, new); plan = engine.plan_update(&delta); rerun plan.phases for plan.dirty_methods + plan.affected; then engine.commit_snapshot(ScpgSnapshot::from_artifacts(...)). Add --baseline <commit> using scpg::incremental::SnapshotDiff::compute(old, new).",
+  "reason": "BENCH-09 timings and COMP-07/BDD-08 partial rebuilds belong to the orchestrator."
+ },
+ {
+  "id": "HO-fix_SCPG_1-5",
+  "from": "fix:SCPG:1",
+  "file": "src/ingestion/parser/tree_sitter.rs",
+  "change": "Keep the previous tree_sitter::Tree per file; for each scpg::incremental::TextEdit call old_tree.edit(&(&edit).into()), then parser.parse(new_text, Some(&old_tree)), and return old_tree.changed_ranges(&new_tree) to the planner.",
+  "reason": "BDD-08/SCPG-10/COMP-07: incremental reparse (From<&TextEdit> for tree_sitter::InputEdit is provided in scpg::incremental::delta)."
+ },
+ {
+  "id": "HO-fix_SCPG_1-6",
+  "from": "fix:SCPG:1",
+  "file": "src/tra/uml_link/hash_chain.rs",
+  "change": "ScpgHashChain::scpg_hash (XOR/CRC of counts in Phase 7) cannot equal the final snapshot hash. Rename it to a Phase-7 build fingerprint, or stop writing it into UMLLinkRecord.scpg_hash. Engine-issued links use NavigationIndex::link_record stamped with scpg::serializer::integrity::short_hash(&digest), the single shared definition.",
+  "reason": "SCPG-14: links must be checkable against OpenHeartEngine::scpg_hash()."
+ },
+ {
+  "id": "HO-fix_SCPG_1-7",
+  "from": "fix:SCPG:1",
+  "file": "src/tra/forward/sym_span.rs",
+  "change": "Replace the backward walk in forward_sym_query (and the non-terminating loop in cs_span.rs forward_cs_query) with an enclosing-span parent index or a max-end segment tree (same scheme as scpg::query::navigation::NavigationIndex), and break early once first_token_id > token_id.",
+  "reason": "BDD-10: forward queries are O(n) per file."
+ },
+ {
+  "id": "HO-fix_SCPG_1-8",
+  "from": "fix:SCPG:1",
+  "file": "src/uma/structural/class_diagram.rs",
+  "change": "Lines ~304-308: replace the per-class `.find` over uml_links with a dense sym_id -> link slot array built once (or binary search, since links are sorted by sym_id).",
+  "reason": "BDD-10: O(C*U) lookup."
+ },
+ {
+  "id": "HO-fix_SCPG_1-9",
+  "from": "fix:SCPG:1",
+  "file": "src/scpg/diagram/export/json.rs",
+  "change": "Iterate BTreeMap or sort by sym_id/FQN before emitting nodes and edges; derive edge ids from hash(src, kind, dst); emit real spans via ScpgSnapshot.navigation.location(sym, &snapshot.files, snapshot.scpg_hash) instead of '<Name>.java' / [1,5,10]. Same ordering fix in mermaid.rs (call sort_children_and_edges, sort nested packages) and plantuml.rs.",
+  "reason": "SCPG-13 determinism and COMP-10 real UMLLink spans; diagram paths are not mine."
+ },
+ {
+  "id": "HO-fix_SCPG_1-10",
+  "from": "fix:SCPG:1",
+  "file": "src/psa/mod.rs",
+  "change": "Lines ~98-102: use Tarjan's emitted SCC order without .rev() (callee first). In psa/construction/recursive.rs, implement bounded unwinding instead of stamping unwind_depth=3 and compose callee summaries at call sites. The query side now lives in scpg::query::robdd::PathSummaryIndex (count_paths/is_feasible/witness/paths_through_edge).",
+  "reason": "BDD-12 recursion and interprocedural composition are Phase 8 work."
+ },
+ {
+  "id": "HO-fix_SCPG_1-11",
+  "from": "fix:SCPG:1",
+  "file": "src/cg/resolution.rs",
+  "change": "Replace per-call-site full symbol scans with a (parent, name) index. scpg::query::symbols::SymbolIndex::children_named gives O(log n) lookup and could be shared or built once per run.",
+  "reason": "COMP-08 quadratic hot path."
+ },
+ {
+  "id": "HO-fix_SCPG_1-12",
+  "from": "fix:SCPG:1",
+  "file": "src/tra/delta/mod.rs",
+  "change": "DeltaApplicator::compute_delta / StaleDetector compare positional ids. Remove them or delegate to scpg::incremental::SnapshotDiff and IncrementalEngine::commit, which key entities by stable id and position-independent fingerprints.",
+  "reason": "BDD-08: dead and unsound positional invalidation."
+ }
+]

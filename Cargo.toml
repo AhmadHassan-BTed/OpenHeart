@@ -2,15 +2,49 @@
 name = "openheart"
 version = "0.1.0"
 edition = "2021"
+# Minimum supported Rust version. The floor is set by the locked dependency graph
+# (sha2 0.11.1 declares rust-version 1.88). A dependency that raises it, a tree-sitter
+# runtime or grammar upgrade included, raises this line with it; `make msrv` checks
+# the crate against it.
+rust-version = "1.88"
 authors = ["OpenHeart Developers"]
-description = "High-performance lexical ingestion and token corpus pipeline for cardiac/code processing"
+description = "Static program-analysis engine: a 10-phase tree-sitter pipeline from source code to symbol tables, CFG/SSA, call graphs, path summaries and UML diagrams"
+license = "MIT"
+repository = "https://github.com/AhmadHassan-BTed/OpenHeart"
+homepage = "https://ahmadhassan-bted.github.io/OpenHeart/"
+readme = "README.md"
+keywords = ["static-analysis", "uml", "call-graph", "tree-sitter", "java"]
+categories = ["development-tools", "command-line-utilities", "visualization"]
+# Ship only what is needed to build the library and the CLI. Benchmark datasets,
+# the web studio, the research paper and the Python harnesses stay out of the
+# published crate.
+include = [
+  "/src/**",
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/README.md",
+  "/LICENSE",
+  "/CHANGELOG.md",
+]
 
 [dependencies]
-tree-sitter = "0.20"
-tree-sitter-java = "0.20"
-tree-sitter-javascript = "0.20"
+# One tree-sitter runtime for every grammar. The grammars are ABI-coupled to it: each
+# exports its parser through the `tree-sitter-language` bridge
+# (`tree_sitter_<lang>::LANGUAGE.into()` yields a `tree_sitter::Language`), and the
+# parser ABI it was generated with (14 or 15) must lie in the range the 0.25 runtime
+# loads (13 to 15). A grammar built against another runtime major (0.20's
+# `language()` API) links a distinct `Language` type and cannot be used at all, so
+# the runtime and the grammars are upgraded together, never one crate on its own.
+tree-sitter = "0.25"
+tree-sitter-java = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-kotlin-ng = "1"
+tree-sitter-c = "0.23"
+tree-sitter-cpp = "0.23"
+tree-sitter-c-sharp = "0.23"
 sha2 = "0.11"
 memmap2 = "0.9"
+ignore = "0.4"
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -18,6 +52,46 @@ serde_json = "1.0"
 [dev-dependencies]
 tempfile = "3.8"
 
+[features]
+default = ["server"]
+# The HTTP backend of the web studio and REST API, and the GitHub repository fetcher
+# that shells out to git (`adapters::server`, `adapters::web_repo`). Embedders that
+# need only the analysis engine depend on the crate with `default-features = false`
+# and compile neither; `make check` builds the library that way.
+server = []
+
+[[bin]]
+name = "openheart"
+path = "src/main.rs"
+# The CLI's `server` subcommand links the HTTP backend.
+required-features = ["server"]
+
+# The crate itself builds at opt-level 1: incremental rebuilds stay fast and most
+# locals stay visible in a debugger. Dependencies (the tree-sitter runtime and the grammars'
+# generated C parsers, sha2, serde) build at opt-level 2 once and are then cached, so
+# a debug binary still parses and hashes real repositories at a practical speed.
+# Overflow checks keep their default (on): bit-packing, rank/select, ID and index
+# arithmetic trap instead of wrapping silently.
 [profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
 opt-level = 2
-overflow-checks = false
+
+# `cargo test` inherits from dev. Both checks are pinned here so that no future
+# dev-speed tweak can switch off arithmetic or invariant checking under test.
+[profile.test]
+overflow-checks = true
+debug-assertions = true
+
+# Distributed binaries: cross-crate optimisation over the whole dependency graph.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# Release code generation with full symbols, for perf, samply, VTune or
+# cargo-flamegraph: `cargo build --profile profiling` (or `make profile-build`).
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"

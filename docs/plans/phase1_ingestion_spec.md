@@ -2,6 +2,8 @@
 
 ## Phase 1: Lexical Ingestion & Token Corpus Construction — Full Specification
 
+> **Status: design specification.** This plan describes the target design of Phase 1. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
 ### 1.1 Phase Mandate & Exact Boundaries
 
 Phase 1 is the only phase that ever touches raw source bytes. Its single contractual obligation is: consume source text, produce an immutable, mathematically stable Token Corpus. The `token_id` assigned in this phase is the **universal traceability anchor** — a monotonic u32 that propagates upward through all nine subsequent phases and is embedded into every generated UML element. No upstream phase ever re-assigns or re-interprets a token_id.
@@ -296,6 +298,7 @@ Offset  Size  Type     Field
  0       2    u16_le   file_id           (0-indexed, assigned by sorted path order)
  2       1    u8       language_id       (LangId enum: Java=0x01, Kotlin=0x02, ...)
  3       1    u8       flags             (bit 0: has_bom, bit 1: crlf_line_endings)
+                         (Implementation at the audited baseline: flags was always 0; BOM and CRLF were not detected)
  4      32    [u8;32]  content_sha256    (SHA-256 of raw file bytes)
 36       4    u32_le   path_str_offset   (byte offset into path string section)
 40       8    u64_le   file_size_bytes

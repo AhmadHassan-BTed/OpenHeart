@@ -1,108 +1,42 @@
-//! Initial variable ordering from reverse post-order traversal of CFG edges (§8.2.4, §8.5.2).
+//! Locality-preserving initial variable ordering (§8.2.4, §8.5.2).
 //!
-//! RPO provides the initial position vector for the FORCE algorithm. Edges discovered
-//! earlier in DFS (from the entry block) receive lower position values.
+//! The size of the path ROBDD is governed by its *frontier*: at every level, how many
+//! distinct "where is the path now" states are still open. Ordering variables by the
+//! position of their block in a topological order of the CFG DAG (reverse post-order of a
+//! DFS from ENTRY), with each block's loop-entry variable immediately followed by its
+//! out-edges, keeps a block's incoming and outgoing edges adjacent and makes the frontier
+//! equal to the set of blocks a path can be "between" — linear BDD size for
+//! series-parallel (structured) code.
+//!
+//! The previous seed was a DFS *edge pre-order*, which interleaves unrelated branches and
+//! produced orders up to two orders of magnitude worse than a plain topological order.
 
-use crate::cfg::builder::FunctionCFGData;
+use crate::psa::construction::graph::PathGraph;
+use crate::psa::ordering::VarKey;
 
-/// Compute the initial RPO ordering of CFG edges.
-///
-/// Returns `rpo_order[position] = edge_index_into_cfg_edges[]`.
-/// The DFS is rooted at block 0 (the ENTRY block in all OpenHeart CFGs).
-pub fn rpo_edge_ordering(cfg: &FunctionCFGData) -> Vec<usize> {
-    let n_blocks = cfg.blocks.len();
-    let n_edges = cfg.edges.len();
+/// Compute the seed ordering, top level first: for each reachable block in topological
+/// order, its loop-entry variable (if it is a loop header) followed by its out-edges; then
+/// every remaining edge (inactive edges — they are constrained to 0) in id order.
+pub fn locality_seed(graph: &PathGraph) -> Vec<VarKey> {
+    let n_edges = graph.n_edges();
+    let mut placed = vec![false; n_edges];
+    let mut order: Vec<VarKey> = Vec::with_capacity(n_edges + graph.headers().len());
 
-    if n_edges == 0 {
-        return Vec::new();
-    }
-
-    let mut visited = vec![false; n_blocks];
-    let mut edge_order: Vec<usize> = Vec::with_capacity(n_edges);
-    let mut in_order = vec![false; n_edges];
-
-    // DFS stack: (block_id, successor_index_within_succ_adj)
-    let entry = 0u32;
-    let mut stack: Vec<(u32, usize)> = vec![(entry, 0)];
-    if n_blocks > 0 {
-        visited[0] = true;
-    }
-
-    while let Some((block, succ_i)) = stack.last_mut() {
-        let block_id = *block;
-        let succs = succ_list(cfg, block_id);
-
-        if *succ_i < succs.len() {
-            let succ = succs[*succ_i];
-            *succ_i += 1;
-
-            // Find the edge index for (block_id → succ).
-            if let Some(eidx) = edge_index_of(cfg, block_id, succ) {
-                if !in_order[eidx] {
-                    edge_order.push(eidx);
-                    in_order[eidx] = true;
-                }
+    for &b in graph.topo_order() {
+        if graph.is_header(b) {
+            order.push(VarKey::LoopEntry(b));
+        }
+        for &e in graph.out_edges(b) {
+            if !placed[e as usize] {
+                placed[e as usize] = true;
+                order.push(VarKey::Edge(e));
             }
-
-            if (succ as usize) < n_blocks && !visited[succ as usize] {
-                visited[succ as usize] = true;
-                stack.push((succ, 0));
-            }
-        } else {
-            stack.pop();
         }
     }
-
-    // Include any edges not reached by DFS (dead code / back edges not traversed).
-    for i in 0..n_edges {
-        if !in_order[i] {
-            edge_order.push(i);
+    for (e, done) in placed.iter().enumerate() {
+        if !done {
+            order.push(VarKey::Edge(e as u32));
         }
     }
-
-    edge_order
-}
-
-/// Compute the position vector for the RPO ordering.
-///
-/// Returns `pos[edge_index] = position_in_rpo_ordering`.
-/// This is the initial position vector fed into FORCE.
-pub fn rpo_positions(rpo_order: &[usize]) -> Vec<f64> {
-    let n = rpo_order.len();
-    let mut pos = vec![0.0f64; n];
-    for (position, &edge_idx) in rpo_order.iter().enumerate() {
-        if edge_idx < n {
-            pos[edge_idx] = position as f64;
-        }
-    }
-    pos
-}
-
-/// Helper: get the successor block IDs for `block_id` from the CSR succ_adj.
-pub(crate) fn succ_list(cfg: &FunctionCFGData, block_id: u32) -> &[u32] {
-    let idx = block_id as usize;
-    if idx + 1 < cfg.succ_offsets.len() {
-        let s = cfg.succ_offsets[idx] as usize;
-        let e = cfg.succ_offsets[idx + 1] as usize;
-        &cfg.succ_adj[s..e]
-    } else {
-        &[]
-    }
-}
-
-/// Helper: get the predecessor block IDs for `block_id` from the CSR pred_adj.
-pub(crate) fn pred_list(cfg: &FunctionCFGData, block_id: u32) -> &[u32] {
-    let idx = block_id as usize;
-    if idx + 1 < cfg.pred_offsets.len() {
-        let s = cfg.pred_offsets[idx] as usize;
-        let e = cfg.pred_offsets[idx + 1] as usize;
-        &cfg.pred_adj[s..e]
-    } else {
-        &[]
-    }
-}
-
-/// Helper: find the index of edge (from → to) in cfg.edges[].
-pub(crate) fn edge_index_of(cfg: &FunctionCFGData, from: u32, to: u32) -> Option<usize> {
-    cfg.edges.iter().position(|&(f, t, _)| f == from && t == to)
+    order
 }

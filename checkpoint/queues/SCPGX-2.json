@@ -1,0 +1,1238 @@
+[
+ {
+  "id": "E2E-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "The five compiler-IR diagrams and several UML views are hard-coded templates; Phase 4-8 data has no path to any exporter",
+  "files": [
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/uma/behavioral/state_machine.rs",
+   "src/uma/behavioral/communication_diagram.rs",
+   "src/uma/behavioral/interaction_overview.rs",
+   "src/uma/behavioral/timing_diagram.rs",
+   "src/uma/structural/composite_diagram.rs",
+   "web/diagrams/cfg.json"
+  ],
+  "evidence": "Exporters receive only (uma, sta, tca) (factory.rs:50-56,314-325), so .cfa, .ssa, .cga and .psa cannot reach any diagram. The JSON cfg/dfg/cdg/callgraph/robdd exporters ignore all inputs and emit OpenHeart's own pipeline ('v0 = load manifest', 'main() -> ingest_sources()') with compiler_hash 0x83D2D2B2 and verified: true (json.rs:1748-2101). PlantUML and Mermaid emit fixed 4-block CFGs, 'var_name: retries', '(amount > 0) -> repository.saveOrder()', and a call chain in HashSet order with a fake SCC loop (plantuml.rs:1253-1450; mermaid.rs:1389-1620). State machines are a 2-state template (state_machine.rs:22-50). Four extractors have empty bodies (communication_diagram.rs:9-11; interaction_overview.rs:9-15; timing_diagram.rs:8-10; composite_diagram.rs:9-11).",
+  "impact": "Every project receives fabricated CFG, DFG, CDG, CG and ROBDD views labelled verified, so README's 19 derived projections are overstated and users cannot tell real views from templates. The committed Pages demo even cites a nonexistent PipelineControlFlow.java.",
+  "recommendation": "Pass a read-only AnalysisDb holding all artifacts to every exporter. Render the CFG from cfa.functions (blocks, typed edges, idom), the DFG from the def-use CSR, the CDG from ssa.cdg, the CG from cga.callee_csr plus sccs, the ROBDD from psa.node_arrays, and state machines from type-state facts. Delete the templates; when data is absent, emit an explicit 'no data' node. Lock each diagram with insta snapshots on 3 or more fixtures, and assert that JSON, PlantUML and Mermaid share the same node and edge sets.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Compiler-IR diagrams are constant templates, and the CDG hard-codes the paper's PaymentService example",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "tests/research_paper_theorems_tests.rs"
+  ],
+  "evidence": "json.rs:1748-2100: the CFG, DFG, CDG, call-graph and ROBDD exporters take `_uma,_sta,_tca` and return fixed nodes describing OpenHeart itself (\"v0 = load manifest\", \"compute_idom\", \"x2: ASTAcyclic\"). plantuml.rs:1271-1283 emits the same 4-block diamond for every function; 1355-1363 hard-code `var_name: retries`. plantuml.rs:1387-1390 and mermaid.rs:1566-1570 hard-code \"(amount > 0)\" and \"repository.saveOrder()\", which is the PaymentService fixture in research_paper_theorems_tests.rs:107-112. plantuml.rs:1432-1446 chains HashSet-ordered nodes as \"CHA/1-CFA dispatch\" and adds a \"Tarjan SCC cycle <<Recursive>>\" self-loop on every input. No exporter reads CFA, SSA, CGA or PSA.",
+  "impact": "5 of the 19 advertised projections show the same picture for any codebase; on unseen or renamed code only the labels change. The fabricated call-graph edges are also nondeterministic across runs because they follow HashSet order.",
+  "recommendation": "Pass the CFGArtifact, SSAArtifact, CallGraphArtifact and PathSummaryArtifact into the exporters and render from them: CFG from the successor CSR plus the idom tree, DFG from the def-use CSR and PhiRecords, CDG from CDGCSR, call graph from callee_csr with SCC membership, ROBDD from psa.node_arrays. Sort all output. Done = insta golden tests on about 10 hand-labelled functions (if, loop, switch, try, recursion), plus a test that template literals (\"retries\", \"saveOrder\") never appear for an unrelated fixture.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "MANDATE-CORE-ARCH-SCPGX",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "critical",
+  "title": "Language-neutral, compiler-grade rewiring of your paths (no hard-coding, no templates)",
+  "files": [
+   "src/scpg/diagram/"
+  ],
+  "evidence": "OpenHeart must support every language with language-agnostic algorithms, and must never hard-code, template or guess: it works the way compilers do, statically. New code is being written now (read what exists): src/lang (neutral.rs universal vocabulary, frontend.rs LanguageFrontend trait, registry.rs single list of languages, profile.rs, build/ for compile_commands, CMake and MSBuild, preprocess.rs, project_model.rs, uml_semantics.rs, idioms.rs, frontends java, kotlin, c, cpp, csharp); src/ir (typed three-address SSA IR with explicit memory operations, lowering from the AST, dominators); src/memory (abstract heap, field-sensitive points-to with on-the-fly call graph, escape, ownership, mod/ref); src/analysis (lattices, worklist solvers, SCCP, intervals, nullness, typestate, control dependence, IFDS/IDE, contexts, canonical branch conditions); src/derive (every diagram derived from those facts with provenance and a Derivation tag, NotDerivable instead of invention); src/symex (bounded static symbolic execution with a stack, heap and path-condition model producing execution traces); src/abi (C/C++ Itanium and MSVC, JVM and CLR memory layouts, lifetimes, calling conventions); src/arch (architecture recovery: dependency graph, DSM, layers, clustering, metrics, boundaries); src/memview (lifetime, ownership, heap-shape and stack-frame views plus memory-safety and data-race facts). Everything from the architectural flow down to memory-level execution must come from these facts, for every language, with semantics exactly per each language specification. Contract names: LangId::C, LangId::Cpp, LangId::CSharp; ASTNodeType additions NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_TEMPLATE_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_INCLUDE_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT, NN_YIELD_STMT.",
+  "impact": "Without this, OpenHeart stays Java-specific and heuristic instead of a universal, compiler-grade engine.",
+  "recommendation": "Make every exporter render src/derive/model.rs DiagramModel only: delete all hard-coded templates and sample content; render NotDerivable and Partial explicitly; language-neutral naming (., ::), templates and generics, properties, events, operators, destructors, structs, unions and namespaces.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-5",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Decode ordering-table entries with crate::psa::ordering::VarKey::from_code(code): codes with LOOP_EN",
+  "files": [
+   "src/scpg/diagram/views/analysis.rs (variable_label",
+   "robdd_view)"
+  ],
+  "evidence": "Decode ordering-table entries with crate::psa::ordering::VarKey::from_code(code): codes with LOOP_ENTRY_FLAG are loop-entry variables of header block `code & !LOOP_ENTRY_FLAG`, not CFA edge ids. Label functions with PSA_FLAG_BDD_UNAVAILABLE (root_node == PSA_NO_ROOT) as 'summary unavailable'.",
+  "impact": "PSA v2 ordering tables hold Ball-Larus loop-entry variables next to edge ids, and over-budget functions store no ROBDD (BDD-02, BDD-03).",
+  "recommendation": "Decode ordering-table entries with crate::psa::ordering::VarKey::from_code(code): codes with LOOP_ENTRY_FLAG are loop-entry variables of header block `code & !LOOP_ENTRY_FLAG`, not CFA edge ids. Label functions with PSA_FLAG_BDD_UNAVAILABLE (root_node == PSA_NO_ROOT) as 'summary unavailable'.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Import, package and module semantics are dead or based on Java strings; types are joined by simple name",
+  "files": [
+   "src/ast/adapter/java.rs",
+   "src/symbol/passes/pass2_imports.rs",
+   "src/symbol/scope_graph/resolver.rs",
+   "src/symbol/passes/pass3_types.rs",
+   "src/symbol/passes/pass4_members.rs",
+   "src/symbol/passes/pass5_hierarchy.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/symbol/passes/pass1_discovery.rs"
+  ],
+  "evidence": "The Java reducer has no import_declaration or package_declaration arm (`_ => Drop`, src/ast/adapter/java.rs:129), so Pass 2 never sees a Java import. For other languages, src/symbol/passes/pass2_imports.rs:27-37 tests starts_with(\"import \") on space-joined tokens (:63). Kotlin `import kotlin.math.max` therefore yields the key ' max', and the JS `import` keyword is an anonymous token that never reaches the corpus. `wildcard_imports` (src/symbol/scope_graph/resolver.rs:57) is never called. Cross-file Java types fall back to SK_EXTERNAL (pass3_types.rs:86). Passes 4-5 and the PlantUML exporter then re-join by simple name, last insert wins (pass4_members.rs:32, pass5_hierarchy.rs:33, src/scpg/diagram/export/plantuml.rs:442-447). Packages come only from a 'package' token scan (pass1_discovery.rs:464-573).",
+  "impact": "Same-named types in different packages, modules or languages (com.a.User vs com.b.User, Kotlin User vs TS User) are merged in types, inheritance and associations. Python, TS and Rust module structure never reaches package diagrams.",
+  "recommendation": "Replace Passes 2-3 with a real scope-graph resolver (van Antwerpen et al.), for example tree-sitter-stack-graphs rule sets (Java, Python, TypeScript and JavaScript exist; vendor them if upstream is archived). Add per-language module resolvers: Java/Kotlin packages and file facades, Python packages with __init__ and relative imports, ES modules with tsconfig paths, Rust mod trees. Key every symbol by qualified name and forbid simple-name HashMaps. Done = same-name, two-package fixtures per language with exact edges.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Primitive and JDK-stub type ids are not written to .sta, so int, void, String and List members render with blank types",
+  "files": [
+   "src/symbol/serializer.rs:37-39",
+   "src/symbol/serializer.rs:64",
+   "src/symbol/builder.rs:240-246",
+   "src/symbol/std_library/java_stubs.rs:122-147",
+   "src/symbol/adapter/java.rs:21-29",
+   "src/symbol/passes/pass3_types.rs:38-42",
+   "src/symbol/passes/pass3_types.rs:80-84",
+   "src/scpg/diagram/export/plantuml.rs:176-208",
+   "src/scpg/diagram/export/plantuml.rs:338-361"
+  ],
+  "evidence": "Passes 3 and 4 store 0xB000_000x (primitives) and 0xC000_000x (stubs) as type ids. Only builder.symbols is serialized; stub records stay in std_lib.stub_records with name_id u32::MAX, and primitives have no record at all. SymbolTableArtifact::symbol() only indexes symbol_records, so resolve_name returns \"\" and PlantUML prints `+count : ` and `+getName() : `.",
+  "impact": "Almost every class-diagram member whose type is a primitive, void or a JDK type loses its type. TH_USES targets also point to ids that are not in .sta.",
+  "recommendation": "Insert stub and primitive SymbolRecords (with interned names and qual_name_id) into the table when the builder is created, or serialize them as a typed side table that symbol() can read. Replace magic id ranges with an explicit SymbolRef enum. Test resolve_name for int, void and String members after a round trip.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-18",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Use the FQN or the symbol id as node identity in every exporter, with display aliases (`class \"Confi",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/symbol/passes/pass4_members.rs"
+  ],
+  "evidence": "Use the FQN or the symbol id as node identity in every exporter, with display aliases (`class \"Config\" as a.Config`). Key class_by_name and the edges by that identity. In pass 4, resolve types through the scope graph and imports instead of the simple-name class_name_to_sym map.",
+  "impact": "FIT-10: same-named classes in different packages are merged.",
+  "recommendation": "Use the FQN or the symbol id as node identity in every exporter, with display aliases (`class \"Config\" as a.Config`). Key class_by_name and the edges by that identity. In pass 4, resolve types through the scope graph and imports instead of the simple-name class_name_to_sym map.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Package diagrams mix segment names with full paths, adding stray root packages",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "Pass 1 gives each package symbol a one-segment name_id and puts the full path only in custom_package_names (src/symbol/passes/pass1_discovery.rs:543-556). PlantUML inserts resolve_name(pkg.package_sym_id), i.e. the segment, into all_pkg_paths next to full class paths (plantuml.rs:658-671), so `package com.example.app` renders com→example→app plus stray roots `example` and `app`. Mermaid emits Pkg_com, Pkg_example and Pkg_app beside Pkg_com_example_app (mermaid.rs:908-933).",
+  "impact": "Every multi-segment package produces duplicate, disconnected packages, which misrepresents the architecture in both formats.",
+  "recommendation": "Resolve package records through sta.custom_package_names (the full path), build one tree from full paths in both exporters, and add a test asserting that `package a.b.c` yields exactly one root.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Primitive and JDK member types render blank or 'Unknown' in every format",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "Primitive type ids are sentinels 0xB000_0000+ (src/symbol/adapter/java.rs:21-29) and java.lang/java.util stubs are 0xC000_0000+ (src/symbol/std_library/java_stubs.rs:8-21), but SymbolTableArtifact::symbol only indexes symbol_records (src/symbol/serializer.rs:37-39). So `int count` renders `+count : ` in PlantUML (plantuml.rs:338-346), an empty type in JSON (json.rs:208-209), and `+count Unknown` / `+run() Unknown` in Mermaid (mermaid.rs:700-735). Stubbed supertypes such as Exception also drop out.",
+  "impact": "int, String, List, void and other common member types are missing or wrong in class, object and composite diagrams.",
+  "recommendation": "Add a shared type-name resolver that maps primitive and stub sentinel ids to names (or persist stub records in .sta), use it in every exporter, and test rendering of int, String and void.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Interaction overview resolves scenario_name (an interner id) as a symbol id",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "The UMA builder stores `scenario_name: entry_sym_rec.name_id` (src/uma/behavioral/sequence_diagram.rs:156), but plantuml.rs:1160 and mermaid.rs:1312 call resolve_name(sta, tca, seq.scenario_name), which looks up an unrelated symbol. The gallery labels the App() scenario 'generateSRSWithProgress' (web/diagrams/interaction.mmd:2 vs sequence.mmd:3) and shows three 'Scenario_Unknown' subgraphs (interaction.mmd:6,10,14). PlantUML drops scenarios whose bogus lookup comes back empty.",
+  "impact": "Every scenario in PlantUML and Mermaid interaction overviews is mislabeled or silently dropped.",
+  "recommendation": "Use tca.interner.lookup_text(seq.scenario_name), or store the entry symbol id explicitly in the record. Document what the field holds in uma/types.rs, and test that the label equals the entry method name.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Collection-typed fields never yield associations to their element type",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "A `List<Order>` field's type_sym_id is the List stub taken from the type-ref's first token (src/symbol/passes/pass4_members.rs:41-58), and UMA hardcodes is_collection: 0 (src/uma/structural/class_diagram.rs:215). The stub is unresolvable (SCPGX2-02), so PlantUML (plantuml.rs:474-478), JSON (json.rs:349-355) and the association_syms Mermaid uses (class_diagram.rs:253-265) all drop the edge. clean_type_name's generic parsing (json.rs:93-112) never sees type arguments. SCPG-18 covers arrow kinds; here the edge is missing entirely.",
+  "impact": "One-to-many relationships, the backbone of domain models, are missing from every class diagram.",
+  "recommendation": "Record element/type-argument symbols for fields upstream. Emit an association or aggregation with multiplicity * to the element type in every exporter, and remove the dead generic parsing.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "No typed ID discipline: ids from one space are read as another at six phase boundaries",
+  "files": [
+   "src/cg/points_to.rs",
+   "src/uma/structural/object_diagram.rs",
+   "src/ssa/renaming.rs",
+   "src/cg/mod.rs",
+   "src/cg/resolution.rs",
+   "src/psa/construction/feasibility.rs",
+   "src/ssa/ifds.rs",
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/tra/backward/ssa_bi.rs",
+   "src/tra/backward/blk_bi.rs"
+  ],
+  "evidence": "AST node ids stored in SSARecord.orig_sym_id are looked up as symbol ids by points-to (points_to.rs:31) and by the object diagram (object_diagram.rs:16,27). Per-function ssa_ids (renaming.rs:124,159) key a global points-to table (cg/mod.rs:71-78) and are matched across all functions (resolution.rs:152-154). Phase 8 reads IFDS 'taint source 1' as a block id (ifds.rs:25 vs feasibility.rs:88-93). It also uses ssa_id as a BDD variable index that collides with edge variables (feasibility.rs:122). Exporters pass scenario_name, which is a name_id, as a symbol id (sequence_diagram.rs:156; plantuml.rs:1160; mermaid.rs:1312). ssa_bi.rs:13-24,35 derives block bases from max(def_block)+1, unlike bi_blk (blk_bi.rs:12-27).",
+  "impact": "Object diagrams, points-to sets, #SAT path counts, interaction-overview titles and phi source spans silently refer to unrelated entities. The compiler cannot catch any of it because every id is a bare u32.",
+  "recommendation": "Introduce newtypes TokenIdx, NodeId, SymbolId, TextId, FuncId, BlockId{func,local} and SsaId{func,local}, with no implicit conversions. rust-analyzer does the same with la_arena::Idx<T> and salsa interned ids. Store a per-function block-offset table in .cfa and use it wherever global block ids are formed. Done = cargo check rejects the call sites above, and a test asserts that every object-diagram type_sym_id is a class symbol.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Traceability stops at Phase 9: exporters ignore UMLLink spans and fabricate file names and line numbers",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs",
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "Phase 7 computes exact (file_id, line, col) UMLLinkRecords, and Phase 9 copies them into ClassRecord.uml_link (class_diagram.rs:304-319). No exporter under src/scpg reads uml_link, uml_link_node or uml_link_token. The JSON IR the studio loads sets file to '<Name>.java' and lines to [1, 5, 10] (json.rs:267-268; also 580-581, 671-672, 733-734) and hard-codes 'OpenHeartEngine.java' (json.rs:1447). The editor requests /api/source by that guessed name (editor.js:160-161). The server then matches it by file stem across fixed example folders (server.rs:109-224). NavigationEngine::to_source and from_source are linear scans (navigation.rs:9-27).",
+  "impact": "Click-to-source is wrong for Kotlin files, files with several classes, nested classes and duplicate names, and it always highlights lines 1, 5 and 10. The O(1) source-to-diagram traceability claim therefore fails at the UI.",
+  "recommendation": "Attach a source anchor to every diagram node and edge: root-relative path, start/end line and column, and token range, taken from ClassRecord.uml_link and MessageRecord.uml_link_token. Serve sources by (session, file_id), never by name. Make to_source an O(1) index (uml_links is already sorted by sym_id) and from_source an interval-tree lookup. Done = for each fixture class, the JSON anchor equals the declaration position reported by JavaParser or javac.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "No two runs produce identical artifacts or diagrams: timestamps, mtimes, HashMap order and raw path strings leak into outputs",
+  "files": [
+   "src/ingestion/serializer.rs",
+   "src/ingestion/mod.rs",
+   "src/ast/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/scpg/serializer/mod.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/ssa/placement.rs"
+  ],
+  "evidence": ".tca embeds SystemTime::now() and per-file mtimes (ingestion/serializer.rs:80-84,115; ingestion/mod.rs:62-67). .bpa embeds the .tca CRC (ast/serializer.rs:31), so every later link hash changes on each run. .sta serializes two HashMaps in iteration order (symbol/serializer.rs:169,180). .scpg embeds a timestamp (scpg/serializer/mod.rs:136-140). The TRA hash is taken over Debug output that includes mtimes (hash_chain.rs:36). Iteration order also leaks: HashSet-to-Vec relations (class_diagram.rs:300-301), lifelines via into_values (sequence_diagram.rs:153), JSON packages, edges and edge ids (json.rs:148,445,518), call-graph edges in HashSet order (plantuml.rs:1432; mermaid.rs:1605), and phi order (placement.rs:37). Invocation path strings are stored verbatim (ingestion/mod.rs:137-138).",
+  "impact": "Results cannot be reproduced or diffed, golden tests are impossible, the committed web/diagrams change on every run, and all UMLLinks look stale after a rebuild. README's 'deterministically derives' claim is false.",
+  "recommendation": "Use BTreeMap or IndexMap, or sort, before every serialization and export. Drop wall-clock timestamps from artifacts (or honour SOURCE_DATE_EPOCH) and keep mtimes out of hashes. Store root-relative POSIX paths (camino, path-slash). Add a CI job that runs analyze twice, once from another working directory and with shuffled discovery order, and requires byte-identical outputs (cmp or diffoscope, as reproducible-builds.org recommends).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "GoF detection is keyed on class-name substrings; the structural detectors that exist are never called",
+  "files": [
+   "src/uma/patterns/factory.rs",
+   "src/uma/patterns/state.rs",
+   "src/uma/patterns/strategy.rs",
+   "src/uma/patterns/adapter.rs",
+   "src/uma/patterns/facade.rs",
+   "src/uma/patterns/composite.rs",
+   "src/uma/patterns/builder.rs",
+   "src/uma/patterns/mod.rs",
+   "src/uma/patterns/query.rs",
+   "src/uma/patterns/observer.rs",
+   "src/uma/patterns/template_method.rs",
+   "src/symbol/uml_meta/patterns.rs",
+   "src/scpg/diagram/export/plantuml.rs"
+  ],
+  "evidence": "factory.rs:17 is name-only (`contains(\"factory\")` gives 90). state.rs:18 fires on \"state\" or \"strategy\" (85). strategy.rs:20-21 gives 95 from the name; adapter.rs:21-22, facade.rs:18-19 and composite.rs:28-29 accept the name alone; builder.rs:33 checks `ends_with(\"Builder\")`. mod.rs runs State (101-112) before Strategy (140-151), so PaymentStrategy is rendered «State» (plantuml.rs:315-320). The query.rs:78-132 helpers and the structural detectors in symbol/uml_meta/patterns.rs:20-137 have no callers. Simulation: the name predicates label 8 example classes; after neutral renaming 6 lose their label, and only Builder and Decorator have structural fallbacks.",
+  "impact": "Labels disappear under renaming or non-English naming and appear on names like StatementParser and SessionFactoryBean. The bundled Factory Method (Logistics), Observer (NewsAgency.attach; observer.rs:25-29 requires \"listener\") and Template Method (DataMiner; template_method.rs:32 requires a protected method) examples are missed.",
+  "recommendation": "Detect roles structurally and behaviourally over SCPG facts. Options: similarity scoring on generalization/association/invocation matrices as in Tsantalis et al. (TSE 2006), or Datalog rules (Soufflé, or Rust ascent/crepe) using the call graph and points-to: Decorator forwards to a field typed as its supertype, Observer iterates an observer collection, Template Method calls abstract primitives. Names may only nudge confidence. Done = a rename-invariance test passes and P/R are reported on P-MARt.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Most UML behavioral views and the XMI export are templates or empty stubs presented as derived",
+  "files": [
+   "src/uma/behavioral/state_machine.rs",
+   "src/uma/behavioral/timing_diagram.rs",
+   "src/uma/behavioral/communication_diagram.rs",
+   "src/uma/behavioral/interaction_overview.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/xmi.rs"
+  ],
+  "evidence": "state_machine.rs:10-64 claims IFDS typestate but leaves `_ssa` unused; it turns every class with a method into a 2-state machine. The exporters add invented states and actions \"Uninitialized\", \"Active\", \"onInit()\", \"executeWork()\" and \"cleanup()\" (plantuml.rs:1005-1016; json.rs:758-853). The timing, communication and interaction extractors have empty bodies. Use-case actors are classes whose names end in Controller/Client/App/Main/Service/Facade, and use cases are the first 3 methods of the first 6 classes (plantuml.rs:886-946). Fallbacks invent `execute()` chains (json.rs:656-690), an \"OpenHeartEngine\" composite (1436-1493) and `X.jar` nodes (1161-1217). Activities emit `if (eval_branch)` with no endif (plantuml.rs:972). XMI writes only `name=\"Class_{id}\"` (xmi.rs:13).",
+  "impact": "About half of the \"14 UML 2.5 diagrams\" carry no program-specific information and look structurally the same on any input. The XMI cannot be imported meaningfully into any UML tool, and invalid PlantUML (an unclosed if) gets through.",
+  "recommendation": "Ship only projections with a real derivation and mark the rest experimental. Derive state machines from enum or state fields and guarded assignments, using typestate over the existing IFDS solver. Derive use cases from framework entry points (@RestController/@*Mapping, Android components) via the call graph. Drop the timing view unless clock or thread events are modelled. Export full UML2 XMI (names, attributes, operations, generalizations) and validate it with Eclipse UML2. Done = golden tests per exporter, and PlantUML `-checkonly` passes.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Traceability in the delivered UI is fabricated, and source lookup is overfit to the example corpus",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/adapters/server.rs",
+   "web/js/editor.js",
+   "web/js/graph-canvas.js"
+  ],
+  "evidence": "Every JSON class node gets `file: \"{Name}.java\"` and `lines: [1, 5, 10]` (json.rs:267-268), although ClassRecord carries a real UMLLink; other views use `lines: vec![1]` (581, 672, 734, 1394, 1472). /api/source first tries hard-coded example-pattern folders and ./target_repos/FractalAndroid (server.rs:119-198). It then returns the first basename match under ./examples before ./target_repos (207-223), so a user's Application.java can resolve to examples/big_project_src/.../Application.java. If that also fails, editor.js:209-213 synthesizes a Java file with invented method bodies (227-500) and highlights lines in it. server.rs:717 falls back to the name `file_{id}.kt`.",
+  "impact": "The \"O(1) bidirectional traceability\" claim fails in practice: Kotlin and TS files, inner classes and multi-class files jump to the wrong file or line, sometimes into example code or synthesized source.",
+  "recommendation": "Emit the real span (file path from tca, line/col start and end from tra.uml_links) on every node and edge. Serve sources only by a manifest-relative path validated against the analysed tree. Remove the example-directory probes and synthesizeSourceFromNode. Done = a property test asserting that, for every node, the cited file and line contain the declared identifier, plus e2e tests on Kotlin and TypeScript fixtures.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-09",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Hard-coded name deny-lists and suffix rules silently drop real user classes",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/common.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/adapters/server.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/symbol/std_library/java_stubs.rs"
+  ],
+  "evidence": "class_diagram.rs:161-165 discards any class whose name ends in \"Binding\" or appears in a 188-entry list (346-538) that mixes keywords with domain names: Entity, Value, Configuration, Root, Table, Scanner, Context, Update, Insert, Error, Logger and others. The PlantUML view also skips user classes named List, Map, Set, Optional or Character (common.rs:59-91; plantuml.rs:292). The server drops any file whose stem ends in \"test\", such as Contest.java or Latest.java (server.rs:875-881). Pass 1 rejects classes named Map, Set, Array, Function or Promise (pass1_discovery.rs:356-370). The bundled examples/huge_enterprise_src/enterprise/bank/core/Entity.java, implemented by BaseModel, is dropped.",
+  "impact": "Common domain models (JPA Entity, Table and Value, Android *Binding classes, a game Map class) lose classes and edges without warning, and FIT-02 ensures the benchmark never notices.",
+  "recommendation": "Filter by origin, not by name. Library stubs already carry first_token_id and decl_node = u32::MAX (java_stubs.rs:127,140), and unresolved types are SK_EXTERNAL. Exclude generated code by configurable path globs, and identify test sources from build metadata (Gradle/Maven sourceSets, Cargo targets) instead of filename suffixes. Done = a fixture with classes named Entity, Table, Map, Contest and FooBinding appears complete in every exporter.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Identity is the simple class name end to end; same-named classes merge, and the benchmark cannot see it",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/symbol/passes/pass4_members.rs",
+   "ruthless_verify.py",
+   "tests/adversarial_trick_tests.rs"
+  ],
+  "evidence": "PlantUML declares `class {SimpleName}` with no FQN alias (plantuml.rs:330-333) and keys class_by_name and edges by simple name (443-470). JSON node ids are simple names (json.rs:258). Pass 4 binds types through class_name_to_sym, a map keyed by simple name (pass4_members.rs:18-32, 108). The oracle is a dict keyed by simple name (ruthless_verify.py:95) and the PUML parser returns a set, so both sides collapse duplicates. Experiment: for a toy tree with a/Config.java and b/Config.java the oracle reports one class. adversarial_trick_tests.rs:7 claims \"disambiguation of identical class names\", but its fixtures contain no duplicates.",
+  "impact": "In real repositories (java-design-patterns declares App in nearly every module; Spring apps have many Config and Application classes), members and edges from different packages are merged or misattributed while F1 stays unchanged.",
+  "recommendation": "Use the FQN (package plus enclosing types) or the symbol id as node identity in every exporter, with display aliases (`class \"Config\" as a.Config`). Resolve types only via the scope graph and imports, and score benchmarks by FQN. Done = a fixture with three Config classes in different packages yields three nodes with correct edges in PlantUML, Mermaid and JSON.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'All 10 phases COMPLETED' and the Phase 10 readiness checklist mark stubs and missing features as done",
+  "files": [
+   "README.md:98-106",
+   "ROADMAP.md:71",
+   "ROADMAP.md:115-116",
+   "docs/plans/phase10.md:532-566",
+   "src/scpg/incremental/mod.rs:27-33",
+   "src/ssa/ifds.rs:12-37",
+   "src/scpg/query/cfl.rs:21-31",
+   "src/scpg/diagram/export/xmi.rs:8-19",
+   "src/scpg/serializer/mod.rs:146",
+   "docs/plans/phase4.md"
+  ],
+  "evidence": "IncrementalEngine::apply_delta only XORs the hash with 0x01010101 and returns stale_link_count 0 (incremental/mod.rs:27-33), so two edits restore the old hash. The ROADMAP's 'Reps-Horwitz-Sagiv IFDS' (ROADMAP.md:71) is per-statement pattern marking with no propagation (ifds.rs:12-37). 'CFL-reachability' is a plain BFS that rescans every call edge (cfl.rs:21-31). The XMI exporter emits only 'Class_{id}' names (xmi.rs:13). The checklist ticks mmap, LZ4, per-section CRC verification, SHA-256 staleness detection, an LSP bridge and a FileWatcher (phase10.md:532-566); none exist in code. source_hash is written as zeros (scpg/serializer/mod.rs:146), and docs/plans/phase4.md is empty.",
+  "impact": "Status markers cannot be trusted. Integrators who rely on incremental updates, IFDS taint, CFL queries or XMI interchange get stubs that return plausible-looking wrong answers.",
+  "recommendation": "Adopt a status rule: each roadmap or spec item links to the module and the test that prove it, and anything lacking either is marked 'planned'. Mark incremental, IFDS, CFL, XMI and LSP experimental now. Then implement them against reference designs: Salsa for incremental recomputation (as in rust-analyzer), a real IFDS/IDE tabulation solver modelled on Heros or PhASAR, Reps-style CFL-reachability with call/return matching, and XMI 2.5.1 validated by loading it into Eclipse UML2 or Papyrus.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Design-pattern detection and exporters rely on Java and Spring naming habits",
+  "files": [
+   "src/uma/patterns/singleton.rs",
+   "src/uma/patterns/query.rs",
+   "src/uma/patterns/factory.rs",
+   "src/uma/patterns/observer.rs",
+   "src/uma/patterns/builder.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/common.rs",
+   "src/uma/visitor.rs",
+   "src/symbol/passes/pass1_discovery.rs"
+  ],
+  "evidence": "A Singleton is a class with a field named 'instance' or 'getinstance' (src/uma/patterns/singleton.rs:20-28). A private constructor is found by matching '<init>' (query.rs:86). A Composite is a class with a field name ending in 's' (query.rs:112). A Factory is a name containing 'factory' (factory.rs:17), an Observer has add*/register*Listener methods (observer.rs:25-29), and a Builder has the 'Builder' suffix (builder.rs:33). Use-case actors are classes ending in Controller, Service, App, Main or Facade, copied in json.rs:1246, mermaid.rs:1075, plantuml.rs:897 and visitor.rs:253. Three different Java primitive-type lists exist (src/scpg/diagram/common.rs:59, mermaid.rs:542, plantuml.rs:229). A missing return type prints 'void' (json.rs:237), and Kotlin `object` becomes a plain SK_CLASS (pass1_discovery.rs:278).",
+  "impact": "Patterns are inferred from names rather than structure. Non-Java idioms (Kotlin object, Python __new__, Rust OnceLock) are missed, and ordinary classes that happen to follow the naming convention are flagged as patterns. Diagrams print Java conventions for other languages.",
+  "recommendation": "Detect patterns from language-neutral structural facts: a static field of the class's own type, a non-public constructor, an accessor returning the class's own type, delegation through the call graph. Add per-language idiom providers (Kotlin object/companion, Python __new__, Rust static OnceLock). Put type and visibility rendering in one formatter that knows each language's semantics. Route uma/mod.rs:70 through PatternDetectionChain so rules are pluggable, and score against P-MARt or DPB ground truth.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Scope-graph serialization is lossy and its fields mislead consumers",
+  "files": [
+   "src/symbol/serializer.rs:124-136",
+   "src/symbol/scope_graph/mod.rs:68-98",
+   "src/core/types/symbol.rs:148-187",
+   "src/scpg/diagram/common.rs:113-129"
+  ],
+  "evidence": "Only ScopeRecords are written. Per-scope declaration lists, import edges and import mappings are not, import_table_off is always 0, and first_decl/decl_count imply a contiguous id range even though declarations are interleaved. ScopeKind has no Package kind, and at HEAD resolve_sym_package treats scope_kind 1 (Class) as a package scope. This differs from SYM-14, which covers the dropped type_ref_resolutions.",
+  "impact": "Consumers cannot redo or audit resolution from .sta, and scope-based package lookup misreads the records.",
+  "recommendation": "Serialize declaration lists in CSR form (offsets plus symbol ids) and import tables with real offsets. Redefine or remove first_decl. Add a Package scope kind or document that packages are not scopes. Add a round-trip test for scope membership.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Sequence records mix interner name ids and symbol ids, so scenario names resolve to unrelated symbols",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:58-61",
+   "src/uma/behavioral/sequence_diagram.rs:117-120",
+   "src/uma/behavioral/sequence_diagram.rs:156",
+   "src/scpg/diagram/export/mermaid.rs:1312",
+   "src/scpg/diagram/export/plantuml.rs:1160"
+  ],
+  "evidence": "scenario_name is set to entry_sym_rec.name_id, an interner id, yet both exporters call resolve_name(sta, tca, seq.scenario_name), which looks it up as a symbol. Lifeline name_id falls back to a symbol id via unwrap_or(entry_class) and unwrap_or(callee_class), and the actor name_id is a literal 0, which is an arbitrary interned string.",
+  "impact": "Interaction-overview partitions carry another symbol's name or 'Unknown'. Consumers of .uma cannot interpret the name fields.",
+  "recommendation": "Store the entry method's sym id, keep name fields strictly interner ids (u32::MAX when unknown), and document each field's id space. Disambiguate overloads. Add test_sequence_scenario_name_is_entry_method.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-13",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Much of the .uma schema is write-only: source links, confidence, counts and fragments are never read",
+  "files": [
+   "src/uma/types.rs:51-267",
+   "src/scpg/diagram/export/json.rs:580-581"
+  ],
+  "evidence": "Grepping src/scpg, src/adapters, src/core and main.rs finds no reads of ClassRecord.uml_link, uml_link_node, type_param_count, loop_depth, guard_text_id, is_back_edge, start_node, end_node_count, swimlane_count, combined_fragments, ordinal, uml_link_token, objects, label_texts, the package and component counts and parents, or DesignPatternRecord.confidence. The JSON exporter writes file '<Name>.java' and lines [1] instead of the real uml_link.",
+  "impact": "Traceability and confidence data never reach users, and the effort spent computing them is wasted and untested.",
+  "recommendation": "Wire these fields into the exporters and query API (source links, confidence badges, back-edge styling), or remove them from the schema. Add an exporter test asserting that file and line come from uml_link.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "PlantUML class diagram keeps only one relationship per ordered class pair",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs"
+  ],
+  "evidence": "edges_by_pair is keyed by (src,dst) (plantuml.rs:451). extends/implements use insert (462, 469) and fields use or_insert_with (490-492), so `class Decorator implements Component { Component inner; }` keeps `..|>` and loses the association. An inner-class `+--` (499) also overwrites a field association. JSON (json.rs:368) and Mermaid (mermaid.rs:633) keep both edges, so the formats disagree.",
+  "impact": "Decorator/Composite/Proxy structures (is-a plus has-a) lose the has-a edge in the default PlantUML output.",
+  "recommendation": "Key edges by (src, dst, kind), or keep a Vec of relations per pair, and emit each distinct relation. Add a Decorator fixture test expecting both `..|>` and `-->`.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Method return types are drawn as associations, and JSON doubles field edges",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "UMA adds method return types to association_syms (src/uma/structural/class_diagram.rs:267-279). Mermaid draws `-->` for each one (mermaid.rs:761-768), and JSON adds 'association' edges (json.rs:385-405) that are deduped only per kind. A final field therefore gets both a composition and an association, and a field of a List-named class gets both an aggregation and an association. PlantUML ignores association_syms, so formats disagree. In UML, using a type as a return type is a dependency, not an association.",
+  "impact": "Mermaid and JSON class diagrams overstate structural coupling and show contradictory relation kinds for a single field.",
+  "recommendation": "Separate structural relations (fields) from usage relations (signatures) in UMA, render usage as a `..>` dependency, and dedupe per (src, dst) keeping the strongest kind.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "JSON detects aggregation by substring of the target class name",
+  "files": [
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "json.rs:356-361 marks a field edge as aggregation when raw_target contains \"List\", \"Set\" or \"Array\". Real java.util types resolve to \"\" (SCPGX2-02) and only declared project classes pass json.rs:354, so the test only ever fires as a false positive: fields typed Listener, Settings, Asset, Dataset or PlayList become `o--`. PlantUML uses is_collection only (plantuml.rs:483). SCPG-18 is about missing detail; this is a wrong classification.",
+  "impact": "Common project types get the wrong UML relationship in the JSON IR and the web studio.",
+  "recommendation": "Delete the substring test and derive aggregation from real collection/element-type data shared by all exporters (see SCPGX2-04).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Unresolved types and constructors render inconsistently; JSON invents Object/void",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "Constructors keep type_id u32::MAX because pass 4 skips SK_CONSTRUCTOR (src/symbol/passes/pass4_members.rs:44-50). PlantUML prints a dangling `+Foo() : ` (plantuml.rs:353-361). Mermaid prints `Unknown` (mermaid.rs:722-728). JSON substitutes `Object` for fields and `void` for returns (json.rs:208-212, 234-238), so constructors appear to return void while real void methods (sentinel id) get an empty type.",
+  "impact": "Members show invented or contradictory types, and the three formats disagree about the same member.",
+  "recommendation": "Model an unknown type as None: omit it in text formats, emit null in JSON, and render constructors without a return type (or as «create»).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-09",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Name-based 'primitive/system' filters silently drop user-defined classes",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/common.rs"
+  ],
+  "evidence": "PlantUML drops classes named String, Object, Class, Integer, Long or Boolean (plantuml.rs:229-235, 292, 455). Mermaid drops Unknown, Entity, String, Object and args (mermaid.rs:542-560, 642, 747), and DiagramUtils adds List/Map/Set/Optional (common.rs:59-91). JDK and primitive types never resolve to these names (SCPGX2-02), so the filters only ever remove user classes, such as a JPA or ECS `Entity`, together with their edges.",
+  "impact": "Legitimate project classes and their relationships disappear without warning, and differently in each format.",
+  "recommendation": "Filter by symbol kind or id range (SK_EXTERNAL, stub and primitive sentinels) in one shared helper, never by simple name.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "The external actor splits into two entities and loses its actor role",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "Lifelines resolve EXTERNAL_ACTOR_ID to \"ExternalActor\" (plantuml.rs:173-175), but messages hardcode \"Actor\" (plantuml.rs:1047-1049, mermaid.rs:1207-1212, json.rs:590-595). The gallery has an isolated actor node part_ExternalActor (web/diagrams/sequence.json:6) and a participant part_Actor (sequence.json:42) that carries every message. Mermaid never declares an `actor`. A real class named Actor merges with it. SCPG-06 covers PlantUML alias validity.",
+  "impact": "Sequence and communication outputs show a dangling actor and a fake participant, and real `Actor` classes collide with it.",
+  "recommendation": "Use one reserved id and label (e.g. __external_actor) everywhere, declare it as an actor in PlantUML and Mermaid, and give it kind 'actor' in JSON.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-11",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Mermaid 'Unknown'/'Empty' sentinels make every empty-name guard dead",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "resolve_name returns \"Unknown\" (mermaid.rs:499-507) and sanitize never returns \"\" (it returns \"Empty\", 533-534). So checks such as `safe_field == \"\"` (697, 702, 719, 724), `!from_name.is_empty()` (1215, 1255-1258) and `!scenario.is_empty()` (1313) never fire. The gallery shows `Actor->>useState: Unknown()` (sequence.mmd:93), communication.mmd:48 and three Scenario_Unknown subgraphs; PlantUML and JSON skip these instead.",
+  "impact": "Unrelated unresolved lifelines, methods and types collapse into one shared 'Unknown' entity, and Mermaid disagrees with the other formats.",
+  "recommendation": "Return Option<&str> from resolve_name, skip unresolved symbols or give them unique ids (sym_<id>), and remove the sentinel strings.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Sequence exports misrepresent call structure and lose scenario identity",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "PlantUML emits a synthetic `return` and deactivate straight after every call (plantuml.rs:1055-1064), so nested calls look sequential. Mermaid emits no returns or activations at all (mermaid.rs:1217-1220). All three ignore message_kind, ordinal and combined_fragments. JSON message edges carry only a label (json.rs:643-651), with every scenario merged and no scenario id or order field.",
+  "impact": "Readers cannot see call nesting, message kinds, or which scenario a JSON message belongs to.",
+  "recommendation": "Build call trees from caller→callee nesting, emit activations and returns at the correct depth, map message_kind to arrow styles, render fragments, and add scenario_id and ordinal to JSON message edges.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-13",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Communication diagrams are built wrongly in all three formats",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "PlantUML links obj_ aliases that are never declared (plantuml.rs:1106-1111), so PlantUML draws them as classes. Numbering is the per-scenario index, so almost every link reads \"1:\" (web/diagrams/communication.puml). Self-calls are dropped (plantuml.rs:1102, mermaid.rs:1259), and there is one link per message instead of a message list per link. The JSON communication diagram is the sequence IR with a new name (json.rs:1660-1669); the gallery communication.json is byte-identical to sequence.json.",
+  "impact": "Communication output lacks real objects, meaningful sequence numbers, recursion and per-link message aggregation.",
+  "recommendation": "Declare objects, aggregate messages per link, use hierarchical numbering (1, 1.1) derived from call nesting, keep self-links, and build a dedicated JSON communication IR.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-14",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Empty-data fallbacks fabricate interactions",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "With no sequences: communication chains the first four classes with numbered messages (plantuml.rs:1117-1144, mermaid.rs:1275-1299); interaction overview invents 'Class Flow' partitions (plantuml.rs:1173-1188, mermaid.rs:1331-1352); timing invents state changes (plantuml.rs:1224-1246); JSON sequence invents execute() calls (json.rs:656-690). The fallback also pairs filtered class_names[i] with uma.classes.get(i), mislabeling methods (plantuml.rs:1131, mermaid.rs:1286).",
+  "impact": "Exactly when analysis finds nothing, diagrams present invented messages as if they were results.",
+  "recommendation": "Emit an explicit empty diagram with a note such as \"no interactions found\" instead of synthetic content.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "JSON IR emits duplicate node ids for same-named functions and components",
+  "files": [
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "Activity partition, start, step and stop ids come from the sanitized function name (json.rs:890, 908, 936, 999). Use-case ids come from class plus method name (json.rs:1302), and component ids are not deduped (json.rs:1062). Overloads such as add(int)/add(String), or the same method name in two classes, produce duplicate ids and ambiguous edges. Mermaid already keys activities by function_sym_id (mermaid.rs:1136). This differs from SCPG-04, which covers same-named types.",
+  "impact": "Graph consumers such as the web studio merge or reject nodes, and activity flows interleave.",
+  "recommendation": "Derive ids from symbol ids (e.g. act_<sym>_<block>), dedupe them, and check IR invariants (unique ids, edges pointing at existing nodes) before serializing.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-16",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Diagram-type keys and aliases differ by format; JSON silently falls back to the class diagram",
+  "files": [
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "PlantUML and Mermaid accept exact keys only (plantuml.rs:93-103, mermaid.rs:400-410). JSON accepts aliases (state, state_machine, use_case, cg, composite_structure, interaction_overview) and returns the class diagram for anything else (factory.rs:181-207), and its export_all keys differ (\"state\", factory.rs:245). Driven by the server's list (src/adapters/server.rs:640-662), this produces duplicate state/statemachine.json and use_case/usecase.json files with no matching .puml or .mmd.",
+  "impact": "A typo returns the wrong diagram with no error, the gallery holds duplicate files, and export_all maps cannot be joined by key.",
+  "recommendation": "Introduce a DiagramType enum with FromStr and aliases shared by every factory, return an error for unknown types, and expose the supported types per format.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-18",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Package dependencies use only field and return types, and are labelled «imports»",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "plantuml.rs:723-754 and json.rs:482-516 build package edges from field types and method return types only, ignoring extends/implements, parameters, locals, calls and imports. Both label the edges <<imports>> (plantuml.rs:763, json.rs:527), which in UML means a PackageImport, not a usage. Mermaid's package diagram emits no dependencies at all (SCPGX2-19).",
+  "impact": "Layering violations through inheritance, parameters or calls never appear, and the dependency semantics are mislabelled.",
+  "recommendation": "Aggregate class-level dependencies (supertypes, members, parameters, call-graph edges) into weighted package edges, labelled «use» or «import» as UML defines them.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-19",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Mermaid package diagram is flat and edge-less; the dead nested renderer would hide com/org",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "export_package_diagram (mermaid.rs:900-935) emits one flat subgraph per name, with no hierarchy and no dependency edges, unlike PlantUML and JSON. The nested renderer PkgNode::render (188-258) is unreachable and would skip any root named com, org, java or kotlin (SYSTEM_ROOT_PACKAGES, 12-15, 193). Package resolution also differs: this diagram uses resolve_pkg_name_from_sym (937-953), the class diagram uses resolve_sym_package (426-487).",
+  "impact": "Mermaid users get no package structure, and reviving the dead renderer as-is would hide most Java packages.",
+  "recommendation": "Render nested subgraphs and dependency edges from full paths, drop the SYSTEM_ROOT_PACKAGES filter, and use a single package resolver.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-20",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Mermaid duplicate-package disambiguation hardcodes frontend/backend and is not unique",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "Four copies of the same logic (mermaid.rs:107-121, 211-225, 287-301, 562-583) suffix a duplicated leaf name with F or B when the root contains \"frontend\" or \"backend\", and otherwise with the root's first letter. com.a.util and com.b.util both become util_C, so namespaces still collide and find_node_path (100-141) returns the first match. The id also uses the unsanitized name. mermaid.rs:719 hardcodes skipping methods named Override or annotation.",
+  "impact": "Same-named packages under one root merge, and project-specific heuristics leak into a general tool.",
+  "recommendation": "Disambiguate with the full sanitized path (as DiagramUtils::resolve_container_pkg_id does), generate ids in one place, and remove the name hacks.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-21",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Raw identifiers become Mermaid ids without reserved-word handling",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "Sequence and communication lines start with the bare sanitized lifeline name (mermaid.rs:1218, 1264). Mermaid treats `end` and statement keywords such as style, click or subgraph specially in flowcharts, and words such as note, loop, alt, box or title in sequence diagrams. Lifelines are often lowercase module or variable names (the gallery has backend, srs, null, type, e), and nothing prefixes or quotes them.",
+  "impact": "A single lifeline named end, style or note can make a whole Mermaid diagram fail to parse.",
+  "recommendation": "Prefix every Mermaid id (e.g. p_<sym_id>), put names in quoted labels or `participant id as \"name\"`, and add a test using reserved names.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "E2E-16",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "Cross-phase id fields are narrowed to u8/u16 without checks, and exporters silently keep only the first 3-12 items, with different caps per format",
+  "files": [
+   "src/core/types/source.rs",
+   "src/core/types/token.rs",
+   "src/ingestion/builder.rs",
+   "src/core/types/ssa.rs",
+   "src/tra/backward/ssa_bi.rs",
+   "src/psa/construction/feasibility.rs",
+   "src/ssa/serializer.rs",
+   "src/tra/types.rs",
+   "src/tra/forward/sym_span.rs",
+   "src/ingestion/walker.rs",
+   "src/ingestion/interner.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "file_id is u16 (core/types/source.rs:11; token.rs:121-124), so with more than 65,536 files sort keys collide and Phase 1 aborts (ingestion/builder.rs:49-56). SSARecord.def_block is truncated to u8 (core/types/ssa.rs:43) yet read as a block id by TRA and PSA (ssa_bi.rs:20,35; feasibility.rs:115-119). The phi orig_sym_id is written as u16 (ssa/serializer.rs:113), SymbolSpanRecord lines are u16 (tra/types.rs:76-84; sym_span.rs:38-40), and tokens and strings are capped at 65,535 bytes (walker.rs:54; interner.rs:99-101). Exporters keep only the first N items, and N differs by format: activity take(6) in PlantUML vs take(8) in Mermaid, and CFG take(4) vs take(3) (plantuml.rs:958,1262; mermaid.rs:1131,1397).",
+  "impact": "Methods over 256 blocks, files over 65,535 lines and repositories over 65,536 files produce wrong spans, wrong block attribution or aborts. Diagrams of large projects omit most content, and what they omit differs by format.",
+  "recommendation": "Use u32 for every cross-phase id and convert with checked try_from, recording a diagnostic on overflow. Replace silent take(N) with configurable limits applied identically in every format, and record 'shown/total' in diagram metadata. Add proptest-generated large inputs to CI: a 300-block method, a 70k-line file and a synthetic 70k-file tree.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-17",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Exporter interfaces receive only uma/sta/tca, so IR diagrams cannot use CFA/SSA/CGA/PSA",
+  "files": [
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "DiagramExporterFactory::export_diagram (factory.rs:50-56), PlantUMLDiagramStrategy::export (plantuml.rs:18-23) and MermaidDiagramStrategy::export (mermaid.rs:1631-1636) take only uma, sta and tca. The CDG exporters ignore even those (plantuml.rs:1378-1382, mermaid.rs:1559-1563). This API shape is the root cause behind the templated CFG/DFG/CDG/call-graph/ROBDD views that SCPG-01 reports.",
+  "impact": "Real compiler-IR diagrams cannot be produced without breaking the public trait.",
+  "recommendation": "Pass an AnalysisContext (uma, sta and tca plus optional cfa, ssa, cga, psa and tra) through factories and strategies, and return a Result with 'artifact missing' errors.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-22",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "JSON Graph IR has no version or schema, uses free-form kinds, and bloats output",
+  "files": [
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "GraphIR (json.rs:12-65) has no schema_version. Kinds are free strings, and the doc comments (34, 62) list only a subset of emitted kinds (message, transition, manifestation, timing_track, data_node and others); the manifest's 'containment' kind is never emitted. Every node serializes empty fields/methods/instructions/lines arrays and duplicates id, label and name, and `arrow` stores PlantUML syntax. Classes without a package go into an invented pkg_default (133-134), and is_domain_tier is simply nest_level==0 (173).",
+  "impact": "Consumers cannot validate against or evolve with the IR, and files are inflated (sequence.json is 144KB for 46 nodes).",
+  "recommendation": "Add schema_version and a published JSON Schema, use serde enums for kinds, skip empty fields, and drop the PlantUML arrow strings and the synthetic default package.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-19",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "Exporters emit monolithic, unpartitioned diagrams and recompute shared indexes 57 times",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/main.rs"
+  ],
+  "evidence": "PlantUMLExporter::export_class_diagram (plantuml.rs:274) and JSONExporter (json.rs:121) put every class and edge into one document. main.rs:281-309 runs 19 diagram types × 3 formats serially, and each call recomputes the package maps (json.rs:132-146; mermaid.rs:602-650). Behavioral views take arbitrary samples (.take(6) at plantuml.rs:925,958 and mermaid.rs:1102). JSON is written with to_string_pretty (factory.rs:208). Mermaid's default maxTextSize of 50,000 characters and PlantUML's 4096-px image limit reject diagrams with thousands of classes.",
+  "impact": "At around 15K classes the class, package and component outputs are tens of MB and cannot be rendered, and the behavioral samples are not representative.",
+  "recommendation": "Partition output by package or module: one package-dependency overview plus a drill-down diagram per package. Aggregate edges, building on plantuml_optimizer's bundling, and enforce node and edge caps with summary nodes. Compute the class, package and name indexes once per run, export the formats in parallel with rayon, and emit compact JSON.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "ENG-16",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Everything is public, mostly undocumented, stringly typed and in one crate; the CLI and JSON handling are hand-rolled",
+  "files": [
+   "src/lib.rs:1-12",
+   "src/main.rs:491-508",
+   "src/main.rs:532-534",
+   "src/adapters/server.rs:367-371",
+   "src/scpg/diagram/factory.rs:314"
+  ],
+  "evidence": "lib.rs makes all 12 modules public, including the HTTP server and a module named `core` that shadows Rust's core crate. There are about 970 pub items and 593 pub fields against 3 pub(crate) uses; roughly 27% of pub items have rustdoc, and there are no crate docs and no #![warn(missing_docs)]. Diagram kinds are strings such as 'statemachine', returning Option (factory.rs:314). The CLI strips flags after its length check, so `openheart --debug` indexes args[1] out of bounds and panics (main.rs:491-508), and an invalid port silently becomes 8080 (:534). The server parses JSON with split('\"') (server.rs:367-371) and builds responses with unescaped format! strings, even though serde_json is a dependency.",
+  "impact": "Every internal refactor is a breaking change and semver cannot be checked. The library cannot target wasm32 (a ROADMAP goal) or be embedded without the server, and CLI and JSON edge cases crash or produce invalid output.",
+  "recommendation": "Split into a workspace: openheart-core (pure, no I/O), openheart-lang-* crates behind features, openheart-cli (clap derive) and openheart-server (serde for all JSON). Expose a small facade, such as Analysis::from_paths(..).run() returning Result<Scpg>, and make internals pub(crate). Model diagram kinds and formats as enums marked #[non_exhaustive]. Follow the Rust API Guidelines, enable #![warn(missing_docs)], and run cargo-semver-checks in CI once the API settles.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-32",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "low",
+  "title": "Three separate pattern-detection paths, and the pattern-name tables are duplicated",
+  "files": [
+   "src/uma/patterns/mod.rs:40-194",
+   "src/uma/patterns/chain.rs:297-353",
+   "src/symbol/uml_meta/patterns.rs:1-25",
+   "src/scpg/diagram/export/mermaid.rs:1021-1034",
+   "src/scpg/diagram/export/plantuml.rs:837-850"
+  ],
+  "evidence": "detect_all hard-codes 11 detector calls. PatternDetectionChain registers the same 11 rules but only a test uses it, so add_rule has no effect on the pipeline. It is named a Chain of Responsibility but runs every rule. Phase 3 has its own, stricter PatternDetector that Phase 9 ignores. Each exporter keeps its own copy of the kind-to-name table.",
+  "impact": "Results depend on which path is used, the extension point does nothing, and pattern names can drift apart.",
+  "recommendation": "Make detect_all iterate a PatternDetectionChain, merge or delete the Phase 3 detector, and give all exporters one pattern_name(kind) function in uma::types.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-42",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "EXTERNAL_ACTOR_ID is redefined as a literal in the exporters",
+  "files": [
+   "src/uma/actor_identification.rs:6",
+   "src/scpg/diagram/export/mermaid.rs:11",
+   "src/scpg/diagram/export/plantuml.rs:10",
+   "src/scpg/diagram/export/plantuml.rs:1047"
+  ],
+  "evidence": "Phase 9 defines EXTERNAL_ACTOR_ID = 0xFFFF_FFFE. The exporters redefine it as u32::MAX - 1 and also hard-code `u32::MAX - 1 || u32::MAX` checks in message rendering.",
+  "impact": "Changing the sentinel in one place silently breaks actor rendering in the others.",
+  "recommendation": "Export the constant once from uma::types and use it everywhere.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-24",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Mermaid interaction overview ids collide across scenarios, and there are no flow edges",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "Nodes are named Disp_<method> and subgraphs Scenario_<name> (mermaid.rs:1315-1325). The gallery puts Disp_component_name in two subgraphs and repeats Scenario_Unknown three times (web/diagrams/interaction.mmd:6-15). No edges connect the interaction uses, so there is no control flow, unlike a UML interaction overview.",
+  "impact": "Mermaid moves shared nodes into one subgraph, scenarios lose messages, and the diagram shows no ordering.",
+  "recommendation": "Scope ids by scenario index (s<i>_m<j>) and connect consecutive interaction uses; add decision/fork nodes once real control data exists.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-25",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Mermaid activity diagram leaves the start node unconnected and ignores node/edge kinds",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "mermaid.rs:1138-1141 emits Start_<id> with no edge to act.start_node (web/diagrams/activity.mmd:3). Every node is a rectangle whatever its node_kind (1143-1155), and edges ignore guard_text_id, is_back_edge and edge_kind (1157-1162).",
+  "impact": "Activity diagrams lack an entry flow, decision diamonds, loop back-edges and guards.",
+  "recommendation": "Connect Start to start_node, map NODE_KIND_* to Mermaid shapes ({} for decisions, (( )) for finals), and label or style back-edges and guards.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-26",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "PlantUML output hard-codes a dark theme",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "theme_header (plantuml.rs:119-166) is prepended to every diagram: transparent background, #e5e5e5/#ffffff text, and a CSS-style font list `\"Space Grotesk\", \"Segoe UI\", sans-serif` that PlantUML probably reads as one font name. Mermaid's theme_init (mermaid.rs:1947-1949) is never called, so the formats differ. There is no `hide empty members`, even though most gallery classes are empty (class.puml).",
+  "impact": "Rendered with stock PlantUML on a white page, the text is nearly invisible, and each file carries about 2KB of boilerplate.",
+  "recommendation": "Make theming an export option (default none, or `!theme`), emit `hide empty members`, and theme Mermaid consistently or not at all.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-27",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Free-text labels go through the identifier sanitizer",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "Activity labels are passed to sanitize (plantuml.rs:970, mermaid.rs:1153, json.rs:935), so text like `x = foo(a, b)` becomes `x___foo_a__b_`. These labels are quoted text, so they need format-specific escaping (quotes, brackets, newlines, `;` in PlantUML actions), not identifier mangling.",
+  "impact": "Once real statement labels arrive, activity nodes become unreadable.",
+  "recommendation": "Add per-format label-escaping helpers for PlantUML and Mermaid, separate from id sanitizing, and keep the raw text in JSON.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-28",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Profile diagram uses wrong UML notation and invents metaclass links",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "PlantUML draws `X --|> Class : <<extends>>` for every annotation and pattern (plantuml.rs:833, 856-858), a generalization to an implicit class; UML profiles use an Extension (filled arrowhead) to a «metaclass». Strategy and Observer are hard-wired to extend 'Interface', an annotation named Singleton collides with the pattern alias, and the fallback invents an <<entity>> stereotype (plantuml.rs:871, mermaid.rs:1051).",
+  "impact": "Profile output is notationally wrong and implies JPA-style entities that do not exist.",
+  "recommendation": "Declare metaclasses, use extension notation, drop invented stereotypes, and show which classes apply each annotation.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-29",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "pattern_kind is truncated from u16 to u8",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "`dp.pattern_kind as u8` (plantuml.rs:838, mermaid.rs:1022) maps 0x0103 to 3 (Factory). The .uma loader accepts any u16, so corrupted or future values are misclassified instead of ignored.",
+  "impact": "Corrupted or newer .uma files produce wrong pattern stereotypes.",
+  "recommendation": "Match on the u16 value directly (or u8::try_from, skipping on error), and define pattern kinds as an enum.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-30",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "Package-resolution loops hang on cyclic parent_sym chains",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "plantuml.rs:243-252, mermaid.rs:440-455 and mermaid.rs:942-951 follow `curr = sym.parent_sym` until u32::MAX, with no visited set or depth limit. A corrupt or hostile .sta with a self-parent or a cycle makes every diagram export loop forever.",
+  "impact": "A malformed symbol table hangs CLI or server diagram export, a denial of service.",
+  "recommendation": "Bound the walk (depth at most symbol_count, or a visited bitset) and check parent_sym chains for cycles when loading .sta.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-31",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Mermaid resolve_name leaks memory through Box::leak",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "mermaid.rs:504-506 returns `Box::leak(custom.clone().into_boxed_str())` when a symbol's interned name is empty or \"Unknown\" but it has a custom package name. Each call leaks a fresh allocation for the life of the process, resolve_name runs in loops, and the server exports per request. Normal pass-1 package symbols have names, so the path is mostly latent.",
+  "impact": "When this path is hit, the long-running server's memory grows without bound.",
+  "recommendation": "Return Cow<'a, str>, or tie the lifetime to sta as PlantUML's resolve_name does.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-32",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Mermaid edge placement and package fallback are super-linear",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/factory.rs"
+  ],
+  "evidence": "For every relationship, find_node_path runs two full-tree DFS passes that allocate an id per node (mermaid.rs:780-797, 100-141), plus linear child scans calling sanitize (162-165), giving O(R·P). resolve_sym_package scans all custom_package_names and file_records for each class without a package parent (464-483), giving O(C·(P+F)). Factories rebuild exporters and their 19 boxed strategies on every call (factory.rs:85, 95, 116, 126).",
+  "impact": "Class-diagram export slows sharply on repositories with thousands of packages and relationships.",
+  "recommendation": "Precompute package-id→path and file-id→package maps once per export, cache exporters in the factories, and write with `write!` into one buffer.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-33",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "PlantUML name fallback borrows a nearby token's text for unnamed symbols",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs"
+  ],
+  "evidence": "When a symbol's interned name is empty, resolve_name (plantuml.rs:182-203) returns the first non-keyword identifier within 20 tokens of first_token_id, such as the type in `new Runnable() {...}` or a lambda parameter. JSON reuses this resolver, while Mermaid prints 'Unknown'.",
+  "impact": "Anonymous classes, lambdas and initializers take the names of unrelated types or variables and collide with real classes.",
+  "recommendation": "Generate explicit names (Outer$1, lambda$<line>, <clinit>) from symbol kind and position, shared by all exporters.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-34",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "DiagramGenerator/DiagramRenderers names and summary text misstate what they do",
+  "files": [
+   "src/scpg/diagram/mod.rs",
+   "src/scpg/diagram/renderers.rs"
+  ],
+  "evidence": "generate_summary (mod.rs:25-31) reports \"Generated all 14 UML Diagram Types\" but only counts records. render_all_14_diagrams (renderers.rs:8-25) renders nothing; it reuses classes.len() for composite/profile/use-case, components.len() for deployment and sequences.len() for communication/interaction/timing, and generate_summary picks stats by position ([0],[8],[10],[9]). The text is exposed via scpg/api/mod.rs:115-116.",
+  "impact": "The API summary claims work that never happens and reports misleading counts.",
+  "recommendation": "Rename to diagram_input_counts, return a typed struct, and word the summary as input counts.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-35",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "Module and section doc comments claim properties the code lacks",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mod.rs"
+  ],
+  "evidence": "plantuml.rs:1-2 says \"100% Dynamic ... Formal UML 2.5 Compliance\", and its sections say \"(100% Symbol-Grounded)\" over templated views. mermaid.rs:2 says \"Zero hardcoded constants or fallback strings\". json.rs:1-2 says \"Strongly-Typed ... from in-memory Rust AST\", but kinds are strings and no AST is used. export/mod.rs:1 omits Mermaid. plantuml.rs:37 and mermaid.rs:344 say 14 strategies while 19 are registered, and plantuml.rs:14 lists 'strategy' and 'decorator' as diagram types.",
+  "impact": "The docs mislead maintainers and users about fidelity and coverage.",
+  "recommendation": "Rewrite the doc comments to state each diagram's real data sources and limitations.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-36",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Dead code hidden by #[allow(dead_code)], unused parameters and redundant checks",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/common.rs",
+   "src/scpg/diagram/export/plantuml_optimizer.rs"
+  ],
+  "evidence": "mermaid.rs:12-29 blanket-allows dead code. PkgNode::render (188-258), sort_children_and_edges (174-186), resolve_pkg_name (510-520) and theme_init (1947) are unreachable, and package_path_by_sym is always empty (599). Parameters `_bpa_bytes` (plantuml.rs:240), `_tca` (mermaid.rs:939, common.rs:106) and `_options` (plantuml_optimizer.rs:42) are unused. Redundant checks include `!text.is_empty() && text != \"\"` (plantuml.rs:179), sanitize's empty branch (222-226) and repeated `== \"\" || is_empty()` (mermaid.rs:815, 843, 1083).",
+  "impact": "Dead code obscures which paths matter and invites reviving broken logic.",
+  "recommendation": "Remove the allow attributes and dead items, drop unused parameters from public APIs, and run clippy with -D warnings on this module.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-37",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "DiagramUtils has latent bugs that would surface if exporters are moved onto it",
+  "files": [
+   "src/scpg/diagram/common.rs"
+  ],
+  "evidence": "resolve_name maps both u32::MAX (unresolved) and u32::MAX-1 to \"Actor\" (common.rs:21-23), so unresolved types would render as Actor. resolve_sym_package treats scope_kind 1 as a package scope (common.rs:118), but 1 is ScopeKind::Class (src/core/types/symbol.rs:151-158), so it never matches. It also scans all symbols per level and uses the Vec position as a symbol id (120-124). SCPG-17 flagged the helpers as unused, not these defects.",
+  "impact": "Moving exporters onto these helpers (the natural SCPG-17 fix) would bring in wrong names and failed package lookups.",
+  "recommendation": "Fix the helpers before adopting them: only MAX-1 is the actor, resolve packages via parent_sym/custom_package_names, and add unit tests.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-38",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "PlantUMLOptimizer drops inheritance edges it claims to preserve",
+  "files": [
+   "src/scpg/diagram/export/plantuml_optimizer.rs"
+  ],
+  "evidence": "Non-inheritance cross-package edges are grouped and their (src,dst) pairs added to suppressed_edges (plantuml_optimizer.rs:49-79). The next loop drops any unbundled edge whose pair is suppressed (85-88), which includes the inheritance edge for that pair. Bundling also turns relations into package-to-class lines (105), such as a package composing a class. This is a latent defect in the unused optimizer, beyond SCPG-17's note that it is dead.",
+  "impact": "If enabled, `A extends B` disappears whenever A also references B across packages.",
+  "recommendation": "Suppress by (src, dst, rel_op) or exempt inheritance from suppression, honour the thresholds, and add a unit test.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-39",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Sequence and timing participant order follows HashMap iteration",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "UMA builds lifelines with lifelines_map.into_values() (src/uma/behavioral/sequence_diagram.rs:153), and the exporters emit seq.lifelines in that order (plantuml.rs:1034-1043, json.rs:558-587, timing plantuml.rs:1206-1211) instead of ordering by first message. This adds sequence and timing participants to SCPG-13's list of nondeterministic outputs.",
+  "impact": "Participant columns reorder between runs, which defeats diffs and golden tests.",
+  "recommendation": "Order lifelines by first appearance in the messages (actor first) inside the exporters, or sort them upstream.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-40",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Nested classes are rendered with three different relationship meanings",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "PlantUML uses the nesting connector `+--` (plantuml.rs:499). Mermaid draws a composition `*--` (mermaid.rs:775). JSON emits kind \"composition\" with arrow \"+--\" (json.rs:332-341), although web/diagrams/manifest.json defines a 'containment' kind.",
+  "impact": "Mermaid and JSON report nesting as composition, and the formats disagree.",
+  "recommendation": "Emit a distinct containment relation in every format: `+--` in PlantUML, a note or dedicated style in Mermaid, and 'containment' in JSON.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-41",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Record and annotation types lose their kind",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "PlantUML maps STEREOTYPE_RECORD and STEREOTYPE_ANNOTATION to a plain `class` with no stereotype (plantuml.rs:307-313). JSON maps both to kind \"class\" with \"<<class>>\" (json.rs:191-203). Mermaid labels records but not annotations (mermaid.rs:662-668). UMA does produce annotation classes (src/uma/structural/class_diagram.rs:184).",
+  "impact": "In two of the three formats, records and annotation types look like ordinary classes.",
+  "recommendation": "Emit `annotation X` and `class X <<record>>` in PlantUML, <<annotation>> in Mermaid, and record/annotation kinds in JSON.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-42",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Mermaid package tree collapses repeated consecutive segments",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "navigate_to_path (mermaid.rs:52-56) and insert_package_path (83-88) stop recursing when the next segment equals the current one (\"no self-nesting\"). So com.example.example.service stops at com.example, and classes from the deeper packages land in the wrong namespace.",
+  "impact": "In projects with repeated segment names, classes are merged into a parent package.",
+  "recommendation": "Remove the equality guard, since a segment nested under an equally named parent is valid.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-43",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Package ids and labels are generated inconsistently",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "The class diagram keeps empty segments (plantuml.rs:381-411) while the package diagram skips them (684-686). Aliases replace only . / - (419, 704, 761), so `a.b` and `a_b` collide on pkg_a_b, and JSON ids replace only '.' (json.rs:159, 456). The class diagram captions nested packages with the full path (421), the package diagram with the leaf (705-708).",
+  "impact": "Rare id collisions or dangling dependency arrows, and package captions that differ between views.",
+  "recommendation": "Generate package ids in one helper from normalized segment lists (escaping underscores), and caption packages with the leaf name everywhere.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPGX2-44",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "Design-pattern results are rendered without confidence and one pattern per class",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs"
+  ],
+  "evidence": "Class diagrams show only class_rec.design_pattern (plantuml.rs:315-328, mermaid.rs:670-683), a single value that each detector overwrites upstream (src/uma/patterns/mod.rs:53-161). uma.design_patterns, which carries confidence 0..100, is used only for profile stereotype names (plantuml.rs:836-861). Roles such as Subject vs Observer and thresholds are never shown.",
+  "impact": "Low-confidence detections look certain, and a class in several patterns shows only one.",
+  "recommendation": "Render every detection from uma.design_patterns with its confidence (e.g. «Singleton 92%»), and add an export threshold option.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-45",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "No DOT, GraphML or ELK export",
+  "files": [
+   "src/scpg/diagram/factory.rs"
+  ],
+  "evidence": "DiagramFormat offers only PlantUML, Mermaid, XMI and JSON (factory.rs:17-22). Graphviz DOT is the usual format for CFG, call-graph and BDD views, and GraphML or ELK JSON feed graph tools such as yEd, Gephi and Cytoscape; none is supported. This differs from SCPG-19, which covers code-intelligence formats (SCIP/LSIF/LSP).",
+  "impact": "Compiler-IR graphs cannot be laid out by mature engines or analyzed in standard graph tools.",
+  "recommendation": "Add DOT and GraphML exporters driven from the JSON Graph IR, so one model feeds every format.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPGX2-46",
+  "kind": "enhancement",
+  "category": "robustness",
+  "severity": "low",
+  "title": "Exporters do not check that uma, sta and tca belong together",
+  "files": [
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/plantuml.rs"
+  ],
+  "evidence": "Every entry point (factory.rs:314-339, plantuml.rs:93-117) accepts any artifact triple. Symbol ids from a stale .uma are resolved against a newer .sta/.tca with no hash comparison, even though UMA carries tra_hash and class records carry uml_link.scpg_hash (src/uma/types.rs:255-267).",
+  "impact": "Mixing artifact generations silently produces diagrams with wrong names.",
+  "recommendation": "Validate the hash chain (or a shared corpus hash) before exporting, and return an error on mismatch.",
+  "effort": "S",
+  "confidence": "medium"
+ }
+]

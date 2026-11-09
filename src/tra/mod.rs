@@ -1,8 +1,13 @@
 //! Phase 7: Traceability Index Construction (§7.1, §7.5.1).
+//!
+//! This module tree contains no `unsafe` code.
+
+#![forbid(unsafe_code)]
 
 pub mod backward;
 pub mod builder;
 pub mod delta;
+pub mod entity;
 pub mod forward;
 pub mod serializer;
 pub mod types;
@@ -44,9 +49,10 @@ impl Phase7Stage {
         }
 
         log_info(&format!(
-            "Phase 7 Complete: Built Traceability Index (.tra) with {} UMLLinks, {} Symbol Spans, composite hash 0x{:08X}.",
+            "Phase 7 Complete: Built Traceability Index (.tra) with {} UMLLinks, {} Symbol Spans, {} entities, composite hash 0x{:08X}.",
             artifact.uml_links.len(),
             artifact.sym_span.len(),
+            artifact.entities.len(),
             artifact.hashes.scpg_hash
         ));
 

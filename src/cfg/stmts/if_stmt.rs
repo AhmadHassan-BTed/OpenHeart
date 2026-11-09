@@ -1,9 +1,11 @@
 //! If Statement CFG builder algorithm (§4.5.3).
 
 use crate::ast::BPASTArtifact;
+use crate::cfg::ast_query::children;
 use crate::cfg::builder::state::CFGBuilderState;
 use crate::cfg::stmts::dispatch_stmt;
-use crate::core::types::cfg::{CFGEdgeType, PendingEdge};
+use crate::cfg::stmts::expr::build_branch;
+use crate::core::types::cfg::CFGEdgeType;
 use crate::symbol::SymbolTableArtifact;
 
 pub fn build_if(
@@ -12,62 +14,59 @@ pub fn build_if(
     bpa: &BPASTArtifact,
     sta: &SymbolTableArtifact,
 ) {
-    let cond_node = match bpa.first_child(node) {
-        Some(c) => c,
+    let kids = children(bpa, node);
+    let cond_node = match kids.first() {
+        Some(&c) => c,
         None => return,
     };
 
-    let then_node = match bpa.next_sibling(cond_node) {
-        Some(t) => t,
-        None => return,
+    // Phase 2 drops an empty `;` branch, so two children are either `if (c) S` or
+    // `if (c) ; else S`; the token before the second child tells them apart.
+    let (then_node, else_node) = match kids.len() {
+        1 => (None, None),
+        2 => {
+            let second = kids[1];
+            let empty_then = state
+                .src
+                .as_ref()
+                .is_some_and(|s| s.text_before(bpa, second) == Some(b"else"));
+            if empty_then {
+                (None, Some(second))
+            } else {
+                (Some(second), None)
+            }
+        }
+        _ => (Some(kids[1]), Some(kids[2])),
     };
 
-    let else_node = bpa.next_sibling(then_node);
+    let then_entry = state.new_block();
+    let else_entry = else_node.map(|_| state.new_block());
+    let join = state.new_block();
 
-    state.add_stmt_to_current(cond_node, bpa);
-    let cond_block = state.current_block;
+    build_branch(
+        cond_node,
+        then_entry,
+        else_entry.unwrap_or(join),
+        CFGEdgeType::True,
+        state,
+        bpa,
+        sta,
+    );
 
     // ── THEN branch ──
-    let then_entry = state.new_block();
-    state.add_edge(cond_block, then_entry, CFGEdgeType::True);
     state.current_block = then_entry;
-    dispatch_stmt(then_node, state, bpa, sta);
-
-    let mut then_pending = state.drain_pending();
-    if state.current_block != then_entry || !state.blocks[then_entry as usize].stmts.is_empty() {
-        then_pending.push(PendingEdge {
-            from: state.current_block,
-            edge_type: CFGEdgeType::Uncond,
-        });
+    if let Some(t) = then_node {
+        dispatch_stmt(t, state, bpa, sta);
     }
+    state.goto(join, CFGEdgeType::Uncond);
 
     // ── ELSE branch ──
-    let else_pending = if let Some(else_n) = else_node {
-        let else_entry = state.new_block();
-        state.add_edge(cond_block, else_entry, CFGEdgeType::False);
-        state.current_block = else_entry;
-        dispatch_stmt(else_n, state, bpa, sta);
-
-        let mut ep = state.drain_pending();
-        if state.current_block != else_entry || !state.blocks[else_entry as usize].stmts.is_empty()
-        {
-            ep.push(PendingEdge {
-                from: state.current_block,
-                edge_type: CFGEdgeType::Uncond,
-            });
-        }
-        ep
-    } else {
-        vec![PendingEdge {
-            from: cond_block,
-            edge_type: CFGEdgeType::False,
-        }]
-    };
+    if let (Some(e), Some(entry)) = (else_node, else_entry) {
+        state.current_block = entry;
+        dispatch_stmt(e, state, bpa, sta);
+        state.goto(join, CFGEdgeType::Uncond);
+    }
 
     // ── JOIN block ──
-    let join = state.new_block();
-    for pe in then_pending.into_iter().chain(else_pending) {
-        state.add_edge(pe.from, join, pe.edge_type);
-    }
     state.current_block = join;
 }

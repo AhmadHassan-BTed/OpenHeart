@@ -16,7 +16,9 @@
  */
 
 import { isDarkMode } from './themes/index.js';
-import { Icons } from './icons.js';
+import { icon } from './icons.js';
+import { h, replaceChildren, strong } from './dom.js';
+import { localStore } from './storage.js';
 
 export class MinimapNavigator {
   /**
@@ -47,8 +49,11 @@ export class MinimapNavigator {
     this.offscreenCtx = this.offscreenCanvas.getContext('2d', { alpha: true });
 
     // States
-    this.isVisible = localStorage.getItem('openheart_minimap_visible') !== 'false';
-    this.isCollapsed = localStorage.getItem('openheart_minimap_collapsed') === 'true';
+    this.isVisible = localStore.getBoolean('openheart_minimap_visible', true);
+    this.isCollapsed = localStore.getBoolean('openheart_minimap_collapsed', false);
+    this.thumbnailTimer = null;
+    this.cachedCyCanvases = null;
+    this.loupeBadge = null;
     this.isLoupeActive = false;
     this.isDraggingViewfinder = false;
     this.dragStart = { x: 0, y: 0 };
@@ -73,32 +78,41 @@ export class MinimapNavigator {
 
   createMinimapDom() {
     // Floating Glassmorphic Minimap Card Docked at Bottom-Right
-    const card = document.createElement('div');
-    card.id = 'canvas-minimap-card';
-    card.className = `canvas-minimap-card ${this.isCollapsed ? 'collapsed' : ''}`;
-    card.style.display = this.isVisible ? 'flex' : 'none';
+    const actionButton = (id, title, iconName, extra = {}) => h('button', Object.assign({
+      type: 'button',
+      className: 'minimap-action-btn',
+      id,
+      title,
+      'aria-label': title
+    }, extra), icon(iconName));
 
-    card.innerHTML = `
-      <div class="minimap-header" id="minimap-header">
-        <div class="minimap-title-box">
-          <span class="minimap-icon">${Icons.radar}</span>
-          <span class="minimap-title">Radar</span>
-        </div>
-        <div class="minimap-actions">
-          <button type="button" class="minimap-action-btn" id="minimap-btn-fit" title="Fit View">${Icons.zoomReset}</button>
-          <button type="button" class="minimap-action-btn" id="minimap-btn-loupe" title="Toggle Magnifier Lens (L)">${Icons.loupe}</button>
-          <button type="button" class="minimap-action-btn" id="minimap-btn-collapse" title="Collapse / Expand">${this.isCollapsed ? Icons.chevronRight : Icons.chevronDown}</button>
-          <button type="button" class="minimap-action-btn" id="minimap-btn-close" title="Close Minimap (M)">${Icons.close}</button>
-        </div>
-      </div>
-      <div class="minimap-body" id="minimap-body">
-        <canvas class="minimap-canvas" id="minimap-canvas" width="${this.mapWidth}" height="${this.mapHeight}"></canvas>
-        <div class="minimap-viewfinder" id="minimap-viewfinder" title="Drag to navigate diagram">
-          <div class="viewfinder-lens-grid"></div>
-        </div>
-        <div class="minimap-hover-tooltip" id="minimap-hover-tooltip"></div>
-      </div>
-    `;
+    const card = h('div', {
+      id: 'canvas-minimap-card',
+      className: `canvas-minimap-card ${this.isCollapsed ? 'collapsed' : ''}`,
+      role: 'region',
+      'aria-label': 'Diagram overview minimap',
+      style: { display: this.isVisible ? 'flex' : 'none' }
+    },
+      h('div', { className: 'minimap-header', id: 'minimap-header' },
+        h('div', { className: 'minimap-title-box' },
+          h('span', { className: 'minimap-icon', 'aria-hidden': 'true' }, icon('radar')),
+          h('span', { className: 'minimap-title' }, 'Radar')
+        ),
+        h('div', { className: 'minimap-actions' },
+          actionButton('minimap-btn-fit', 'Fit View', 'zoomReset'),
+          actionButton('minimap-btn-loupe', 'Toggle Magnifier Lens (L while the canvas has focus)', 'loupe', { 'aria-pressed': 'false' }),
+          actionButton('minimap-btn-collapse', 'Collapse / Expand', this.isCollapsed ? 'chevronRight' : 'chevronDown', { 'aria-expanded': String(!this.isCollapsed) }),
+          actionButton('minimap-btn-close', 'Close Minimap (M while the canvas has focus)', 'close')
+        )
+      ),
+      h('div', { className: 'minimap-body', id: 'minimap-body' },
+        h('canvas', { className: 'minimap-canvas', id: 'minimap-canvas', width: this.mapWidth, height: this.mapHeight, 'aria-hidden': 'true' }),
+        h('div', { className: 'minimap-viewfinder', id: 'minimap-viewfinder', title: 'Drag to navigate diagram' },
+          h('div', { className: 'viewfinder-lens-grid' })
+        ),
+        h('div', { className: 'minimap-hover-tooltip', id: 'minimap-hover-tooltip', 'aria-hidden': 'true' })
+      )
+    );
 
     this.container.appendChild(card);
     this.minimapCard = card;
@@ -110,18 +124,18 @@ export class MinimapNavigator {
 
   createLoupeDom() {
     // Optical Magnifier Loupe Floating Lens
-    const loupe = document.createElement('div');
-    loupe.id = 'canvas-magnifier-loupe';
-    loupe.className = 'canvas-magnifier-loupe';
-    loupe.style.display = 'none';
-
-    loupe.innerHTML = `
-      <div class="loupe-rim">
-        <canvas id="loupe-canvas" width="200" height="200"></canvas>
-        <div class="loupe-reticle"></div>
-        <div class="loupe-badge" id="loupe-badge">2.5× ZOOM</div>
-      </div>
-    `;
+    const loupe = h('div', {
+      id: 'canvas-magnifier-loupe',
+      className: 'canvas-magnifier-loupe',
+      'aria-hidden': 'true',
+      style: { display: 'none' }
+    },
+      h('div', { className: 'loupe-rim' },
+        h('canvas', { id: 'loupe-canvas', width: 200, height: 200 }),
+        h('div', { className: 'loupe-reticle' }),
+        h('div', { className: 'loupe-badge', id: 'loupe-badge' }, '2.5× ZOOM')
+      )
+    );
 
     this.container.appendChild(loupe);
     this.loupeEl = loupe;
@@ -268,13 +282,15 @@ export class MinimapNavigator {
       });
     }
 
-    // Keyboard Shortcuts (M for Minimap, L for Loupe)
+    // Single-key shortcuts (M minimap, L loupe) act only while the diagram canvas has focus,
+    // so they never fire while typing or operating other controls (WCAG 2.1.4).
     window.addEventListener('keydown', (e) => {
-      // Don't trigger if user is typing in an input or monaco editor
-      const tag = (e.target?.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
-      if (e.target?.closest('#monaco-container')) return;
-
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const canvasFocused = typeof this.graphCanvas.isCanvasFocused === 'function' && this.graphCanvas.isCanvasFocused();
+      if (!canvasFocused) {
+        if (e.key === 'Escape' && this.isLoupeActive) this.toggleLoupe(false);
+        return;
+      }
       if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         this.toggleVisibility();
@@ -287,27 +303,56 @@ export class MinimapNavigator {
     });
   }
 
+  setHud(...parts) {
+    const hudText = document.getElementById('hud-status-text');
+    if (hudText) replaceChildren(hudText, ...parts);
+  }
+
   toggleVisibility(forcedState = null) {
     this.isVisible = forcedState !== null ? forcedState : !this.isVisible;
-    localStorage.setItem('openheart_minimap_visible', this.isVisible.toString());
+    localStore.set('openheart_minimap_visible', this.isVisible.toString());
     this.updateVisibility();
+    if (this.isVisible) this.onGraphRendered();
 
-    const hudText = document.getElementById('hud-status-text');
-    if (hudText) {
-      hudText.innerHTML = this.isVisible
-        ? `<strong>Minimap Radar Active</strong> (Press <kbd>M</kbd> to toggle · <kbd>L</kbd> for Loupe)`
-        : `<strong>Minimap Hidden</strong> (Press <kbd>M</kbd> to restore)`;
+    if (this.isVisible) {
+      this.setHud(strong('Minimap Radar Active'), ' (focus the canvas, then press ', h('kbd', null, 'M'), ' to toggle · ', h('kbd', null, 'L'), ' for Loupe)');
+    } else {
+      this.setHud(strong('Minimap Hidden'), ' (focus the canvas, then press ', h('kbd', null, 'M'), ' to restore)');
     }
   }
 
   toggleCollapse() {
     this.isCollapsed = !this.isCollapsed;
-    localStorage.setItem('openheart_minimap_collapsed', this.isCollapsed.toString());
+    localStore.set('openheart_minimap_collapsed', this.isCollapsed.toString());
     if (this.minimapCard) {
       this.minimapCard.classList.toggle('collapsed', this.isCollapsed);
       const btn = this.minimapCard.querySelector('#minimap-btn-collapse');
-      if (btn) btn.innerHTML = this.isCollapsed ? Icons.chevronRight : Icons.chevronDown;
+      if (btn) {
+        replaceChildren(btn, icon(this.isCollapsed ? 'chevronRight' : 'chevronDown'));
+        btn.setAttribute('aria-expanded', String(!this.isCollapsed));
+      }
     }
+  }
+
+  /**
+   * Drops cached references to Cytoscape's canvases; called whenever the graph is re-created
+   * so the loupe never samples detached canvases.
+   */
+  invalidateCaches() {
+    this.cachedCyCanvases = null;
+    this.cachedNodes = [];
+  }
+
+  /**
+   * Re-renders the thumbnail after moves, deletions, collapses and undo/redo (debounced).
+   */
+  scheduleThumbnailRefresh() {
+    if (this.thumbnailTimer) clearTimeout(this.thumbnailTimer);
+    this.thumbnailTimer = setTimeout(() => {
+      this.thumbnailTimer = null;
+      if (this.isVisible) this.onGraphRendered();
+      else this.onViewportChange();
+    }, 120);
   }
 
   toggleLoupe(forcedState = null) {
@@ -323,13 +368,14 @@ export class MinimapNavigator {
     const miniLoupeBtn = this.minimapCard?.querySelector('#minimap-btn-loupe');
     if (miniLoupeBtn) {
       miniLoupeBtn.classList.toggle('active-lens', this.isLoupeActive);
+      miniLoupeBtn.setAttribute('aria-pressed', String(this.isLoupeActive));
     }
+    if (btnLoupe) btnLoupe.setAttribute('aria-pressed', String(this.isLoupeActive));
 
-    const hudText = document.getElementById('hud-status-text');
-    if (hudText) {
-      hudText.innerHTML = this.isLoupeActive
-        ? `<strong>Magnifier Loupe Active</strong>: Hover over diagram to inspect at 2.5× (Press <kbd>L</kbd> to exit)`
-        : `<strong>Magnifier Loupe Deactivated</strong>`;
+    if (this.isLoupeActive) {
+      this.setHud(strong('Magnifier Loupe Active'), ': hover over the diagram to inspect at 2.5× (', h('kbd', null, 'L'), ' or ', h('kbd', null, 'Esc'), ' to exit)');
+    } else {
+      this.setHud(strong('Magnifier Loupe Deactivated'));
     }
 
     if (this.isLoupeActive) {
@@ -347,6 +393,7 @@ export class MinimapNavigator {
     const btnMinimap = document.getElementById('btn-toggle-minimap');
     if (btnMinimap) {
       btnMinimap.classList.toggle('active-pill', this.isVisible);
+      btnMinimap.setAttribute('aria-pressed', String(this.isVisible));
     }
   }
 
@@ -455,7 +502,7 @@ export class MinimapNavigator {
     const toMapY = (wy) => oy + s * (wy - wy1);
 
     // 1. Draw Packages (Containers)
-    const packages = cy.nodes('[?isPackage]');
+    const packages = cy.nodes('[?isPackage]').filter(n => n.visible());
     ctx.lineWidth = 1;
     packages.forEach(pkg => {
       const pos = pkg.position();
@@ -474,7 +521,7 @@ export class MinimapNavigator {
     });
 
     // 2. Draw Edges (Throttled sampling for 60fps instant rendering)
-    const edges = cy.edges();
+    const edges = cy.edges().filter(e => e.visible());
     ctx.strokeStyle = isDark ? 'rgba(148, 163, 184, 0.2)' : 'rgba(100, 116, 139, 0.25)';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
@@ -491,7 +538,7 @@ export class MinimapNavigator {
     ctx.stroke();
 
     // 3. Draw Leaf Nodes (Classes, Structs, Endpoints, BDD Gates)
-    const leafNodes = cy.nodes('[!isPackage]');
+    const leafNodes = cy.nodes('[!isPackage]').filter(n => n.visible());
     leafNodes.forEach(node => {
       const pos = node.position();
       const nw = node.width();
@@ -613,8 +660,8 @@ export class MinimapNavigator {
     const lensRadius = 100;
     this.loupeEl.style.transform = `translate3d(${(relX - lensRadius).toFixed(1)}px, ${(relY - lensRadius).toFixed(1)}px, 0)`;
 
-    // Cached Cytoscape canvas layers query
-    if (!this.cachedCyCanvases || this.cachedCyCanvases.length === 0) {
+    // Cached Cytoscape canvas layers query (invalidated on every re-render)
+    if (!this.cachedCyCanvases || this.cachedCyCanvases.length === 0 || !this.cachedCyCanvases[0].isConnected) {
       this.cachedCyCanvases = Array.from(interactiveCanvas.querySelectorAll('canvas'));
     }
     if (this.cachedCyCanvases.length === 0) return;

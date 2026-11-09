@@ -86,24 +86,34 @@ impl CallEdge {
     }
 }
 
-/// Fixed-size 12-byte SCCRecord (§6.4)
+/// Fixed-size 16-byte SCCRecord (§6.4).
+///
+/// `member_count` is a full u32: an SCC may contain every method of the program, so a
+/// 16-bit count silently wrapped on large codebases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SCCRecord {
     pub scc_id: u32,
     pub member_offset: u32,
-    pub member_count: u16,
+    pub member_count: u32,
     pub scc_class: u8,
-    pub _padding: u8,
+    pub _padding: [u8; 3],
 }
 
 impl SCCRecord {
-    pub fn new(scc_id: u32, member_offset: u32, member_count: u16, scc_class: u8) -> Self {
+    /// `member_count` accepts any unsigned width up to u32, so legacy u16 readers still
+    /// construct records; producers should pass the exact `u32` count.
+    pub fn new(
+        scc_id: u32,
+        member_offset: u32,
+        member_count: impl Into<u32>,
+        scc_class: u8,
+    ) -> Self {
         Self {
             scc_id,
             member_offset,
-            member_count,
+            member_count: member_count.into(),
             scc_class,
-            _padding: 0,
+            _padding: [0; 3],
         }
     }
 }

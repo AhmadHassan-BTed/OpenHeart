@@ -30,6 +30,8 @@ body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
 .sect-body:hover{border-color:var(--border-strong)}
 .sect-sz{font-size:10px;font-family:var(--font-mono,monospace);color:var(--text-muted)}
 </style>
+<div role="note" style="margin:0 0 12px;padding:8px 12px;border:1px solid #c9a227;border-radius:6px;background:rgba(201,162,39,0.10);font:12px/1.5 sans-serif"><strong>Design visualisation.</strong> Sizes, timings, complexity bounds and check marks on this page describe the SCPG <em>design</em>. None of them has been measured on, or verified against, the reference implementation. What the code does today is recorded in <a href="https://github.com/AhmadHassan-BTed/OpenHeart/blob/main/docs/status.md">docs/status.md</a>.</div>
+
 
 <h2 class="sr-only">OpenHeart Phase 10: SCPG serialization, query engine, and production API — system complete</h2>
 
@@ -171,7 +173,7 @@ body{padding:1rem 0;font-family:var(--font-sans,sans-serif)}
 <div class="check-row"><span class="ck-ok">✅</span><span class="ck-txt" onclick="si('Export formats','XMI: Eclipse EMF/UML2-compatible for enterprise tool round-trip. PlantUML: text format for CI pipeline diagram generation, GitHub README embedding. JSON: structured for web visualizers (D3.js, Mermaid, custom SVG). All carry UMLLink arrays.')">Export: XMI (Eclipse-compatible), PlantUML, JSON — all with UMLLink traceability</span></div>
 
 <div style="margin-top:12px;background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text-success);line-height:1.7">
-  <strong style="font-size:13px">OpenHeart engine — production ready.</strong><br>
+  <strong style="font-size:13px">OpenHeart engine — design target, not yet delivered.</strong><br>
   10 phases · 9 binary artifacts · 1 unified SCPG · 14 UML diagram types · O(1) navigation · O(V²) inter-procedural queries · O(|delta|) incremental updates · Multi-language adapter pattern · LSP-compatible IDE integration · XMI / PlantUML / JSON export.
 </div>
 </div>

@@ -1,0 +1,338 @@
+[
+ {
+  "id": "BDD-08",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Incremental invalidation is dead code and unsound; the documented 5-stage protocol does not exist",
+  "files": [
+   "src/tra/delta/mod.rs:20-47",
+   "src/tra/delta/invalidation.rs:7-20",
+   "src/scpg/incremental/mod.rs:25-34",
+   "docs/traceability_and_incremental.md:41-82"
+  ],
+  "evidence": "DeltaApplicator::compute_delta and StaleDetector have no callers outside their own module and its re-export. compute_delta compares BI_sym by positional sym_id and global token ids (delta/mod.rs:28-38). Inserting one token or symbol early shifts every later id and invalidates nearly everything. An edit that keeps a declaration's token span is missed, deletions are never reported, and nothing propagates dependencies. IncrementalEngine::apply_delta just returns `current_hash ^ 0x0101_0101` with stale_link_count 0. The rope buffer, tree-sitter incremental reparse and Merkle diff described in the doc do not exist.",
+  "impact": "The paper's incremental-update theorem (thm:incr) and the README's incremental claims have no implementation. Every edit means a full 10-phase rebuild.",
+  "recommendation": "Model the phases as Salsa queries (salsa crate: revisions, durability, early cutoff/backdating) keyed by stable ids (qualified name plus signature; file path plus byte offset). Use tree-sitter Tree::edit and changed_ranges to find dirty functions, rerun Phases 4-8 only for those, and diff per-entity hashes to decide UMLLink staleness. Done means an edit-replay benchmark over real commit histories that reports the recomputed fraction and latency.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The unified .scpg stores only element counts; the 'memory-mapped' open is a full copy, and no query uses it",
+  "files": [
+   "src/scpg/serializer/mod.rs:56-108",
+   "src/scpg/mmap/mod.rs:13-18",
+   "src/scpg/api/mod.rs:22-45",
+   "src/scpg/query/mod.rs:39-83",
+   "src/core/io/mmap.rs:12-17",
+   "README.md:59",
+   "README.md:124",
+   "docs/plans/phase10.md:532-542"
+  ],
+  "evidence": "Ten of the eleven sections hold a single LE count (`tca.token_records.len() as u32`, `sta.symbol_count`, `cga.call_site_count`, `psa.total_nodes`). Only StringTable carries real bytes, and no section deserializer exists. `MemoryMappedSCPG::open` calls `fs::read` into a Vec, although a memmap2 wrapper exists in core/io/mmap.rs. `OpenHeartEngine.mmap` is never read, and every query takes in-memory artifacts as arguments. Sections are unaligned (4-byte payloads, directory u64 fields at offsets ≡4 mod 8), so zero-copy views are impossible.",
+  "impact": "Phase 10's main output carries no analysis data, and a .scpg cannot be reopened to answer a query. The claims of \"<1 ms mmap open\", an \"82 MB LZ4\" file and hot/cold paging are not backed by code.",
+  "recommendation": "Make each section hold the full canonical artifact (or columnar CSR arrays, as in Joern flatgraph), aligned to 64 B or 4 KiB, with a per-section zstd/LZ4 codec and checksum. Map it with memmap2 from an immutable, atomically renamed file, expose typed views through zerocopy or bytemuck (or rkyv with bytecheck), and run QueryEngine over that view. Done means opening and querying a 500 KLOC .scpg without re-running phases 1-9, with latency measured by criterion.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": ".scpg loader never verifies CRC or version and panics or aborts on corrupt or hostile files",
+  "files": [
+   "src/scpg/mmap/mod.rs:34-35",
+   "src/scpg/mmap/mod.rs:52-72",
+   "src/scpg/mmap/mod.rs:86-89",
+   "src/scpg/serializer/integrity.rs:3-16",
+   "src/scpg/serializer/mod.rs:111",
+   "src/scpg/serializer/mod.rs:167",
+   "src/main.rs:469-474",
+   "docs/plans/phase10.md:548-549"
+  ],
+  "evidence": "The writer uses a bitwise CRC-32/IEEE (0xEDB88320), not the CRC-64 the README claims. `open` reads the CRC and `format_version` but checks neither. `section_count` comes straight from the file into `Vec::with_capacity`: 0xFFFFFFFF asks for about 103 GB and aborts, and count 12 on a 392-byte file panics on an out-of-range slice. `get_section` computes `start + byte_length` unchecked, so it can wrap and then panic on slicing. There is no header checksum, duplicate sections are accepted, and `fs::write` is not atomic. `inspect` prints \"SYSTEM PRODUCTION READY\" without verifying anything.",
+  "impact": "Truncated, corrupted or version-skewed files are silently accepted or crash the process. A 392-byte crafted file kills the CLI.",
+  "recommendation": "Validate before allocating: magic, a known major version, section_count up to a fixed maximum, checked_add offsets that stay inside the file, and unique, non-overlapping sections. Verify a header CRC and a per-section CRC-64/NVME or xxh3 checksum (crc64fast or xxhash-rust) lazily, and return Err on mismatch. Write via temp file, fsync and rename. Add a cargo-fuzz target for open. Done means a clean fuzz run of 24 hours and corruption tests that return Err.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "'Backward/forward slice' is a caller and parent-symbol closure that ignores SSA/CDG and drops nodes under the depth limit",
+  "files": [
+   "src/scpg/query/slice.rs:1",
+   "src/scpg/query/slice.rs:12-45",
+   "src/scpg/query/slice.rs:48-74",
+   "src/ssa/serializer.rs:16-23",
+   "tests/scpg_tests.rs:123-124"
+  ],
+  "evidence": "The doc says the slice works \"via CDG + def-use CSR\", but `_ssa` is unused. The walk adds callers from `site_to_edge_map` plus `parent_sym` (class, then package), so it returns symbols, not statements. Each FunctionSSAData already holds `def_use: DefUseCSR` and `cdg: CDGCSR`. The depth-limited DFS marks a node visited the first time it is reached, even via a deep path. A Python port with edges X→R, Y→R, X→Y, Z→X and depth 2 returns {R,X,Y} and misses Z, which is 2 hops away. Each expansion also scans every edge, giving O(V·E).",
+  "impact": "Because data and control dependences are ignored, the results are not slices. Users doing impact analysis or debugging get wrong sets that also vary with the depth limit.",
+  "recommendation": "Build an SDG: a PDG per method from DefUseCSR and CDGCSR, call and parameter-in/out edges, and heap edges from points-to. Implement Horwitz-Reps-Binkley two-phase slicing with summary edges (Reps-Horwitz-Sagiv-Rosay 1994), and offer thin slicing (Sridharan-Fink-Bodík, PLDI'07). Enforce the depth limit with a BFS that keeps each node's best depth. Done means statement-level slices that match WALA or Joern on Defects4J fixtures.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'CFL-reachability' is plain call-graph reachability with an O(V·E) inner loop",
+  "files": [
+   "src/scpg/query/cfl.rs:1-35",
+   "src/core/types/cg.rs:150-153",
+   "src/core/types/cg.rs:126-138",
+   "docs/plans/phase10.md:90-104",
+   "docs/plans/phase10.md:536"
+  ],
+  "evidence": "The \"cubic worklist tabulation\" stores pairs `(source,u)` with a fixed source, which is just a BFS visited set. There are no call/return labels, summary edges or ICFG, so it cannot express realizable (matched-parenthesis) paths. For every dequeued node it scans the whole `site_to_edge_map`. A port on a 2,000-node chain made 3,998,000 edge visits, even though `callee_csr`, `caller_csr` and `edges_of()` already exist.",
+  "impact": "The query is mislabeled, and its run time collapses on large codebases: about 1e9 edge scans at 15K methods and 60K edges. That contradicts the claim \"sub-second for 15K methods\".",
+  "recommendation": "For method reachability, use CSR adjacency plus SCC condensation (the .cga already has Tarjan SCCs) and a reachability index: bitset closure for small graphs, GRAIL or pruned landmark labeling for large ones. For true CFL reachability, implement IFDS tabulation (Reps-Horwitz-Sagiv) or Dyck reachability (Reps 1998) over the ICFG with summary edges. Done means criterion benchmarks on 100K-edge graphs, cross-checked against a Soufflé reference.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Incremental engine is a stub, and its hash update undoes itself, so cached results can go stale",
+  "files": [
+   "src/scpg/incremental/mod.rs:10-34",
+   "src/scpg/incremental/delta.rs:11-24",
+   "src/scpg/query/cache.rs:21-28",
+   "docs/plans/phase10.md:343-395",
+   "docs/plans/phase10.md:538"
+  ],
+  "evidence": "`SourceDelta` holds only a file_id and three booleans the caller asserts; there is no byte range or text. `classify` tests comment-only first, so a delta flagged both body-only and type-changed is classified as Behavioral. `apply_delta` rebuilds nothing, always returns `stale_link_count: 0`, and sets `new_scpg_hash = current_hash ^ 0x0101_0101`. Two deltas restore the original hash (port: 83D2D2B2 → 82D3D3B3 → 83D2D2B2), and that hash is the key the cache uses to decide validity. Nothing calls this code.",
+  "impact": "The documented 'O(|delta|), 80-200 ms' updates do not exist. If this code were wired in as is, alternating edits would serve stale reachability and slice results.",
+  "recommendation": "Derive deltas from tree-sitter incremental parsing (Tree::edit plus changed_ranges) and an AST diff (GumTree). Track per-file content hashes and phase dependencies in a demand-driven engine (salsa-style red/green as in rust-analyzer; compare Glean stacked DBs and CodeQL overlay databases). Version snapshots with strong digests. Done means an edit-replay benchmark proving incremental results equal a clean rebuild.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-05",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Declarative query language exposed via CLI, HTTP and library",
+  "files": [
+   "src/scpg/query/mod.rs",
+   "src/scpg/query/cfl.rs",
+   "src/scpg/query/slice.rs",
+   "src/scpg/query/navigation.rs",
+   "src/adapters/server.rs",
+   "src/main.rs"
+  ],
+  "evidence": "QueryEngine caches only two calls (src/scpg/query/mod.rs:39-83) over eight fixed helpers. None is routed through the CLI (src/main.rs:509-549) or the HTTP server (src/adapters/server.rs:77-289). CFL reachability is a BFS that rescans all edges per node (src/scpg/query/cfl.rs:21-31). The backward slice ignores SSA and CDG (src/scpg/query/slice.rs:12-45). 'O(1)' navigation is a linear scan (src/scpg/query/navigation.rs:8-27).",
+  "impact": "Users cannot ask their own questions. QL, CPGQL, Semgrep rules and Doop's Datalog turn their engines into platforms; OpenHeart remains a fixed report generator.",
+  "recommendation": "Expose the SCPG layers as relations and either embed a Datalog dialect (Ascent/Crepe, or export Soufflé facts) or offer a Cypher subset. Add `openheart query` and /api/query with streaming JSON. Implement true Dyck/CFL reachability and SDG slicing over def-use plus CDG. Ship a starter query library with docs.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-07",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Real incremental, commit-aware analysis",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/ingestion/parser/tree_sitter.rs",
+   "src/main.rs",
+   "docs/traceability_and_incremental.md",
+   "ROADMAP.md"
+  ],
+  "evidence": "apply_delta classifies a delta and returns current_hash ^ 0x0101_0101 (src/scpg/incremental/mod.rs:26-34). Staleness is a hash comparison (src/tra/delta/invalidation.rs:10-21). Parsing passes no old tree (src/ingestion/parser/tree_sitter.rs:21-23), and analyze reruns all ten phases (src/main.rs:150-254). Neither the five-stage Merkle protocol (docs/traceability_and_incremental.md:71-80) nor ROADMAP's 'O(1) incremental delta update' (ROADMAP.md:116) is implemented.",
+  "impact": "Every edit or PR forces a full rebuild. That rules out IDE-level latency and PR-time use, where CodeQL overlay databases, Infer's compositional diff analysis and Semgrep baselines compete.",
+  "recommendation": "Content-hash files and functions, and persist per-file artifacts. Reparse using tree-sitter edits and the old tree. Track dependencies between phases (salsa-style) so CFG, SSA and PSA are recomputed only for touched functions and their callers. Add --baseline <commit> to produce findings and diagrams for the diff only.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-08",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Demonstrated large-codebase scale: indexed, parallel, streaming pipeline",
+  "files": [
+   "src/cg/resolution.rs",
+   "src/scpg/query/cfl.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "Cargo.toml"
+  ],
+  "evidence": "Every call site rescans all symbols (src/cg/resolution.rs:84,133,185,212,225). CFL reachability scans the full edge list on each pop (src/scpg/query/cfl.rs:27). The server is a single-threaded accept loop that reads one 8 KiB buffer (src/adapters/server.rs:40-48). Cargo.toml:8-16 has no parallelism crate. The browser engine stops at 30 remote / 80 local files (web/js/github-engine.js:103,200).",
+  "impact": "Quadratic hot paths make 1M-LOC targets impractical and undercut the compression story. By contrast, Joern builds a full Linux-kernel CPG and Infer runs on Meta-scale code.",
+  "recommendation": "Index symbols by (parent, name) and store the call graph as CSR adjacency. Parallelise the per-file and per-function phases with rayon. Stream ingestion and artifact writes. Make the server async with bounded request bodies. Publish LOC/s and peak RSS at 100K, 1M and 5M LOC alongside Joern and CodeQL.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-10",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Wire token-anchored traceability into exports and the studio",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/query/navigation.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "JSON nodes get file set to '<Name>.java' and lines set to [1, 5, 10] (src/scpg/diagram/export/json.rs:267-268) or [1] (json.rs:581). No exporter or factory reads the TRA artifact. Navigation is linear despite the 'O(1)'/'O(log n)' comments (src/scpg/query/navigation.rs:8-27). Source files are found through hard-coded example paths (web/js/editor.js:183-193; src/adapters/server.rs:119-198).",
+  "impact": "The headline 'O(1) bidirectional source-to-diagram traceability' (README.md:48) never reaches users. Clicking a diagram element cannot reliably open its code, which IntelliJ and Sourcetrail do by default.",
+  "recommendation": "Emit real UMLLink spans (path, line/column range, token ids, scpg_hash) on every node, edge, member and message. Build the dense backward index for O(1) lookup. Resolve files by file_id from the corpus instead of guessing by name. Add end-to-end tests that check click-to-source lands on the right code.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-09",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "high",
+  "title": "There is no machine-readable export, so scoring has to regex-parse PlantUML",
+  "files": [
+   "src/main.rs",
+   "src/scpg/api/mod.rs",
+   "ruthless_verify.py",
+   "scripts/test_authored_design_patterns.py"
+  ],
+  "evidence": "The CLI offers only analyze, inspect, server and help (main.rs:508-547). Exports are PlantUML, Mermaid, JSON-graph and XMI (scpg/api/mod.rs:74-111). Every scorer recovers classes and relations with regexes over PlantUML text (ruthless_verify.py:225-241; benchmark_all_java_design_patterns.py:51-74; test_authored_design_patterns.py:66-122).",
+  "impact": "Scoring loses information: only simple names, no source spans, no call-site positions. A cosmetic exporter change can silently change a metric. Phase 3-8 outputs cannot be scored at all.",
+  "recommendation": "Add 'openheart export --format ohb-json' with versioned JSON Schemas covering: symbols (FQN, kind, byte span); type edges; per-method CFG, idom and phi; call edges (JVM descriptors, call-site line/col); points-to; pattern instances with role bindings; the UML model; BDD statistics; and per-phase timings. Add 'openheart query' so latency can be benchmarked.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-10",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "'O(1) bidirectional traceability' is not delivered: forward and navigation queries are scans",
+  "files": [
+   "src/tra/forward/sym_span.rs:50-71",
+   "src/tra/forward/cs_span.rs:41-62",
+   "src/tra/uml_link/mod.rs:67-68",
+   "src/scpg/query/navigation.rs:9-27",
+   "src/uma/structural/class_diagram.rs:304-308",
+   "README.md:48"
+  ],
+  "evidence": "forward_sym_query walks backward from the partition point and breaks only when the file changes (sym_span.rs:60-70). That costs O(log N + symbols before the token in the file), not the documented O(log N + k). forward_cs_query never stops once first_token_id < token_id (cs_span.rs:51-60). UMLLinks are 'sorted for O(1) array index access', but they cover only UML kinds, so they cannot be indexed by sym_id. NavigationEngine::to_source does a linear .find and from_source a full filter, and class diagrams run a .find per class (O(C*U)).",
+  "impact": "Query latency grows with file and repository size, and the README's headline O(1) traceability claim is false for every forward and navigation query.",
+  "recommendation": "Exploit span nesting: store each span's enclosing-span index (or reuse the BP AST's parent/LCA), binary-search the innermost span, then walk parents for O(log N + k). Use an interval tree such as rust-lapper for non-nested data. Give UMLLinks a dense sym_id-to-slot array, break cs queries early, and add CSR offset tables for blocks and SSA. Done means criterion p50/p99 latency benchmarks at 1M symbols.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-12",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Recursion, interprocedural composition and BDD queries are not implemented",
+  "files": [
+   "src/psa/construction/recursive.rs:13-28",
+   "src/psa/mod.rs:14-18",
+   "src/psa/mod.rs:98-102",
+   "src/cg/scc.rs:103",
+   "src/scpg/query/robdd.rs:9-20"
+  ],
+  "evidence": "RecursiveHandler::apply returns f_paths unchanged and stamps unwind_depth=3 (recursive.rs:26-28); nothing is unwound. No callee summary is ever read, and the documented callee-first order is actually inverted: Tarjan already emits callee SCCs first (scc.rs:103), and Phase 8 reverses them (psa/mod.rs:102). No code reads the stored node arrays or ordering tables; the only PSA query returns header sat_count and cyclomatic. The claimed 'path feasibility in O(|ROBDD|)' capability does not exist, and processing is single-threaded.",
+  "impact": "The interprocedural and recursion claims are unbacked, and the .psa carries large node arrays that nothing can query.",
+  "recommendation": "Either drop the claims and the node arrays, or implement them: a query API (restrict to an edge set and test satisfiability or count, paths through an edge, witness extraction via any_sat), call-site summary composition (Sharir-Pnueli functional approach or IDE), and bounded inlining for recursive SCCs. Use Tarjan's order without .rev(), and add rayon parallelism per function. Done means one test per advertised capability.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-13",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Diagram and .scpg output differ from run to run",
+  "files": [
+   "src/scpg/diagram/export/json.rs:131-148",
+   "src/scpg/diagram/export/json.rs:433-530",
+   "src/scpg/diagram/export/mermaid.rs:600-622",
+   "src/scpg/diagram/export/mermaid.rs:174-186",
+   "src/scpg/diagram/export/mermaid.rs:799",
+   "src/scpg/diagram/export/plantuml.rs:1410-1439",
+   "src/scpg/diagram/export/mermaid.rs:1583-1612",
+   "src/scpg/serializer/mod.rs:136-147",
+   "README.md:66"
+  ],
+  "evidence": "The JSON class and package diagrams iterate a HashMap or HashSet with RandomState when emitting nodes, edges and sequential `edge_{n}` ids, so ids and order change per process. Mermaid inserts nested packages from a HashSet and sorts only the root's children; `sort_children_and_edges` is never called. Call-graph views chain nodes in `HashSet::into_iter` order. The .scpg header embeds `creation_ts_ns`.",
+  "impact": "Diffs are noisy, web layouts shift, and golden tests and content-addressed caching are impossible. This contradicts the README's 'deterministically derives' claim.",
+  "recommendation": "Use BTreeMap or IndexMap, or sort by stable keys (FQN, sym_id) before emitting. Derive edge ids by hashing (src, kind, dst). Call the recursive sort. Keep timestamps out of hashed bytes and honor SOURCE_DATE_EPOCH. Done means a test that runs each exporter in two separate processes and asserts byte-equal output.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Query cache flushes everything when full, uses a weak 32-bit XOR key, and sits behind one global Mutex",
+  "files": [
+   "src/scpg/query/cache.rs:21-36",
+   "src/scpg/serializer/mod.rs:124-134",
+   "src/scpg/serializer/integrity.rs:18-39",
+   "src/ssa/mod.rs:41",
+   "src/psa/mod.rs:77",
+   "src/tra/uml_link/hash_chain.rs:36-44",
+   "src/scpg/api/mod.rs:51-72",
+   "src/scpg/api/builder.rs:5-35"
+  ],
+  "evidence": "The 'LRU' cache clears every entry when full. Its scpg_hash key XORs nine values. One of them is a token count, and `ssa.cfa_hash` and `psa.cfa_hash` are both `crc64_ecma(cfa_bytes)`, so they cancel out; the result is folded to 32 bits. TRA stamps links with a different scpg_hash formula. Results are cached by the engine's hash, but artifacts arrive with each call. All queries are serialized by `Arc<Mutex>`, and a poisoned lock silently returns false. EngineBuilder's options are never used and it has no build().",
+  "impact": "Stale or colliding cache hits are possible, links cannot be checked against the engine's hash, and server queries cannot run concurrently.",
+  "recommendation": "Key snapshots with a SHA-256 or BLAKE3 digest of the canonical section bytes (sha2 is already a dependency), store it in the header's empty source_hash, and share one hash definition with TRA. Use moka or lru over immutable Arc snapshots so reads need no Mutex. Return Result on a poisoned lock and implement build(). Done means a concurrency benchmark and a collision property test.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Impact, navigation and ROBDD queries miss their stated semantics and complexity",
+  "files": [
+   "src/scpg/query/impact.rs:10-34",
+   "src/scpg/query/navigation.rs:8-27",
+   "src/scpg/query/robdd.rs:9-20",
+   "src/tra/types.rs:125-136",
+   "src/main.rs:508-548"
+  ],
+  "evidence": "`impact_set` promises \"callers, overrides, and dependents\" but ignores `_sta` and follows only reverse call edges, scanning every edge per node. `to_source` is documented as O(1) but is `uml_links.iter().find`. `from_source` is documented as O(log n) but is a linear filter that returns every overlapping link instead of the innermost one. TRA's dense `bi_sym` and `sym_span` arrays go unused. `path_count` and `cyclomatic` return 1 for unknown symbols. No CLI command or HTTP route exposes any of these queries.",
+  "impact": "Change impact is under-reported when virtual dispatch is involved, every navigation lookup is O(n), and unknown symbols report fake metrics.",
+  "recommendation": "Compute impact as reverse reachability over call, override (CHA/RTA), field read/write and type-reference edges, or use Chianti-style atomic changes. Navigate with `bi_sym[sym_id]` plus an interval tree or binary search over sorted spans that returns the innermost entity. Return Option for unknown ids, and expose the queries through the CLI and an HTTP or LSP API. Done means tests for override-aware impact and benchmarks that confirm the stated complexity.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-19",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No standard interop or query surface (SCIP/LSIF, a query language, LSP) and no stable symbol ids",
+  "files": [
+   "src/scpg/query/mod.rs:22-84",
+   "src/scpg/types.rs:44-59",
+   "src/main.rs:508-548",
+   "docs/plans/phase10.md:562-567"
+  ],
+  "evidence": "QueryEngine offers just two hard-coded Rust calls, reachability and backward slice, and the u8 `query_type` field is not extensible. The CLI has only analyze, inspect, server and help. The LSPBridge, FileWatcher and didChange-to-SourceDelta pieces described in the docs do not exist. Entities are positional u32 sym_ids that change between builds, so cross-build diffs and external links are impossible.",
+  "impact": "OpenHeart cannot plug into Sourcegraph, IDEs or CI, and users cannot write their own analyses. Joern (CPGQL), CodeQL (QL), Glean (Angle) and Kythe/SCIP all support this.",
+  "recommendation": "Assign stable SCIP-style symbol strings or Kythe VNames, and export SCIP using the scip crate. Add a query layer, for example Datalog via ascent or crepe, a Trustfall adapter, or a Gremlin-like DSL. Add a tower-lsp server for definition, references and hover backed by TRA. Done means `scip lint` passes and an LSP smoke test works in VS Code.",
+  "effort": "XL",
+  "confidence": "high"
+ }
+]

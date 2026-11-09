@@ -1,4 +1,5 @@
-//! ROBDD node representation (12 bytes, cache-line efficient — 5.3 nodes per 64-byte cache line).
+//! ROBDD node representation (12 bytes, `repr(C)`; nodes are packed back to back in the
+//! node store and in `.psa` node arrays, so a node may straddle a cache line).
 //!
 //! Layout (§8.4):
 //! ```text
@@ -10,10 +11,14 @@
 //! Total: 12 bytes
 //! ```
 //!
-//! `node_id=0` is always the `FALSE` terminal.
-//! `node_id=1` is always the `TRUE` terminal.
-//! Both are pre-populated at BDD library initialization.
-//! All function-specific nodes start at `node_id=2`.
+//! **Terminals.** `node_id=0` is always the `FALSE` terminal and `node_id=1` the `TRUE`
+//! terminal; both are pre-populated when a node store is created and every
+//! function-specific node starts at `node_id=2`. The single definition of "terminal" used
+//! by every traversal is the *id*: [`is_terminal_id`]. The `var == TERMINAL_VAR` label and
+//! the flag bits are how the two terminal *records* are encoded; no internal node may carry
+//! either (the library rejects `TERMINAL_VAR` as a variable, and `verify_node_array` rejects
+//! any record beyond ids 0 and 1 that is labelled or flagged as a terminal), so for a
+//! validated array the three views agree.
 
 /// The sentinel node_id for the FALSE terminal.
 pub const FALSE_ID: u32 = 0;
@@ -30,9 +35,15 @@ pub const FLAG_TRUE_TERMINAL: u16 = 0b0000_0000_0000_0010;
 /// The `var` field value used for terminal nodes (0xFFFF — no variable).
 pub const TERMINAL_VAR: u16 = 0xFFFF;
 
+/// True iff `id` names one of the two terminals (FALSE = 0, TRUE = 1).
+#[inline]
+pub fn is_terminal_id(id: u32) -> bool {
+    id == FALSE_ID || id == TRUE_ID
+}
+
 /// A single ROBDD node.
 ///
-/// 12 bytes — fits 5.3 nodes per 64-byte cache line. Every internal node has a
+/// 12 bytes. Every internal node has a
 /// variable `var(N)` ∈ {x₁,...,xₘ} that respects the total ordering constraint:
 /// if node N has variable xᵢ and child C has variable xⱼ, then i < j.
 ///
@@ -92,19 +103,10 @@ impl ROBDDNode {
         }
     }
 
-    /// Returns true iff this node is the FALSE terminal.
-    #[inline]
-    pub fn is_false(&self) -> bool {
-        self.flags & FLAG_FALSE_TERMINAL != 0
-    }
-
-    /// Returns true iff this node is the TRUE terminal.
-    #[inline]
-    pub fn is_true(&self) -> bool {
-        self.flags & FLAG_TRUE_TERMINAL != 0
-    }
-
-    /// Returns true iff this node is any terminal (FALSE or TRUE).
+    /// Returns true iff this record is labelled as a terminal (`var == TERMINAL_VAR`).
+    ///
+    /// Traversals decide terminality by id ([`is_terminal_id`]); this predicate is for
+    /// validating records (see the module documentation).
     #[inline]
     pub fn is_terminal(&self) -> bool {
         self.var == TERMINAL_VAR
@@ -121,7 +123,7 @@ mod tests {
         assert_eq!(
             size_of::<ROBDDNode>(),
             12,
-            "ROBDDNode must be exactly 12 bytes for cache-line efficiency"
+            "ROBDDNode must be exactly 12 bytes (the .psa node-array record size)"
         );
     }
 
@@ -138,16 +140,14 @@ mod tests {
     #[test]
     fn false_terminal_flags() {
         let n = ROBDDNode::false_terminal();
-        assert!(n.is_false());
-        assert!(!n.is_true());
+        assert_eq!(n.flags, FLAG_FALSE_TERMINAL);
         assert!(n.is_terminal());
     }
 
     #[test]
     fn true_terminal_flags() {
         let n = ROBDDNode::true_terminal();
-        assert!(n.is_true());
-        assert!(!n.is_false());
+        assert_eq!(n.flags, FLAG_TRUE_TERMINAL);
         assert!(n.is_terminal());
     }
 
@@ -155,8 +155,7 @@ mod tests {
     fn internal_node_not_terminal() {
         let n = ROBDDNode::internal(3, FALSE_ID, TRUE_ID);
         assert!(!n.is_terminal());
-        assert!(!n.is_false());
-        assert!(!n.is_true());
+        assert_eq!(n.flags, 0);
         assert_eq!(n.var, 3);
         assert_eq!(n.lo, FALSE_ID);
         assert_eq!(n.hi, TRUE_ID);

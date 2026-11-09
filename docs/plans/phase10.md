@@ -2,11 +2,13 @@
 
 ## Phase 10: SCPG Serialization & Query Engine Bootstrap
 
+> **Status: design specification.** This plan describes the target design of Phase 10. Much of it was not implemented at the audited baseline `fc218cd`: the `.scpg` sections other than the string table hold element counts only, the loader reads the whole file instead of mapping it, the incremental engine is a stub, "CFL-reachability" is plain call-graph reachability, the XMI exporter is a placeholder, and no LSP bridge or file watcher exists. Implementation notes below mark each gap; the authoritative status is [docs/status.md](../status.md). Every size and latency figure in this plan is a design estimate that has never been measured.
+
 ### 10.1 Phase Mandate
 
 Phase 10 is the terminus of the OpenHeart pipeline. It does three things simultaneously: it merges all nine prior binary artifacts into a single, memory-mapped `.scpg` file; it bootstraps the demand-driven query engine that answers arbitrary SCPG queries without rerunning any analysis; and it exposes the production public API through which IDEs, CI pipelines, and visualization tools generate all 14 UML diagram types and navigate bidirectionally between source and diagram elements.
 
-After Phase 10 completes, the system is production-ready. No further pipeline runs are needed except when source code changes — and even then, only the phases affected by the delta re-execute.
+In the target design, no further pipeline runs are needed after Phase 10 except when source code changes, and then only the phases affected by the delta re-execute. (Not implemented: every run recomputes all ten phases.)
 
 ---
 
@@ -18,8 +20,8 @@ The `.scpg` binary is a single memory-mapped file with 11 typed sections. Sectio
 
 ```
 Offset   Size  Field
-  0        8   magic           0x5343504700010000  ("SCPG\x00\x01\x00\x00")
-  8        4   format_version  0x00000001
+  0        8   magic           bytes 53 43 50 47 00 01 00 00  ("SCPG\0\x01\0\0")
+  8        4   format_version  SCPG_FORMAT_VERSION (src/scpg/types.rs)
  12        4   section_count   11
  16       32   source_hash     SHA-256 of sorted(SHA-256(each_source_file))
  48        8   creation_ts_ns  Unix nanoseconds
@@ -28,6 +30,12 @@ Offset   Size  Field
  64       64   _reserved       zeroed
 Total: 128 bytes
 ```
+
+**Magic and versioning.** The magic is the eight bytes `53 43 50 47 00 01 00 00` exactly as they appear on disk. Read as a little-endian `u64` (`SCPG_MAGIC` in `src/scpg/types.rs`) they are `0x0000010047504353`; the big-endian literal `0x5343504700010000` that an earlier version of this table showed is the same bytes read the other way. The bytes after `SCPG` are a fixed part of the magic, **not** a version number: the format version lives only in `format_version`, and a reader must check both. Error messages should print the magic as bytes, not as an integer.
+
+**`source_hash`.** Defined as SHA-256 over the sorted `(relative path, content_sha256)` pairs of the ingested files, so that a stale `.scpg` can be detected by recomputing it from the sources. *Implementation:* the writer currently stores 32 zero bytes, so staleness cannot be detected from the header.
+
+**`creation_ts_ns`.** A wall-clock timestamp makes otherwise identical builds differ byte for byte. It must be excluded from any hashed or compared bytes, and builds should honour `SOURCE_DATE_EPOCH`.
 
 **Section Directory (11 × 24 bytes = 264 bytes):**
 
@@ -49,7 +57,7 @@ HOT      0x02   TCA       String Table:     StringInternHeader[] + string storag
 HOT      0x09   TRA       Traceability:     BI_ast, BI_sym, BI_blk, BI_ssa, BI_cs
                                              + Symbol Span Index + UMLLink Table
 HOT      0x04   STA       Symbol Table:     SymbolRecord[n_sym], 64B each
-HOT      0x08   STA       Type Hierarchy:   CSR offsets+adj + wavelet tree (Σ_TH)
+HOT      0x08   STA       Type Hierarchy:   CSR offsets+adj (+ wavelet tree Σ_TH: planned)
 ────────────────────────────────────────────────────────────────────────────────
 WARM     0x0A   UMA       Semantic Meta:    All 14 diagram type records + labels
 WARM     0x07   CGA       Call Graph:       Call site table + callee/caller CSR
@@ -60,13 +68,15 @@ COLD     0x03   BPA       BP AST:           BP bitstring + rank/select + jump ta
 COLD     0x05   CFA       CFG:              Per-function CSR + idom[] + DF CSR
                                              + block metadata + exception table
 COLD     0x06   SSA       SSA/DFG:          SSA variable table + φ-table
-                                             + def-use CSR + CDG + IFDS results
+                                             + def-use CSR + CDG + fact marks (IFDS planned)
 COLD     0x0B   PSA       Path Summaries:   Per-function ROBDD node arrays
                                              + variable orderings + path metrics
                                              (lazy-loaded per function on demand)
 ```
 
-**Total SCPG binary size (500K LOC Java project):**
+> **Implementation (audited baseline `fc218cd`):** today only the String Table section carries data; the other ten sections each hold a single element count, and no section deserializer exists. The checksum scheme for the header, directory and sections is defined in `src/scpg/serializer/integrity.rs`.
+
+**Design estimate of the SCPG binary size (500K LOC Java project; never measured — no corpus, script or LZ4 dependency exists):**
 
 ```
 Hot  sections: Token Table (16 MB) + String Table (5 MB)
@@ -149,7 +159,9 @@ fn cfl_reachable(source: u32, target: u32, scpg: &SCPG) -> bool {
 }
 ```
 
-Time: O(|V|²) for connected call graphs (each pair visited at most once). In practice sub-second for 15K-method codebases.
+Time: with a fixed source the tabulation visits each pair `(source, u)` at most once, O(|V|²) pairs in general. No latency has been measured.
+
+> **Implementation (audited baseline `fc218cd`):** `src/scpg/query/cfl.rs` does not implement this algorithm. It has no call/return labels, no summary edges and no ICFG, so it computes plain breadth-first reachability over call edges, and it scans the whole call-site map for every dequeued node (O(V·E)). Real CFL-reachability requires IFDS-style tabulation over an ICFG with summary edges (Reps–Horwitz–Sagiv 1995; Reps 1998). For plain method reachability, CSR adjacency plus SCC condensation is the appropriate structure.
 
 ---
 
@@ -342,6 +354,8 @@ impl Phase10Stage {
 
 #### 10.6.2 Incremental Update — Partial Pipeline Rebuild
 
+> **Implementation (audited baseline `fc218cd`):** not implemented. `src/scpg/incremental/` receives a delta made of a file id and three caller-asserted booleans (no byte range or text), checks the comment-only flag first (so a delta flagged as both body-only and type-changing is classified as behavioural), rebuilds nothing, reports zero stale links and returns `current_hash ^ 0x0101_0101` — so applying two deltas restores the original hash, which is also the key the query cache uses for validity. Nothing calls it. The prerequisites (stable ids, edit-derived deltas, dependency tracking) are listed in [traceability_and_incremental.md §3.1](../traceability_and_incremental.md#31-prerequisites).
+
 When source changes, the `IncrementalEngine` determines the minimal set of phases to re-execute:
 
 ```rust
@@ -380,8 +394,13 @@ impl IncrementalEngine {
 /// Rebuild scope classification:
 /// Given a source delta, which phases must re-execute?
 fn classify(delta: &SourceDelta, scpg: &SCPG) -> RebuildScope {
-    if delta.affects_only_comments_or_whitespace() {
-        RebuildScope::None // UMLLinks remain valid (token positions unchanged)
+    if delta.moves_no_offsets() {
+        RebuildScope::None // nothing to do; scpg_hash unchanged
+    } else if delta.affects_only_comments_or_whitespace() {
+        // Comment/whitespace edits move the line/column of every later token in the file,
+        // so TCA sort keys and TRA spans must be re-indexed (re-lex the file), but no
+        // semantic phase re-runs.
+        RebuildScope::PositionsOnly
     } else if delta.affects_only_method_bodies() {
         RebuildScope::Behavioral // Re-run Phases 4,5,7,8,9 for changed methods
     } else if delta.affects_type_declarations() {
@@ -395,14 +414,17 @@ fn classify(delta: &SourceDelta, scpg: &SCPG) -> RebuildScope {
 **Incremental rebuild cost for common change types:**
 
 ```
-Change type                    Phases re-run    Wall-clock time (500K LOC)
+Change type                    Work required
 ─────────────────────────────────────────────────────────────────────────
-Comment/whitespace only        none             0ms (scpg_hash unchanged)
-Method body edit               4,5,7,8,9        ~80ms (1 method)
-Method signature change        3,4,5,6,7,9      ~120ms (1 class affected)
-New class added                3,4,5,6,7,8,9    ~200ms
-File-level refactor            1-9              ~500ms (partial file redo)
-Full rebuild (cold start)      1-10             ~8-15s (500K LOC)
+Edit that moves no offsets     none (scpg_hash unchanged)
+Comment/whitespace only        re-lex the file; re-index TCA sort keys and TRA spans
+Method body edit               Phases 4,5,7,8,9 for the changed method
+Method signature change        Phases 3,4,5,6,7,9 for the affected class and its dependents
+New class added                Phases 3-9 for the new class and its dependents
+File-level refactor            Phases 1-9 for the file and its dependents
+Full rebuild (cold start)      Phases 1-10
+
+No latency is given for any row: none has been measured.
 ```
 
 #### 10.6.3 Backward Slice Implementation
@@ -515,72 +537,111 @@ impl OpenHeartEngine {
 
 ---
 
-### 10.8 Production Readiness Checklist
+### 10.8 Readiness Checklist
 
-Every item below is satisfied by the specification as delivered across all 10 phases:
+An earlier version of this section ticked every item below as satisfied. That was incorrect: most items describe the design, not the delivered code. Each item now carries its status at the audited baseline `fc218cd` under the rule in [docs/status.md §1](../status.md#1-status-rule) (an item is ✅ only with a linked module **and** a test asserting an expected result). Legend: ✅ implemented · 🟡 partial · ❌ not implemented / stub · ❔ not verified by any test.
+
+| Area | Item | Status | Notes |
+|---|---|---|---|
+| Correctness | All 14 UML diagram types generated from analysis | ❌ | Several views are templates or empty extractors ([provenance matrix](../status.md#5-diagram-provenance-matrix)). |
+| Correctness | Source ↔ diagram navigation at O(1) / O(log n) | 🟡 | Backward O(1); forward queries scan after a binary search. |
+| Correctness | Hash-chain integrity across all artifacts | 🟡 | CRC-32 hash chain over upstream checksums; no per-entity hashes. |
+| Correctness | Stale UMLLink detection per link | ❌ | The whole-build tag marks every link stale on any edit; the incremental engine is a stub. |
+| Correctness | SSA single-assignment verified at finalize | ❔ | No differential test against a reference SSA construction. |
+| Correctness | ROBDD canonicity after every sifting pass | ❌ | Sifting has no effect; path counts are overestimates. |
+| Performance | Memory-mapped zero-copy access | ❌ | `MemoryMappedSCPG::open` reads the whole file; sections are counts only. |
+| Performance | Hot/cold section residency | ❌ | Not applicable until sections carry data. |
+| Performance | Navigation O(1) or O(log n) | 🟡 | See above. |
+| Performance | Diagram generation O(n_sym), cached O(1) | ❔ | Not measured. |
+| Performance | CFL-reachability sub-second for 15K methods | ❌ | Not CFL-reachability (BFS with an O(V·E) inner loop); not measured. |
+| Performance | LRU query cache (512 entries, invalidation on hash change) | 🟡 | Cache exists; its validity key comes from the stub incremental engine. |
+| Performance | Incremental updates in 80–200 ms | ❌ | Not implemented; not measured. |
+| Performance | Cold build 8–15 s for 500K LOC | ❔ | Not measured. |
+| Space | ≈ 82 MB LZ4-compressed for 500K LOC | ❌ | No LZ4 dependency; not measured. |
+| Space | ~12 MB typical resident set | ❔ | Not measured. |
+| Space | Succinct AST 6.9× smaller than pointer-based | ❌ | The AST stores an O(n log n)-word sparse table; not measured. |
+| Space | Lazy-loaded per-function ROBDDs | ❌ | Sections carry no ROBDD data. |
+| Robustness | Per-section checksum verification at open | ❔ | See `src/scpg/serializer/integrity.rs`; requires corruption tests that expect an error. |
+| Robustness | SHA-256 source hash detects stale SCPG | ❌ | `source_hash` is written as zeros. |
+| Robustness | Phase invariants verified at finalize | ❔ | |
+| Robustness | Rebuild planner classifies scope correctly | ❌ | Stub; comment/whitespace edits were classified as needing no work (see §10.6.2). |
+| Robustness | CRC-64/ECMA on every Phase 1–9 artifact | 🟡 | Written; not verified uniformly by readers. |
+| Extensibility | Language adapter pattern | 🟡 | Only Java has adapters for every phase; Kotlin uses the Java grammar. |
+| Extensibility | New query types without modifying dispatch | ❔ | `query_type` is a fixed `u8`. |
+| Extensibility | New output formats in the export layer | 🟡 | PlantUML, Mermaid, JSON; XMI is a placeholder. |
+| Extensibility | XMI export implemented | ❌ | Emits XMI 2.1 / Eclipse UML2 3.0.0 class shells named `Class_<id>`; not written by the CLI or server. |
+| IDE integration | LSPBridge (definition, references, symbols, hover) | ❌ | Does not exist. |
+| IDE integration | UMLLink click-to-source protocol | 🟡 | Records exist; consumed by the web studio only. |
+| IDE integration | FileWatcher / `didChange` → `SourceDelta` | ❌ | Does not exist. |
+| Multi-language | Language-agnostic model (Phases 2–10) | 🟡 | Model is language-neutral; only Java reaches it with a correct grammar. |
+| Multi-language | Mixed Java + Kotlin under one namespace | ❌ | No Kotlin grammar; no polyglot JVM model. |
+
+The original checklist is kept below as the design target; `◻` marks a target, not a delivered item.
 
 ```
 CORRECTNESS
-  ✅ All 14 UML diagram types generated (Phase 9 UMA + Phase 10 renderers)
-  ✅ Bidirectional source↔diagram navigation at O(1)/O(log n) (Phase 7 TRA)
-  ✅ Strict hash-chain integrity across all 9 artifacts → SCPG (Phase 10 header)
-  ✅ Stale UMLLink detection in O(1) per link (Phase 7 scpg_hash protocol)
-  ✅ SSA form: single-assignment verified at Phase 5 finalize() (Invariant 1)
-  ✅ ROBDD canonicity verified after every sifting pass (Phase 8 Invariant 3)
+  ◻ All 14 UML diagram types generated (Phase 9 UMA + Phase 10 renderers)
+  ◻ Bidirectional source↔diagram navigation at O(1)/O(log n) (Phase 7 TRA)
+  ◻ Strict hash-chain integrity across all 9 artifacts → SCPG (Phase 10 header)
+  ◻ Stale UMLLink detection in O(1) per link (Phase 7 scpg_hash protocol)
+  ◻ SSA form: single-assignment verified at Phase 5 finalize() (Invariant 1)
+  ◻ ROBDD canonicity verified after every sifting pass (Phase 8 Invariant 3)
 
 PERFORMANCE
-  ✅ Memory-mapped I/O: zero-copy access, OS-managed LRU page cache
-  ✅ Hot sections (63 MB) resident after first query; cold sections lazy-loaded
-  ✅ All navigation queries: O(1) or O(log n) via TRA dense arrays + span index
-  ✅ All diagram generation: O(n_sym) first run, O(1) cached
-  ✅ CFL-reachability: O(|V|²) practical — sub-second for 15K methods
-  ✅ LRU query cache (512 entries, full invalidation on scpg_hash change)
-  ✅ Incremental updates: O(|delta|) — typically 80-200ms for single-method edits
-  ✅ Full cold-start build: ~8-15s for 500K LOC Java (parallelizable Phases 4-8)
+  ◻ Memory-mapped I/O: zero-copy access, OS-managed LRU page cache
+  ◻ Hot sections (63 MB) resident after first query; cold sections lazy-loaded
+  ◻ All navigation queries: O(1) or O(log n) via TRA dense arrays + span index
+  ◻ All diagram generation: O(n_sym) first run, O(1) cached
+  ◻ CFL-reachability: O(|V|²) practical — sub-second for 15K methods
+  ◻ LRU query cache (512 entries, full invalidation on scpg_hash change)
+  ◻ Incremental updates: O(|delta|) — typically 80-200ms for single-method edits
+  ◻ Full cold-start build: ~8-15s for 500K LOC Java (parallelizable Phases 4-8)
 
 SPACE
-  ✅ SCPG binary ≈ 82 MB LZ4-compressed for 500K LOC Java (< 200 bytes per LOC)
-  ✅ Typical RAM resident: ~12 MB (hot sections + LRU cache)
-  ✅ Succinct AST (BP encoding): 6.9× smaller than pointer-based
-  ✅ ROBDD path summaries: lazy-loaded per-function (~6 KB each), never all at once
+  ◻ SCPG binary ≈ 82 MB LZ4-compressed for 500K LOC Java (< 200 bytes per LOC)
+  ◻ Typical RAM resident: ~12 MB (hot sections + LRU cache)
+  ◻ Succinct AST (BP encoding): 6.9× smaller than pointer-based
+  ◻ ROBDD path summaries: lazy-loaded per-function (~6 KB each), never all at once
 
 ROBUSTNESS
-  ✅ Per-section CRC-32 integrity verification at SCPG open time
-  ✅ SHA-256 source hash detects out-of-date SCPG (source changed, SCPG not rebuilt)
-  ✅ Phase invariants (10 total across all phases) verified at artifact finalize()
-  ✅ Incremental rebuild planner: classifies scope correctly to avoid silent staleness
-  ✅ CRC-64/ECMA checksum on every binary artifact (Phases 1-9 output files)
+  ◻ Per-section CRC-32 integrity verification at SCPG open time
+  ◻ SHA-256 source hash detects out-of-date SCPG (source changed, SCPG not rebuilt)
+  ◻ Phase invariants (10 total across all phases) verified at artifact finalize()
+  ◻ Incremental rebuild planner: classifies scope correctly to avoid silent staleness
+  ◻ CRC-64/ECMA checksum on every binary artifact (Phases 1-9 output files)
 
 EXTENSIBILITY
-  ✅ Language adapter pattern: plug in new grammars without touching core pipeline
-  ✅ Java is Phase 1 concrete implementation; Kotlin, Python, Go, Rust, TypeScript
+  ◻ Language adapter pattern: plug in new grammars without touching core pipeline
+  ◻ Java is Phase 1 concrete implementation; Kotlin, Python, Go, Rust, TypeScript
       follow by implementing LanguageAdapter + ASTReductionAdapter + SemanticAdapter
-  ✅ Query engine: new query types added without modifying LRU cache or dispatch
-  ✅ Diagram renderers: new output formats added to Phase 10 export layer
-  ✅ XMI, PlantUML, and JSON export implemented — plug in SVG/D3/Mermaid as needed
+  ◻ Query engine: new query types added without modifying LRU cache or dispatch
+  ◻ Diagram renderers: new output formats added to Phase 10 export layer
+  ◻ XMI, PlantUML, and JSON export implemented — plug in SVG/D3/Mermaid as needed
 
 IDE INTEGRATION
-  ✅ LSPBridge exposes: textDocument/definition, textDocument/references,
+  ◻ LSPBridge exposes: textDocument/definition, textDocument/references,
       textDocument/documentSymbol, textDocument/hover, workspace/symbol
-  ✅ UMLLink protocol: any IDE can render click-to-source for diagram elements
-  ✅ FileWatcher: fs::watch() integration for real-time incremental updates
-  ✅ SourceDelta API: LSP textDocument/didChange maps directly to SourceDelta
+  ◻ UMLLink protocol: any IDE can render click-to-source for diagram elements
+  ◻ FileWatcher: fs::watch() integration for real-time incremental updates
+  ◻ SourceDelta API: LSP textDocument/didChange maps directly to SourceDelta
 
 MULTI-LANGUAGE
-  ✅ Core SCPG mathematical model is language-agnostic (Phases 2-10)
-  ✅ Language isolation: Phase 1 adapters + Phase 3 semantic adapters per language
-  ✅ Token type alphabet Σ_T: 0x00-0x7F language-agnostic, 0x80-0xFF per-language
-  ✅ Node type alphabet Σ_N: 0x00-0x7F language-agnostic, 0x80-0xFF per-language
-  ✅ Multi-language project (e.g. Java+Kotlin+XML): adapters register per file extension,
+  ◻ Core SCPG mathematical model is language-agnostic (Phases 2-10)
+  ◻ Language isolation: Phase 1 adapters + Phase 3 semantic adapters per language
+  ◻ Token type alphabet Σ_T: 0x00-0x7F language-agnostic, 0x80-0xFF per-language
+  ◻ Node type alphabet Σ_N: 0x00-0x7F language-agnostic, 0x80-0xFF per-language
+  ◻ Multi-language project (e.g. Java+Kotlin+XML): adapters register per file extension,
       PhaseN stage dispatches per file, SCPG unifies under one symbol namespace
 ```
 
 ---
 
-### 10.9 End-to-End Performance Profile
+### 10.9 End-to-End Performance Targets (design, unmeasured)
+
+The figures below are design targets. None has been measured; they must not be quoted as results.
 
 ```
-Operation                              Latency (500K LOC Java, warm cache)
+Operation                              Target latency (500K LOC Java, warm cache)
 ──────────────────────────────────────────────────────────────────────────
 Open pre-built .scpg (mmap)            < 1ms
 Generate full class diagram            < 5ms

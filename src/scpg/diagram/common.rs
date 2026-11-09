@@ -1,93 +1,57 @@
-//! Shared Diagram Utilities and Package Tree Abstractions (§10.4).
+//! Shared Diagram Utilities (§10.4).
 //!
-//! Eliminates repetitive symbol resolution, identifier sanitization, visibility formatting,
-//! and hierarchical package graph construction across all diagram format exporters.
+//! The single home of the identifier, escaping, hashing and truncation rules used by every
+//! format printer, so PlantUML, Mermaid, JSON, XMI, DOT and GraphML agree on them. No printer
+//! keeps a private copy of these rules.
 
-use std::collections::{HashMap, HashSet};
+use crate::ingestion::interner::fnv1a_64;
 
-use crate::ingestion::TokenCorpusArtifact;
-use crate::symbol::SymbolTableArtifact;
-
-/// Common utilities for diagram symbol resolution and identifier formatting.
+/// Common utilities for diagram identifiers and text formatting.
 pub struct DiagramUtils;
 
 impl DiagramUtils {
-    /// Resolves the raw name string for a symbol ID from the string interner.
-    pub fn resolve_name<'a>(
-        sta: &SymbolTableArtifact,
-        tca: &'a TokenCorpusArtifact,
-        sym_id: u32,
-    ) -> &'a str {
-        if sym_id == u32::MAX || sym_id == u32::MAX - 1 {
-            return "Actor";
-        }
-        if let Some(sym) = sta.symbol(sym_id) {
-            let bytes = tca.interner.lookup_text(sym.name_id);
-            std::str::from_utf8(bytes).unwrap_or("")
-        } else {
-            ""
-        }
-    }
-
-    /// Sanitizes an identifier for safe PlantUML and Mermaid notation.
+    /// Maps arbitrary text to an ASCII identifier fragment (`[A-Za-z0-9_]`).
+    ///
+    /// Distinct inputs may map to the same fragment (`Foo$Bar` and `Foo_Bar`); callers that need
+    /// unique identifiers must go through [`crate::scpg::diagram::model::AliasTable`].
     pub fn sanitize(name: &str) -> String {
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return String::new();
-        }
-        let clean: String = trimmed
+        name.trim()
             .chars()
             .map(|c| {
-                if c.is_alphanumeric() || c == '_' {
+                if c.is_ascii_alphanumeric() || c == '_' {
                     c
                 } else {
                     '_'
                 }
             })
-            .collect();
-
-        if clean.is_empty() {
-            String::new()
-        } else if clean.chars().next().unwrap().is_numeric() {
-            format!("_{}", clean)
-        } else {
-            clean
-        }
+            .collect()
     }
 
-    /// Checks if a type name is a language primitive, system type, or synthetic node.
-    pub fn is_primitive_or_system(name: &str) -> bool {
-        matches!(
-            name,
-            "int"
-                | "long"
-                | "short"
-                | "byte"
-                | "float"
-                | "double"
-                | "boolean"
-                | "char"
-                | "void"
-                | "String"
-                | "Object"
-                | "List"
-                | "Map"
-                | "Set"
-                | "Collection"
-                | "Optional"
-                | "Integer"
-                | "Long"
-                | "Boolean"
-                | "Double"
-                | "Float"
-                | "Byte"
-                | "Short"
-                | "Character"
-                | "true"
-                | "false"
-                | "null"
-                | ""
-        )
+    /// Stable 64-bit FNV-1a hash over `parts`, separated by the ASCII unit separator so that
+    /// `["ab", "c"]` and `["a", "bc"]` hash differently.
+    pub fn stable_hash(parts: &[&str]) -> u64 {
+        let mut buf = Vec::with_capacity(parts.iter().map(|p| p.len() + 1).sum());
+        for (idx, part) in parts.iter().enumerate() {
+            if idx > 0 {
+                buf.push(0x1F);
+            }
+            buf.extend_from_slice(part.as_bytes());
+        }
+        fnv1a_64(&buf)
+    }
+
+    /// Sixteen lowercase hex digits of [`Self::stable_hash`].
+    pub fn short_hash(parts: &[&str]) -> String {
+        format!("{:016x}", Self::stable_hash(parts))
+    }
+
+    /// Lowercase hex encoding of a byte slice.
+    pub fn hex(bytes: &[u8]) -> String {
+        let mut out = String::with_capacity(bytes.len() * 2);
+        for b in bytes {
+            out.push_str(&format!("{:02x}", b));
+        }
+        out
     }
 
     /// Returns the standard UML visibility marker for a visibility code.
@@ -100,51 +64,135 @@ impl DiagramUtils {
         }
     }
 
-    /// Resolves the fully qualified package name for a symbol.
-    pub fn resolve_sym_package(
-        sta: &SymbolTableArtifact,
-        _tca: &TokenCorpusArtifact,
-        sym_id: u32,
-        class_package_by_sym: &HashMap<u32, String>,
-        package_path_by_sym: &HashMap<u32, String>,
-    ) -> Option<String> {
-        if let Some(pkg) = class_package_by_sym.get(&sym_id) {
-            return Some(pkg.clone());
+    /// Returns the UML visibility keyword (XMI `visibility` attribute) for a visibility code.
+    pub fn visibility_keyword(vis: u8) -> &'static str {
+        match vis {
+            1 => "public",
+            2 => "private",
+            3 => "protected",
+            _ => "package",
         }
-        if let Some(sym) = sta.symbol(sym_id) {
-            let mut curr_scope = sym.scope_id;
-            while curr_scope != u32::MAX && (curr_scope as usize) < sta.scope_records.len() {
-                let scope_rec = &sta.scope_records[curr_scope as usize];
-                if scope_rec.scope_kind == 1 {
-                    // Package scope
-                    if let Some(pkg_sym_id) = sta.symbol_records.iter().position(|s| {
-                        s.kind == crate::core::types::symbol::SymbolKind::SK_PACKAGE as u8
-                            && s.scope_id == curr_scope
-                    }) {
-                        if let Some(path) = package_path_by_sym.get(&(pkg_sym_id as u32)) {
-                            return Some(path.clone());
-                        }
-                    }
-                }
-                curr_scope = scope_rec.parent_scope;
-            }
-        }
-        None
     }
 
-    /// Resolves a container package ID, disambiguating duplicates.
-    pub fn resolve_container_pkg_id(pkg_name: &str, duplicate_names: &HashSet<String>) -> String {
-        let parts: Vec<&str> = pkg_name.split('.').filter(|s| !s.is_empty()).collect();
-        if parts.is_empty() {
-            "root_pkg".to_string()
-        } else {
-            let leaf = parts.last().unwrap();
-            let safe_leaf = Self::sanitize(leaf);
-            if duplicate_names.contains(&safe_leaf) {
-                Self::sanitize(pkg_name)
+    /// Collapses runs of whitespace and control characters into single spaces.
+    pub fn single_line(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut pending_space = false;
+        for c in text.chars() {
+            if c.is_whitespace() || c.is_control() {
+                pending_space = !out.is_empty();
             } else {
-                safe_leaf
+                if pending_space {
+                    out.push(' ');
+                    pending_space = false;
+                }
+                out.push(c);
             }
         }
+        out
+    }
+
+    /// Truncates `text` to at most `max_chars` characters, always on a character boundary,
+    /// marking the cut with an ellipsis.
+    pub fn truncate(text: &str, max_chars: usize) -> String {
+        if text.chars().count() <= max_chars {
+            return text.to_string();
+        }
+        let mut out: String = text.chars().take(max_chars.saturating_sub(1)).collect();
+        out.push('…');
+        out
+    }
+
+    /// Text placed inside a PlantUML double-quoted name. PlantUML has no escape for `"`, so it
+    /// becomes `'`; embedded newlines become the PlantUML line-break sequence `\n`.
+    pub fn plantuml_quoted(text: &str) -> String {
+        text.split('\n')
+            .map(|line| Self::single_line(line).replace('"', "'"))
+            .collect::<Vec<_>>()
+            .join("\\n")
+    }
+
+    /// Text placed after a `:` (edge labels, description lines). Newlines become `\n`.
+    pub fn plantuml_label(text: &str) -> String {
+        text.split('\n')
+            .map(Self::single_line)
+            .collect::<Vec<_>>()
+            .join("\\n")
+    }
+
+    /// Text placed inside a PlantUML stereotype `<<...>>`.
+    pub fn plantuml_stereotype(text: &str) -> String {
+        Self::single_line(text).replace(['<', '>', '"'], "")
+    }
+
+    /// Text placed inside a quoted Mermaid label. Characters with syntactic meaning are written
+    /// as Mermaid entity codes; newlines become `<br/>`.
+    pub fn mermaid_text(text: &str) -> String {
+        text.split('\n')
+            .map(|line| {
+                let mut out = String::with_capacity(line.len());
+                for c in Self::single_line(line).chars() {
+                    match c {
+                        '#' => out.push_str("#35;"),
+                        '"' => out.push_str("#quot;"),
+                        '<' => out.push_str("#lt;"),
+                        '>' => out.push_str("#gt;"),
+                        '|' => out.push_str("#124;"),
+                        ';' => out.push_str("#59;"),
+                        '`' => out.push_str("#96;"),
+                        _ => out.push(c),
+                    }
+                }
+                out
+            })
+            .collect::<Vec<_>>()
+            .join("<br/>")
+    }
+
+    /// Text placed in a Mermaid class-diagram member or relation label, where generics are
+    /// written `~T~` and quotes are not allowed.
+    pub fn mermaid_class_text(text: &str) -> String {
+        Self::single_line(text)
+            .replace('<', "~")
+            .replace('>', "~")
+            .replace('"', "'")
+            .replace(['{', '}', ';', '#'], "")
+    }
+
+    /// Escapes text for an XML attribute value or text node and drops characters that are not
+    /// allowed in XML 1.0.
+    pub fn xml_escape(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        for c in text.chars() {
+            match c {
+                '&' => out.push_str("&amp;"),
+                '<' => out.push_str("&lt;"),
+                '>' => out.push_str("&gt;"),
+                '"' => out.push_str("&quot;"),
+                '\'' => out.push_str("&apos;"),
+                '\t' => out.push_str("&#9;"),
+                '\n' => out.push_str("&#10;"),
+                '\r' => out.push_str("&#13;"),
+                c if (c as u32) < 0x20 => {}
+                '\u{FFFE}' | '\u{FFFF}' => {}
+                _ => out.push(c),
+            }
+        }
+        out
+    }
+
+    /// Escapes text for a Graphviz DOT double-quoted string.
+    pub fn dot_escape(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        for c in text.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                c if c.is_control() => {}
+                _ => out.push(c),
+            }
+        }
+        out
     }
 }

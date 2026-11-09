@@ -1,8 +1,11 @@
-//! Java Semantic Adapter implementing Java-specific declaration & primitive types.
+//! Java Semantic Adapter implementing Java-specific declaration rules, implicit modifiers
+//! (JLS 8.9, 8.10, 9.3, 9.4, 9.5), default access (JLS 6.6.1) and primitive types.
 
 use crate::core::types::ast::ASTNodeType;
-use crate::core::types::symbol::{ScopeKind, SymbolKind, SymbolVisibility};
+use crate::core::types::symbol::{ScopeKind, SymbolKind, SymbolModifiers, SymbolVisibility};
+use crate::core::types::token::LangId;
 use crate::symbol::adapter::SemanticAdapter;
+use crate::symbol::model::{Dialect, FrontEnd};
 
 pub struct JavaSemanticAdapter;
 
@@ -27,6 +30,30 @@ pub const PRIMITIVE_INT_ID: u32 = 0xB000_0005;
 pub const PRIMITIVE_LONG_ID: u32 = 0xB000_0006;
 pub const PRIMITIVE_FLOAT_ID: u32 = 0xB000_0007;
 pub const PRIMITIVE_DOUBLE_ID: u32 = 0xB000_0008;
+
+/// True for the primitive pseudo-ids stored in `type_id` (they are not symbol ids).
+pub fn is_primitive_type_id(id: u32) -> bool {
+    (PRIMITIVE_VOID_ID..=PRIMITIVE_DOUBLE_ID).contains(&id)
+}
+
+fn is_type_kind(kind: SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::SK_CLASS
+            | SymbolKind::SK_INTERFACE
+            | SymbolKind::SK_ENUM
+            | SymbolKind::SK_RECORD
+            | SymbolKind::SK_ANNOTATION_TYPE
+            | SymbolKind::SK_ANON_CLASS
+    )
+}
+
+fn is_interface_like(kind: Option<SymbolKind>) -> bool {
+    matches!(
+        kind,
+        Some(SymbolKind::SK_INTERFACE | SymbolKind::SK_ANNOTATION_TYPE)
+    )
+}
 
 impl SemanticAdapter for JavaSemanticAdapter {
     fn is_declaration(&self, node_type: ASTNodeType) -> bool {
@@ -100,35 +127,115 @@ impl SemanticAdapter for JavaSemanticAdapter {
         }
     }
 
-    fn is_collection_type(&self, type_name: &str) -> bool {
+    fn default_visibility(&self, kind: SymbolKind, enclosing: Option<SymbolKind>) -> SymbolVisibility {
+        // JLS 9.3, 9.4, 9.5: interface and annotation members are implicitly public.
+        if is_interface_like(enclosing) && kind != SymbolKind::SK_PARAM {
+            return SymbolVisibility::Public;
+        }
+        // JLS 8.9.2: an enum constructor without an access modifier is private.
+        if kind == SymbolKind::SK_CONSTRUCTOR && enclosing == Some(SymbolKind::SK_ENUM) {
+            return SymbolVisibility::Private;
+        }
+        // JLS 8.9.1: enum constants are implicitly public.
+        if kind == SymbolKind::SK_ENUM_CONSTANT {
+            return SymbolVisibility::Public;
+        }
+        // JLS 6.6.1: otherwise, no modifier means package access.
+        SymbolVisibility::Package
+    }
+
+    fn implicit_modifiers(
+        &self,
+        kind: SymbolKind,
+        enclosing: Option<SymbolKind>,
+        explicit_modifiers: u16,
+        explicit_visibility: Option<SymbolVisibility>,
+        has_body: bool,
+    ) -> u16 {
+        let mut mods = 0u16;
+        let nested_in_type = enclosing.map(is_type_kind).unwrap_or(false);
+        let in_interface = is_interface_like(enclosing);
+
+        match kind {
+            SymbolKind::SK_INTERFACE | SymbolKind::SK_ANNOTATION_TYPE => {
+                // JLS 9.1.1.1, 8.5.1: interfaces are abstract; member interfaces are static.
+                mods |= SymbolModifiers::ABSTRACT;
+                if nested_in_type {
+                    mods |= SymbolModifiers::STATIC;
+                }
+            }
+            SymbolKind::SK_ENUM => {
+                // JLS 8.9: a nested enum is implicitly static.
+                if nested_in_type {
+                    mods |= SymbolModifiers::STATIC;
+                }
+            }
+            SymbolKind::SK_RECORD => {
+                // JLS 8.10: records are implicitly final; nested records are static.
+                mods |= SymbolModifiers::FINAL;
+                if nested_in_type {
+                    mods |= SymbolModifiers::STATIC;
+                }
+            }
+            SymbolKind::SK_CLASS => {
+                // JLS 9.5: member classes of interfaces are implicitly static.
+                if in_interface {
+                    mods |= SymbolModifiers::STATIC;
+                }
+            }
+            SymbolKind::SK_FIELD => {
+                // JLS 9.3: interface fields are implicitly public, static and final.
+                if in_interface {
+                    mods |= SymbolModifiers::STATIC | SymbolModifiers::FINAL;
+                }
+            }
+            SymbolKind::SK_ENUM_CONSTANT => {
+                // JLS 8.9.3: enum constants are implicitly public static final.
+                mods |= SymbolModifiers::STATIC | SymbolModifiers::FINAL;
+            }
+            SymbolKind::SK_METHOD => {
+                // JLS 9.4: an interface method without a body that is neither static, default
+                // nor private is implicitly abstract.
+                if in_interface
+                    && !has_body
+                    && explicit_modifiers & (SymbolModifiers::STATIC | SymbolModifiers::DEFAULT)
+                        == 0
+                    && explicit_visibility != Some(SymbolVisibility::Private)
+                {
+                    mods |= SymbolModifiers::ABSTRACT;
+                }
+            }
+            _ => {}
+        }
+        mods
+    }
+
+    fn opens_block_scope(&self, node_type: ASTNodeType) -> bool {
         matches!(
-            type_name,
-            "List"
-                | "java.util.List"
-                | "Set"
-                | "java.util.Set"
-                | "Map"
-                | "java.util.Map"
-                | "Collection"
-                | "java.util.Collection"
-                | "Iterable"
-                | "java.lang.Iterable"
-                | "ArrayList"
-                | "java.util.ArrayList"
-                | "HashMap"
-                | "java.util.HashMap"
-                | "HashSet"
-                | "java.util.HashSet"
+            node_type,
+            ASTNodeType::NN_BLOCK
+                | ASTNodeType::NN_FOR_STMT
+                | ASTNodeType::NN_ENHANCED_FOR
+                | ASTNodeType::NN_CATCH_CLAUSE
+                | ASTNodeType::NN_SWITCH_STMT
+                | ASTNodeType::NN_SWITCH_EXPR
         )
     }
 
-    fn default_visibility(&self, kind: SymbolKind) -> SymbolVisibility {
-        match kind {
-            SymbolKind::SK_CLASS
-            | SymbolKind::SK_INTERFACE
-            | SymbolKind::SK_ENUM
-            | SymbolKind::SK_RECORD => SymbolVisibility::Package,
-            _ => SymbolVisibility::Public,
+    fn front_end(&self, lang: Option<LangId>) -> FrontEnd {
+        match lang {
+            None | Some(LangId::Java) => FrontEnd::Structural,
+            // Phase 2 parses Kotlin with the JavaScript grammar; that tree is not usable.
+            Some(LangId::Kotlin) => FrontEnd::Lexical,
+            Some(_) => FrontEnd::AstHeuristic,
+        }
+    }
+
+    fn dialect(&self, lang: Option<LangId>) -> Dialect {
+        match lang {
+            None | Some(LangId::Java) => Dialect::Java,
+            Some(LangId::Kotlin) => Dialect::Kotlin,
+            Some(_) => Dialect::Other,
         }
     }
 }

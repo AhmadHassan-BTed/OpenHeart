@@ -2,6 +2,8 @@
 
 ## Phase 3: Symbol Table & Type Hierarchy Construction
 
+> **Status: design specification.** This plan describes the target design of Phase 3. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
 ### 3.1 Phase Mandate & Exact Boundaries
 
 Phase 3 is the first phase that requires semantic understanding of the target language. It walks the BP-encoded AST from Phase 2, constructs a scope graph for name resolution, discovers and resolves all declarations, and builds three interlinked outputs: the symbol table (V_sym vertices), the type hierarchy DAG (E^TH edges), and the UML semantic metadata records (ρ function). Every downstream phase — CFG construction (4), SSA (5), call graph (6) — indexes into the symbol table as its authoritative name-to-node mapping.
@@ -60,6 +62,8 @@ NN_CATCH_CLAUSE → catch scope (exception variable)
 NN_LAMBDA_EXPR  → lambda scope (capture boundary)
 NN_BLOCK        → block scope (for-each, try-with-resources, etc.)
 ```
+
+> *Implementation (audited baseline `fc218cd`):* scopes are opened per declaration only (module, class, method, constructor). No scope is opened for blocks, `for`, `catch`, lambdas or switch rules, and local declaration order is not respected. Lookup (`src/symbol/scope_graph/resolver.rs`) returns the first declaration of **any** kind whose name matches, so with an explicit constructor a field of the class's own type binds to the constructor, and a parameter's type reference can bind to the parameter itself. The design requires kind-directed lookup (JLS §6.5) with separate type, variable, method and package namespaces.
 
 Anonymous classes additionally have a capture edge to their enclosing method scope (to model access to effectively-final locals — the Java specification's requirement for captured variables).
 
@@ -450,7 +454,11 @@ fn scope_of_node(pre_idx: u32, bpa: &BPASTArtifact, sym: &SymbolTableBuilder) ->
 }
 ```
 
+> *Implementation (audited baseline `fc218cd`):* import declarations never reach Pass 2 (Phase 2 drops them), imported names are joined with spaces so on-demand imports never match, same-package resolution does not exist, and every type declared in another file becomes an `SK_EXTERNAL` stub keyed by its simple name. The design resolution order is JLS §6.4.1 / §7.5: local and member types, single-type imports, the same package, on-demand imports, then `java.lang`.
+
 **Handling generic types:** `List<String>` has NN_TYPE_REF node for `List` with a child NN_TYPE_PARAM node for `String`. Pass 3 resolves both: the outer type reference resolves `List` → its symbol_id; the inner type argument resolves `String` → its symbol_id. Both resolutions are stored in the type_ref_resolution map.
+
+> *Implementation (audited baseline `fc218cd`):* generic, array, qualified and wildcard type references are dropped in Phase 2, so `List<Order>`, `Order[]`, `Map.Entry` and `java.util.Date` produce no type reference at all; type parameters are unnamed, and every `T` becomes one global `SK_EXTERNAL`. Only the first token of a type reference is read. `type_ref_resolutions` is not serialized into the `.sta`.
 
 #### 3.5.4 Pass 4 — Member Declaration Type Resolution
 

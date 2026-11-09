@@ -14,15 +14,18 @@ pub const SSA_FLAG_IS_CONST: u8 = 1 << 4;
 pub const CD_EDGE_TRUE: u8 = 0x01;
 pub const CD_EDGE_FALSE: u8 = 0x02;
 
-/// 16-Byte Cache-Aligned SSARecord (§5.2.4)
+/// SSARecord (§5.2.4), 20 bytes.
+///
+/// `def_block` is the full function-local block id. It was previously truncated to
+/// 8 bits, which aliased the defining blocks of any function with more than 256 blocks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SSARecord {
     pub ssa_id: u32,
     pub orig_sym_id: u32,
     pub def_stmt: u32,
+    pub def_block: u32,
     pub version: u16,
     pub flags: u8,
-    pub def_block: u8,
 }
 
 impl SSARecord {
@@ -38,9 +41,9 @@ impl SSARecord {
             ssa_id,
             orig_sym_id,
             def_stmt,
+            def_block,
             version,
             flags,
-            def_block: (def_block & 0xFF) as u8,
         }
     }
 

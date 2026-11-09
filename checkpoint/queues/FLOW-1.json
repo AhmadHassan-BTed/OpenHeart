@@ -1,0 +1,702 @@
+[
+ {
+  "id": "CORE-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Java reducer's default Drop silently discards constructor bodies, switch bodies, try-with-resources and generic types",
+  "files": [
+   "src/ast/adapter/java.rs:105-131",
+   "src/cfg/stmts/mod.rs:41",
+   "src/cfg/stmts/try_stmt.rs:62-66"
+  ],
+  "evidence": "classify() ends in `_ => Drop`, which discards the whole subtree. No arm names constructor_body, switch_block, try_with_resources_statement, explicit_constructor_invocation, enum_constant, generic_type, array_type, scoped_type_identifier, catch_formal_parameter, inferred_parameters or ERROR, all of which tree-sitter-java emits, and none of these strings appear anywhere in the repo. Switches parse as switch_expression, so the switch_statement arm is likely dead, and the CFG dispatches only NN_SWITCH_STMT. With the catch parameter gone, try_stmt.rs:62-66 takes the catch body as the 'param' and never dispatches its statements.",
+  "impact": "For ordinary Java, statements and calls inside constructors, switches and try-with-resources vanish from AST, CFG, SSA and call graph. Generic, array and qualified types (`List<Foo>`, `new HashMap<>()`, `Foo[]`) also disappear, which degrades type resolution and UML associations.",
+  "recommendation": "Make Eliminate the default and keep Drop for an explicit allowlist of trivia. Classify every named kind in tree-sitter-java's node-types.json, enforced by a unit test that fails on unclassified kinds. Add insta snapshot tests for constructors, switch rules and groups, try-with-resources, enums, lambdas, generics, records and patterns, and record a per-file count of nodes lost to ERROR.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "CFG never wires edges into or out of try and do-while; their bodies and all later code are pruned",
+  "files": [
+   "src/cfg/builder/state.rs:76-84",
+   "src/cfg/stmts/try_stmt.rs:50-81",
+   "src/cfg/stmts/do_while.rs:24-36",
+   "src/cfg/builder/mod.rs:70-77",
+   "src/cfg/builder/mod.rs:92-96"
+  ],
+  "evidence": "Both builders rely on flush_pending, but add_pending_exit (state.rs:76) has no caller, so pending_exits is always empty. try: no edge from the current block to try_entry (try_stmt.rs:50-52), and none from the try-body, catch or finally ends (57, 69, 78). do-while: no edge into body_entry (do_while.rs:24-25) and none from body end to cond (36). The sink patch (builder/mod.rs:70-77) links every dangling block to EXIT, then RPO compaction (92) drops the rest: `a=1; try{f();}catch(E e){g();} h();` becomes ENTRY→[a=1]→EXIT.",
+  "impact": "Every method with a try or do-while loses that statement and everything after it from the CFG, SSA, PSA, activity diagrams and block traceability, while all invariants still pass.",
+  "recommendation": "Wire explicit edges (current→entry; try/catch/finally/body exits→join), or make every builder register its fall-through via add_pending_exit. Replace the silent sink→EXIT patch with an assertion that only return/throw blocks may lack successors. Add golden tests for try/catch/finally, do-while and nested combinations, diffed against the CFG of the same source compiled by javac and read through SootUp, WALA or ASM.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Java AST reduction (Phase 2 root cause) discards switch bodies, constructor bodies and try-with-resources before Phases 4-6",
+  "files": [
+   "src/ast/adapter/java.rs:129",
+   "src/ast/adapter/mod.rs:19-20",
+   "src/cfg/mod.rs:60-75",
+   "src/cfg/stmts/mod.rs:35-63",
+   "tests/pipeline_accuracy_tests.rs:142"
+  ],
+  "evidence": "Unlisted tree-sitter kinds hit `_ => Drop` (java.rs:129), which discards the whole subtree (adapter/mod.rs:19-20). Unlisted: switch_block/switch_rule/switch_label, try_with_resources_statement, constructor_body, explicit_constructor_invocation, yield_statement, enum_constant. NN_SWITCH_CASE is never produced, so build_switch is dead code; as far as I know, tree-sitter-java ≥0.19 also emits statement switches as switch_expression, which dispatch_stmt does not handle. Constructors have no NN_BLOCK child, so cfg/mod.rs:60-75 skips them; the accuracy test asserts function_count == 2 for a file with three bodies.",
+  "impact": "Statements and call sites inside switches, constructors (including super()/this() chains), try-with-resources and enum-constant bodies vanish from the CFG, SSA and call graph: silent data loss on idiomatic Java.",
+  "recommendation": "Map these kinds (Keep/Eliminate) and add a coverage test generated from tree-sitter-java's node-types.json that fails if any statement or expression kind is dropped. In Phase 4, handle NN_SWITCH_EXPR, arrow rules, patterns and yield; desugar try-with-resources per JLS 14.20.3 (close() and suppressed exceptions); model constructor prologues (super/this call, field initializers) as an <init> body, as Soot and WALA do.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Loop builders choose children by position, dropping enhanced-for bodies and mis-wiring for-loops",
+  "files": [
+   "src/cfg/stmts/for_stmt.rs:14-36",
+   "src/cfg/stmts/for_stmt.rs:88-101",
+   "src/cfg/stmts/while_stmt.rs:19-22"
+  ],
+  "evidence": "Reduction discards tree-sitter field names, so build_for guesses roles from the child count (for_stmt.rs:14-36). In `for(;i<n;i++)` the condition becomes the init and `i++` the condition. `for(int i=0,j=n;i<j;i++,j--)` has five children, so `j--` (children[3]) becomes the body and the real block is never dispatched. build_enhanced_for takes the first three children (88-101), but `for (String s : xs) {...}` reduces to [TYPE_REF, s, xs, BLOCK], so `xs` is treated as the body and the block is skipped. `while (x);` returns early (while_stmt.rs:19-22).",
+  "impact": "The bodies of the most common enhanced-for form (simple element types such as String, int or Order) and of multi-update for-loops are missing from the CFG, SSA and PSA.",
+  "recommendation": "Preserve tree-sitter field roles in the BPA (a per-node role byte, or synthetic NN_FOR_INIT/COND/UPDATE/BODY wrappers) and select children by role, never by count. Add a golden test for each loop shape: empty parts, multiple init/update expressions, modifiers or annotations on the loop variable, and generic and array element types.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "SSA keys variables by AST-node occurrence, so no φ-function or def-use edge is ever produced",
+  "files": [
+   "src/ssa/liveness.rs:124-171",
+   "src/ssa/placement.rs:45",
+   "src/ssa/renaming.rs:146-166",
+   "src/ssa/mod.rs:34"
+  ],
+  "evidence": "extract_stmt_vars uses the declaration node (`let sym_id = node`, liveness.rs:134) or an assignment's LHS node as the def key, and each identifier or RHS-expression node as a use key; the symbol table is ignored (`_sta`, ssa/mod.rs:34). Def and use keys are disjoint, so vstack.top(u) (renaming.rs:150) never hits and is_live_in(y, var_sym) (placement.rs:45) is never true. The result is zero φ and an empty def-use CSR on every input, including the if/else example in tests/ssa_tests.rs. Parameters are never defined; initializer uses, `x++` defs and compound-assignment uses are lost.",
+  "impact": "SSA, def-use chains, the DFG, slicing and the points-to analysis built on them are empty or meaningless. Liveness keys are never killed, so live sets grow to O(blocks × identifier occurrences).",
+  "recommendation": "Have Phase 3 emit an occurrence→SymbolId table for locals, parameters and fields. Build SSA on symbols: Braun et al. 2013 during CFG construction (as Cranelift's SSABuilder and libFirm do), or Cytron with pruned liveness on bitsets. Define parameters and this at ENTRY; handle fields and arrays via heap or memory SSA, φ at handler entries, and captured lambda variables. Add an SSA verifier: every use dominated by its def, φ arity equal to the predecessor count.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Call-target resolution returns the enclosing method, so the call graph is mostly self-loops",
+  "files": [
+   "src/cg/resolution.rs:179-239",
+   "src/cg/call_sites.rs:70-127",
+   "src/symbol/passes/pass1_discovery.rs:139",
+   "src/symbol/passes/pass1_discovery.rs:178-179",
+   "tests/pipeline_accuracy_tests.rs:222"
+  ],
+  "evidence": "resolve_method_target never compares names. It (1) matches symbols whose decl_node is the call node (lambdas only); (2) takes the first identifier child, which is the receiver in `obj.m()`; (3) compares that with methods' first_token_id, the declaration's first token (pass1_discovery.rs:139,178), which never equals a call-site token; (4) returns the first METHOD/CONSTRUCTOR whose token range encloses the call, i.e. the caller. So `t.helper()` in main gives main→main, `new T()` in a method gives caller→caller, and lambda sites give lambda→lambda.",
+  "impact": "Sequence diagrams, impact analysis, slicing, CFL queries and Phase 8 recursion flags (nearly every calling method is classed self-recursive) are wrong. The accuracy test asserts that no multi-method SCC exists (:222).",
+  "recommendation": "Implement JLS 15.12 method selection. Infer the receiver's static type from Phase 3, which needs generic, qualified and array types kept in the AST. Select by name, arity, applicability and most-specific rule, then dispatch (FLOW-12). Index methods by (class, name, arity). Validate edges against the invokevirtual/invokeinterface/invokestatic targets in the javac-compiled bytecode and against the CATS suite.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-03",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Real interprocedural analyses: constraint-based points-to, RTA/VTA, IFDS/IDE and taint specs",
+  "files": [
+   "src/cg/points_to.rs",
+   "src/cg/resolution.rs",
+   "src/ssa/ifds.rs",
+   "ROADMAP.md"
+  ],
+  "evidence": "Points-to seeds only NN_NEW_EXPR definitions and propagates through phi copies; it has no assign, field, parameter or return constraints (src/cg/points_to.rs:24-79). '1-CFA' looks up receiver types and has no call-string context (src/cg/resolution.rs:115-166). src contains no RTA, VTA or XTA. IFDS flags definitions by AST shape with a fixed source id of 1 and has no sinks, propagation or summaries (src/ssa/ifds.rs:17-37,58-67). This contradicts ROADMAP.md:71 and 80.",
+  "impact": "No result can answer security, nullness or precise-dispatch questions, which are the core value of every static-analysis competitor. Behavioural UML built on this call graph inherits its imprecision.",
+  "recommendation": "Implement field-sensitive Andersen over assign/load/store/call/return constraints, with SCC collapsing and on-the-fly call-graph construction. Add RTA and VTA. Replace ifds.rs with Reps-Horwitz-Sagiv tabulation over an ICFG with summary edges, then IDE. Ship a format for specifying sources, sinks and sanitizers, with Java framework models. Validate against SootUp and OPAL output.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The advertised IFDS solvers and Andersen points-to analysis are local marking passes",
+  "files": [
+   "src/ssa/ifds.rs",
+   "src/cg/points_to.rs",
+   "README.md",
+   "docs/architecture.md",
+   "docs/openheart_research_paper.tex"
+  ],
+  "evidence": "Claims: README.md:100,119,142; architecture.md:17; paper tex:754-756, 785-786. ifds.rs:12-37 makes one pass per function, marking definitions. A 'taint source' or 'type-state' fact just means the defining statement has a method-declaration child (:58-67, :80-89). 'Nullable' means any literal child (:69-78). Nothing propagates. points_to.rs:24-80 seeds sets at new-expressions keyed by the declared type of the defined symbol. It propagates only along phi copies, not through assignments, fields, parameters or returns.",
+  "impact": "Standard benchmarks (PointerBench, SecuriBench Micro, OWASP Benchmark) will score near-zero recall on any flow through an assignment, field or call. Calling these analyses IFDS and Andersen misleads users.",
+  "recommendation": "Until real solvers exist, rename these passes after what they compute. Make suites S2 and S6 a precondition for any future IFDS or points-to claim, starting with PointerBench and SecuriBench Micro in the PR tier.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Feasibility filter is unsound: SSA ids are reused as BDD variable indices and collide with edge variables",
+  "files": [
+   "src/psa/construction/feasibility.rs:63-75",
+   "src/psa/construction/feasibility.rs:85-101",
+   "src/psa/construction/feasibility.rs:108-124",
+   "src/ssa/renaming.rs:124-133",
+   "src/core/types/ssa.rs:43"
+  ],
+  "evidence": "build_condition_bdd picks the last non-phi SSA def in the block, not the branch condition, and uses `ssa_id & 0x3FFF` as a BDD variable (feasibility.rs:115-123). SSA ids are function-local and start at 0 (renaming.rs:124-133), the same range as edge variables 0..n_vars, so `cond -> x_true` (line 73) usually constrains an unrelated edge. In the port, the diamond count drops from 8 to 4 (the else-path is deleted) on a collision, and becomes 68 when the variable is >= n_vars, because sat_count's gap logic assumes var < n_vars. Block ids are also truncated to u8/u16 (lines 88, 115; ssa.rs:43).",
+  "impact": "Feasible paths are removed or counts become garbage, contradicting the documented 'sound over-approximation'. Correlated or contradictory predicates are never actually detected.",
+  "recommendation": "Extract atomic predicates from condition ASTs and canonicalize them (SSA value numbering, normalized negation and comparisons). Allocate predicate variables in a separate range above the edge variables and quantify them out before counting. Decide infeasible branch combinations with an SMT solver (z3 crate or bitwuzla) under a time budget, as KLEE and CBMC do. Widen def_block to u32. Done means tests with correlated (if(x>0)...if(x>0)) and contradictory branches.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "'Backward/forward slice' is a caller and parent-symbol closure that ignores SSA/CDG and drops nodes under the depth limit",
+  "files": [
+   "src/scpg/query/slice.rs:1",
+   "src/scpg/query/slice.rs:12-45",
+   "src/scpg/query/slice.rs:48-74",
+   "src/ssa/serializer.rs:16-23",
+   "tests/scpg_tests.rs:123-124"
+  ],
+  "evidence": "The doc says the slice works \"via CDG + def-use CSR\", but `_ssa` is unused. The walk adds callers from `site_to_edge_map` plus `parent_sym` (class, then package), so it returns symbols, not statements. Each FunctionSSAData already holds `def_use: DefUseCSR` and `cdg: CDGCSR`. The depth-limited DFS marks a node visited the first time it is reached, even via a deep path. A Python port with edges X→R, Y→R, X→Y, Z→X and depth 2 returns {R,X,Y} and misses Z, which is 2 hops away. Each expansion also scans every edge, giving O(V·E).",
+  "impact": "Because data and control dependences are ignored, the results are not slices. Users doing impact analysis or debugging get wrong sets that also vary with the depth limit.",
+  "recommendation": "Build an SDG: a PDG per method from DefUseCSR and CDGCSR, call and parameter-in/out edges, and heap edges from points-to. Implement Horwitz-Reps-Binkley two-phase slicing with summary edges (Reps-Horwitz-Sagiv-Rosay 1994), and offer thin slicing (Sridharan-Fink-Bodík, PLDI'07). Enforce the depth limit with a BFS that keeps each node's best depth. Done means statement-level slices that match WALA or Joern on Defects4J fixtures.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-03",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Phase 9 has no working extractor for six diagram types: the state machine is a fixed template, four extractors are empty, and the object extractor misreads AST ids",
+  "files": [
+   "src/uma/behavioral/state_machine.rs:10-69",
+   "src/uma/structural/composite_diagram.rs:9-11",
+   "src/uma/behavioral/communication_diagram.rs:9-11",
+   "src/uma/behavioral/interaction_overview.rs:9-15",
+   "src/uma/behavioral/timing_diagram.rs:8-10",
+   "src/uma/behavioral/mod.rs:48-50",
+   "src/uma/structural/object_diagram.rs:15-30",
+   "src/ssa/liveness.rs:134",
+   "src/uma/serializer.rs:666-678",
+   "docs/openheart_research_paper.tex:811-812",
+   "docs/openheart_research_paper.tex:1158-1162",
+   "ROADMAP.md:107"
+  ],
+  "evidence": "StateMachineExtractor ignores `_ssa` and emits, for every class, states {0 initial, 1 final} plus one 0→1 transition per method. The composite, communication, interaction-overview and timing extractors have empty bodies and return (); behavioral/mod.rs:48-50 calls them for no output. ObjectDiagramExtractor calls `sta.symbol(ssa_rec.orig_sym_id)`, but SSA's orig_sym_id is an AST node index (`let sym_id = node;`), so objects are arbitrary symbol hits, and it stores ssa_id as label_text_id. No exporter reads `uma.objects`; objects and label_texts are never serialized. The paper and ROADMAP claim IFDS type-state state machines and thread-analysis timing.",
+  "impact": "Object, composite-structure, state-machine, communication, interaction-overview and timing diagrams have no analysis behind them (deployment, use case and profile have no extractor at all), so the paper's tab:uml and the 14-diagram claim are not backed by code.",
+  "recommendation": "Implement real extractors or drop the types. Object diagrams: Andersen allocation sites plus field points-to links (Tonella and Potrich, Reverse Engineering of Object Oriented Code, 2005). State machines: enum- or int-typed state fields with guarded assignments via SSA, CDG and ROBDD guards (Sen and Mall, SoSyM 2016), emitting nothing when no state variable exists. Communication diagrams: sequence records plus object naming (Rountev and Connell, ICSE 2005). Persist ObjectRecords and labels in .uma, and correct the paper and ROADMAP.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-05",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Silent narrowing casts cap the system at 65,535 files, 65,535 columns, 64 KB tokens, 256 blocks/method and 65,535-member SCCs",
+  "files": [
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/mod.rs:123",
+   "src/ingestion/walker.rs:54-63",
+   "src/core/types/token.rs:121-124",
+   "src/ingestion/serializer.rs:48-50",
+   "src/ingestion/builder.rs:49-55",
+   "src/core/types/ssa.rs:25",
+   "src/core/types/ssa.rs:43",
+   "src/cg/scc.rs:38",
+   "src/psa/construction/feasibility.rs:114-119",
+   "src/tra/backward/ssa_bi.rs:35",
+   "src/uma/structural/class_diagram.rs:128",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "Narrowing casts: `file_id as u16`, header file_count `len() as u16`, `col: start.column as u16` (wraps), token len `.min(u16::MAX)` (truncates the text), `def_block: (def_block & 0xFF) as u8`, `raw_members.len() as u16`. The 24-bit line limit is only a debug_assert, and overflow-checks are off. In a minified .js (the server collects .js) wider than 65,535 columns, tokens at col c and c+65,536 share a sort_key, and finalize aborts the run with 'Invariant 2 Violation'. Consumers index the sorted token_records by token_id, so any reordering silently corrupts lookups.",
+  "impact": "Repositories the size of the JDK, or containing a single minified bundle, fail Phase 1. Methods with more than 256 blocks map SSA definitions and traceability to the wrong block; feasibility.rs even documents the truncation.",
+  "recommendation": "Key tokens by (file_id: u32, byte_offset: u32) and keep a per-file line-start table for line/column, as rustc's SourceMap or the line-index crate do. Widen def_block, member_count and the file counts to u32. Replace `as` casts with `try_from(...)?` and typed errors, and enable overflow-checks in CI builds. Add tests with 70K synthetic files, a 200K-column line and a 300-block method.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Type hierarchy comes from token scans: type arguments, bounds and Kotlin property types become supertypes",
+  "files": [
+   "src/symbol/passes/pass5_hierarchy.rs:40-74",
+   "src/symbol/passes/pass5_hierarchy.rs:76-157",
+   "src/symbol/passes/pass5_hierarchy.rs:141-146",
+   "src/uma/structural/class_diagram.rs:283-288",
+   "src/symbol/builder.rs:161-234",
+   "src/cg/resolution.rs:95-103"
+  ],
+  "evidence": "Phase 2 drops generic_type, so the AST path (40-74) misses `extends Base<T>`. The token path (76-157) treats every identifier after extends, implements or ':' up to '{' or ';' as a supertype. sim_pass5.py: `class OrderService extends BaseService<Order,OrderRepository> implements Auditable<User>` gives EXTENDS BaseService, Order and User, and class_diagram.rs:283-288 then reports User as the superclass. `class Repo<T extends BaseEntity>` gives EXTENDS BaseEntity. Kotlin `data class Invoice(val customer: Customer..)` gives EXTENDS Customer and scans on into the next declaration. Cross-file interfaces get TH_EXTENDS edges to SK_EXTERNALs (60-68), and interface-to-interface becomes TH_IMPLEMENTS (141-146).",
+  "impact": "Generalization is wrong for generic base classes (Spring Data, generic services and DAOs) and for most Kotlin data classes. CHA dispatch follows the spurious edges, and sanitize_th_graph may delete correct edges to break the resulting cycles.",
+  "recommendation": "Read supertypes only from tree-sitter fields: superclass, interfaces, extends_interfaces, permits, and Kotlin delegation_specifiers. Resolve the head of each generic_type and keep type arguments separately. Allow at most one superclass per class, and choose the relation from both declaration kinds (JLS 8.1.4, 8.1.5, 9.1.3). Store the superclass explicitly, delete the token path, and report cycles as diagnostics instead of deleting edges.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Exceptional control flow and finally semantics are not modeled",
+  "files": [
+   "src/cfg/stmts/throw_stmt.rs:20-37",
+   "src/cfg/stmts/return_stmt.rs:20-21",
+   "src/cfg/stmts/break_stmt.rs:30-31",
+   "src/cfg/stmts/try_stmt.rs:63-67",
+   "src/cfg/stmts/try_stmt.rs:84-97"
+  ],
+  "evidence": "Only an explicit `throw` creates Except edges; calls, `new`, array access, casts and division never do. throw jumps to handlers.first() of the innermost try regardless of exception type, and skips finally when a catch exists (throw_stmt.rs:20-37). return, break and continue go straight to EXIT or loop targets, bypassing finally. finally always falls through to post_try, even when entered exceptionally. catch_formal_parameter is unmapped, so the catch body is added as one opaque statement and never dispatched (try_stmt.rs:63-67). resolve_catch_type returns AST node ids as type ids (84-97).",
+  "impact": "Even after FLOW-01, handler reachability, finally coverage and exception paths are wrong, which rules out sound taint, resource-leak and null analyses.",
+  "recommendation": "Model potentially-excepting instructions (JLS 11.2) with edges to the innermost catch clauses whose type may match (a subtype test on the class hierarchy), then to finally, outer frames and an exceptional EXIT, as Soot's ExceptionalUnitGraph and WALA do. Duplicate finally on every abrupt exit (javac style) or route through a dispatch block. Keep separate normal and exceptional EXIT nodes.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Labeled break/continue, synchronized, switch expressions and short-circuit operators are unsupported",
+  "files": [
+   "src/cfg/stmts/mod.rs:35-63",
+   "src/cfg/stmts/break_stmt.rs:17-32",
+   "src/cfg/stmts/continue_stmt.rs:17-32",
+   "src/cfg/stmts/while_stmt.rs:33-49",
+   "src/cfg/stmts/switch_stmt.rs:43-58"
+  ],
+  "evidence": "Loops push frames with label None (while_stmt.rs:33-34) and the labeled-statement arm (stmts/mod.rs:47-53) never records the label, while break/continue compare AST node ids of different label occurrences (break_stmt.rs:24). So `break outer;` gets no edge, and the sink patch sends it to EXIT. NN_JAVA_SYNCHRONIZED, NN_SWITCH_EXPR, NN_YIELD_STMT and asserts fall to the default arm as one opaque statement, so a return inside synchronized never reaches EXIT. &&, || and ?: stay single nodes. `while(true)` always gets a False exit edge (while_stmt.rs:49).",
+  "impact": "Paths are wrong for idiomatic concurrent and nested-loop code, which distorts path counts, the CDG and slicing.",
+  "recommendation": "Keep a label stack keyed by interned label text. Add dispatch arms for synchronized (monitor enter/exit plus an exceptional exit), switch expressions, arrow rules (no fall-through), patterns and yield, and assert. Lower &&, || and ?: into branch blocks as javac and Jimple do. Give constant-true loop conditions no exit edge. In build_switch, stop treating non-literal labels (Color.RED, patterns) as default. Add a golden test per construct.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-09",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "CDG equals the CFG edge set because the post-dominator DFS walks the wrong adjacency",
+  "files": [
+   "src/ssa/cdg.rs:37-61",
+   "src/ssa/cdg.rs:65-86",
+   "src/cfg/analysis/dominators.rs:21-23",
+   "src/cfg/analysis/postdom.rs:5-43"
+  ],
+  "evidence": "The reverse-graph DFS from EXIT iterates rev_preds, i.e. forward successors (cdg.rs:37-51), so it visits only EXIT. The fallback loop (53-57) then runs a forward DFS from ENTRY, making rev_rpo[0] = ENTRY. compute_idom_cooper roots at rpo[0] (dominators.rs:21), and ENTRY is nobody's successor, so every other ipdom stays UNDEFINED; the FOW walk (65-86) then marks each edge target as dependent on its source. A faithful Python port gives ipdom=[0,U,U,U,U,U] on an if/else diamond, with the join dependent on both arms. All non-False labels become TRUE.",
+  "impact": "Every function's control dependence is wrong, so PDG slicing and the advertised CDG cannot be trusted. A correct compute_post_idom exists in postdom.rs but is never called.",
+  "recommendation": "Reuse compute_post_idom. Add a virtual EXIT fed by all exits and by one node per reverse-unreachable region (as LLVM's PostDominatorTree chooses roots), plus the ENTRY→EXIT augmentation edge (Ferrante-Ottenstein-Warren 1987). Keep branch labels (true/false/case value/exception type). Property-test post-dominators and the CDG against a naive fixpoint on random CFGs, as the forward dominators already pass.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-10",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The advertised IFDS solver is a three-predicate syntactic stub",
+  "files": [
+   "src/ssa/ifds.rs:11-89",
+   "src/ssa/mod.rs:66",
+   "README.md:100",
+   "docs/plans/phase5.md:156-250"
+  ],
+  "evidence": "IFDSAnalyzer::analyze visits each SSA record once. A 'taint source' is a defining statement with a direct NN_METHOD_DECL child (ifds.rs:58-67). 'Nullable' means any direct NN_LITERAL child, so a for-init `i = 0` counts as nullable while `String s = null;` does not. Type-state reuses the method-declaration test (80-89). There is no supergraph, flow function, path edge, summary edge or worklist, so it is not even intraprocedural dataflow. README.md:100 advertises an 'IFDS Solver', and phase5.md describes RHS tabulation in supergraph.rs/tabulation.rs files that do not exist.",
+  "impact": "Taint, nullness and type-state facts are noise; any security or null-safety use of them is unsupported.",
+  "recommendation": "Implement Reps-Horwitz-Sagiv 1995 tabulation over an ICFG, which needs call nodes in the CFG and a correct call graph. Add the Naeem-Lhoták-Rodriguez 2010 extensions, and IDE (Sagiv-Reps-Horwitz 1996) for typestate and constant propagation, using Heros, PhASAR and FlowDroid as references. Make sources, sinks and sanitizers configurable, and benchmark on SecuriBench Micro and the OWASP Benchmark. Until then, drop the claim.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'Andersen' points-to has no real constraints and merges SSA ids across methods",
+  "files": [
+   "src/cg/points_to.rs:25-79",
+   "src/ssa/renaming.rs:124",
+   "src/ssa/renaming.rs:159",
+   "docs/plans/phase6.md:141-197"
+  ],
+  "evidence": "Seeds fire only when an SSA def_stmt is itself an NN_NEW_EXPR (points_to.rs:28-30), but def_stmt is the enclosing declaration or expression statement, so allocations are virtually never seen. The only constraints are copy edges from φ arguments (46-53), and no φ is ever placed (FLOW-04). There are no assign, load, store, call or return constraints, no fields and no cycle detection. The allocation 'type' looks up sta.symbol() with an AST node index (31). pts is keyed by ssa_id, which restarts at 0 in every function (renaming.rs:124,159), so facts from different methods merge.",
+  "impact": "Points-to sets are empty or wrong, so no precision reaches dispatch or alias queries. The spec's BDD-based Andersen with O(n^1.5) empirical cost (phase6.md:549) is not implemented.",
+  "recommendation": "Number variables globally (a per-function base offset) and model allocation sites as abstract objects, with field-sensitive address/copy/load/store/call/return constraints and an on-the-fly call graph. Use a worklist with difference propagation (Pearce et al. 2004), lazy and hybrid cycle detection (Hardekopf & Lin, PLDI 2007) and sparse bitsets (roaring), or write it in Datalog (Doop's rules on Soufflé, or Rust ascent). Benchmark against Doop and SootUp/Spark on DaCapo.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-12",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Dispatch model is weaker than CHA: name-only, downward-only, no RTA, initializers, lambdas or libraries",
+  "files": [
+   "src/cg/resolution.rs:58-112",
+   "src/cg/resolution.rs:115-176",
+   "src/cg/call_sites.rs:32-35",
+   "src/cg/call_sites.rs:113",
+   "src/cg/call_sites.rs:129-140",
+   "src/core/types/cg.rs:13"
+  ],
+  "evidence": "resolve_cha gathers same-name, non-abstract METHOD and CONSTRUCTOR symbols in subtypes (resolution.rs:84-93). Overloads are conflated, and there is no upward lookup for inherited implementations or default methods (JVMS 5.4.6). CG_EDGE_INTERFACE is unreachable because it tests a method symbol for SK_INTERFACE (call_sites.rs:113). 'resolve_1cfa' is not call-string 1-CFA, and it is dead because receiver_ssa is effectively never found (129-140). There is no RTA, entry-point model, lambda→SAM linking, super/this()/<clinit> edge or reflection (CG_EDGE_REFLECTION is unused). Calls in field and instance initializers are dropped (32-35).",
+  "impact": "Even after FLOW-05, soundness and precision would sit far below CHA as implemented by Soot, WALA or OPAL.",
+  "recommendation": "Build per-class method tables with JVMS-correct virtual, interface and default-method resolution. Layer CHA, then RTA (Bacon & Sweeney 1996), then VTA or on-the-fly points-to. Add entry points (main, tests, frameworks), LambdaMetafactory-style lambda and method-reference modeling, <init>/<clinit> semantics, JDK models from jmods or class files, and reflection handling via string analysis or TamiFlex logs. Measure with CATS and Judge (Reif et al., ISSTA 2019) and dynamic call-graph recall on DaCapo/XCorpus.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-13",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Linear scans over symbols and SSA records make Phases 4-6 quadratic",
+  "files": [
+   "src/cg/call_sites.rs:70-91",
+   "src/cg/call_sites.rs:129-140",
+   "src/cg/resolution.rs:79-102",
+   "src/cg/resolution.rs:179-239",
+   "src/cfg/stmts/try_stmt.rs:84-97",
+   "src/cfg/builder/mod.rs:150-172",
+   "src/ssa/liveness.rs:64-99",
+   "src/ssa/version_stack.rs:29-41"
+  ],
+  "evidence": "find_enclosing_method scans all symbols at every AST ancestor of every call node (call_sites.rs:70-91). resolve_method_target does up to three full symbol scans and runs twice per site. extract_receiver_ssa scans every SSA record of every function per site. resolve_cha rescans all symbols and TH edges per hierarchy type, and resolve_catch_type scans all symbols per catch. CSR building is blocks × edges. Liveness clones HashSets per block per pass (capped at 100 passes), and renaming snapshots the full version-stack map per block. I estimate 10^11-10^12 comparisons at 500K LOC, against a claimed 'under 3 seconds' (phase6.md:553).",
+  "impact": "Large repositories take hours, and the single-threaded server is blocked meanwhile, so submitting one big repo to /api/analyze is a denial of service.",
+  "recommendation": "Build indexes once: a preorder-interval node→function map, a decl_node→symbol HashMap, (class, name, arity)→methods, def_stmt→SSA id, and a subtype CSR. Use counting-sort CSR construction, bitset worklist liveness (fixedbitset or roaring) and version stacks that pop per block. Add criterion benchmarks on Guava- and Elasticsearch-scale corpora, with time and memory budgets enforced in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-14",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "Unbounded recursion on CFG size can abort the analysis server",
+  "files": [
+   "src/cfg/analysis/rpo.rs:7-20",
+   "src/cfg/analysis/loops.rs:29-48",
+   "src/ssa/cdg.rs:37-56",
+   "src/ssa/renaming.rs:103-211",
+   "src/cg/scc.rs:63-106",
+   "src/adapters/server.rs:32-41",
+   "src/adapters/server.rs:241-253"
+  ],
+  "evidence": "The RPO, loop and CDG DFS, the dominator-tree renaming (12 arguments plus a HashMap per frame) and Tarjan's strongconnect all recurse. Depth tracks block count, not AST depth: K sequential ifs give a DFS path of about 2K blocks and a dominator tree about K deep. The server binds 0.0.0.0, clones any GitHub repo posted to /api/analyze (server.rs:429), and runs every phase on the main thread, whose stack is 1 MiB on Windows. A Rust stack overflow aborts the process; it is not a catchable panic.",
+  "impact": "One generated or crafted method with a few thousand sequential ifs can crash the server. Tarjan will face the same risk once the call graph is real.",
+  "recommendation": "Rewrite the DFS walks, renaming and Tarjan with explicit stacks (as in LLVM's po_iterator, petgraph's iterative tarjan_scc, or Pearce 2016). Run per-function work on worker threads with an explicit std::thread::Builder::stack_size and catch_unwind isolation. Add stress tests with generated 10^5-block methods and very deep call chains.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "COMP-08",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Demonstrated large-codebase scale: indexed, parallel, streaming pipeline",
+  "files": [
+   "src/cg/resolution.rs",
+   "src/scpg/query/cfl.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "Cargo.toml"
+  ],
+  "evidence": "Every call site rescans all symbols (src/cg/resolution.rs:84,133,185,212,225). CFL reachability scans the full edge list on each pop (src/scpg/query/cfl.rs:27). The server is a single-threaded accept loop that reads one 8 KiB buffer (src/adapters/server.rs:40-48). Cargo.toml:8-16 has no parallelism crate. The browser engine stops at 30 remote / 80 local files (web/js/github-engine.js:103,200).",
+  "impact": "Quadratic hot paths make 1M-LOC targets impractical and undercut the compression story. By contrast, Joern builds a full Linux-kernel CPG and Infer runs on Meta-scale code.",
+  "recommendation": "Index symbols by (parent, name) and store the call graph as CSR adjacency. Parallelise the per-file and per-function phases with rayon. Stream ingestion and artifact writes. Make the server async with bounded request bodies. Publish LOC/s and peak RSS at 100K, 1M and 5M LOC alongside Joern and CodeQL.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-10",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "No reference resolution beyond type identifiers: no expression names, calls, field accesses, inherited members or overload resolution",
+  "files": [
+   "src/symbol/passes/pass3_types.rs:21-24",
+   "src/symbol/passes/pass1_discovery.rs:945-955",
+   "src/cg/resolution.rs:84-92",
+   "src/cg/resolution.rs:179-238"
+  ],
+  "evidence": "Pass 3 visits only NN_TYPE_REF (pass3:21-24). Nothing binds NN_IDENTIFIER_EXPR, NN_CALL_EXPR, NN_FIELD_ACCESS or NN_METHOD_REF. Methods carry only param_count (pass1:945-955): no parameter types, descriptor or erasure. There is no member lookup through supertypes (JLS 8.4.8, 15.12.1) and no applicability or most-specific selection (JLS 15.12.2). Phase 6 therefore resolves callees by token position, falling back to the enclosing method's range (cg/resolution.rs:179-238), and CHA matches by name only (84-92).",
+  "impact": "No phase has ground-truth bindings. Overloads collide, inherited and static-imported members are invisible, and call-graph, def-use and traceability precision are capped far below javac, Eclipse JDT or JavaParser SymbolSolver.",
+  "recommendation": "Add an attribution pass analogous to javac's Attr/Resolve. Compute static types for literals, locals, fields, `new`, casts and call results. Resolve invocations per JLS 15.12.2 (strict, loose, varargs, most specific) over inherited and static-imported members. Emit an occurrence table {node → SymId | Unresolved(reason) | Ambiguous(cands)} in .sta, exportable as SCIP. Validate against semanticdb-javac/scip-java ground truth.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-16",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "high",
+  "title": "No intermediate representation: statement-level AST blocks block precise SSA, ICFG and IFDS",
+  "files": [
+   "src/core/types/cfg.rs:35",
+   "src/cfg/builder/state.rs:52-62",
+   "src/cfg/stmts/mod.rs:61-63",
+   "src/ssa/liveness.rs:124-171"
+  ],
+  "evidence": "Basic blocks hold whole AST statements (BasicBlock.stmts; add_stmt_to_current). Calls, allocations, short-circuit operands and implicit operations (unboxing, iterator()/next(), close(), string concatenation) are not CFG nodes. Evaluation order and temporaries are implicit, and no excepting instruction is explicit. Every consumer (SSA, points-to, call graph, IFDS) re-walks AST subtrees with ad-hoc logic such as extract_stmt_vars, and call sites cannot be mapped to CFG nodes (call_block falls back to 0).",
+  "impact": "Benchmark-grade interprocedural analyses (IFDS/IDE, Andersen, context-sensitive call graphs) cannot be built on this representation.",
+  "recommendation": "Lower to a typed three-address IR with explicit temporaries, call/return nodes and excepting instructions (Jimple/Shimple, WALA's SSA IR, OPAL's TAC), or to Joern-style expression-level CFG nodes, and build SSA during lowering (Braun et al. 2013). Consider a bytecode front end for javac/kotlinc class files, as Soot, WALA, OPAL and Doop use, to get exact lambda, switch, finally and Kotlin semantics.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-11",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Heavy copy-paste in the diagram exporters (35% exact, 79% after normalization)",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/cfg/stmts/while_stmt.rs",
+   "src/symbol/passes/pass4_members.rs",
+   "tests/strategy_diagram_tests.rs"
+  ],
+  "evidence": "With 40-token windows: exporters 35.1% exact (json.rs 50%) and 78.8% normalized; all of src 13.0% exact and 54.1% normalized; tests 25.3% exact. Largest clones: json.rs:148-182 vs 445-479; mermaid.rs:383-424 vs plantuml.rs:76-117 (identical registries); mermaid.rs:1242-1257 vs plantuml.rs:1089-1102; for_stmt.rs:112-132 vs while_stmt.rs:31-51 (93% of while_stmt.rs); pass4_members.rs:18-32 vs pass5_hierarchy.rs:19-33; strategy_diagram_tests.rs:68-109 vs uma_tests.rs:49-100.",
+  "impact": "Every fix has to be made three times (JSON, PUML, Mermaid), and the copies have already drifted, e.g. the empty Mermaid state diagram.",
+  "recommendation": "Build one model per diagram type and render it through small per-format emitters. Use a generic registry and a macro for strategy impls. Share loop-lowering code in cfg. Move test fixtures into tests/common.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Overflow checks are off in dev and test builds, alongside 846 unchecked numeric casts",
+  "files": [
+   "Cargo.toml",
+   "src/uma/serializer.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/cfg/builder/mod.rs"
+  ],
+  "evidence": "Cargo.toml:23 sets overflow-checks = false under [profile.dev]. The test profile inherits from dev, so cargo test cannot catch integer overflow. src contains 846 numeric 'as' casts (pass1_discovery.rs 54, uma/serializer.rs 40, pass5_hierarchy.rs 27, cfg/builder/mod.rs 26). Example: uma/serializer.rs:39-42 writes counts as len() as u16, which silently truncates above 65,535.",
+  "impact": "On large repositories, silent wraparound and truncation produce wrong graphs or corrupt artifacts while the tests still pass.",
+  "recommendation": "Remove overflow-checks = false and keep opt-level = 2. Use u16::try_from(..)? and checked arithmetic in serializers and index math. Enable clippy::cast_possible_truncation.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-12",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Recursion, interprocedural composition and BDD queries are not implemented",
+  "files": [
+   "src/psa/construction/recursive.rs:13-28",
+   "src/psa/mod.rs:14-18",
+   "src/psa/mod.rs:98-102",
+   "src/cg/scc.rs:103",
+   "src/scpg/query/robdd.rs:9-20"
+  ],
+  "evidence": "RecursiveHandler::apply returns f_paths unchanged and stamps unwind_depth=3 (recursive.rs:26-28); nothing is unwound. No callee summary is ever read, and the documented callee-first order is actually inverted: Tarjan already emits callee SCCs first (scc.rs:103), and Phase 8 reverses them (psa/mod.rs:102). No code reads the stored node arrays or ordering tables; the only PSA query returns header sat_count and cyclomatic. The claimed 'path feasibility in O(|ROBDD|)' capability does not exist, and processing is single-threaded.",
+  "impact": "The interprocedural and recursion claims are unbacked, and the .psa carries large node arrays that nothing can query.",
+  "recommendation": "Either drop the claims and the node arrays, or implement them: a query API (restrict to an edge set and test satisfiability or count, paths through an edge, witness extraction via any_sat), call-site summary composition (Sharir-Pnueli functional approach or IDE), and bounded inlining for recursive SCCs. Use Tarjan's order without .rev(), and add rayon parallelism per function. Done means one test per advertised capability.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-13",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "edge_index_of linear scans make Phase 8 O(E^2) and map parallel edges to one variable",
+  "files": [
+   "src/psa/ordering/rpo.rs:106-108",
+   "src/psa/construction/constraints.rs:42-50",
+   "src/psa/ordering/force.rs:92-129",
+   "src/psa/construction/feasibility.rs:57",
+   "src/cfg/builder/state.rs:46-50"
+  ],
+  "evidence": "edge_index_of is `cfg.edges.iter().position(|(f,t,_)| f==from && t==to)` (rpo.rs:106-107). It is called for every predecessor and successor of every block during Phi_b construction, hyperedge building, DFS ordering and feasibility filtering, so each pass is O(E^2). Matching on the (from,to) pair also merges parallel edges, which Phase 4's add_edge never dedupes, into one variable. For a binary branch, XOR(x,x)=FALSE would then make the block unreachable.",
+  "impact": "Large generated methods (switch tables and parsers with around 10^4 edges) cost about 10^8 comparisons per pass, and multi-edges would silently zero out paths.",
+  "recommendation": "Have Phase 4 emit edge ids in the CSR (a succ_edge_id[] parallel to succ_adj, plus pred_edge_id[]) and index BDD variables by edge id, giving O(1) lookups. Keep parallel edges as distinct variables, or merge them explicitly with multiplicity weights for counting. Done means an O(E) construction pass and a test with a duplicated edge.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Query cache flushes everything when full, uses a weak 32-bit XOR key, and sits behind one global Mutex",
+  "files": [
+   "src/scpg/query/cache.rs:21-36",
+   "src/scpg/serializer/mod.rs:124-134",
+   "src/scpg/serializer/integrity.rs:18-39",
+   "src/ssa/mod.rs:41",
+   "src/psa/mod.rs:77",
+   "src/tra/uml_link/hash_chain.rs:36-44",
+   "src/scpg/api/mod.rs:51-72",
+   "src/scpg/api/builder.rs:5-35"
+  ],
+  "evidence": "The 'LRU' cache clears every entry when full. Its scpg_hash key XORs nine values. One of them is a token count, and `ssa.cfa_hash` and `psa.cfa_hash` are both `crc64_ecma(cfa_bytes)`, so they cancel out; the result is folded to 32 bits. TRA stamps links with a different scpg_hash formula. Results are cached by the engine's hash, but artifacts arrive with each call. All queries are serialized by `Arc<Mutex>`, and a poisoned lock silently returns false. EngineBuilder's options are never used and it has no build().",
+  "impact": "Stale or colliding cache hits are possible, links cannot be checked against the engine's hash, and server queries cannot run concurrently.",
+  "recommendation": "Key snapshots with a SHA-256 or BLAKE3 digest of the canonical section bytes (sha2 is already a dependency), store it in the header's empty source_hash, and share one hash definition with TRA. Use moka or lru over immutable Arc snapshots so reads need no Mutex. Return Result on a poisoned lock and implement build(). Done means a concurrency benchmark and a collision property test.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-13",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Logger writes every message at every level to two files under a global mutex; phase timers never fire",
+  "files": [
+   "src/core/logger.rs:124-159",
+   "src/core/logger.rs:110-112",
+   "src/core/logger.rs:186-207",
+   "src/ingestion/mod.rs:36",
+   "src/ast/mod.rs:38",
+   "src/ast/adapter/generic.rs:26-28",
+   "src/cg/call_sites.rs:57"
+  ],
+  "evidence": "log_event applies the level only to console output. Its file branch formats each line and write_all()s it to both files for Trace and Debug too, under LOGGER_STATE's Mutex. Callers build messages eagerly with format!: there are 15 log_trace and 12 log_debug call sites, including one per call site in cg/call_sites.rs:57. The persistent log appends forever, with no rotation. PhaseTimer has no Drop and finish() is never called in Phases 1-2, so no stage timings are logged. The generic reducer prints `[TS-KIND]` to stdout for every 'class' or 'export' kind.",
+  "impact": "Logging spends I/O and lock time in proportion to trace volume even when tracing is off. Logs grow without bound, and there is no timing telemetry to benchmark against.",
+  "recommendation": "Adopt tracing, with tracing-subscriber's EnvFilter for per-sink levels and tracing-appender's non-blocking rolling writer. Use the macros so that disabled levels cost nothing. Model each phase as a span so timings come for free. Remove the debug println.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": ".sta drops resolution results, is byte-nondeterministic, and uses positional symbol ids",
+  "files": [
+   "src/symbol/serializer.rs:165-185",
+   "src/symbol/serializer.rs:138-143",
+   "src/symbol/builder.rs:30",
+   "src/symbol/builder.rs:68",
+   "src/symbol/scope_graph/mod.rs:15-16",
+   "src/cfg/mod.rs:30",
+   "src/cg/mod.rs:46",
+   "docs/openheart_research_paper.tex:1126-1127"
+  ],
+  "evidence": "type_ref_resolutions (builder.rs:30) and the import edges and mappings (scope_graph/mod.rs:15-16) are never serialized, and import_table_off is always 0. Project symbols never get a qual_name_id. Package maps are written in HashMap order (serializer.rs:165-185), so the bytes and CRC vary between runs, and that CRC is embedded in .cfa and .cga (cfg/mod.rs:30, cg/mod.rs:46). Symbol ids are pre-order positions (builder.rs:68), so adding one local renumbers every later file, contradicting the paper's incremental theorem (tex:1126-1127). TH edges are written as a flat list despite the 'CSR' doc (serializer.rs:2).",
+  "impact": "Downstream phases must re-resolve by name, artifacts are not reproducible, and incremental or cross-build diffing is impossible.",
+  "recommendation": "Persist an occurrence section and per-file import tables, writing every map sorted (BTreeMap). Give each symbol a stable SemanticDB/SCIP descriptor (e.g. com/acme/User#find(+1).) and keep the dense id only as an index; consider stack-graphs-style per-file partial results for incrementality. Store TH edges as CSR and check format_version on read. Add tests that two runs are byte-identical and that a body edit keeps other files' symbol keys unchanged.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-17",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Loop nesting and cyclomatic complexity are miscomputed",
+  "files": [
+   "src/cfg/analysis/loops.rs:29-90",
+   "src/cfg/stmts/continue_stmt.rs:30-31",
+   "src/cfg/builder/mod.rs:183-185"
+  ],
+  "evidence": "Back edges are DFS retreating edges with no dominance check (loops.rs:39), and depth is incremented once per back edge (62-85), not once per loop header. Each continue adds a LoopBack edge to a while or enhanced-for header (continue_stmt.rs:30-31), so `while(x){ if(a) continue; if(b) continue; work(); }` reports max_loop_depth 3 instead of 1. Irreducible regions are not detected: a non-dominated tail floods the natural-loop walk to ENTRY. V(G) = E−N+2 (builder/mod.rs:183-185) counts synthetic sink→EXIT edges and pruned bodies, and is truncated to u16.",
+  "impact": "The loop depth and V(G) passed to Phase 8 and to diagram labels are inflated or deflated.",
+  "recommendation": "Build a loop-nesting forest: treat an edge as a back edge only if the header dominates the tail, merge natural loops per header (as LLVM LoopInfo does), and flag irreducible SCCs (Havlak 1997, Ramalingam 2002). Compute V(G) as decision points + 1, or on a deduplicated CFG without synthetic edges, and unit-test both.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-18",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": ".cfa/.ssa/.cga encodings are lossy, partly write-only and mis-indexed",
+  "files": [
+   "src/cfg/serializer.rs:102",
+   "src/cfg/serializer.rs:147-185",
+   "src/ssa/serializer.rs:81-95",
+   "src/ssa/serializer.rs:113",
+   "src/core/types/ssa.rs:25-43",
+   "src/core/types/cg.rs:94",
+   "src/psa/construction/feasibility.rs:114-119"
+  ],
+  "evidence": ".cfa stores exit = blocks.len()-1, but RPO numbering places EXIT before loop-body blocks, so in any function with a loop it names a body block; block statements and token ranges are not stored. CFGArtifact::deserialize and SSASerializer::read return empty function lists. .ssa directory offsets omit seven u32 length prefixes per function, drifting by 28 bytes each. SSARecord.def_block is a u8, which Phase 8 (feasibility.rs:114-119) and Phase 7 then alias. φ orig_sym_id is written as u16, and SCCRecord.member_count is a u16.",
+  "impact": "External readers of .cfa/.ssa get wrong data or none. Functions with more than 256 blocks get mis-attributed SSA defs downstream, and an SCC with more than 65,535 members trips Invariant 3 and aborts Phase 6.",
+  "recommendation": "Use u32 for ids and counts, derive directory offsets from the bytes actually written, store the EXIT id explicitly, implement full readers, and add round-trip property tests. Consider a versioned zero-copy schema (rkyv, FlatBuffers or Cap'n Proto).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-19",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Call-site records carry the wrong token, arity and block, and the CG spans every symbol",
+  "files": [
+   "src/cg/call_sites.rs:142-180",
+   "src/cg/call_sites.rs:43",
+   "src/cg/mod.rs:110-128",
+   "src/psa/mod.rs:98-102"
+  ],
+  "evidence": "call_token is the first identifier child, i.e. the receiver in `obj.m()` (call_sites.rs:153-170). arg_count = children−1 (172-180) is off by one when a receiver exists, and counts anonymous-class members. call_block is found only when the call node is itself a block statement; otherwise it is 0, the ENTRY block (142-151). flags are always 0 (43). method_count = sta.symbol_count (cg/mod.rs:110) puts classes, fields and locals into the CG and SCC table, contrary to phase6.md:23. Tarjan emits SCCs callee-first, but psa/mod.rs:98-102 reverses them believing the opposite.",
+  "impact": "Traceability highlights the wrong token, there is no call-site→CFG link to build an ICFG on, and the SCC order contract is misread downstream.",
+  "recommendation": "Record the name token and argument list explicitly, map each call to its CFG node (see FLOW-16), and restrict CG nodes to callables through a dense method index. Document and test the SCC order (Tarjan's output is reverse topological, i.e. callee-first). Replace Vec::contains deduplication with sort+dedup.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-20",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Kotlin (and the other advertised languages) get no CFG, SSA or call graph",
+  "files": [
+   "src/ast/adapter/registry.rs:19-41",
+   "src/symbol/passes/pass1_discovery.rs:439-447",
+   "src/cfg/mod.rs:55-58",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "Only Java has an AST adapter. Kotlin falls back to the generic adapter bound to tree_sitter_javascript (registry.rs:19-41), so .kt files are parsed as JavaScript. Kotlin `fun` symbols come from a token sweep that leaves decl_node = u32::MAX (SymbolRecord::UNINIT, pass1_discovery.rs:439-447), and Phase 4 skips such symbols (cfg/mod.rs:55-58); their call sites have no enclosing method and are dropped. Cargo.toml has no Kotlin, Python or C++ grammar.",
+  "impact": "The Java/Kotlin flow-analysis claim, and the multi-language F1 claim as applied to Phases 4-6, hold for nothing except Java.",
+  "recommendation": "Add tree-sitter-kotlin (or analyze kotlinc bytecode) with a dedicated reduction adapter and a Kotlin lowering for when, expression-bodied functions, ?., !!, inline lambdas and suspend state machines. Scope README claims per phase and language until golden tests cover them.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-21",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "low",
+  "title": "Per-function phases are sequential and never incremental",
+  "files": [
+   "src/cfg/mod.rs:39-95",
+   "src/ssa/mod.rs:46-93",
+   "docs/traceability_and_incremental.md:79"
+  ],
+  "evidence": "Phases 4 and 5 loop over functions sequentially, although each function is independent, and no parallelism crate is a dependency. There is no per-function fingerprint or cache: SSA ids are per-run positions and the call graph is rebuilt from scratch, while the incremental-sync doc promises to 'Recompute CFG, SSA, and ROBDD summaries only for affected functions'.",
+  "impact": "Wall-clock time grows linearly with codebase size even for one-line edits, and extra cores sit idle.",
+  "recommendation": "Use rayon par_iter over functions in Phases 4-5 with a deterministic merge order. Cache CFG and SSA per function, keyed by an AST-subtree hash. Update the call graph incrementally (re-resolve sites in changed methods plus a CHA delta), and use incremental dominator updates (Georgiadis et al.) for small edits.",
+  "effort": "M",
+  "confidence": "medium"
+ }
+]

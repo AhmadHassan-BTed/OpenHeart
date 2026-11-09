@@ -1,0 +1,811 @@
+[
+ {
+  "id": "LANG-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Every non-Java language is parsed with a foreign grammar, silently",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ast/mod.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Cargo.toml:8-10 ships only tree-sitter-java and tree-sitter-javascript. src/ingestion/adapter/kotlin.rs:29-31 returns `tree_sitter_java::language()`, yet its map targets tree-sitter-kotlin kinds that the Java grammar never emits ('simple_identifier', '?:', '!!' at :35,57). Both registries fall back to a JavaScript-grammar adapter for any unregistered LangId (src/ingestion/adapter/registry.rs:34-39,56; src/ast/adapter/registry.rs:20-28,41). The AST registry has no Kotlin entry, so a .kt file is lexed as Java in Phase 1 and re-parsed as JavaScript in Phase 2 (src/ast/mod.rs:141-143). Python, TS, Rust, C++, Go, Swift, C# and the server's extra extensions (.sh, .sql, .asm; src/adapters/server.rs:805-866) all become JavaScript. Nothing in src/ calls has_error or is_missing.",
+  "impact": "For every advertised non-Java language the parse tree is mostly ERROR nodes. Symbols, CFGs, SSA, the call graph and all diagrams are therefore artifacts of mis-parsing; for Kotlin, tokens and AST even come from two different grammars. Users get no warning.",
+  "recommendation": "Ship real grammars (tree-sitter-kotlin-ng, -python, -typescript/tsx, -rust, -cpp, -go) after moving to tree-sitter 0.24+. Put them behind one registry with no JavaScript fallback; unsupported files are skipped with a diagnostic. Record per-file ERROR/MISSING node ratios (Node::has_error, Node::is_missing) in the .tca file record and the API response, and flag or exclude files above a threshold. Done = a per-language conformance corpus that parses with zero ERROR nodes, asserted in CI.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "'F1 = 1.0000 across six languages' compares the engine against a near-copy of itself",
+  "files": [
+   "README.md",
+   "docs/overview.md",
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "src/uma/structural/class_diagram.rs",
+   "src/symbol/passes/pass1_discovery.rs"
+  ],
+  "evidence": "README.md:60 and docs/overview.md:102-111 claim F1 = 1.0000. The ground truth is Oracle 1 alone, a keyword regex (ruthless_verify.py:61-100). The cross-validation described at :299 is never implemented (:303). The tool side is simple class names regex-parsed from PlantUML, stored in a dict keyed by simple name (:95, :225-234). The engine finds classes with the same keyword-plus-identifier heuristic (pass1_discovery.rs:249-349). 184 of the engine's 188 denylisted names (class_diagram.rs:163, 346-537) also appear in ruthless_config.json:59-92, which is applied to both sides (ruthless_verify.py:88, 232). Examples: Configuration, Root, Table, Logger, HomeScreen.",
+  "impact": "The metric cannot detect wrong packages, nesting errors, duplicate simple names, or any error in the semantic phases. A real class named Configuration or Logger is removed from both truth and output, so recall is 1.0 by construction. The number cannot be falsified and will not survive external review.",
+  "recommendation": "Withdraw the claim until it is re-measured. Score fully-qualified declarations against javac with SemanticDB, and against compiler-backed SCIP indexers for other languages, on pinned corpora with bootstrap CIs (suites S3, S13). Move the oracles into a separately reviewed package that is not allowed to share lists, filters or heuristics with the engine.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Only Java has a real grammar: Kotlin is parsed as Java then JavaScript; Python/Rust/TS/C++ as JavaScript",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs:29-31",
+   "src/ingestion/adapter/registry.rs:34-39",
+   "src/ingestion/adapter/registry.rs:52-57",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ast/adapter/registry.rs:37-42",
+   "src/ingestion/adapter/mod.rs:14-16",
+   "src/ingestion/adapter/generic.rs:52-58",
+   "src/adapters/server.rs:805-830",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "KotlinLanguageAdapter::ts_language() returns tree_sitter_java::language(), and Cargo.toml has only the java and javascript grammars. AdapterRegistry::get falls back to a LangId::Unknown adapter built on tree_sitter_javascript, so .py/.rs/.ts/.cpp/.go files, all of which the server collects, are lexed as JavaScript. Phase 2 registers no Kotlin adapter, so Kotlin is reduced by the generic JS reducer. The generic Phase-1 adapter keeps include_anonymous()=false, so it emits no keywords, operators or punctuation, and it types any alphabetic named leaf as Keyword. No test ingests a .kt file.",
+  "impact": "Every non-Java file produces error-ridden CSTs and meaningless ASTs, so later phases fall back to token heuristics. The README's 'F1 = 1.0000 across Java, Kotlin, Python, Rust, TypeScript, C++' is not supported by Phases 1 and 2.",
+  "recommendation": "Upgrade to tree-sitter 0.25 and add real grammars (tree-sitter-kotlin-ng, -python, -typescript, -rust, -cpp, -go). For each language, write Phase 1/2 adapters whose classification tables are generated from or tested against the grammar's node-types.json, with a test that fails on any unclassified kind. Skip unsupported extensions with a diagnostic instead of re-parsing them with another grammar. Done = per-language golden AST snapshot tests and published per-language accuracy on a public corpus.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Kotlin and 'six-language' support is illusory: Kotlin goes through the Java and JavaScript grammars, everything else through JavaScript",
+  "files": [
+   "README.md:60",
+   "src/ingestion/adapter/kotlin.rs:29-31",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ingestion/adapter/registry.rs:24-39",
+   "src/main.rs:76-99",
+   "src/adapters/server.rs:805-840",
+   "Cargo.toml:9-11",
+   "ROADMAP.md:127",
+   "CHANGELOG.md:32",
+   "docs/overview.md:102-111"
+  ],
+  "evidence": "KotlinLanguageAdapter::ts_language() returns tree_sitter_java::language() (ingestion/adapter/kotlin.rs:29-31). Phase 2's registry has no Kotlin entry, so .kt falls back to the JavaScript grammar (ast/adapter/registry.rs:19-28). Kotlin is therefore tokenized as Java and reduced as JavaScript. Python, TypeScript, Rust and C++ have no adapters and also fall back to JavaScript (ingestion/adapter/registry.rs:34-39). The only grammar dependencies are java and javascript (Cargo.toml:9-11). The CLI ingests only .java/.kt/.kts (main.rs:76-99). Tests and examples contain zero non-Java fixtures, and ROADMAP.md:127 still lists C++/Rust/Go adapters as future work.",
+  "impact": "Every Kotlin file yields wrong tokens and an AST that disagrees with Phase 1. Python, TypeScript, Rust and C++ input silently produces garbage. The README's F1 = 1.0000 claim is false for five of the six languages it names.",
+  "recommendation": "Scope the README to Java now and label every other language experimental. Upgrade to tree-sitter 0.25+/0.26 with a current tree-sitter-java and a real Kotlin grammar (tree-sitter-kotlin-ng). Register one adapter per language for both Phase 1 and Phase 2 from a single table, and return an error instead of falling back to JavaScript for unknown extensions. Add per-language fixture suites in tree-sitter corpus style, and have CI track the rate of ERROR/MISSING nodes per file.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-01",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Genuine Kotlin and multi-language frontends with a versioned support matrix",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "Cargo.toml",
+   "README.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The Kotlin adapter returns tree_sitter_java::language() (src/ingestion/adapter/kotlin.rs:29-31). The AST registry maps JavaScript, TypeScript, Rust, Generic and Unknown to one JavaScript-grammar adapter, and Kotlin falls through to it (src/ast/adapter/registry.rs:19-28,37-42). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Cargo.toml:9-11 pulls in only the tree-sitter 0.20 Java and JavaScript grammars. Yet README.md:60 claims six languages and src/adapters/server.rs:83-85 advertises seven. Tests and examples contain no lambdas, sealed types or switch patterns.",
+  "impact": "Kotlin and every non-Java input produce Java parses full of errors or JavaScript-shaped ASTs, so multi-language results cannot be trusted. CodeQL and Joern publish support per language and per version. Without that, OpenHeart cannot be compared even on Java and Kotlin, its stated core.",
+  "recommendation": "Upgrade to a current tree-sitter release. Add tree-sitter-kotlin-ng with Kotlin AST and semantic adapters. Gate Java 8-25 and Kotlin 1.9-2.x features behind conformance fixtures, and publish a support matrix. Reject unsupported files instead of silently using the JavaScript grammar. Drop unimplemented languages from the README and /api/supported-languages until they pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-02",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "high",
+  "title": "No Content-Security-Policy, no Trusted Types, and no SRI on five CDN scripts",
+  "files": [
+   "web/index.html",
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "index.html <head> sets only cache-control metas (index.html:4-11) — there is no CSP meta and GitHub Pages cannot send CSP headers, so none exists. cytoscape, dagre, cytoscape-dagre, cytoscape-svg and jszip are loaded from cdnjs/jsdelivr with no `integrity=`/`crossorigin` attributes (index.html:29-34). Trusted Types is not enabled, leaving every innerHTML sink unconstrained. deploy_pages.yml uploads web/ as-is with no header injection step.",
+  "impact": "Any XSS (e.g. WSEC-01) executes with full origin privileges and no containment; a compromise or tampering of cdnjs/jsdelivr yields full studio takeover for all visitors.",
+  "recommendation": "Add a strict CSP via <meta http-equiv=\"Content-Security-Policy\"> (default-src 'self'; script-src 'self' pinned CDNs; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'). Add SRI integrity hashes + crossorigin='anonymous' to all five scripts (or self-host). Enable Trusted Types and route the remaining sinks through a DOMPurify policy.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "TST-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "BDDLibrary reads through an unsound raw slice that dangles when the node Vec grows; no Miri or sanitizer job",
+  "files": [
+   "src/psa/bdd/mod.rs",
+   "src/psa/bdd/unique_table.rs",
+   "src/psa/construction/mod.rs",
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "apply, apply_not and restrict build `read = slice::from_raw_parts(self.nodes.as_ptr(), len)`, then pass `&mut self.nodes`, which make_node pushes onto (bdd/mod.rs:84-95, 100-109, 120-131; unique_table.rs:64-66). Any reallocation leaves `read` dangling. The SAFETY comment's claim that clearing the cache bounds allocations does not hold. Construction calls apply once per CFG block (construction/mod.rs:84-87), so growth is routine. HashMap growth can also reuse the freed buffer. Unit tests build at most about 8 nodes, and CI runs no Miri or AddressSanitizer.",
+  "impact": "Undefined behaviour in Phase 8. Reads of freed memory can silently corrupt BDDs, sat_count and path metrics, or crash, depending on allocator and platform. No current test can observe it.",
+  "recommendation": "Remove the unsafe: read nodes via all_nodes[f as usize] (ids below len are never mutated), or use an index-stable arena. Add a nightly `cargo +nightly miri test psa::` job, a proptest that builds BDDs with more than 10^4 nodes from random formulas, and an `-Zsanitizer=address` test run. Set `#![deny(unsafe_code)]` crate-wide, allowing it only in core/io/mmap.rs with documented invariants.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "TST-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The README's F1 = 1.0000 claim comes from a circular, hand-tuned Python harness that never runs in CI",
+  "files": [
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/benchmark_all_java_design_patterns.py",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "README.md"
+  ],
+  "evidence": "The ground truth is a regex line scanner keyed by simple name (ruthless_verify.py:95), and only sets of class names are compared. Real names such as HomeScreen, INVESTOR, JFrame, Logger, Root, Table and Scanner are excluded from both sides via KEYWORDS (ruthless_config.json:73-91; ruthless_verify.py:232). The dataset script renames GHobbits to GenHobbits (test_ruthless_popular_datasets.py:63-64), passes its PlantUCD batches unconditionally (259) and accepts `or \"Artifact Type\" in out` (113). The benchmark exits 0 on failure (benchmark_all_java_design_patterns.py:212-215). Kotlin is parsed with the Java grammar (kotlin.rs:30); TS, Rust and other languages fall back to tree-sitter-javascript (registry.rs:27-38).",
+  "impact": "The multi-language F1 = 1.0 cannot be reproduced from the repository and is partly an artifact of the exclusion list. Nothing in CI measures accuracy.",
+  "recommendation": "Replace it with a nightly CI evaluation on pinned commits (spring-petclinic, java-design-patterns, commons-lang, one Kotlin repo). Use independent oracles: the JavaParser symbol solver or Eclipse JDT for Java, and the Kotlin Analysis API for Kotlin. Compare fully-qualified names and score classes, members, supertypes and call edges with no exclusion lists. Publish per-repo P/R/F1 JSON with commit SHAs. Add per-language tests asserting `!root_node().has_error()` on fixtures, and drop claims for languages without a real grammar.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Phase 9 drops real classes through a repo-tuned name blocklist that the F1 oracle mirrors",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "ruthless_config.json",
+   "ruthless_verify.py"
+  ],
+  "evidence": "In src/uma/structural/class_diagram.rs:346-538, `is_reserved_keyword` (188 names, applied at :163) mixes language keywords with framework and application names: 'Context' (:468), 'Entity' (:418), 'Configuration', 'Root', 'Table', 'Error', 'Update', 'Logger', 'Singleton', 'HomeScreen' (:519), 'INVESTOR', 'OpenHeart'. The extractor also rejects names with characters outside [A-Za-z0-9_] (:98-101), ALL_CAPS names (:107), lowercase-initial names unless they equal the file stem (:157), test paths (:136) and names ending in 'Binding' (:162). Of the 119 entries that are not language keywords, 115 also appear in the ruthless_config.json 'keywords' list. ruthless_verify.py:88,172,216,232 strips that list from both the ground truth and the output.",
+  "impact": "The State/Strategy participant Context, a JPA Entity, and any class named Error, Root, Table or Logger vanish from every diagram and from pattern detection. The benchmark cannot see the loss, by construction.",
+  "recommendation": "Remove name-based rejection from Phase 9. Filter only by symbol kind and provenance (declared in an analyzed source file, versus stub, external or annotation). Annotation names are already tagged TokenType::Annotation; keep framework vocabularies in per-language data files, off by default. Decouple the oracle from the engine (no shared lists), and add fixtures with classes named Context, Entity, Error, Größe and $Proxy that must appear.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-05",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Only Java and JavaScript grammars exist; Kotlin, TypeScript and Rust use the wrong grammar",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/adapters/server.rs",
+   "README.md"
+  ],
+  "evidence": "Cargo.toml lists only tree-sitter-java and tree-sitter-javascript. The Kotlin adapter returns tree_sitter_java::language() (kotlin.rs:30). TypeScript, Rust, Generic and Unknown are reduced with the JavaScript grammar (ast/adapter/registry.rs:21-28), and files with any other extension are parsed as JavaScript (ingestion/adapter/registry.rs:34-38). The API advertises java, python, typescript, javascript, cpp, rust and go (server.rs:84). README.md:60 claims F1 = 1.0000 across six languages.",
+  "impact": "Non-Java input quietly produces CSTs full of parse errors. Any outside benchmark will disprove the multi-language accuracy claims.",
+  "recommendation": "Either add real grammars and adapters (kotlin, python, rust, typescript, cpp) with tests, or narrow the README and API claims to Java and JS. Reject unsupported extensions instead of falling back to JavaScript.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-07",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "high",
+  "title": "Docker image cannot build or start; minimum Rust version is undeclared and misdocumented",
+  "files": [
+   "Dockerfile",
+   "Cargo.toml",
+   "src/main.rs",
+   "README.md",
+   "docs/getting_started.md"
+  ],
+  "evidence": "Dockerfile:49 runs 'openheart serve --port 8080', but the CLI only accepts 'server [PORT]' (main.rs:532) and exits with code 1 on unknown subcommands (main.rs:544-548). Dockerfile:2 uses rust:1.80-slim, while the locked sha2 0.11.1 requires Rust 1.88 and edition 2024 according to crates.io. README.md:7 and getting_started.md:19 say Rust 1.75+. Cargo.toml has no rust-version, and the HOST/PORT environment variables are never read.",
+  "impact": "The documented container path is broken at both build and start. Users on the advertised Rust version get build failures. CI only tests stable and beta, so it cannot catch either problem.",
+  "recommendation": "Change CMD to [\"openheart\",\"server\",\"8080\"] or add a serve alias. Move the base image to rust:1.88 or later. Declare rust-version in Cargo.toml and the docs. Add CI jobs for the minimum Rust version and a Docker build plus smoke run.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The six-language claim rests on only two linked grammars",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/registry.rs",
+   "src/ingestion/adapter/kotlin.rs",
+   "README.md"
+  ],
+  "evidence": "Only tree-sitter-java and tree-sitter-javascript are dependencies (Cargo.toml:9-11). Kotlin is parsed with the Java grammar (kotlin.rs:30). Python, TypeScript, Rust, C++ and Go are detected (registry.rs:60-79), then routed to an Unknown adapter that uses the JavaScript grammar (registry.rs:34-38, 52-56). README.md:60 nevertheless claims validation across Java, Kotlin, Python, Rust, TypeScript and C++.",
+  "impact": "Results for non-Java languages come from tree-sitter error recovery under the wrong grammar. CFG, SSA and call graphs built from them cannot be meaningful, and any comparison with a real multi-language tool will show this.",
+  "recommendation": "Limit claims to Java (and JavaScript) for now. Add suite S13, which measures the per-language ERROR/MISSING node rate under the correct grammar and FQN precision/recall against SCIP indexers. Publish a result for each language before claiming it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-05",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The paper's tables cannot be reproduced, and its space theorem relies on structures the code lacks",
+  "files": [
+   "docs/openheart_research_paper.tex",
+   "docs/architecture.md",
+   "Cargo.toml"
+  ],
+  "evidence": "The paper gives per-phase sizes for an unnamed 'representative 500K-LOC Java project' (tex:581-613) and says it is '~305 MB compressing to ~82 MB with LZ4' (:608, :816-818). There is no LZ4 dependency (Cargo.toml:8-16) and no script that produces the table. The space theorem (tex:874-895) relies on wavelet trees (tex:311-319, 853-867; architecture.md:110-111) and complement edges (architecture.md:119). No file in src/ mentions wavelet, complement or lz4.",
+  "impact": "Submitting the paper as written risks failing artifact evaluation. The theorems describe a different system from the code that ships.",
+  "recommendation": "Name the corpus and commit behind each number. Generate every table in the paper from bench results.jsonl with a script. Either mark wavelet trees, complement edges and LZ4 as future work, or implement them and back them with S14/S15 measurements.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-10",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Single-threaded pipeline that reads every file three times and parses it twice",
+  "files": [
+   "Cargo.toml",
+   "src/core/pipeline.rs",
+   "src/main.rs",
+   "src/ingestion/mod.rs",
+   "src/ast/mod.rs",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ast/adapter/registry.rs"
+  ],
+  "evidence": "Cargo.toml has no rayon or any other parallelism crate, and core/pipeline.rs:170-225 and main.rs:150-254 run the phases strictly serially. Phase 1 reads each file twice (ingestion/mod.rs:53, 111) and parses it with a single Parser (108); the Mutex-wrapped interner (105) is never shared across threads. Phase 2 re-reads and re-parses every file (ast/mod.rs:142-143). Kotlin is parsed with the Java grammar (kotlin.rs:30) and then with the JavaScript fallback, because no Kotlin AST adapter is registered (ast/adapter/registry.rs:19-28). Phases 4, 5, 8 and 9 loop over functions serially.",
+  "impact": "Uses one core and pays twice the front-end parse cost. Kotlin-heavy repos pay wrong-grammar error recovery twice. About 8–12× of the available throughput on 16 cores goes unused.",
+  "recommendation": "Parse once and emit tokens plus the reduced BP AST in the same walk. Run rayon par_iter over files with a per-thread tree_sitter::Parser (map_init), discover files with the ignore or jwalk crate, and merge per-file interners (or use lasso::ThreadedRodeo). Assign token ids from per-file counts plus a prefix sum. Use par_iter over functions in Phases 4, 5 and 8 and over classes in Phase 9; ruff and Biome use this per-file model.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-08",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Four separate pipelines (CLI, server, test builder, browser) give different results for the same repository",
+  "files": [
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "src/core/pipeline.rs",
+   "web/js/api.js",
+   "web/js/github-engine.js",
+   "Dockerfile",
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "The CLI analyzes .java/.kt/.kts files, tests included (main.rs:76-99). The server takes 58 extensions and drops test and build dirs and *Test files (server.rs:770-884). It never calls Phase10Stage yet reports 'All 10 phases verified' (server.rs:619-699), and it swallows IO errors with unwrap_or_default (server.rs:536-609). It ignores the client's diagram_types (api.js:36 vs server.rs:366-372) and writes into the git-tracked web/diagrams shared by every session (server.rs:636-691). SCPGPipelineBuilder, the only path the tests use, writes graph.scpg instead of unified.scpg and ignores diagram_formats (pipeline.rs:100,143-148,168). The browser engine regex-parses only the first 30 files and uses a random compiler_hash (github-engine.js:102,576). The Dockerfile runs `openheart serve`, which main.rs rejects (main.rs:532,544; Dockerfile:49).",
+  "impact": "The same repository gives different classes and diagrams depending on entry point. Tests and the F1 harness validate paths the CLI does not run. Concurrent sessions overwrite each other's diagrams, and the Docker image exits at startup.",
+  "recommendation": "Expose one library entry point, Pipeline::run(&AnalysisConfig) -> Result<AnalysisOutputs, PipelineError>, with include/exclude globs, languages and formats. Call it from the CLI, the server and the tests, and delete the copies. Have the server write per-session directories served under /sessions/{id}/ and never touch web/. Add a contract test asserting byte-identical CLI and server outputs for a fixture, fix the Dockerfile CMD, and regenerate the Pages demo from the engine in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Name blocklists silently drop real user classes, and the F1 = 1.0 oracle excludes the same names",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "README.md"
+  ],
+  "evidence": "ClassDiagramExtractor drops any class named in a 188-entry list that includes Entity, Configuration, Error, Value, Root, Context, Logger, Table, Singleton and Scanner, plus repo-specific names such as HomeScreen, INVESTOR and OpenHeart (class_diagram.rs:346-538). It also drops names ending in 'Binding', ALL_CAPS names, and lowercase names that differ from the file stem (class_diagram.rs:107-164). ruthless_verify.py removes every name in ruthless_config.json 'keywords' from its regex ground truth (ruthless_verify.py:88). 184 of the engine's 188 suppressed names are in that list. The harness compares only class-name sets parsed from the server's class PUML (ruthless_verify.py:317-350).",
+  "impact": "Ordinary domain classes vanish from every diagram. The published F1 = 1.0 is partly true by construction, covers one projection (class names) on one path (the server), and says nothing about members, relations, CFGs or call graphs.",
+  "recommendation": "Delete the name blocklists and filter only by symbol kind and origin (library vs project source). Build independent oracles: javac/JDT or Spoon for classes, members and hierarchy; kotlinc PSI for Kotlin; Soot or OPAL for call edges. Report precision and recall per relation (classes, fields, methods, extends/implements, associations, call edges, CFG blocks) on a public corpus such as Qualitas.class, XCorpus or Defects4J subjects. Run it through the CLI entry point, and publish the scripts and numbers.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The 'F1 = 1.0000' validation is circular and measures class names only; tests assert no ground truth for patterns or behavior",
+  "files": [
+   "README.md:60",
+   "ruthless_verify.py:88",
+   "ruthless_verify.py:232",
+   "ruthless_verify.py:247-260",
+   "ruthless_config.json:59-92",
+   "tests/design_pattern_architecture_tests.rs:104-114",
+   "tests/adversarial_trick_tests.rs:259-307",
+   "tests/uma_tests.rs:104-163",
+   "docs/codebase-guide.md:263"
+  ],
+  "evidence": "ruthless_verify.py removes every config 'keywords' name from the ground truth (lines 88/172/216/232). That list repeats 184 of the extractor's 188 blacklisted names (Entity, Configuration, Root, Singleton, HomeScreen, INVESTOR) plus engine placeholders (SystemNode, Node_0-2, MB), so dropped classes cannot lower the score, and only class-name sets are compared. design_pattern_architecture_tests.rs only prints pattern counts. The adversarial test passes if any of four kinds appears (`has_decorator || has_strategy || ...`), and its diagram checks require only @startuml/@enduml and no 'SystemNode'. uma_tests asserts non-emptiness. examples/ carries no role labels.",
+  "impact": "The published F1 says nothing about members, relationships, behavioral diagrams or patterns, regressions in all of them pass CI, and docs/codebase-guide.md:263 overstates what the tests cover.",
+  "recommendation": "Use an independent oracle (JavaParser, Spoon or javac -Xprint) with no shared exclusions, and score members, relationship kinds and multiplicities, not just names. Add a harness over P-MARt (Guéhéneuc 2007) and DPB (Arcelli Fontana et al., CSMR 2012) that reports per-pattern, role-level precision/recall/F1 with CI thresholds. Add golden-file tests per diagram, negative fixtures, and metamorphic tests (consistent renaming must not change detection).",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-10",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "The .uma reader misparses the design-pattern table and desynchronizes on large records; objects and labels are never persisted",
+  "files": [
+   "src/uma/serializer.rs:213-218",
+   "src/uma/serializer.rs:650-664",
+   "src/uma/serializer.rs:39-43",
+   "src/uma/serializer.rs:161-163",
+   "src/uma/serializer.rs:272-294",
+   "src/uma/serializer.rs:666-678",
+   "src/main.rs:459-466",
+   "tests/uma_tests.rs:111-113",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "The writer emits each pattern as class_sym u32, `pattern_kind as u32`, `confidence as u32` and reserved u32 (16 bytes). The reader consumes u32+u16+u16+u32 (12 bytes): confidence always reads 0, every later record is misaligned, and there is no end-offset check. Counts are written `as u16` while all records follow, so above 65,535 messages or blocks the reader desynchronizes, unchecked `bytes[offset..]` slicing panics, and `with_capacity` trusts header counts. Objects and label_texts are never written. Artifact inspection prints 'CRC-64 Check : VERIFIED VALID'; the round-trip test compares only version and hash.",
+  "impact": "Every consumer of a persisted .uma reads corrupted pattern data, and large projects can crash the reader, so the artifact is not a faithful interchange format.",
+  "recommendation": "Define the layout once with derive-based codecs (binrw or zerocopy) or a schema (FlatBuffers, Cap'n Proto), and use u32 counts. Make reads bounds-checked and error-returning, assert the payload ends exactly at the CRC, add sections for objects and labels, and add a proptest asserting read(write(x)) == x for every record type.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-05",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Silent narrowing casts cap the system at 65,535 files, 65,535 columns, 64 KB tokens, 256 blocks/method and 65,535-member SCCs",
+  "files": [
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/mod.rs:123",
+   "src/ingestion/walker.rs:54-63",
+   "src/core/types/token.rs:121-124",
+   "src/ingestion/serializer.rs:48-50",
+   "src/ingestion/builder.rs:49-55",
+   "src/core/types/ssa.rs:25",
+   "src/core/types/ssa.rs:43",
+   "src/cg/scc.rs:38",
+   "src/psa/construction/feasibility.rs:114-119",
+   "src/tra/backward/ssa_bi.rs:35",
+   "src/uma/structural/class_diagram.rs:128",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "Narrowing casts: `file_id as u16`, header file_count `len() as u16`, `col: start.column as u16` (wraps), token len `.min(u16::MAX)` (truncates the text), `def_block: (def_block & 0xFF) as u8`, `raw_members.len() as u16`. The 24-bit line limit is only a debug_assert, and overflow-checks are off. In a minified .js (the server collects .js) wider than 65,535 columns, tokens at col c and c+65,536 share a sort_key, and finalize aborts the run with 'Invariant 2 Violation'. Consumers index the sorted token_records by token_id, so any reordering silently corrupts lookups.",
+  "impact": "Repositories the size of the JDK, or containing a single minified bundle, fail Phase 1. Methods with more than 256 blocks map SSA definitions and traceability to the wrong block; feasibility.rs even documents the truncation.",
+  "recommendation": "Key tokens by (file_id: u32, byte_offset: u32) and keep a per-file line-start table for line/column, as rustc's SourceMap or the line-index crate do. Widen def_block, member_count and the file counts to u32. Replace `as` casts with `try_from(...)?` and typed errors, and enable overflow-checks in CI builds. Add tests with 70K synthetic files, a 200K-column line and a 300-block method.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "No error model: String errors, an unused thiserror, panics in Phases 7-9, silently dropped files and integer truncation",
+  "files": [
+   "Cargo.toml:13",
+   "src/core/pipeline.rs:51",
+   "src/tra/mod.rs:41-43",
+   "src/psa/mod.rs:154",
+   "src/uma/mod.rs:98",
+   "src/ast/mod.rs:140-152",
+   "src/adapters/server.rs:536-609",
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/walker.rs:59",
+   "docs/security-architecture.md:26"
+  ],
+  "evidence": "thiserror is declared (Cargo.toml:13) but never used, and src has no error enum. 27 signatures return Result<_, String>, and callers re-stringify errors with {:?}. Phases 7-9 return bare artifacts and panic! when a write fails (tra/mod.rs:43, psa/mod.rs:154, uma/mod.rs:98). Phase 2 silently skips any file it cannot read or parse (nested `if let Ok`, ast/mod.rs:140-152). The server hashes `fs::read(..).unwrap_or_default()` (server.rs:536-609). `file_id as u16` (ingestion/mod.rs:70) wraps past 65,536 files and `column as u16` (walker.rs:59) past column 65,535, although security-architecture.md:26 claims these values saturate. 291 unwraps remain.",
+  "impact": "A full disk or a permission error aborts the server. Unreadable files vanish from the results with no warning. Large monorepos and minified files get colliding sort keys and wrong traceability, all silently.",
+  "recommendation": "Define typed errors per layer with thiserror, for example ArtifactError {Truncated, BadMagic, CrcMismatch{expected, found}, Version} and IngestError {Io{path}, Parse{path}}, and use anyhow or miette only in the CLI. Make every stage return Result, and record per-file diagnostics instead of skipping files. Replace `as` casts with u16::try_from plus explicit errors, or widen the IDs. Deny clippy::unwrap_used, expect_used, panic and indexing_slicing in library code, following the Rust API Guidelines (C-GOOD-ERR).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-10",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "high",
+  "title": "CI runs only check/fmt/test on Linux: no lint, MSRV, coverage, Miri, audit or docs gates, and the CI badge is static",
+  "files": [
+   ".github/workflows/ci.yml:14-47",
+   "README.md:7",
+   "README.md:10-11",
+   "docs/contributing.md:17",
+   "Cargo.lock:3",
+   "Makefile:20-21"
+  ],
+  "evidence": "ci.yml runs cargo check, fmt and `test --all-targets` (which skips doctests), on ubuntu-latest only. There is no clippy or RUSTFLAGS=-D warnings, though contributing.md:17 demands zero warnings. There is no MSRV job: README.md:7 claims Rust 1.75+, but lockfile v4 needs Cargo 1.78 and sha2 0.11 needs Rust 1.85 ([manifest](https://docs.rs/crate/sha2/0.11.0/source/Cargo.toml)). There is no rust-toolchain.toml. CI also lacks llvm-cov, Miri, cargo-deny/audit/machete, nextest timeouts, rustdoc, Docker, Python and JS checks, and never runs on Windows. The cache key uses only Cargo.lock, with no restore-keys. README.md:10-11 shows hardcoded 'passing' and 'enforced' badges.",
+  "impact": "Real defects merge unnoticed: an MSRV break, undefined behaviour, an unused dependency, warnings. Neither the badge nor the documented toolchain can be trusted, which blocks benchmark-grade status.",
+  "recommendation": "Add these jobs: clippy --all-targets -D warnings; RUSTDOCFLAGS=-D warnings cargo doc; an MSRV check via `rust-version` with cargo +1.85 check (or cargo-hack); cargo-nextest with slow-timeout and JUnit output; cargo-llvm-cov to Codecov with coverage floors; nightly Miri on psa; cargo-deny for advisories, licenses, bans and sources; and cargo-machete. Extend the matrix to Windows and macOS, use Swatinem/rust-cache, build the Docker image, run ruff on scripts and Biome on web/, and replace the static badge with the real workflow badge.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-08",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Demonstrated large-codebase scale: indexed, parallel, streaming pipeline",
+  "files": [
+   "src/cg/resolution.rs",
+   "src/scpg/query/cfl.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "Cargo.toml"
+  ],
+  "evidence": "Every call site rescans all symbols (src/cg/resolution.rs:84,133,185,212,225). CFL reachability scans the full edge list on each pop (src/scpg/query/cfl.rs:27). The server is a single-threaded accept loop that reads one 8 KiB buffer (src/adapters/server.rs:40-48). Cargo.toml:8-16 has no parallelism crate. The browser engine stops at 30 remote / 80 local files (web/js/github-engine.js:103,200).",
+  "impact": "Quadratic hot paths make 1M-LOC targets impractical and undercut the compression story. By contrast, Joern builds a full Linux-kernel CPG and Infer runs on Meta-scale code.",
+  "recommendation": "Index symbols by (parent, name) and store the call graph as CSR adjacency. Parallelise the per-file and per-function phases with rayon. Stream ingestion and artifact writes. Make the server async with bounded request bodies. Publish LOC/s and peak RSS at 100K, 1M and 5M LOC alongside Joern and CodeQL.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-09",
+  "kind": "enhancement",
+  "category": "devops",
+  "severity": "high",
+  "title": "CI distribution: binaries, GitHub Action, SARIF upload and PR diagram diffs",
+  "files": [
+   ".github/workflows/release.yml",
+   ".github/workflows/ci.yml",
+   "Dockerfile",
+   "src/main.rs"
+  ],
+  "evidence": "Releases attach only target/release/libopenheart.rlib (.github/workflows/release.yml:21-26). The image runs `openheart serve --port 8080` (Dockerfile:49), but the CLI accepts only `server [PORT]` and exits 1 on unknown subcommands (src/main.rs:532-548). CI tests only OpenHeart itself (.github/workflows/ci.yml:40-47). The CLI has no format, baseline or fail-on options (src/main.rs:28-74).",
+  "impact": "Teams cannot adopt OpenHeart in their pipelines, which is the channel through which CodeQL and Semgrep win users.",
+  "recommendation": "Ship signed CLI binaries for Linux, macOS and Windows on x64 and arm64, and a working container. Publish an Action that runs analyze, uploads SARIF and comments a Mermaid architecture diff on each PR (GitHub renders Mermaid natively). Add --format, --baseline and --fail-on, and publish the crate.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-09",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "high",
+  "title": "There is no machine-readable export, so scoring has to regex-parse PlantUML",
+  "files": [
+   "src/main.rs",
+   "src/scpg/api/mod.rs",
+   "ruthless_verify.py",
+   "scripts/test_authored_design_patterns.py"
+  ],
+  "evidence": "The CLI offers only analyze, inspect, server and help (main.rs:508-547). Exports are PlantUML, Mermaid, JSON-graph and XMI (scpg/api/mod.rs:74-111). Every scorer recovers classes and relations with regexes over PlantUML text (ruthless_verify.py:225-241; benchmark_all_java_design_patterns.py:51-74; test_authored_design_patterns.py:66-122).",
+  "impact": "Scoring loses information: only simple names, no source spans, no call-site positions. A cosmetic exporter change can silently change a metric. Phase 3-8 outputs cannot be scored at all.",
+  "recommendation": "Add 'openheart export --format ohb-json' with versioned JSON Schemas covering: symbols (FQN, kind, byte span); type edges; per-method CFG, idom and phi; call edges (JVM descriptors, call-site line/col); points-to; pattern instances with role bindings; the UML model; BDD statistics; and per-phase timings. Add 'openheart query' so latency can be benchmarked.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "TST-17",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "CI is a single Linux check/fmt/test job; releases and Pages deploys are ungated, and overflow checks are off in tests",
+  "files": [
+   ".github/workflows/ci.yml",
+   ".github/workflows/release.yml",
+   ".github/workflows/deploy_pages.yml",
+   "Cargo.toml",
+   "Makefile"
+  ],
+  "evidence": "ci.yml runs only cargo check, fmt and test on ubuntu (stable and beta): no clippy, coverage, Miri, Windows or macOS, although the author develops on Windows (run.bat). release.yml publishes libopenheart.rlib without running tests. deploy_pages.yml uploads web/ on every push with no `needs:` dependency on CI. Cargo.toml's [profile.dev] sets overflow-checks = false, which the test profile inherits, so cargo test never traps arithmetic overflow. dev-dependencies contain only tempfile, and the scripts/*.py suites never run in CI.",
+  "impact": "Regressions reach releases and the public studio unchecked, and platform-specific or overflow bugs are structurally invisible to the suite.",
+  "recommendation": "Set `[profile.test] overflow-checks = true, debug-assertions = true`. Add CI jobs: clippy -D warnings; cargo-nextest on Ubuntu, Windows and macOS; cargo-llvm-cov with per-module floors; Miri for psa/bdd; cargo-mutants --in-diff on PRs; nightly fuzz and end-to-end runs; cargo-deny. Make release.yml and deploy_pages.yml depend on CI success (workflow_run or needs), and run the web tests before the Pages upload.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "The adapter and registry design forces 25+ file edits per new language",
+  "files": [
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ast/mod.rs",
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "ruthless_config.json",
+   "src/uma/mod.rs",
+   "src/core/pipeline.rs",
+   "Cargo.toml"
+  ],
+  "evidence": "Two language-id registries disagree: src/ingestion/adapter/registry.rs:19-42 has Kotlin, while src/ast/adapter/registry.rs:16-31 has TS/Rust/Generic. `ext_map` is written but never read (registry.rs:46-48); detect() is a separate hardcoded match (:59-83). File selection differs yet again in src/main.rs:79-93, src/adapters/server.rs:790-881 (which drops '*test' stems such as Latest.java and any /spec package), web/js/github-engine.js:89 and ruthless_config.json. Each file is parsed twice, and Phase 2 re-reads it from disk without checking the stored SHA-256 (src/ast/mod.rs:142). PatternDetectionChain and SCPGPipelineBuilder are used only by tests, and the pipeline is copied by hand (main.rs:150-255, server.rs:526-620). tree-sitter is pinned to 0.20 (Cargo.toml:8).",
+  "impact": "Adding Python today touches 25+ files across all ten phases: Cargo.toml, both registries, the core type enums, the symbol adapter, stubs and passes 1-5, cfg/stmts, ssa/liveness, cg, uma, four exporters, main.rs, server.rs, the tests, the verifier and the web engine.",
+  "recommendation": "Make one LanguageFrontend trait and registry the single source of truth. It defines: id; dialects (ts/tsx, kts); extensions plus shebang or linguist-style detection; grammar; token classifier; lowering to the IR; LanguageSemantics; name-binding rules (TSG); and stub data. Parse each file once and hand the tree to Phase 2. Drive the CLI, the server, /api/supported-languages and the verifier from the registry, and run every entry point through SCPGPipelineBuilder. Upgrade to tree-sitter 0.25 (LanguageFn). Done = adding a language means one module plus fixtures.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-15",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "CI has no linting, minimum-version, supply-chain or release-artifact checks",
+  "files": [
+   ".github/workflows/ci.yml",
+   ".github/workflows/release.yml",
+   "Cargo.toml",
+   "scripts/ci_check.sh"
+  ],
+  "evidence": "ci.yml only runs cargo check, fmt and test on stable and beta. It has no clippy, minimum-Rust-version job, cargo-deny or audit, Docker build, or JS/Python lint; pyflakes finds 16 issues in the scripts. release.yml uploads libopenheart.rlib instead of the binary, has no 'permissions: contents: write', and uses the unpinned dtolnay/rust-toolchain@master. thiserror is declared at Cargo.toml:14 but never used.",
+  "impact": "Problems like the broken Docker build and the unsound unsafe code ship unnoticed, and releases contain no usable binary.",
+  "recommendation": "Add jobs for clippy -D warnings, the minimum Rust version, cargo-deny, Miri on psa, a Docker smoke run, eslint and pyflakes. Publish binaries per target. Remove thiserror or start using it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Overflow checks are off in dev and test builds, alongside 846 unchecked numeric casts",
+  "files": [
+   "Cargo.toml",
+   "src/uma/serializer.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/cfg/builder/mod.rs"
+  ],
+  "evidence": "Cargo.toml:23 sets overflow-checks = false under [profile.dev]. The test profile inherits from dev, so cargo test cannot catch integer overflow. src contains 846 numeric 'as' casts (pass1_discovery.rs 54, uma/serializer.rs 40, pass5_hierarchy.rs 27, cfg/builder/mod.rs 26). Example: uma/serializer.rs:39-42 writes counts as len() as u16, which silently truncates above 65,535.",
+  "impact": "On large repositories, silent wraparound and truncation produce wrong graphs or corrupt artifacts while the tests still pass.",
+  "recommendation": "Remove overflow-checks = false and keep opt-level = 2. Use u16::try_from(..)? and checked arithmetic in serializers and index math. Enable clippy::cast_possible_truncation.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Machine-generated .urm.puml files are presented as architect ground truth, and the oracle is hand-patched",
+  "files": [
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py"
+  ],
+  "evidence": "benchmark_all_java_design_patterns.py:10 calls the files 'official software architect .urm.puml ground-truth diagrams'. They are actually generated from compiled classes by UML Reverse Mapper (urm-maven-plugin). The parsers rename GHobbits/GOrcs/GWeather to Gen* and drop Node_* and pkg_* names (:58-65; test_ruthless_popular_datasets.py:59-65). The pass thresholds are recall >= 0.85 and F1 >= 0.80 (:219), and 5 of 6 hierarchy edges (:160), while the README claims F1 = 1.0.",
+  "impact": "Agreement with another reverse-engineering tool is reported as correctness, and the hand-made renames tune the oracle to fit the tool.",
+  "recommendation": "Use URM as a differential oracle. Regenerate its output at a pinned java-design-patterns commit with a pinned urm version, compare FQNs and relations, and sort disagreements into a published triage list instead of patching names.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-14",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "CI has no accuracy or performance gate, the badge is static, and the test count is stale",
+  "files": [
+   ".github/workflows/ci.yml",
+   "README.md",
+   "scripts/ci_check.sh"
+  ],
+  "evidence": "CI runs only cargo check, fmt and test (ci.yml:40-47; ci_check.sh:9-16); none of the accuracy scripts runs in CI. README.md:10 is a static shields.io image that always reads 'CI-passing'. README.md:164 says there are 47 unit and 22 integration tests; the tree has 47 #[test] in src/ and 29 in tests/.",
+  "impact": "Headline numbers can go stale without anyone noticing, and the badge shows green whatever the real CI state is.",
+  "recommendation": "Add the PR smoke tier and the nightly full tier with the thresholds described in the harness design. Switch to the workflow's real status badge. Generate test and benchmark counts in the docs from CI output.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "No syntax-error model, no parse timeout, recursive CST walks on the caller's stack, and a 2023-era grammar",
+  "files": [
+   "src/ingestion/walker.rs:32-77",
+   "src/ast/reducer.rs:8-93",
+   "src/ast/adapter/java.rs:129",
+   "src/ingestion/parser/tree_sitter.rs:17-24",
+   "src/ingestion/mod.rs:69-72",
+   "Cargo.toml:9-11",
+   "docs/plans/phase1_ingestion_spec.md:298"
+  ],
+  "evidence": "Neither walker checks is_error/is_missing/has_error. Zero-width MISSING leaves such as ';' become empty-text Punctuation tokens, while the Java reducer's `_ => Drop` discards ERROR subtrees, which tree-sitter's recovery can make large. SourceFileRecord.flags is always 0, although the spec reserves bits for has_bom and crlf. parse() sets no timeout or cancellation flag. walk_recursive and reduce_and_encode recurse once per CST level and allocate a TreeCursor per internal node, so input nested thousands of levels deep can overflow the stack (Windows' main thread has 1 MB). The grammars are tree-sitter 0.20.10 and tree-sitter-java 0.20.2.",
+  "impact": "Files that contain errors or newer Java syntax silently lose code, and adversarial or generated input can hang or abort the CLI and the single-threaded server.",
+  "recommendation": "Traverse iteratively with a single TreeCursor (goto_first_child, goto_next_sibling, goto_parent). Treat ERROR as Eliminate, skip MISSING leaves, and record per-file diagnostics in the .tca: error and missing counts, byte ranges, BOM, CRLF. Use Parser::set_timeout_micros plus a cancellation flag. Upgrade to tree-sitter 0.25 and tree-sitter-java 0.23.x. Fuzz ingestion with cargo-fuzz, seeded from tree-sitter corpus tests.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-20",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Kotlin (and the other advertised languages) get no CFG, SSA or call graph",
+  "files": [
+   "src/ast/adapter/registry.rs:19-41",
+   "src/symbol/passes/pass1_discovery.rs:439-447",
+   "src/cfg/mod.rs:55-58",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "Only Java has an AST adapter. Kotlin falls back to the generic adapter bound to tree_sitter_javascript (registry.rs:19-41), so .kt files are parsed as JavaScript. Kotlin `fun` symbols come from a token sweep that leaves decl_node = u32::MAX (SymbolRecord::UNINIT, pass1_discovery.rs:439-447), and Phase 4 skips such symbols (cfg/mod.rs:55-58); their call sites have no enclosing method and are dropped. Cargo.toml has no Kotlin, Python or C++ grammar.",
+  "impact": "The Java/Kotlin flow-analysis claim, and the multi-language F1 claim as applied to Phases 4-6, hold for nothing except Java.",
+  "recommendation": "Add tree-sitter-kotlin (or analyze kotlinc bytecode) with a dedicated reduction adapter and a Kotlin lowering for when, expression-bodied functions, ?., !!, inline lambdas and suspend state machines. Scope README claims per phase and language until golden tests cover them.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-13",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "Distribution is broken: the release workflow has never run and ships an .rlib; the Docker image can neither build nor start",
+  "files": [
+   ".github/workflows/release.yml:3-28",
+   "Dockerfile:2",
+   "Dockerfile:49",
+   "src/main.rs:32",
+   "src/main.rs:532",
+   "CHANGELOG.md:10",
+   "SECURITY.md:9-13",
+   "Cargo.toml:3"
+  ],
+  "evidence": "`git tag -l` is empty, so the tag-triggered release.yml has never run. It sets no `permissions: contents: write` and would likely get a 403 under the read-only default token. It uploads target/release/libopenheart.rlib (release.yml:26), which only the exact rustc version that built it can use. Dockerfile:2 builds with rust:1.80, but the locked sha2 0.11 needs Rust 1.85 ([manifest](https://docs.rs/crate/sha2/0.11.0/source/Cargo.toml)). Dockerfile:49 runs `openheart serve --port 8080`, but the CLI only knows `server [PORT]` (main.rs:532). Versions disagree: 0.1.0 in Cargo.toml and the CLI banner (main.rs:32), 2.0.0 in CHANGELOG.md:10, and SECURITY.md:9-13 lists 1.1.x, 1.0.x and 0.1.x as supported.",
+  "impact": "Users and anyone reproducing benchmarks have no usable binaries or containers. Version numbers cannot be mapped to code, so bug reports and published results have no anchor.",
+  "recommendation": "Use cargo-dist (or taiki-e/upload-rust-binary-action) to build Linux, macOS and Windows binaries with SHA-256 checksums, attest them with actions/attest-build-provenance, and attach a CycloneDX SBOM; publish the crate to crates.io. Drive versions and the CHANGELOG with release-plz from conventional commits so tags, Cargo.toml and the CHANGELOG agree. Fix the Dockerfile: rust:1.85+, an exec-form CMD running `openheart server 8080`, a non-root USER and a healthcheck. Build the image in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-14",
+  "kind": "flaw",
+  "category": "dependency",
+  "severity": "medium",
+  "title": "Cargo.toml has a wrong description, missing metadata, overflow checks off under test, tree-sitter six minor versions behind, and an unused dependency",
+  "files": [
+   "Cargo.toml:1-23",
+   "Cargo.lock:3",
+   "Cargo.lock"
+  ],
+  "evidence": "The description reads '...token corpus pipeline for cardiac/code processing' (Cargo.toml:6) and covers only Phase 1. There is no license, repository, readme, rust-version, keywords, categories or include/exclude field. [profile.dev] sets overflow-checks = false (:21-23), which also applies to `cargo test`, so arithmetic overflow in bit-packing and rank/select code wraps silently under test. There is no tuned release profile and no profiling profile. tree-sitter is locked at 0.20.10 with 0.20.x grammars while 0.26.x is available ([docs.rs](https://docs.rs/crate/tree-sitter/0.26.9/source/Cargo.toml)). thiserror is declared but has zero references in src.",
+  "impact": "Tests cannot catch overflow bugs, release builds leave performance unclaimed, and the crate cannot be published as-is. Current grammar crates, including Kotlin's, target the newer tree-sitter Language API and cannot be added without upgrading.",
+  "recommendation": "Fix the description and add license (MIT), repository, readme, rust-version (1.85), keywords, categories and include/exclude. Remove overflow-checks = false, or confine it to a custom fast-dev profile that tests do not use. Add a [profile.release] with lto = thin and codegen-units = 1, plus a [profile.profiling] with debug info. Upgrade to tree-sitter 0.25+/0.26 and current grammars. Drop thiserror or adopt it (ENG-07). Consider moving to edition 2024, since the MSRV is already 1.85.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-15",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Supply-chain posture fails key OpenSSF Scorecard checks (pinning, token permissions, SRI, SAST)",
+  "files": [
+   ".github/workflows/ci.yml:21-30",
+   ".github/workflows/release.yml:13-22",
+   ".github/workflows/deploy_pages.yml:3-37",
+   "web/index.html:29-34",
+   ".github/dependabot.yml:1-13"
+  ],
+  "evidence": "Every action uses a mutable ref (checkout@v4, cache@v4, dtolnay/rust-toolchain@master, softprops/action-gh-release@v1) rather than a commit SHA, failing Pinned-Dependencies. ci.yml and release.yml declare no `permissions:` block, failing Token-Permissions. deploy_pages.yml publishes web/ on every push to main regardless of CI results. web/index.html:29-34 loads five CDN scripts with no integrity= attribute. There is no CodeQL or other SAST, no dependency review, no fuzzing and no signed releases. Dependabot does not track the CDN libraries and has no grouping configured.",
+  "impact": "A compromised action tag or CDN file can run in CI with repository tokens, or in every Studio visitor's browser. Failing Scorecard checks also signal immaturity to adopters.",
+  "recommendation": "Pin actions by full commit SHA with version comments; Dependabot will keep them updated. Set a top-level `permissions: contents: read` and grant more per job. Gate the Pages deploy on CI with needs or workflow_run. Vendor the web libraries through package.json plus a lockfile, or add SRI hashes. Enable CodeQL and actions/dependency-review-action, run the OpenSSF Scorecard action and publish its badge, and add cargo-deny source policies.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-12",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "IDE and LSP integration",
+  "files": [
+   "src/main.rs",
+   "Cargo.toml",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The only subcommands are analyze, inspect, server and help (src/main.rs:509-549). Cargo.toml:8-16 has no LSP or editor-protocol dependency, and the HTTP server exposes no editor-oriented routes (src/adapters/server.rs:77-289).",
+  "impact": "Developers have to leave the editor to see diagrams or results. IntelliJ diagrams, Semgrep's LSP-based extensions, CodeQL for VS Code and Sourcetrail's plugins have set the expectation of in-IDE use.",
+  "recommendation": "Add `openheart lsp` (tower-lsp) with diagnostics from the analyses and code lenses such as 'show in class/sequence diagram'. Support go-to-diagram and back via UMLLink spans, with incremental updates on didChange. Host the studio canvas in a VS Code webview, and rely on JetBrains' LSP support for IntelliJ.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-14",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Semantics-based design-pattern and architecture recovery",
+  "files": [
+   "src/uma/patterns/singleton.rs",
+   "src/uma/patterns/observer.rs",
+   "scripts/benchmark_all_java_design_patterns.py"
+  ],
+  "evidence": "Singleton fires on any field named 'instance' or 'getinstance', typed as the class itself, or named like the class, and scores it 100 (src/uma/patterns/singleton.rs:20-31). Observer fires on any method that starts with add/register/attach and contains 'listener', scores it 85, and never uses the call graph (src/uma/patterns/observer.rs:11,25-38).",
+  "impact": "A linked-list Node with a `Node next` field becomes a Singleton at 100% confidence, and renamed variants are missed. Pattern recovery is a differentiator only if it is accurate and measured.",
+  "recommendation": "Match structural and behavioural signatures: private constructors, static accessors that return the class's own type, role-consistent call-graph and points-to facts, and field accesses. Output participant roles with calibrated confidences. Evaluate on P-MARt and DPB, and publish precision and recall per pattern.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-14",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Pipeline abstraction is decorative: the stage template has no implementors and orchestration is copy-pasted three times",
+  "files": [
+   "src/core/pipeline.rs:34-78",
+   "src/core/pipeline.rs:97-101",
+   "src/core/pipeline.rs:143-148",
+   "src/core/pipeline.rs:151-238",
+   "src/main.rs:139-200",
+   "src/adapters/server.rs:506-600",
+   "Cargo.toml:14"
+  ],
+  "evidence": "PipelineStageTemplate, with its verify_invariants and timing hooks, has zero implementors. SCPGPipelineBuilder::execute, cmd_analyze and the server each wire all 10 phases by hand, with different error handling. The server uses fs::read(..).unwrap_or_default() and passes empty bytes onward. diagram_formats is stored but never used. Every phase writes its artifact and the caller reads it back with fs::read. Phases 7-10 return plain values and cannot report errors. Errors are Strings or io::Error; thiserror is a dependency but is never used.",
+  "impact": "The CLI, server and library behave differently. There is no caching, cancellation, per-stage metrics or partial re-run, and errors lose their structure.",
+  "recommendation": "Define one Stage trait with typed inputs and outputs and a thiserror error enum, driven by a single Pipeline that the CLI, server and library all use. Hand artifacts over in memory and persist them optionally. Key each stage's output by a hash of its inputs and config so unchanged stages are skipped, salsa or Bazel style. Add cancellation tokens and per-stage timing and RSS metrics, and either wire up or remove diagram_formats.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-06",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "low",
+  "title": "No clickjacking / framing protection on the studio page",
+  "files": [
+   "web/index.html",
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "There is no CSP frame-ancestors directive and GitHub Pages does not emit X-Frame-Options; the page contains no frame-busting logic. The studio imports local/proprietary source via Folder/ZIP pickers and exposes destructive-looking controls (Delete node, Clear history).",
+  "impact": "The studio can be embedded in a hostile iframe for UI-redress, tricking a user into loading a local codebase or triggering actions while the attacker frames the page.",
+  "recommendation": "Add frame-ancestors 'none' to the WSEC-02 CSP meta (X-Frame-Options cannot be set on Pages); optionally add a top-frame self-check that neutralizes the UI when framed.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-20",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Hardcoded developer paths, ports and personal URLs",
+  "files": [
+   "src/adapters/server.rs",
+   "src/adapters/web_repo.rs",
+   "ruthless_verify.py",
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/generate_diagrams.py",
+   "web/index.html"
+  ],
+  "evidence": "server.rs:118-195 probes a fixed list that includes ./target_repos/FractalAndroid (124), and target_repos is hardcoded again at 211 and 399-470. Scripts expect untracked datasets (benchmark_all_java_design_patterns.py:28; test_ruthless_popular_datasets.py:83, 190, 236; test_authored_design_patterns.py:129). localhost:8080 is fixed in generate_diagrams.py:8 and ruthless_verify.py:17. Personal repo URLs appear at web_repo.rs:128 and index.html:107. The FractalAndroid owner differs between index.html:1153 and test_diagrams_outputs_refresh.py:143.",
+  "impact": "Behavior depends on the author's disk layout, so results cannot be reproduced on another machine.",
+  "recommendation": "Move paths and ports into CLI flags or environment variables. Add a datasets manifest with pinned commit SHAs. Keep personal URLs to README and docs.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-16",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "sat_count silently saturates at u64::MAX, and consumers then wrap",
+  "files": [
+   "src/psa/bdd/sat_count.rs:60",
+   "src/psa/bdd/sat_count.rs:79-92",
+   "src/uma/visitor.rs:214",
+   "Cargo.toml:23",
+   "src/psa/metrics.rs:79-95"
+  ],
+  "evidence": "Counts above 2^64 return u64::MAX through saturating operations (sat_count.rs:60,79,90,92), with no flag marking the result as inexact. Phase 9 sums them with a plain `+=` (uma/visitor.rs:214), which wraps because overflow-checks=false. PathMetrics serializes `mean = sat_count as f32`, which is not a mean, and from_bytes drops unwind_depth.",
+  "impact": "Functions with 64 or more independent decisions, common in generated code, get clamped counts, and the aggregate totals wrap to small nonsense values.",
+  "recommendation": "Count with num-bigint BigUint, as biodivine-lib-bdd's exact_cardinality and CUDD's Cudd_ApaCountMinterm do, and store a log2 f64 plus an exactness bit in the 16-byte record. Use checked adds in consumers. Done means a test with 80 sequential branches reporting exactly 2^80.",
+  "effort": "S",
+  "confidence": "high"
+ }
+]

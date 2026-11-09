@@ -40,6 +40,7 @@
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{invariant}{Invariant}[section]
 \newtheorem{remark}{Remark}[section]
+\newtheorem{conjecture}[theorem]{Conjecture}
 
 % ---------- Notation ----------
 \newcommand{\SCPG}{\mathcal{G}}
@@ -98,19 +99,26 @@ We present the \textbf{Succinct Compositional Program Graph
 (SCPG)} and the \textbf{OpenHeart} ten-phase construction
 pipeline.  The SCPG is a unified data structure that encodes
 a codebase's complete semantic content---from raw tokens to
-UML behavioral metadata---within one memory-mapped binary
-artifact.  We define four formal requirements on a universal
-program representation (space efficiency, total traceability,
-UML completeness, polynomial queries) and prove the SCPG
-satisfies all four.  Key results include: $\BigO(n\log\sigma)$-bit
-storage via Balanced Parentheses encoding and Wavelet Trees;
-$\BigO(1)$ backward and $\BigO(\log n)$ forward source
-navigation; per-function path summaries of size $\BigO(m)$
-for structured programs via a novel structural induction;
-and $\BigO(|N|\cdot|D|^2)$ interprocedural dataflow via IFDS.
-We prove that the Code Property Graph, LLVM IR, and EMF/XMI
-each violate at least one requirement, establishing the SCPG
-as strictly more capable than any single predecessor.
+UML behavioral metadata---within one binary artifact designed
+for memory-mapped access.  We define four formal requirements
+on a universal program representation (space efficiency, total
+traceability, UML completeness, polynomial queries) and show
+that the SCPG \emph{model} satisfies them.  Key results include:
+$\BigO(n\log\sigma)$-bit storage for the structural layers via
+Balanced Parentheses encoding and Wavelet Trees;
+$\BigO(1)$ backward and $\BigO(\log n + k)$ forward source
+navigation; a flow-conservation encoding of the path function
+whose model count equals the number of acyclic entry--exit
+paths, with ROBDD size at most $m(d+1)$ for series-parallel
+CFGs with $m$ edges and parallel nesting depth $d$; and
+interprocedural dataflow via IFDS in the
+$\BigO(|E|\cdot|D|^3)$ bound of Reps, Horwitz and Sagiv.
+We argue that the Code Property Graph, LLVM IR, and EMF/XMI
+each violate at least one requirement.  All bounds are
+properties of the formal model.  The OpenHeart reference
+implementation realizes only part of the model;
+Section~\ref{sec:impl} lists every known divergence, and no
+empirical evaluation is reported.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -142,9 +150,9 @@ In practice, she cannot satisfy all four needs with any single
 tool.  LLVM IR~\cite{lattner04} handles the taint analysis but
 discards class hierarchies during lowering, making UML
 generation impossible.  Joern~\cite{yamaguchi14} preserves
-structural information in a Code Property Graph (CPG) but
-stores it in a graph database with $7$--$35\times$ overhead
-and provides no formal traceability guarantee between diagram
+structural information in a Code Property Graph (CPG) and
+offers a rich query language over it, but provides no formal
+traceability guarantee between diagram
 elements and source tokens.  EMF/XMI~\cite{emf} generates
 UML models but provides no built-in graph analysis.  Each
 tool requires a separate import/export cycle, and none
@@ -197,16 +205,18 @@ We make the following specific contributions:
   inverse query is answerable in $\BigO(\log n)$
   (Section~\ref{sec:theory}).
 
-\item We prove by structural induction that for any
-  series-parallel CFG, the ROBDD encoding of the feasible
-  path function has at most $2m-1$ nodes
-  (Section~\ref{sec:theory}).  This proof does not require
-  treewidth machinery and follows directly from the CFG's
-  recursive structure.
+\item We give a flow-conservation encoding of the path
+  function whose models are in bijection with the acyclic
+  entry--exit paths of a CFG, so that $\SATC$ is an exact path
+  count, and we prove by structural induction that for any
+  series-parallel CFG with $m$ edges and parallel nesting
+  depth $d$ its ROBDD has at most $m(d+1)$ nodes
+  (Section~\ref{sec:theory}).
 
 \item We define the UMLLink record and the SCPG hash chain
-  (Section~\ref{sec:model}), enabling stale-diagram
-  detection in $\BigO(1)$ after any source edit.
+  (Section~\ref{sec:model}), enabling a conservative
+  $\BigO(1)$ staleness test per diagram element after a
+  source edit.
 
 \item We prove that the Code Property
   Graph~\cite{yamaguchi14}, LLVM IR~\cite{lattner04}, and
@@ -216,8 +226,15 @@ We make the following specific contributions:
 
 \paragraph{Scope.}
 This paper presents the SCPG as a formal framework with
-analytical complexity bounds.  Empirical evaluation on
-industrial codebases is planned future work.
+analytical complexity bounds.  It reports no measurements:
+no space, time or accuracy figure in this paper has been
+measured on the reference implementation, and empirical
+evaluation on named, pinned industrial codebases is future
+work.  The reference implementation (OpenHeart) realizes a
+subset of the model; Section~\ref{sec:impl} states precisely
+where it diverges, and every statement about ``OpenHeart'' in
+Sections~\ref{sec:pipeline}--\ref{sec:query} describes the
+model unless that section says otherwise.
 
 % ============================================================
 \section{Requirements and Baseline Comparison}
@@ -274,8 +291,11 @@ CPG / Joern~\cite{yamaguchi14}  & \xmark & \xmark & \xmark & \cmark\\
 LLVM IR~\cite{lattner04}         & \cmark & \xmark & \xmark & \cmark\\
 EMF / XMI~\cite{emf}             & \xmark & \xmark & partial & \xmark\\
 WALA~\cite{wala}                 & \xmark & partial & \xmark & \cmark\\
-\textbf{SCPG (OpenHeart)}        & \cmark & \cmark & \cmark & \cmark\\
+\textbf{SCPG (model)}\textsuperscript{*} & \cmark & \cmark & \cmark & \cmark\\
 \bottomrule
+\multicolumn{5}{l}{\scriptsize\textsuperscript{*}The formal model; the reference
+  implementation does not}\\
+\multicolumn{5}{l}{\scriptsize yet meet R1--R4 (Section~\ref{sec:impl}).}
 \end{tabular}
 \end{table}
 
@@ -291,9 +311,11 @@ to Section~\ref{sec:model}.
 
 An ordered tree on $n$ nodes can be stored naively with four
 pointer-sized fields per node ($\sim 32$ bytes), totaling
-$32n$ bytes.  Yet the information-theoretic lower bound is
-only $2n - \BigO(\log n)$ bits---a factor-of-$128$ gap for
-32-bit nodes.
+$32n$ bytes.  Yet the information-theoretic lower bound for
+the tree \emph{topology} is only $2n - \BigO(\log n)$
+bits---a factor of $128$ below $32$-byte nodes.  The factor
+concerns topology only: per-node payload such as node types
+and token ranges costs the same in any encoding.
 
 The \textit{Balanced Parentheses (BP) encoding} closes this
 gap.  A DFS traversal emits a $1$-bit (``open'') at each
@@ -333,10 +355,11 @@ array lookup, making all dataflow edges explicit and sparse.
 
 Cytron et al.~\cite{cytron91} showed that $\phi$-functions
 need only be placed at the \textit{iterated dominance frontier}
-of each variable's definition sites.  The total number of
-$\phi$-insertions across all variables in a function is
-$\BigO(|E_{\mathrm{cfg}}|)$---proportional to the number of
-CFG edges, not the number of variables.
+of each variable's definition sites.  For each variable the
+number of $\phi$-insertions is at most the number of join
+blocks; Cytron et al.\ report that the total is close to
+linear in program size in practice, although the worst case
+over all variables is quadratic.
 
 \subsection{Binary Decision Diagrams for Path Analysis}
 
@@ -358,8 +381,11 @@ The \textit{IFDS framework}~\cite{reps95} solves the
 complementary problem: given a family of dataflow facts $D$
 and \textit{distributive} flow functions ($f(X \cup Y) =
 f(X) \cup f(Y)$), the precise interprocedural solution is
-computable in $\BigO(|N| \cdot |D|^2)$ time.  Taint analysis,
-null checking, and type-state validation all fit this model.
+computable in $\BigO(|E| \cdot |D|^3)$ time, where $|E|$ is
+the number of supergraph edges, and in $\BigO(|E|\cdot|D|)$
+for locally separable (gen/kill) problems.  Taint analysis,
+null checking, and finite-state type-state validation all fit
+this model.
 
 % ============================================================
 \section{The SCPG Formal Model}\label{sec:model}
@@ -552,8 +578,13 @@ It enables the \textit{forward traceability query}:
   \{r.\mathit{sym\_id} : r.\mathit{ft} \le t
     \le r.\mathit{lt}\}
 \]
-answerable in $\BigO(\log n_s + k)$ by binary search
-followed by a backward scan, where $k$ is the result size.
+answerable in $\BigO(\log n_s + k)$, where $k$ is the result
+size, provided each record also stores the index of its
+innermost enclosing record: a binary search finds the
+innermost span containing $t$, and the enclosing-span links
+enumerate the remaining results.  (A plain backward scan from
+the binary-search position costs time proportional to the
+number of earlier spans in the file, not to $k$.)
 
 \smallskip
 Every UML diagram element carries a \textit{UMLLink
@@ -564,11 +595,15 @@ $\tauF(L_2, s)$ and a \textit{composite SCPG hash}:
   \oplus h_6)
 \end{equation}
 where $h_i = \mathrm{CRC64}(\mathit{bytes}(A_i))$
-for each of the six upstream pipeline artifacts.  Any source
-edit changes at least one $h_i$ with probability
-$1 - 2^{-64}$, changing $\hscpg$ and rendering affected
-UMLLinks stale---detectable in $\BigO(1)$ by a single
-integer comparison.
+for each of the six upstream pipeline artifacts.  An
+accidental source edit changes the 32-bit tag $\hscpg$ with
+probability about $1 - 2^{-32}$, and a single integer
+comparison then reports a UMLLink as possibly stale in
+$\BigO(1)$.  Because $\hscpg$ is one tag for the whole build,
+this test is conservative: any edit marks \emph{every}
+UMLLink stale.  Per-element staleness needs a per-entity hash
+of the source range and the derived element, compared in the
+same way.
 
 % ============================================================
 \section{The OpenHeart Construction Pipeline}\label{sec:pipeline}
@@ -578,10 +613,11 @@ Each phase is a total function
 $\Phi_i : \mathcal{A}_i \to \mathcal{A}_{i+1}$ that reads
 a set of immutable artifacts and emits exactly one new
 immutable artifact.  Table~\ref{tab:pipeline} lists the
-phases with their output artifact, dominant time complexity,
-and uncompressed output size for a representative 500K-LOC
-Java project.  Figure~\ref{fig:pipeline} shows the
-data-flow between phases.
+phases with the dominant time complexity of the model and the
+status of the reference implementation
+(Section~\ref{sec:impl}).  No artifact sizes are given: none
+has been measured on a named corpus.  Figure~\ref{fig:pipeline}
+shows the data-flow between phases.
 
 \begin{table}[!t]
 \renewcommand{\arraystretch}{1.25}
@@ -589,26 +625,28 @@ data-flow between phases.
 \label{tab:pipeline}
 \centering
 \small
-\begin{tabular}{@{}c@{\,}l@{\;}l@{\;}r@{}}
+\begin{tabular}{@{}c@{\,}l@{\;}l@{\;}l@{}}
 \toprule
-\textbf{Ph.} & \textbf{Name} & \textbf{Cost}
-  & \textbf{Size}\\
+\textbf{Ph.} & \textbf{Name} & \textbf{Model cost}
+  & \textbf{Impl.}\\
 \midrule
-1  & Lexical Ingestion   & $\BigO(N + n_t\log n_t)$  & 37\,MB\\
-2  & BP AST Encoding     & $\BigO(n_a\log n_a)$      & 45\,MB\\
-3  & Symbol Table        & $\BigO(n_a)$              &  9\,MB\\
-4  & CFG + Dominators    & $\BigO(n_a + \Sigma n_b^2)$&27\,MB\\
-5  & SSA + IFDS          & $\BigO(n_a|D|^2)$         &105\,MB\\
-6  & Call Graph          & $\BigO(n_p^{1.5})$        &  8\,MB\\
-7  & Traceability Index  & $\BigO(n_s\log n_s)$      & 39\,MB\\
-8  & ROBDD Path Summaries& $\BigO(m|\ROBDD|n_f)$     & 92\,MB\\
-9  & UML Extraction      & $\BigO(n_a + n_c P)$      & 15\,MB\\
-10 & SCPG Assembly       & $\BigO(A_{\mathrm{tot}})$ & 82\,MB\textsuperscript{*}\\
+1  & Lexical Ingestion   & $\BigO(N + n_t\log n_t)$  & partial\\
+2  & BP AST Encoding     & $\BigO(n_a\log n_a)$      & partial\\
+3  & Symbol Table        & $\BigO(n_a)$              & partial\\
+4  & CFG + Dominators    & $\BigO(n_a + \Sigma n_b^2)$& yes\\
+5  & SSA + IFDS          & $\BigO(m|D|^3)$           & SSA only\\
+6  & Call Graph          & $\BigO(n_p^{3})$          & CHA only\\
+7  & Traceability Index  & $\BigO(n_s\log n_s)$      & partial\\
+8  & ROBDD Path Summaries& $\BigO(m|\ROBDD|n_f)$     & partial\\
+9  & UML Extraction      & $\BigO(n_a + n_c P)$      & partial\\
+10 & SCPG Assembly       & $\BigO(A_{\mathrm{tot}})$ & partial\\
 \bottomrule
-\multicolumn{4}{l}{\scriptsize\textsuperscript{*}LZ4-compressed.
-  $N$: source bytes; $n_t$: tokens; $n_a$: AST nodes;}\\
-\multicolumn{4}{l}{\scriptsize $n_s$: symbols; $n_p$: pointer vars;
-  $|D|$: IFDS fact set size.}
+\multicolumn{4}{l}{\scriptsize $N$: source bytes; $n_t$: tokens;
+  $n_a$: AST nodes; $n_s$: symbols;}\\
+\multicolumn{4}{l}{\scriptsize $n_p$: pointer variables;
+  $|D|$: IFDS fact set size; $m$: CFG edges.}\\
+\multicolumn{4}{l}{\scriptsize Impl.: audited reference
+  implementation (Section~\ref{sec:impl}).}
 \end{tabular}
 \end{table}
 
@@ -732,10 +770,11 @@ standard tree navigation operations run in $\BigO(1)$:
 \subsection{Phases 3--6: Semantic and Interprocedural Analysis}
 
 \textbf{Phase~3} builds the symbol table $\VSYM$ and type
-hierarchy $\ETH$ via five passes over the BP AST.  Name
-resolution uses scope graphs~\cite{antwerpen16}, a
-language-agnostic formalism that models nested scopes as a
-graph and resolves names by BFS.  Multiple passes are
+hierarchy $\ETH$ via five passes over the BP AST.  In the
+model, name resolution uses scope graphs~\cite{antwerpen16},
+a language-agnostic formalism that models nested scopes and
+imports as a graph and resolves names by path search with
+kind-directed lookup and import ordering.  Multiple passes are
 structurally necessary (not a design choice) because Java
 and similar languages permit forward references.
 
@@ -751,9 +790,11 @@ $\BigO(|E_f| \cdot \mathrm{depth})$ per function.
 two-pass Cytron algorithm~\cite{cytron91}: first,
 $\phi$-functions are placed at iterated dominance frontiers
 (Algorithm~\ref{alg:phi}); then variables are renamed by DFS
-over the dominator tree.  Three IFDS analyses follow on the
-resulting SSA/CDG structure: taint propagation, nullable
-pointer analysis, and type-state analysis.
+over the dominator tree.  The model then runs three IFDS
+analyses over the resulting SSA/CDG structure: taint
+propagation, nullable pointer analysis, and type-state
+analysis.  (The audited reference implementation contains no
+IFDS solver; Section~\ref{sec:impl}.)
 
 \begin{algorithm}[t]
 \caption{$\phi$-Function Placement~\cite{cytron91}}
@@ -780,10 +821,12 @@ pointer analysis, and type-state analysis.
 
 \textbf{Phase~6} extracts call sites from the BP AST and
 resolves targets via Class Hierarchy Analysis
-(CHA)~\cite{lhotak03}, refined by SSA-based 1-CFA
-(if the receiver is defined by \texttt{new\;T()}, the
-target set is exactly $\{T.m\}$) and Anderson's
-inclusion-based points-to analysis~\cite{anderson94}.
+(CHA)~\cite{lhotak03}.  In the model these targets are
+refined by SSA-based receiver typing (if the receiver is
+defined by \texttt{new\;T()}, the target set is exactly
+$\{T.m\}$) and by Andersen's inclusion-based points-to
+analysis~\cite{anderson94} over assign, load, store, call and
+return constraints.
 Tarjan's algorithm~\cite{tarjan72} identifies recursive
 SCCs in $\BigO(|V|+|E|)$.
 
@@ -798,8 +841,10 @@ hash chain (Equation~\ref{eq:hashchain}) is computed here.
 for each function by: computing an initial variable ordering
 via FORCE~\cite{aloul03} on the constraint hypergraph; building
 the ROBDD by conjoining structural flow-conservation clauses
-via the BDD \textsc{Apply} operation~\cite{bryant86}; and
-refining the ordering by Rudell's sifting~\cite{rudell93}.
+via the BDD \textsc{Apply} operation~\cite{bryant86}
+(Definition~\ref{def:pathfunc}); and refining the ordering by
+Rudell's sifting~\cite{rudell93} with in-place adjacent-level
+swaps.
 Functions are processed in SCC condensation-DAG order so
 that callee summaries are available when callers are built.
 
@@ -812,13 +857,14 @@ blocks become \textit{DecisionNodes}; join points become
 IFDS type-state pairs grouped by class type.
 
 \textbf{Phase~10} merges all nine artifacts into a unified
-memory-mapped binary with eleven typed sections ordered by
-access frequency (hot $\to$ warm $\to$ cold).  The uncompressed
-size is ${\sim}305\,\mathrm{MB}$, compressing to
-${\sim}82\,\mathrm{MB}$ with LZ4.  A demand-driven query
-engine with a 512-entry LRU cache (keyed by query type,
-parameter hash, and $\hscpg$) is bootstrapped on the
-completed binary.
+binary with eleven typed sections ordered by access frequency
+(hot $\to$ warm $\to$ cold), designed to be memory-mapped.  A
+demand-driven query engine with a 512-entry LRU cache (keyed
+by query type, parameter hash, and $\hscpg$) is bootstrapped
+on the completed binary.  (In the audited reference
+implementation only the string-table section carries data and
+the file is read into memory rather than mapped;
+Section~\ref{sec:impl}.)
 
 % ============================================================
 \section{Theoretical Guarantees}\label{sec:theory}
@@ -872,13 +918,17 @@ per function) and the ROBDD bound of the next subsection,
 we obtain:
 
 \begin{theorem}[SCPG Space Complexity]\label{thm:space}
-The SCPG can be stored in
+The structural layers of the SCPG (tokens, AST, typed graph
+edges, symbols and path summaries) can be stored in
 $\BigO(n_a + m\lceil\log_2\sigma\rceil + n_s + n_t +
-\textstyle\sum_f |\ROBDD(f)|)$ bits plus $\BigO(n)$ machine
-words of auxiliary index structure, where $n_a = |\VS \cup \VT|$,
-$m = |E|$, $n_s = |\VSYM|$, $n_t = |\VT|$.  For structured
-programs and $\sigma \le 256$, this is $\BigO(n\log\sigma)$
-$= \BigO(8n)$ bits.
+\textstyle\sum_f |\ROBDD(f)|)$ bits, where $n_a = |\VS \cup \VT|$,
+$m = |E|$, $n_s = |\VSYM|$, $n_t = |\VT|$.  The SSA and
+traceability index structures take a further machine word per
+SSA def-use edge (Lemma~\ref{lem:ssasparse}) and per traceable
+entity.  If in addition $\sum_f|\ROBDD(f)| = \BigO(m)$
+(for example, for series-parallel CFGs of bounded parallel
+nesting depth, Theorem~\ref{thm:robdd}) and $\sigma \le 256$,
+the structural layers take $\BigO(n\log\sigma)$ bits.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
@@ -886,14 +936,26 @@ Token layer: $128n_t$ bits (16-byte records).
 AST layer (Theorem~\ref{thm:bp}): $\BigO(n_a)$ bits.
 Graph layers (Theorem~\ref{thm:wt}): $\BigO(m\log\sigma)$
 bits per CSR+WT structure; $\BigO(m\log\sigma)$ summed.
-SSA/DFG layer: $\BigO(n_a)$ machine words by
-Lemma~\ref{lem:ssasparse}.
+SSA/DFG layer: one machine word per def-use edge, whose
+number is bounded by Lemma~\ref{lem:ssasparse}.
 Symbol layer: $512n_s$ bits (64-byte records).
 Traceability layer: $\BigO(n)$ machine words (dense arrays).
-Path summaries: $96\sum_f|\ROBDD(f)|$ bits; for SP programs,
-$\sum_f|\ROBDD(f)| = \BigO(m)$ by Theorem~\ref{thm:robdd}.
-Summing yields $\BigO(n\log\sigma)$.
+Path summaries: $96\sum_f|\ROBDD(f)|$ bits.
+Summing the bit-level terms yields the first bound; under the
+stated assumption on $\sum_f|\ROBDD(f)|$ it is
+$\BigO(n\log\sigma)$.
 \end{proof}
+
+\begin{remark}
+Theorem~\ref{thm:space} is a property of the model.  It
+requires an $o(n)$-bit navigation index for the BP sequence
+(Theorem~\ref{thm:bp}) and a wavelet tree for edge types
+(Theorem~\ref{thm:wt}).  The reference implementation stores
+a full sparse-table RMQ ($\Theta(n\log n)$ words) and a
+machine-word jump table beside the BP sequence, and has no
+wavelet tree, so the audited revision does not meet this
+bound (Section~\ref{sec:impl}).
+\end{remark}
 
 \subsection{Auxiliary Lemmas}
 
@@ -929,33 +991,47 @@ onto the set of $1$-bit positions.
 \end{proof}
 
 \begin{lemma}[Dominance Frontier Cardinality]\label{lem:dfcard}
-$\sum_{b \in B_f} |\DF(b)| \le |E_f|$.
+Let $h$ be the height of the dominator tree of $f$.  Then
+$\sum_{b \in B_f} |\DF(b)| \le h\cdot|E_f|$.
 \end{lemma}
 
 \begin{proof}
-Each CFG edge $(p, y)$ can contribute $y$ to $\DF(b)$ for
-at most one $b$ (the deepest dominator of $p$ that does not
-strictly dominate $y$).  Hence the total count of
-$(b,y)$ pairs is at most $|E_f|$.
+A CFG edge $(p, y)$ contributes $y$ to $\DF(b)$ exactly for
+the blocks $b$ on the dominator-tree path from $p$ up to, but
+excluding, $\idom(y)$ (the ``runner'' walk of Cooper et
+al.~\cite{cooper01}).  That path has at most $h$ blocks, so
+the total count of $(b,y)$ pairs is at most $h\cdot|E_f|$.
+The total is therefore at most quadratic in the number of
+blocks, and Cytron et al.~\cite{cytron91} note that it can be
+quadratic.
 \end{proof}
 
 \begin{lemma}[SSA Def-Use Sparsity]\label{lem:ssasparse}
-The total number of SSA def-use edges is
-$\BigO(|E_{\mathrm{cfg}}|)$.
+The number of SSA def-use edges equals the number of SSA
+uses: at most $n_a$ ordinary uses plus
+$\sum_{\phi} |\mathrm{preds}(\mathrm{block}(\phi))|$ $\phi$
+operands.  For a single variable the $\phi$ operands number
+at most $|E_{\mathrm{cfg}}|$.
 \end{lemma}
 
 \begin{proof}
-By Lemma~\ref{lem:dfcard}, total $\phi$-insertions are
-$\BigO(|E_{\mathrm{cfg}}|)$.  Ordinary definitions number at
-most $n_a$.  Since $|E_{\mathrm{cfg}}| \ge n_a - 1$ in any
-connected CFG, all terms are $\BigO(|E_{\mathrm{cfg}}|)$.
+In SSA form every use has exactly one reaching definition, so
+def-use edges and uses are in bijection.  Ordinary uses are
+AST occurrences, at most $n_a$.  A $\phi$-function at block
+$y$ has one operand per predecessor of $y$; a variable has at
+most one $\phi$ per block, so its operands number at most
+$\sum_y |\mathrm{preds}(y)| = |E_{\mathrm{cfg}}|$.
 \end{proof}
 
 \subsection{Path Summaries (R4, partial)}
 
 The key structural result is that for programs without
-\texttt{goto}, the ROBDD encoding of the feasible path set
-is polynomial in the number of CFG edges.
+\texttt{goto}, the ROBDD encoding of the path set is
+polynomial in the number of CFG edges.  Throughout, a
+``feasible'' path means a \emph{structurally} possible
+entry--exit path of the CFG; semantic feasibility (whether
+branch conditions can actually hold together) is not
+encoded.
 
 \begin{definition}[Series-Parallel CFG]\label{def:sp}
 A CFG $G_f$ is \emph{series-parallel} (SP) iff constructible
@@ -967,69 +1043,159 @@ CFG~\cite{valdes79}.
 \end{definition}
 
 \begin{definition}[Feasible Path Function]\label{def:pathfunc}
-For $G_f$ with $m$ edges, assign variable $x_e$ to edge $e$.
-The \emph{feasible path function}
-$f_{\mathrm{paths}} : \{0,1\}^m \to \{0,1\}$ equals $1$
-iff the assignment $(x_e)_{e \in E_f}$ encodes a
-structurally consistent path from entry to exit.
-For a block $b$ with predecessors $p_1,\ldots,p_k$ and
-successors $s_1, s_2$ (binary branch):
+Let $G_f$ be an acyclic CFG with a synthetic entry $s$ (no
+predecessors), a synthetic exit $t$ (no successors) and $m$
+edges, and assign variable $x_e$ to edge $e$.  For a block
+$b$ let $\mathrm{in}(b)$ and $\mathrm{out}(b)$ be the sets of
+its incoming and outgoing edge variables, and let
+$\mathrm{AMO}(X)$ and $\mathrm{EXO}(X)$ state that at most one,
+respectively exactly one, variable of $X$ is $1$.  For every
+block $b \notin \{s,t\}$ the \emph{flow-conservation
+constraint} is
 \begin{equation}\label{eq:phib}
-  \Phi_b = \Bigl(\bigvee_j x_{p_j \to b}\Bigr)
-  \to (x_{b \to s_1} \oplus x_{b \to s_2}).
+  \Phi_b = \mathrm{AMO}(\mathrm{in}(b)) \wedge
+  \mathrm{AMO}(\mathrm{out}(b)) \wedge
+  \Bigl(\bigvee \mathrm{in}(b) \leftrightarrow
+        \bigvee \mathrm{out}(b)\Bigr),
 \end{equation}
-Then $f_{\mathrm{paths}} = \bigwedge_b \Phi_b \wedge
-C_{\mathrm{entry}} \wedge C_{\mathrm{exit}}$.
+and the \emph{feasible path function} is
+$f_{\mathrm{paths}} = \bigwedge_b \Phi_b \wedge
+C_{\mathrm{entry}} \wedge C_{\mathrm{exit}}$ with
+$C_{\mathrm{entry}} = \mathrm{EXO}(\mathrm{out}(s))$ and
+$C_{\mathrm{exit}} = \mathrm{EXO}(\mathrm{in}(t))$.
+A CFG with loops is first made acyclic as in Ball and
+Larus~\cite{balllarus96}: each back edge $(u,h)$ is replaced
+by the two edges $(s,h)$ and $(u,t)$.
 \end{definition}
 
+The bi-implication in~\eqref{eq:phib} matters.  The weaker
+clause $\bigvee\mathrm{in}(b) \to (x_{b\to s_1} \oplus
+x_{b\to s_2})$ constrains only blocks that are entered: the
+edges leaving an unreached block stay free, so every
+assignment of them is a model.  With that clause a single
+\texttt{if}/\texttt{else} has $8$ models instead of $2$
+paths, and $k$ sequential \texttt{if}/\texttt{else}
+statements have $2\cdot 4^k$ models instead of $2^k$ paths.
+
+\begin{lemma}[Path Characterization]\label{lem:pathchar}
+For an acyclic $G_f$, the models of $f_{\mathrm{paths}}$ are
+in bijection with the $s$--$t$ paths of $G_f$: an assignment
+is a model iff the set of edges set to $1$ is exactly the edge
+set of one $s$--$t$ path.
+\end{lemma}
+
+\begin{proof}
+Given an $s$--$t$ path $\pi$, set $x_e = 1$ iff $e \in \pi$.
+An acyclic path visits every block at most once, so each
+block on $\pi$ other than $s,t$ has exactly one selected
+incoming and one selected outgoing edge, every other block has
+none, and $s$ and $t$ satisfy $C_{\mathrm{entry}}$ and
+$C_{\mathrm{exit}}$.  Conversely, let $S$ be the selected edge
+set of a model.  Every block $b \notin\{s,t\}$ has equal
+in- and out-degree in $S$, at most $1$; $s$ has out-degree $1$
+and $t$ in-degree $1$.  Follow selected edges from $s$: each
+block entered other than $t$ has a selected outgoing edge, and
+by acyclicity no block repeats, so the walk ends at $t$; call
+it $P \subseteq S$.  Removing $P$ leaves every block with equal
+in- and out-degree in $S \setminus P$; a non-empty edge set
+with that property contains a cycle, which $G_f$ does not
+have.  Hence $S = P$.
+\end{proof}
+
+Consequently $\SATC(f_{\mathrm{paths}})$, computed over
+exactly the $m$ edge variables, is the number of acyclic
+entry--exit paths.  Any variable eliminated by restriction
+(for example the edge leaving $s$ when $s$ has one successor)
+must also be removed from the variable count, or it is counted
+as free and doubles the result.  The same number is computable
+without decision diagrams by Ball--Larus path
+numbering~\cite{balllarus96}: in reverse topological order,
+$\mathrm{NP}(t) = 1$ and $\mathrm{NP}(b) = \sum_{(b,c)\in E}
+\mathrm{NP}(c)$, so $\mathrm{NP}(s)$ is obtained in
+$\BigO(|B_f| + |E_f|)$ arithmetic operations.  The ROBDD is
+needed for queries over \emph{sets} of paths (restriction,
+conjunction with coverage or guard constraints), not for the
+count alone.
+
+For an SP CFG $G$ write $P_G$ for its path function
+(Definition~\ref{def:pathfunc}) and $Z_G$ for the function
+``every edge variable of $G$ is $0$''.  Let $\pi_G$ be the
+order of the edge variables given by the leaves of the SP
+decomposition tree read left to right, and let $d(G)$ be the
+largest number of parallel compositions on any root-to-leaf
+path of that tree (the parallel nesting depth).  $|\cdot|$
+counts internal ROBDD nodes.
+
 \begin{theorem}[ROBDD Size for SP CFGs]\label{thm:robdd}
-For any SP CFG with $m$ edges, there exists a variable
-ordering $\pi$ such that
-$|\ROBDD_\pi(f_{\mathrm{paths}})| \le 2m - 1$.
+For any SP CFG $G$ with $m$ edges,
+$|\ROBDD_{\pi_G}(P_G)| \le m\,(d(G)+1)$.  In particular the
+ROBDD is $\BigO(m)$ for bounded nesting depth and
+$\BigO(m^2)$ in general.
 \end{theorem}
 
 \begin{proof}
-By structural induction on the SP decomposition.
+Write $S(G) = |\ROBDD_{\pi_G}(P_G)|$ and $m_i = |X_i|$.  By
+Lemma~\ref{lem:pathchar}, $P_G$ is the indicator of the
+$s$--$t$ paths, so the identities below are identities of
+path sets.
 
 \smallskip\noindent\emph{Base case.}
-A single edge $e$ with variable $x_e$.
-$\ROBDD(x_e)$ has one internal node (var $= x_e$,
-$\mathrm{lo} = \mathbf{0}$, $\mathrm{hi} = \mathbf{1}$).
-$|\ROBDD| = 1 = 2(1) - 1$. \cmark
+A single edge $e$: $P_G = x_e$ and $S = 1$.
 
-\smallskip\noindent\emph{Series.} $G_f = G_1 \cdot G_2$
-with disjoint edge sets $X_1, X_2$ and $|X_i| = m_i$.
-Order all $X_1$ variables before $X_2$.
-Then $f_{\mathrm{paths}} = f_1(X_1) \wedge f_2(X_2)$.
-In the ROBDD, the $X_1$ subtree equals $\ROBDD(f_1)$;
-each $\mathbf{1}$-leaf is replaced by the root of
-$\ROBDD(f_2)$, which is shared (Reduction Rule~R2) across
-all such leaves.  Hence:
-\[
-  |\ROBDD(f_1 \wedge f_2)|
-  \le |\ROBDD(f_1)| + |\ROBDD(f_2)|
-  \le (2m_1\!-\!1) + (2m_2\!-\!1)
-  \le 2m - 1.
-\]
+\smallskip\noindent\emph{Series.} $G = G_1 \cdot G_2$ with
+disjoint edge sets $X_1 < X_2$ in $\pi_G$.  Every $s$--$t$
+path of $G$ is a path of $G_1$ followed by a path of $G_2$, so
+$P_G = P_{G_1} \wedge P_{G_2}$.  Redirecting the
+$\mathbf{1}$-terminal of $\ROBDD(P_{G_1})$ to the root of
+$\ROBDD(P_{G_2})$ gives an ordered BDD for $P_G$, and reduction
+can only remove nodes, so $S(G) \le S(G_1) + S(G_2)$.
 
-\smallskip\noindent\emph{Parallel.} $G_f = G_1 \parallel G_2$
-with fork variables $x_\ell, x_r$.
-Order $x_\ell < x_r < \pi_1 < \pi_2$.
-Then $f_{\mathrm{paths}} = (x_\ell \wedge f_1) \vee
-(x_r \wedge f_2)$.
-The root node splits on $x_\ell$; its lo-branch leads to
-$f_2$ (since $x_r = 1$) and its hi-branch to $f_1$.  Both
-subtrees are stored once by Rule~R2:
-\[
-  |\ROBDD| \le 1 + |\ROBDD(f_1)| + |\ROBDD(f_2)|
-  \le 2m - 1.
-\]
-By induction the bound holds for all SP CFGs.
+\smallskip\noindent\emph{Parallel.} $G = G_1 \parallel G_2$
+with $X_1 < X_2$.  A simple $s$--$t$ path lies entirely in
+$G_1$ or entirely in $G_2$, so
+$P_G = (P_{G_1} \wedge Z_{G_2}) \vee (Z_{G_1} \wedge P_{G_2})$.
+Over $X_1$, build a BDD with three terminals \textsf{P},
+\textsf{Z}, \textsf{N} for ``$P_{G_1}$ holds'', ``all of $X_1$
+is $0$'' and ``neither'' (disjoint, since $P_{G_1}(\vec 0)=0$):
+take $\ROBDD(P_{G_1})$ with terminals $\mathbf{1}\mapsto$
+\textsf{P}, $\mathbf{0}\mapsto$ \textsf{N}, and add one node per
+$X_1$ level for the all-zero prefix, whose $\mathrm{lo}$ child
+continues the prefix and whose $\mathrm{hi}$ child is the
+original node reached by that assignment; the last prefix node
+leads to \textsf{Z}.  This adds at most $m_1$ nodes.  Redirect
+\textsf{P} to a chain of $m_2$ nodes testing $Z_{G_2}$,
+\textsf{Z} to the root of $\ROBDD(P_{G_2})$, and \textsf{N} to
+$\mathbf{0}$.  Hence
+$S(G) \le S(G_1) + S(G_2) + m_1 + m_2$.
+
+\smallskip\noindent\emph{Unrolling.}  Each leaf contributes $1$,
+and each parallel node $q$ contributes the number of edges
+below it.  An edge is therefore counted once for itself and
+once for each of its at most $d(G)$ parallel ancestors, so
+$S(G) \le m\,(d(G)+1)$.
 \end{proof}
 
+\begin{remark}
+An earlier version of this paper claimed
+$|\ROBDD| \le 2m-1$ for every SP CFG.  Its parallel step used
+$f_{\mathrm{paths}} = (x_\ell \wedge f_1) \vee (x_r \wedge f_2)$,
+which leaves the variables of the untaken branch free and so
+counts assignments that are not paths (the defect described
+after Definition~\ref{def:pathfunc}).  Whether every SP CFG
+admits an ordering with $\BigO(m)$ nodes for the correct path
+function is open; we state it as a conjecture.
+\end{remark}
+
+\begin{conjecture}[Linear ROBDD Size]\label{conj:robdd}
+For every SP CFG with $m$ edges there is a variable ordering
+$\pi$ with $|\ROBDD_\pi(P_G)| = \BigO(m)$.
+\end{conjecture}
+
 \begin{corollary}[$\SATC$ in Linear Time]\label{cor:sat}
-The total number of feasible execution paths through $f$ is
-computable in $\BigO(|\ROBDD(f)|)$ by a memoized DFS:
+The number of acyclic entry--exit paths of $f$ equals
+$\SATC(f_{\mathrm{paths}})$ over its $m$ edge variables
+(Lemma~\ref{lem:pathchar}) and is computable in
+$\BigO(|\ROBDD(f)|)$ arithmetic operations by a memoized DFS:
 \[
   \mathrm{count}(N) = 2^{g_0}\!\cdot\!\mathrm{count}(\mathrm{lo}(N))
   + 2^{g_1}\!\cdot\!\mathrm{count}(\mathrm{hi}(N))
@@ -1081,18 +1247,24 @@ stabbing condition holds, so $(\ell, \mathit{id})
 
 \begin{theorem}[IFDS; Reps et al.~\cite{reps95}]\label{thm:ifds}
 Any IFDS problem with distributive flow functions over
-a program with $|N|$ nodes and fact set $D$ is solvable
-in $\BigO(|N| \cdot |D|^2)$ time via path-edge tabulation.
+a supergraph with $|E|$ edges and fact set $D$ is solvable
+precisely (meet-over-all-valid-paths) in
+$\BigO(|E| \cdot |D|^3)$ time via path-edge tabulation, and
+in $\BigO(|E| \cdot |D|)$ time for locally separable
+problems.
 \end{theorem}
 
 \begin{proof}
-Distributivity ($f(X \cup Y) = f(X) \cup f(Y)$) enables
-path merging at join points without loss of precision.
-The tabulation algorithm of Reps et al.~\cite{reps95}
-propagates path edges $(n_1,d_1) \leadsto (n_2,d_2)$ across
-the exploded supergraph $G^\# = N \times (D \cup \{\perp\})$;
-each of at most $|N|^2 \cdot |D|^2$ edges is inserted once.
-With memoization, total work is $\BigO(|N| \cdot |D|^2)$.
+Distributivity ($f(X \cup Y) = f(X) \cup f(Y)$) lets each
+flow function be represented as a bipartite relation over
+$D \cup \{\mathbf{0}\}$ and enables path merging at join
+points without loss of precision.  The tabulation algorithm
+of Reps et al.~\cite{reps95} propagates path edges
+$\langle s_p, d_1\rangle \leadsto \langle n, d_2\rangle$
+within each procedure and summary edges across calls in the
+exploded supergraph; their analysis bounds the total work by
+$\BigO(|E|\cdot|D|^3)$, and by $\BigO(|E|\cdot|D|)$ when every
+flow function is locally separable.
 \end{proof}
 
 \begin{theorem}[CFL-Reachability; Reps~\cite{reps97}]
@@ -1112,24 +1284,35 @@ in $\BigO(|V|)$, giving $\BigO(|V|^3)$.
 \subsection{Incremental Updates}
 
 \begin{theorem}[Incremental Update Complexity]\label{thm:incr}
-Let $\Delta$ be a source edit affecting only the body
-of function $f$.  The SCPG update cost is:
+Assume that token, AST-node and symbol identifiers are stable
+under edits elsewhere (file-local identifiers, and symbol keys
+derived from qualified name and signature), and that each
+per-function artifact is stored separately.  Let $\Delta$ be a
+source edit affecting only the body of function $f$.  The SCPG
+update cost is:
 \[
   T(\Delta) = \BigO\!\left(n_{s,f}\log n_{s,f}
-    + n_{b,f}^2 + n_{\mathrm{ssa},f}|D|^2
+    + n_{b,f}^2 + m_f|D|^3
     + m_f\,|\ROBDD(f)|\right)
 \]
-where all quantities are local to $f$.
+plus the cost of re-indexing the positions of the tokens that
+follow the edit in the same file, where all other quantities
+are local to $f$.
 \end{theorem}
 
 \begin{proof}
 A body-only edit leaves the symbol table and call graph
-topology unchanged (function signature is unmodified).
+topology unchanged (function signature is unmodified).  The
+stability assumption guarantees that no identifier outside $f$
+changes; with corpus-global positional identifiers, inserting
+one token would renumber every later token and symbol and the
+bound would not hold.
 Only $f$'s body is re-processed: Phase~1 re-sorts $f$'s
 tokens ($\BigO(n_{s,f}\log n_{s,f})$); Phase~4 recomputes
 $f$'s CFG and dominators ($\BigO(n_{b,f}^2)$ by Cooper's
-algorithm~\cite{cooper01}); Phase~5 runs SSA and IFDS on
-$f$ ($\BigO(n_{\mathrm{ssa},f}|D|^2)$); Phase~8 rebuilds
+algorithm~\cite{cooper01}); Phase~5 runs SSA and the
+intraprocedural part of IFDS on $f$ ($\BigO(m_f|D|^3)$);
+Phase~8 rebuilds
 $\ROBDD(f)$ ($\BigO(m_f|\ROBDD(f)|)$).  No other function
 is reanalyzed.
 \end{proof}
@@ -1164,6 +1347,17 @@ Timing         & Behavioral & Thread analysis\\
 \end{tabular}
 \end{table}
 
+Table~\ref{tab:uml} gives the model's source for each
+diagram.  The audited reference implementation derives the
+class, package, component, sequence, activity and use-case
+views from the program with known gaps; its state-machine and
+timing
+views are fixed templates, and its composite-structure,
+object, communication and interaction-overview extractors
+produce no output (Section~\ref{sec:impl}).  A timing view
+derived statically can at most order events; durations need
+dynamic traces.
+
 \begin{corollary}[All 14 UML Diagrams in Polynomial Time]
 \label{cor:uml}
 Each diagram type in Table~\ref{tab:uml} is extractable
@@ -1174,7 +1368,8 @@ from the SCPG in time polynomial in $n = |V| + |E|$.
 Structural diagrams scan $\VSYM + \ETH$ in $\BigO(n_s + m)$.
 Activity diagram traverses the CFG in $\BigO(n_{b,f}+m_f)$
 and reads ROBDD metrics in $\BigO(1)$.
-State machine enumerates IFDS type-state pairs in
+State machine enumerates the type-state pairs computed by
+the IFDS analysis of Theorem~\ref{thm:ifds} in
 $\BigO(n_{\mathrm{ssa}}|D|)$.
 Sequence is DFS over $\ECG$ in
 $\BigO(|V_{\mathrm{CG}}|+|E_{\mathrm{CG}}|)$.
@@ -1186,8 +1381,9 @@ bounds are polynomial.
 % ============================================================
 \section{The Query Engine}\label{sec:query}
 
-The query engine operates as a demand-driven layer over the
-memory-mapped SCPG binary.  Queries are dispatched against
+In the model, the query engine operates as a demand-driven
+layer over the memory-mapped SCPG binary.  Queries are
+dispatched against
 the appropriate section of the binary and memoized in an
 LRU cache of capacity 512 entries.  The cache is keyed by
 $(q_{\mathrm{type}}, h_{\mathrm{params}}, \hscpg)$;
@@ -1201,9 +1397,13 @@ with their first-run complexity and the SCPG binary sections
 they access.  Navigation queries are the hot path in IDE
 integration and run in $\BigO(1)$/$\BigO(\log n)$; diagram
 generation runs in time linear in the output size; and
-CFL-reachability, though cubic in theory, is sub-second for
-$|V_{\mathrm{CG}}| \le 15{,}000$ due to the early-termination
-structure of the tabulation.
+CFL-reachability is cubic in the worst case
+(Theorem~\ref{thm:cfl}).  No query latency has been measured.
+The audited reference implementation runs its queries over
+in-memory
+artifacts rather than over the binary, and its reachability
+query is plain breadth-first search over call edges without
+call/return matching (Section~\ref{sec:impl}).
 
 \begin{table}[!t]
 \renewcommand{\arraystretch}{1.2}
@@ -1252,10 +1452,15 @@ WALA~\cite{wala} violates \emph{R1} and \emph{R3}.
 \end{proposition}
 
 \begin{proof}
-\textbf{CPG, R1.}  OverflowDB relationship records cost
-$34\;\mathrm{bytes}$ each~\cite{yamaguchi14}, versus
-SCPG's $(4 + \lceil\log_2 16\rceil / 8)\cdot m \le 4.5m$
-bytes for $\sigma = 16$: a factor-of-$7.5$ violation.
+\textbf{CPG, R1.}  A property graph stores the AST as
+explicit parent--child edge records whose endpoints are node
+identifiers, i.e.\ $\Theta(\log n)$ bits per AST edge and
+$\Theta(n\log n)$ bits for the AST, against the
+$2n + o(n)$ bits of a BP encoding.  This is an asymptotic
+argument about the representation; we quote no per-record
+byte costs, which depend on the storage backend (Joern
+replaced OverflowDB with the columnar flatgraph backend in
+2024).
 
 \textbf{CPG, R2.}  Source locations in Joern are property
 pairs on AST nodes with no bijective token-level forward
@@ -1281,23 +1486,95 @@ generation requires language-specific reverse engineering
 with no completeness guarantee.
 
 \textbf{EMF/XMI, R1.}  Each attribute name-value pair
-serializes as $\ge 10$ bytes of XML markup~\cite{emf}.
-A class with 5 methods and 10 attributes produces
-$\sim 1{,}050$ bytes versus the SCPG's 64-byte
-SymbolRecord---a $16\times$ overhead.
+serializes as $\ge 10$ bytes of XML markup~\cite{emf}, and
+element identifiers are repeated as strings at every
+reference, so a model costs $\Theta(\log n)$ bytes per
+reference rather than $\BigO(\log\sigma)$ bits.  (As an
+illustration only, not a measurement: a class with 5 methods
+and 10 attributes serializes to on the order of a kilobyte,
+against a 64-byte SymbolRecord.)
 
 \textbf{EMF/XMI, R4.}  EMF/XMI is a serialization format;
 all queries require full deserialization to an in-memory
 object graph before any analysis can begin.
 
-\textbf{WALA, R1.}  JVM object overhead per analysis
-artifact is $120$--$200\;\mathrm{bytes}$ versus the SCPG's
-16-byte SSARecord.
+\textbf{WALA, R1.}  WALA represents its IR as a graph of
+heap objects connected by references, which costs
+$\Theta(\log n)$ bits per reference plus per-object headers,
+i.e.\ $\Theta(n\log n)$ bits; we quote no per-object byte
+costs, which depend on the JVM and its configuration.
 
 \textbf{WALA, R3.}  WALA has no UML generation capability;
 its output is Java data structures requiring a separate
 transformation pipeline.
 \end{proof}
+
+% ============================================================
+\section{Reference Implementation Status}\label{sec:impl}
+
+At the revision audited for this version of the paper
+(commit \texttt{fc218cd}), the OpenHeart reference
+implementation runs all ten phases end to end on Java input
+and departs from the model in the following ways.  The
+repository's \texttt{docs/status.md} tracks each item against
+code and tests as it is resolved.
+
+\begin{itemize}
+\item \emph{Languages.}  Only the Java and JavaScript
+  tree-sitter grammars are linked.  Kotlin is parsed with the
+  Java grammar and reduced with a JavaScript-grammar fallback;
+  other languages fall back to the JavaScript grammar.  Only
+  Java results are meaningful.
+\item \emph{Phase~2.}  Navigation uses a machine-word jump
+  table and a full sparse-table RMQ ($\Theta(n\log n)$ words)
+  beside the BP sequence, and $\mathrm{select}_1$ scans bit by
+  bit.  The structure is not succinct; no wavelet tree or
+  complement edges exist.
+\item \emph{Phase~3.}  Import declarations are dropped before
+  name resolution, same-package lookup is missing, lookup
+  ignores symbol kind, generic, array and qualified type
+  references are dropped, several passes are quadratic, and
+  symbol identifiers are positional.
+\item \emph{Phases~5--6.}  There is no IFDS solver: the
+  module of that name marks statements by syntactic shape and
+  propagates nothing.  There is no Andersen analysis: allocation
+  sets are seeded at allocation statements and propagated only
+  along $\phi$ copies.  Receiver typing has no call-string
+  context.
+\item \emph{Phase~7.}  Backward queries are $\BigO(1)$; the
+  forward query scans after the binary search instead of
+  following enclosing-span links.
+\item \emph{Phase~8.}  The path constraints are the weak
+  implications discussed after Definition~\ref{def:pathfunc},
+  without $C_{\mathrm{exit}}$, so reported path counts are
+  overestimates.  The sifting pass permutes the ordering table
+  without rewriting the BDD and has no effect.
+\item \emph{Phase~9.}  The state-machine and timing views are
+  fixed templates; the composite-structure, object,
+  communication and interaction-overview extractors produce no
+  output.  The activity view maps every CFG edge to an
+  unguarded control edge, discarding true/false, exception,
+  switch and loop-back labels, and produces no decision, merge,
+  fork or join nodes.  The sequence view expands calls in the
+  wrong order, without combined fragments or nested
+  activations, and merges all scenarios into one diagram.  The
+  class view drops classes whose names appear in a built-in
+  name list.  Record order follows hash-table iteration, so
+  output is not deterministic across runs.
+\item \emph{Phase~10 views.}  The control-flow, data-flow,
+  control-dependence, call-graph and ROBDD views do not read
+  the \texttt{.cfa}, \texttt{.ssa}, \texttt{.cga} or
+  \texttt{.psa} artifacts; they are fixed templates.
+\item \emph{Phase~10.}  Only the string-table section of the
+  \texttt{.scpg} carries data; the loader reads the file into
+  memory; the incremental engine is a stub; the
+  CFL-reachability query is breadth-first call-graph
+  reachability; XMI export emits placeholder class shells.
+\end{itemize}
+
+\noindent No space, time or accuracy figure has been measured.
+Any future figure must name the corpus and commit it was
+measured on and be generated by a committed script.
 
 % ============================================================
 \section{Limitations and Discussion}\label{sec:limits}
@@ -1308,32 +1585,41 @@ Production code sometimes contains exception-handler
 nesting or state-machine-style \texttt{goto} patterns
 (e.g., in the Linux kernel or Android AOSP) that violate
 the SP property, potentially causing exponential ROBDD
-growth.  We mitigate this with bounded unwinding
-($k \le 3$ levels) using the $\BigO(n)$ SP-recognition
-algorithm of Valdes et al.~\cite{valdes79}, producing a
-sound under-approximation.
+growth.  A planned mitigation (not implemented) recognizes
+SP structure with the linear-time algorithm of Valdes et
+al.~\cite{valdes79} and, for non-SP regions, falls back to
+Ball--Larus path numbering for the count and to bounded
+unwinding ($k \le 3$) for path-set queries, reporting such
+results as under-approximations.
 
 \paragraph{Points-To Precision.}
-Anderson's analysis~\cite{anderson94} is flow-insensitive
+Andersen's analysis~\cite{anderson94} is flow-insensitive
 and heap-insensitive.  Frameworks that use runtime
 dependency injection (Spring Boot, Android's Binder IPC)
 may produce false call-graph edges that cannot be pruned
-without runtime information.  Such sites are conservatively
+without runtime information.  In the model such sites are
 tagged as \textsc{CG\_Reflection} and excluded from
 CFL-reachability while remaining in the call graph for
 structural diagram generation.
 
 \paragraph{Multi-Language Boundaries.}
 Call edges crossing language boundaries (Java/JNI,
-Python/Cython) cannot be statically resolved.  Each boundary
-generates a conservative external stub symbol, preserving
-soundness within each language while acknowledging the gap.
+Python/Cython) cannot be statically resolved.  In the model,
+each boundary is an explicit boundary node (for example a
+JNI \texttt{native} method or a Kotlin \texttt{external}
+function) with a conservative external stub, and JVM languages
+share one namespace keyed by binary names and descriptors, so
+that Kotlin file facades and property accessors resolve from
+Java.  The audited reference implementation records neither a
+language nor a binary name per symbol and does not record the
+\texttt{native} modifier, so it represents no boundaries.
 
 \paragraph{Hash Collision Probability.}
-CRC-64 is not cryptographically collision-resistant.
-For detecting accidental staleness after normal edits,
-it is sufficient.  Deployments requiring tamper-evidence
-should substitute SHA-256 at higher computation cost.
+CRC-64 and the 32-bit tag $\hscpg$ are not cryptographically
+collision-resistant, and a CRC is not a MAC.  For detecting
+accidental staleness after normal edits they are sufficient.
+Deployments requiring tamper evidence should substitute a
+keyed MAC or a signature over SHA-256 digests.
 
 % ============================================================
 \section{Related Work}\label{sec:related}
@@ -1371,25 +1657,25 @@ formalism used in Phase~3.
 \section{Conclusion}\label{sec:concl}
 
 We have presented the Succinct Compositional Program Graph
-and the OpenHeart pipeline, establishing that a single
-data structure can simultaneously satisfy all four
-requirements---space efficiency, absolute traceability,
-UML semantic completeness, and polynomial query
-complexity---that a universal program representation must
-meet.
+and the OpenHeart pipeline, and argued that a single formal
+model can satisfy all four requirements---space efficiency,
+absolute traceability, UML semantic completeness, and
+polynomial query complexity---that a universal program
+representation must meet.
 
-The central technical contributions are: a novel structural
-induction proof that ROBDD path summaries for structured
-programs have size $\BigO(m)$ (Theorem~\ref{thm:robdd}),
-not requiring treewidth machinery; a formal completeness
-proof for the bidirectional traceability function
-(Theorem~\ref{thm:trace}); and the $\BigO(|\Delta|)$
-incremental update result (Theorem~\ref{thm:incr}) that
-makes OpenHeart viable as the analysis backend for an
-interactive IDE.
+The central technical contributions are: a flow-conservation
+encoding whose model count is the exact number of acyclic
+paths (Lemma~\ref{lem:pathchar}), with a structural-induction
+bound of $m(d+1)$ ROBDD nodes for series-parallel CFGs
+(Theorem~\ref{thm:robdd}); a formal completeness proof for the
+bidirectional traceability function (Theorem~\ref{thm:trace});
+and a per-function incremental update bound
+(Theorem~\ref{thm:incr}) that holds under stable identifiers.
 
-Future work includes a full implementation with empirical
-evaluation on industrial codebases; extension of
+Future work includes closing the implementation gaps of
+Section~\ref{sec:impl} and evaluating the implementation
+empirically on named, pinned industrial codebases; settling
+Conjecture~\ref{conj:robdd}; extension of
 Theorem~\ref{thm:robdd} to non-SP CFGs via treewidth
 decompositions~\cite{bodlaender98}; and whole-program
 ROBDD path queries via compositional call-summary encoding.

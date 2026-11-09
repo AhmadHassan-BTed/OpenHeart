@@ -1,0 +1,660 @@
+[
+ {
+  "id": "BENCH-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "'F1 = 1.0000 across six languages' compares the engine against a near-copy of itself",
+  "files": [
+   "README.md",
+   "docs/overview.md",
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "src/uma/structural/class_diagram.rs",
+   "src/symbol/passes/pass1_discovery.rs"
+  ],
+  "evidence": "README.md:60 and docs/overview.md:102-111 claim F1 = 1.0000. The ground truth is Oracle 1 alone, a keyword regex (ruthless_verify.py:61-100). The cross-validation described at :299 is never implemented (:303). The tool side is simple class names regex-parsed from PlantUML, stored in a dict keyed by simple name (:95, :225-234). The engine finds classes with the same keyword-plus-identifier heuristic (pass1_discovery.rs:249-349). 184 of the engine's 188 denylisted names (class_diagram.rs:163, 346-537) also appear in ruthless_config.json:59-92, which is applied to both sides (ruthless_verify.py:88, 232). Examples: Configuration, Root, Table, Logger, HomeScreen.",
+  "impact": "The metric cannot detect wrong packages, nesting errors, duplicate simple names, or any error in the semantic phases. A real class named Configuration or Logger is removed from both truth and output, so recall is 1.0 by construction. The number cannot be falsified and will not survive external review.",
+  "recommendation": "Withdraw the claim until it is re-measured. Score fully-qualified declarations against javac with SemanticDB, and against compiler-backed SCIP indexers for other languages, on pinned corpora with bootstrap CIs (suites S3, S13). Move the oracles into a separately reviewed package that is not allowed to share lists, filters or heuristics with the engine.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Field-type TH_USES edges are treated as supertypes, so nearly every class with a field is reported as Decorator and Composite",
+  "files": [
+   "src/symbol/passes/pass5_hierarchy.rs:159-182",
+   "src/uma/patterns/decorator.rs:14-33",
+   "src/uma/patterns/composite.rs:15-34",
+   "src/uma/patterns/facade.rs:11-24",
+   "src/uma/patterns/adapter.rs:14-25",
+   "src/uma/patterns/query.rs:41-43",
+   "src/uma/patterns/strategy.rs:15-23",
+   "src/uma/patterns/mod.rs:127-138",
+   "src/symbol/adapter/java.rs:21-29",
+   "src/scpg/diagram/export/mermaid.rs:670-682"
+  ],
+  "evidence": "Pass 5 adds a TH_USES edge from each class to every field type, primitives included (`builder.symbol(0xB000_0005)` is None, so `.unwrap_or(SK_EXTERNAL)`). decorator.rs and composite.rs take all `th_edges` with `from_sym == sym_id`, with no relation filter, then test `parent_types.contains(&f.type_id)`, which holds for any typed field: Decorator 85, Composite 75. facade.rs counts fields with `type_id != u32::MAX`; primitive ids qualify, so three ints earn Facade 70. A Python re-implementation over examples/test_patterns_codebase gives 37 reports on 13 of 35 classes, and only 9 name a real participant (precision ≈0.24). The Facade and Adapter samples display <<Decorator>>, which is checked first.",
+  "impact": "Pattern stereotypes drawn on class diagrams are wrong for most classes of a real codebase, and pattern counts and the visitor's pattern_frequency metric are dominated by noise.",
+  "recommendation": "Build a supertype index restricted to TH_EXTENDS/TH_IMPLEMENTS once and use it in every rule; exclude primitives, stubs and external types from structural predicates. Require call-graph evidence for Decorator/Composite/Adapter: an overriding method that forwards to the wrapped field, and for Composite a loop over a collection of the component type. Add negative fixtures (POJO, DTO with three ints, linked-list Node) asserting no pattern, and gate per-pattern precision in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Cross-file type resolution does not work: import declarations never reach Pass 2 and same-package lookup is missing",
+  "files": [
+   "src/ast/adapter/java.rs:129",
+   "src/ast/reducer.rs:17",
+   "src/symbol/passes/pass2_imports.rs:15-18",
+   "src/symbol/passes/pass2_imports.rs:28-43",
+   "src/symbol/passes/pass2_imports.rs:63",
+   "src/symbol/passes/pass3_types.rs:71-89",
+   "src/symbol/scope_graph/resolver.rs:57-73",
+   "docs/plans/phase3.md:429"
+  ],
+  "evidence": "The Java adapter has no arm for import_declaration, so `_ => Drop` (java.rs:129) discards it, and Drop returns None without visiting children (reducer.rs:17). Pass 2 therefore never fires. If imports did arrive, Pass 2 joins tokens with spaces (pass2:63), so `.*` never matches and simple names become ' List'. It also files every import under the module's declared-in scope, which is the global root (15-18). Pass 3 maps imported FQNs to new SK_EXTERNALs, never to project symbols (pass3:71-78). Same-package lookup, promised in phase3.md:429, does not exist, and wildcard_imports is never called.",
+  "impact": "Every reference to a type declared in another file becomes an SK_EXTERNAL keyed by simple name. Exporters then re-match by simple name (plantuml.rs:443-477), which is wrong whenever simple names collide across packages.",
+  "recommendation": "Emit package and import nodes from Phase 2. In Pass 1, build a global FQN→SymId index and one package scope shared by all compilation units of a package. Resolve per JLS 6.4.1 and 7.5: local and member types, then single-type imports, then same package, then on-demand imports, then java.lang; static imports for members. Encode this as scope-graph import edges with path ordering (Neron et al. 2015; Statix). Done when a 3-file, 2-package fixture with clashing simple names matches javac's bindings.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Declaration names come from token-window heuristics and are wrong for annotated members, every parameter and long class headers",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs:635-893",
+   "src/symbol/passes/pass1_discovery.rs:645",
+   "src/symbol/passes/pass1_discovery.rs:703",
+   "src/symbol/passes/pass1_discovery.rs:865-883",
+   "src/ingestion/adapter/java.rs:69-70",
+   "src/ast/adapter/java.rs:42",
+   "src/uma/structural/class_diagram.rs:346-429"
+  ],
+  "evidence": "Methods take the last identifier before the first '(' (pass1:696-745), and fields the last before the first '=' (748-791). Parameters fall through to the first identifier (793-889). The class keyword must appear within 15 tokens (645). The Annotation skip (703) never fires, because annotations are never leaf tokens (ingestion java.rs:69-70). A re-implementation (scratchpad sim_pass1.py) gives `@GetMapping(\"/x\") ... getUser(` → GetMapping; `@GeneratedValue(strategy=..) Long id` → strategy; parameter `String name` → String; `final Long id` → final; `@Entity @Table(..) class User` → Entity; `@Import({A.class,B.class}) class Cfg` → B. A Spring/Lombok blocklist is hardcoded at 865-883.",
+  "impact": "In Spring, JPA and JUnit 5 code, members and classes are named after annotations, and every parameter takes its first token's text as its name. Call graph, UML, traceability and resolution inherit these names, and the downstream 'Entity' blocklist hides real classes.",
+  "recommendation": "Extract names structurally. In Phase 2, record in a side array the token of each declaration's tree-sitter `name` field (type declarations, methods, constructors), plus each variable_declarator and formal_parameter name; Pass 1 reads it. Emit one SK_FIELD or SK_LOCAL_VAR per declarator: java.rs:42 currently emits the declaration and its declarators, and `int a, b;` yields one field named b. Delete the hardcoded name lists. Done when golden name tests pass on Spring PetClinic and a JPA entity fixture.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Call-target resolution returns the enclosing method, so the call graph is mostly self-loops",
+  "files": [
+   "src/cg/resolution.rs:179-239",
+   "src/cg/call_sites.rs:70-127",
+   "src/symbol/passes/pass1_discovery.rs:139",
+   "src/symbol/passes/pass1_discovery.rs:178-179",
+   "tests/pipeline_accuracy_tests.rs:222"
+  ],
+  "evidence": "resolve_method_target never compares names. It (1) matches symbols whose decl_node is the call node (lambdas only); (2) takes the first identifier child, which is the receiver in `obj.m()`; (3) compares that with methods' first_token_id, the declaration's first token (pass1_discovery.rs:139,178), which never equals a call-site token; (4) returns the first METHOD/CONSTRUCTOR whose token range encloses the call, i.e. the caller. So `t.helper()` in main gives main→main, `new T()` in a method gives caller→caller, and lambda sites give lambda→lambda.",
+  "impact": "Sequence diagrams, impact analysis, slicing, CFL queries and Phase 8 recursion flags (nearly every calling method is classed self-recursive) are wrong. The accuracy test asserts that no multi-method SCC exists (:222).",
+  "recommendation": "Implement JLS 15.12 method selection. Infer the receiver's static type from Phase 3, which needs generic, qualified and array types kept in the AST. Select by name, arity, applicability and most-specific rule, then dispatch (FLOW-12). Index methods by (class, name, arity). Validate edges against the invokevirtual/invokeinterface/invokestatic targets in the javac-compiled bytecode and against the CATS suite.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-01",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Genuine Kotlin and multi-language frontends with a versioned support matrix",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "Cargo.toml",
+   "README.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The Kotlin adapter returns tree_sitter_java::language() (src/ingestion/adapter/kotlin.rs:29-31). The AST registry maps JavaScript, TypeScript, Rust, Generic and Unknown to one JavaScript-grammar adapter, and Kotlin falls through to it (src/ast/adapter/registry.rs:19-28,37-42). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Cargo.toml:9-11 pulls in only the tree-sitter 0.20 Java and JavaScript grammars. Yet README.md:60 claims six languages and src/adapters/server.rs:83-85 advertises seven. Tests and examples contain no lambdas, sealed types or switch patterns.",
+  "impact": "Kotlin and every non-Java input produce Java parses full of errors or JavaScript-shaped ASTs, so multi-language results cannot be trusted. CodeQL and Joern publish support per language and per version. Without that, OpenHeart cannot be compared even on Java and Kotlin, its stated core.",
+  "recommendation": "Upgrade to a current tree-sitter release. Add tree-sitter-kotlin-ng with Kotlin AST and semantic adapters. Gate Java 8-25 and Kotlin 1.9-2.x features behind conformance fixtures, and publish a support matrix. Reject unsupported files instead of silently using the JavaScript grammar. Drop unimplemented languages from the README and /api/supported-languages until they pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-02",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Build-system, classpath and bytecode awareness",
+  "files": [
+   "src/main.rs",
+   "src/symbol/std_library/java_stubs.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Input is whatever .java/.kt/.kts files a directory walk finds (src/main.rs:76-98). Nothing in src handles Maven, Gradle or a classpath, and there is no JAR or class-file reader. The JDK is modelled by 12 stub classes, Object through Throwable (src/symbol/std_library/java_stubs.rs:8-21). The server also feeds about 50 unrelated extensions into the Java pipeline (src/adapters/server.rs:805-867).",
+  "impact": "Calls into the JDK, Spring, Android or any dependency stay unresolved. Call graphs, sequence diagrams and data flow therefore stop at the first library boundary, which is exactly where CodeQL, Joern, SootUp, WALA and OPAL resolve types.",
+  "recommendation": "Add --classpath and --build maven|gradle modes that resolve dependencies (mvn dependency:build-classpath, Gradle Tooling API). Add a Rust class-file reader that loads signatures from JARs and JDK jmods, and cache library summaries. Later, add a bytecode frontend so compiled Java and Kotlin can be analysed the way SootUp and Joern's jimple2cpg do.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Pattern rules are name and keyword heuristics that miss canonical GoF instances and flag unrelated classes",
+  "files": [
+   "src/uma/patterns/singleton.rs:13-34",
+   "src/uma/patterns/observer.rs:25-29",
+   "src/uma/patterns/factory.rs:17",
+   "src/uma/patterns/state.rs:17-18",
+   "src/uma/patterns/template_method.rs:15-35",
+   "src/uma/patterns/builder.rs:33-40",
+   "src/uma/patterns/query.rs:78-91",
+   "src/symbol/uml_meta/patterns.rs:20-59",
+   "examples/test_patterns_codebase/com/patterns/behavioral/observer/NewsAgency.java:16",
+   "examples/test_patterns_codebase/com/patterns/behavioral/templatemethod/DataMiner.java:3-12"
+  ],
+  "evidence": "Singleton scores 100 for any field named 'instance' or typed as its own class, so `class Node { Node next; }` is a Singleton. It has no static or constructor checks and rejects enums. Factory means the name contains 'factory'. State means it contains 'state' or 'strategy' (IfStatement, RealEstate, every *Strategy). Observer needs add/register/attach plus 'listener', so the repo's own NewsAgency.attach(Observer) is missed. Template Method needs a protected method, so DataMiner is missed, and Logistics (Factory Method) is missed too: recall 6/9 on the repo's corpus. `has_private_constructor` scans SK_METHOD only, while constructors are SK_CONSTRUCTOR. The structural Singleton in src/symbol/uml_meta/patterns.rs is never called.",
+  "impact": "Detection follows identifier spelling rather than design: renaming a class flips the result, textbook Observer/Factory Method/Template Method and enum, holder or Kotlin-object Singletons go undetected, and recursive data types become Singletons.",
+  "recommendation": "Re-specify each pattern as structural plus behavioral constraints in the style of PINOT (Shi and Olsson, ASE 2006). Singleton: private constructors, a static self-typed field and a static accessor that assigns it (CFG/SSA), plus enum, holder and Kotlin `object` variants. Observer: a collection of an interface type and a loop invoking its method. Factory Method: an overridden method returning an abstract type that allocates a concrete subtype. Template Method: a concrete method calling abstract hooks (CGA). Use names only as a weak prior; revive or delete the dead detector.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Class diagrams lose multiplicity, collection element types, relationship kinds and member signatures, and collide on simple names",
+  "files": [
+   "src/uma/structural/class_diagram.rs:210-295",
+   "src/symbol/passes/pass3_types.rs:25-31",
+   "src/symbol/passes/pass5_hierarchy.rs:184-213",
+   "src/scpg/diagram/export/plantuml.rs:460-495",
+   "src/scpg/diagram/export/mermaid.rs:655-777",
+   "src/scpg/diagram/export/xmi.rs:11-15",
+   "src/core/types/symbol.rs:66-73"
+  ],
+  "evidence": "`is_collection: 0` is hard-coded. Type refs resolve from their first token, so `List<Observer>` becomes List and the one-to-many link to Observer vanishes. Phase 3's `sta.associations` (AssocKind, multiplicity, role names) is never read. Return types are recorded as associations (they are dependencies), while parameters, locals and `new` yield nothing. With multiple interface extends only the last survives. Member modifiers are cast `as u8`, losing default/sealed/varargs bits. Exporters treat composition as 'final field', draw nesting as `*--` (Mermaid), omit parameters and key classes by simple name, so nested Builders merge. PlantUML keeps one edge per pair; XMI emits only `Class_{id}`.",
+  "impact": "Diagrams omit the relationships reviewers need most (one-to-many, ownership, usage), misrender overloads, generics and same-named types, and cannot round-trip to UML tools.",
+  "recommendation": "Model type arguments in Phase 3 (a TypeRef tree), consume sta.associations, and classify relationships per Guéhéneuc and Albin-Amiot (OOPSLA 2004): association, aggregation or composition by exclusivity and lifetime, with multiplicity from collection or array types. Add «use»/«create» dependencies. Key elements by qualified name, and emit operation signatures, UML templates, {static}/{abstract} and enumeration literals. Export OMG XMI 2.5.1, validated against UML 2.5.1 and import-tested in Papyrus, Enterprise Architect and Visual Paradigm, to reach IntelliJ/ObjectAid-level fidelity.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Java NodeAttr encoding matches modifier substrings (annotations included), maps 9 operators, and its decoder is a stub",
+  "files": [
+   "src/ast/adapter/java.rs:133-179",
+   "src/core/types/ast.rs:224-232",
+   "src/symbol/passes/pass1_discovery.rs:895-930",
+   "src/symbol/adapter/java.rs:125-133"
+  ],
+  "evidence": "encode_attrs runs `text.contains(\"public\")`, `contains(\"final\")` and so on over the whole modifiers node, annotations included: `@Column(name = \"is_public\") private boolean isPublic;` becomes PUBLIC, and `@Column(name = \"final_price\")` sets MOD_FINAL. Only static/final/abstract are detected. VISIBILITY_PACKAGE_PRIVATE is never emitted, so members without modifiers fall back to default_visibility() = Public. Operators cover only = + - * / == != && ||, and unpack_operator_id returns Assign for any nonzero value. The lookup uses child_by_field_name(\"modifiers\"), but tree-sitter-java's modifiers is an unnamed child, so this likely always returns None.",
+  "impact": "UML visibility (+/-/#) and {static}/{final} are wrong for common JPA- or Jackson-annotated members, and possibly for every member. Phase 3 reads these bits directly. The relational operators that path conditions need are never recorded.",
+  "recommendation": "Find the modifiers node by kind, iterate its children and match exact keyword kinds (`child.kind() == \"private\"`), skipping annotation children. Emit package-private explicitly. Encode all Java modifiers, and all binary, unary and assignment operators from the operator token's kind. Implement unpack_operator_id as an exhaustive TryFrom<u8>. Add unit tests per modifier and per operator, including annotation strings that contain keywords.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "lca() is wrong for most queries; select1 returns 0 (root) for absent ranks and for the last node in ~1% of corpora",
+  "files": [
+   "src/ast/rmq.rs:81-96",
+   "src/ast/rank_select.rs:86-109",
+   "src/ast/builder.rs:58-121",
+   "src/symbol/uml_meta/associations.rs:95-110",
+   "tests/ast_tests.rs:62-79"
+  ],
+  "evidence": "lca maps the min-excess position m to rank1(m)-1-1 (the previous preorder node) instead of the parent of m+1, so for R(A(C),B), lca(C,B) returns A. A faithful Python port of rmq.rs and rank_select.rs gave 2758/4000 wrong LCAs on random trees. On an exact hit, select1 steps back one superblock. When the trailing superblock holds no 1-bits, std's binary_search lands on the sentinel, select1(node_count) returns 0, and first_child(last leaf) = Some(1). The port hit this in 29/3000 AST-like trees. Tests cover only a 6-bit tree.",
+  "impact": "first_child, next_sibling, depth and subtree_size all go through select1. The phantom child sends walkers such as associations.rs:95-110 into file 0's tree, producing wrong compositions and possibly never terminating on single-file input. Each select is also an O(log n + 512) bit scan.",
+  "recommendation": "Implement lca per Sadakane & Navarro (SODA 2010): return x if y <= findclose(x), else enclose(rmq(x, y) + 1). In select1, use `superblocks.partition_point(|&c| c < t) - 1` and return Option<usize>. Replace the get_bit scan with sampled select plus broadword in-word select. Add proptest differential tests against a naive pointer tree for random trees up to 10^5 nodes, including BP lengths that straddle 512-bit boundaries.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Scope lookup ignores symbol kind and Java scope rules: self references bind to constructors, parameter types bind to the parameter",
+  "files": [
+   "src/symbol/scope_graph/resolver.rs:9-32",
+   "src/symbol/passes/pass3_types.rs:47-63",
+   "src/symbol/passes/pass3_types.rs:93-106",
+   "src/symbol/passes/pass1_discovery.rs:185-189",
+   "docs/plans/phase3.md:54-61"
+  ],
+  "evidence": "resolve_lexical returns the first declaration of any kind whose name matches (resolver.rs:20-23; predicate at pass3:51-62). Constructors sit in the class scope, which is searched before the file scope holding the class. So with an explicit constructor, `static Singleton instance;` and `Node next;` bind to the SK_CONSTRUCTOR. Parameters carry their type's name (SYM-02) and live in the method scope, so in `f(Order order)` the parameter's type ref resolves to the parameter itself, and `Order` locals bind to it. Scopes open per declaration (pass1:185-189), never per block, for or catch (contrary to phase3.md:54-61).",
+  "impact": "type_id is wrong for self-typed fields and returns (Singleton, Builder, Composite, linked nodes), for most reference-typed parameters, and for many locals. Pass 4/5 and the pattern heuristics read these wrong bindings.",
+  "recommendation": "Make lookup kind-directed per JLS 6.5, as javac's Resolve does with KindSelector. Give each scope separate type, variable, method and package namespaces, and let type contexts see only type declarations and type parameters. Open scopes per JLS 6.3 (block, for, catch, lambda, switch rule), respect local declaration order, and index scopes as HashMap<(ns, name_id), SmallVec<SymId>>. Add tests for Singleton, a linked-list Node and `void f(Order o){Order p=o;}`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Secondary token sweep fabricates classes and fields in pure Java and misplaces Kotlin members",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs:200-456",
+   "src/symbol/passes/pass1_discovery.rs:257",
+   "src/symbol/passes/pass1_discovery.rs:396-407",
+   "src/symbol/passes/pass1_discovery.rs:414-453",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ingestion/adapter/kotlin.rs:29-30",
+   "src/uma/structural/class_diagram.rs:106-114"
+  ],
+  "evidence": "The sweep runs for every language. Java `var` locals and identifiers named `val` create public SK_FIELDs on current_class_sym (414-453), which is never reset at class end or file change (257). Class literals, or variables named record or object, followed by a capitalized identifier create phantom SK_CLASS/SK_RECORD symbols in the root scope (396-407). On one Java test, sim_pass1.py produced TestConfig, ErrorCode and Mode plus fields order, result and compute. Only the first (file, name) pair gets a symbol (433). Kotlin depends entirely on this sweep: its AST falls back to the JS grammar (registry.rs:19-28), and ingestion uses the Java grammar (kotlin.rs:29-30).",
+  "impact": "Java output gains fake classes and fields, and because they sit in the global root scope, any file's lookups can capture them. Kotlin members attach to the wrong class and never get types. Downstream ALL_CAPS filters only mask the problem.",
+  "recommendation": "Disable the sweep for languages that have an AST adapter. Give Kotlin a real front end: the tree-sitter-kotlin grammar (fwcd) plus a KotlinSemanticAdapter covering primary-constructor properties, companion objects, extension receivers, top-level file facades, nullable types and typealiases. Alternatively ingest semanticdb-kotlinc output. Add a regression test asserting that Java fixtures produce no symbols without a decl_node other than externals and packages.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Containment tree corrupted: append_child re-links already-chained symbols and orphans are parented to the first file's module",
+  "files": [
+   "src/symbol/builder.rs:83-96",
+   "src/symbol/passes/pass1_discovery.rs:579-620",
+   "src/symbol/passes/pass1_discovery.rs:622-628",
+   "src/uma/structural/package_diagram.rs:28-44",
+   "src/uma/patterns/query.rs:46-75"
+  ],
+  "evidence": "append_child never unlinks a child from its previous sibling chain (builder.rs:83-96). Pass 1 re-appends top-level classes to their package while they stay in the module's chain (579-620). The safety sweep then parents every orphan, including the modules of files 2..N and the root packages, under symbol 0, the first file's module, to satisfy Invariant 2 (623-628). sim_chain.py on package com.a with File1 {A, B} and File2 {C} yields children(com.a) = [A, B, Module(File2), com]: C is lost, its own parent package appears as a child, and com's parent is Module(File1).",
+  "impact": "Package class and subpackage counts, component interface counts and the pattern detectors' member lists are wrong even for a two-file project. The package tree is rooted under an arbitrary file's module.",
+  "recommendation": "Treat parent_sym as the only source of truth. Finish all reparenting, then derive children once as CSR sorted by (parent, declaration order), and rebuild or drop first_child/next_sibling. Add a synthetic project root and real package roots instead of symbol 0. Turn Invariant 2 into a check that chains are acyclic and agree with parent_sym. Add multi-file, multi-package fixtures that assert exact child lists.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Type hierarchy comes from token scans: type arguments, bounds and Kotlin property types become supertypes",
+  "files": [
+   "src/symbol/passes/pass5_hierarchy.rs:40-74",
+   "src/symbol/passes/pass5_hierarchy.rs:76-157",
+   "src/symbol/passes/pass5_hierarchy.rs:141-146",
+   "src/uma/structural/class_diagram.rs:283-288",
+   "src/symbol/builder.rs:161-234",
+   "src/cg/resolution.rs:95-103"
+  ],
+  "evidence": "Phase 2 drops generic_type, so the AST path (40-74) misses `extends Base<T>`. The token path (76-157) treats every identifier after extends, implements or ':' up to '{' or ';' as a supertype. sim_pass5.py: `class OrderService extends BaseService<Order,OrderRepository> implements Auditable<User>` gives EXTENDS BaseService, Order and User, and class_diagram.rs:283-288 then reports User as the superclass. `class Repo<T extends BaseEntity>` gives EXTENDS BaseEntity. Kotlin `data class Invoice(val customer: Customer..)` gives EXTENDS Customer and scans on into the next declaration. Cross-file interfaces get TH_EXTENDS edges to SK_EXTERNALs (60-68), and interface-to-interface becomes TH_IMPLEMENTS (141-146).",
+  "impact": "Generalization is wrong for generic base classes (Spring Data, generic services and DAOs) and for most Kotlin data classes. CHA dispatch follows the spurious edges, and sanitize_th_graph may delete correct edges to break the resulting cycles.",
+  "recommendation": "Read supertypes only from tree-sitter fields: superclass, interfaces, extends_interfaces, permits, and Kotlin delegation_specifiers. Resolve the head of each generic_type and keep type arguments separately. Allow at most one superclass per class, and choose the relation from both declaration kinds (JLS 8.1.4, 8.1.5, 9.1.3). Store the superclass explicitly, delete the token path, and report cycles as diagnostics instead of deleting edges.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Type references are bare identifiers: generic, array, qualified and wildcard types are dropped, and type parameters are unnamed",
+  "files": [
+   "src/ast/adapter/java.rs:83-91",
+   "src/ast/adapter/java.rs:129",
+   "src/symbol/passes/pass3_types.rs:26-36",
+   "src/symbol/passes/pass3_types.rs:86-89",
+   "src/symbol/passes/pass4_members.rs:46-57",
+   "docs/plans/phase3.md:453"
+  ],
+  "evidence": "generic_type, array_type, scoped_type_identifier, type_parameter and wildcard have no adapter arm, so they are dropped with their subtrees. As a result `List<Order> xs`, `Order[] xs`, `Map.Entry e`, `java.util.Date d` and `Optional<User> find()` have no NN_TYPE_REF, and type_id stays u32::MAX (pass4:46-57). type_parameters survives as one NN_TYPE_PARAM whose range is just '<', so it is unnamed, and every `T` becomes one global SK_EXTERNAL 'T' (pass3:86-89). Pass 3 reads only the first token (26-36). type_param_count and the array flag are never set. phase3.md:453 claims type arguments are resolved.",
+  "impact": "Collection, array and Optional fields and generic return types, the main source of 0..* associations, carry no type at all. Generics are invisible to UML and signatures, and no erasure exists for overloads.",
+  "recommendation": "Add a TypeRef table {head SymId, args[TypeRefId], array_dims, wildcard kind and bound, annotations}. Create one SK_TYPE_PARAM per type_parameter, with bounds, scoped to its class or method. Implement erasure (JLS 4.6) and basic subtyping. For `var` (JLS 14.4.1), infer from `new T(..)` or a typed call, otherwise mark UNKNOWN. Persist TypeRefs in .sta. Done when field and return-type tests over generic, array, nested and qualified types pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "UML association inference is constant-folded and unused: every resolvable field is aggregation 0..*, and composition is unreachable",
+  "files": [
+   "src/symbol/uml_meta/associations.rs:40-49",
+   "src/symbol/uml_meta/associations.rs:52-111",
+   "src/symbol/std_library/java_stubs.rs:57-62",
+   "src/symbol/passes/pass5_hierarchy.rs:159-215",
+   "src/scpg/diagram/export/plantuml.rs:470-490"
+  ],
+  "evidence": "`is_collection = builder.std_lib.stubs.contains_key(\"List\") || ..` (associations.rs:40) is always true, because List is a stub (java_stubs.rs:57-62). So every non-external field type, java.lang.String included, becomes an Aggregation with 0..* (pass5:203-207). is_array tests flag 0x08, which is never set. Composition is unreachable and would accept any `new` in any constructor (95-111), although Phase 2 drops constructor bodies anyway. Primitive pseudo-ids default to SK_EXTERNAL (pass5:171-174), producing Dependency records and TH_USES edges to nonexistent ids. mult_min is always 0, there is no bidirectional pairing, and nothing reads sta.associations.",
+  "impact": "Phase 3's association output is wrong for essentially every field and is ignored. Phase 10 re-derives associations by simple name and marks every final field as composition (plantuml.rs:482-488), so the plan in phase3.md:155-171 is never realized.",
+  "recommendation": "Implement the phase3.md decision table over TypeRef. Value types (primitives, boxed types, String, java.time) are attributes. Collection, Iterable, Map value and array types give 0..* to the element type; Optional gives 0..1; a primitive or @NonNull gives 1. Pair opposite ends into bidirectional associations (JPA mappedBy). Composition needs lifecycle evidence (an owned, non-escaping `new`, via Phase 5/6) per Guéhéneuc & Albin-Amiot 2004. Phase 9 must consume these records.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-09",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Quadratic loops (O(R·S), O(E²), O(C·S)) contradict the O(n_a) claim and expose the serial server to CPU exhaustion",
+  "files": [
+   "src/symbol/passes/pass3_types.rs:108-118",
+   "src/symbol/builder.rs:112-130",
+   "src/symbol/passes/pass1_discovery.rs:373-382",
+   "src/symbol/passes/pass3_types.rs:51-62",
+   "src/symbol/passes/pass1_discovery.rs:274-276",
+   "src/symbol/scope_graph/mod.rs:40-66",
+   "docs/openheart_research_paper.tex:599",
+   "src/adapters/server.rs:31-41"
+  ],
+  "evidence": "get_or_create_external scans every symbol for each unresolved type ref (pass3:113-117), which is O(R·S). add_th_edge scans every edge on each insert (builder.rs:117-123), and there is one TH_USES per field, so O(E²). The sweep calls position() over all symbols per class keyword (pass1:373-382). resolve_lexical UTF-8-decodes each candidate (pass3:56-58) and reaches a root scope holding every file's module. There are three interner lookups per token (274-276), and each declaration allocates a scope plus three HashMap entries. The paper claims O(n_a) (tex:599). The server runs the pipeline inside a serial accept loop bound to 0.0.0.0 (server.rs:31-41).",
+  "impact": "Phase 3 is super-linear: roughly 10^11 record visits for a ~1M-LOC repository, an estimated tens of minutes. A crafted repository with many distinct field types can stall the single-threaded server.",
+  "recommendation": "Key externals by FQN in a HashMap. Deduplicate TH edges with a HashSet<(from,to,rel)>, then build CSR. Give each scope a name_id→decls index and compare interned ids only. Use dense Vecs for node_to_symbol and type_ref_resolutions, open scopes only for scope-forming constructs, and parallelize per-file passes with rayon. Add criterion benchmarks at 10K, 100K and 1M LOC with a log-log slope gate of 1.1, and give the server a per-request time and size budget.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Declaration coverage gaps: enum constants, anonymous classes, records, interface constants, and catch/resource/for-each/pattern variables",
+  "files": [
+   "src/ast/adapter/java.rs:30-129",
+   "src/ast/reducer.rs:17",
+   "src/core/types/symbol.rs:17",
+   "src/core/types/symbol.rs:22",
+   "src/uma/structural/class_diagram.rs:209",
+   "src/tra/builder.rs:84",
+   "src/symbol/adapter/java.rs:32-51"
+  ],
+  "evidence": "The Java adapter has no arm for enum_constant, constant_declaration, annotation_type_body, catch_formal_parameter, resource_specification, inferred_parameters, compact_constructor_declaration or constructor_body, so all of them hit Drop with their subtrees. SK_ENUM_CONSTANT and SK_ANON_CLASS are never constructed, yet class_diagram.rs:209 and tra/builder.rs:84 consume them. Anonymous-class methods become children of the enclosing local-variable or method symbol. Record components become SK_PARAMs with no implicit fields or accessors (JLS 8.10.3), and for-each and pattern variables get no symbol at all.",
+  "impact": "Enums render without literals, and anonymous listeners and strategies are invisible to CHA and pattern detection. Records have no attributes. Constructor bodies, which carry dependency-injection wiring, never reach Phase 4 to 6 or the composition check.",
+  "recommendation": "Write a JLS declaration-kind coverage test with one fixture per kind, then add adapter arms and symbols for each. Create SK_ANON_CLASS with a TH edge to the instantiated type. Synthesize implicit members: record fields, accessors and canonical constructor (JLS 8.10.3), and enum values/valueOf (8.9.3). Scope catch, resource, for-each and pattern variables to their construct.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-10",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "No reference resolution beyond type identifiers: no expression names, calls, field accesses, inherited members or overload resolution",
+  "files": [
+   "src/symbol/passes/pass3_types.rs:21-24",
+   "src/symbol/passes/pass1_discovery.rs:945-955",
+   "src/cg/resolution.rs:84-92",
+   "src/cg/resolution.rs:179-238"
+  ],
+  "evidence": "Pass 3 visits only NN_TYPE_REF (pass3:21-24). Nothing binds NN_IDENTIFIER_EXPR, NN_CALL_EXPR, NN_FIELD_ACCESS or NN_METHOD_REF. Methods carry only param_count (pass1:945-955): no parameter types, descriptor or erasure. There is no member lookup through supertypes (JLS 8.4.8, 15.12.1) and no applicability or most-specific selection (JLS 15.12.2). Phase 6 therefore resolves callees by token position, falling back to the enclosing method's range (cg/resolution.rs:179-238), and CHA matches by name only (84-92).",
+  "impact": "No phase has ground-truth bindings. Overloads collide, inherited and static-imported members are invisible, and call-graph, def-use and traceability precision are capped far below javac, Eclipse JDT or JavaParser SymbolSolver.",
+  "recommendation": "Add an attribution pass analogous to javac's Attr/Resolve. Compute static types for literals, locals, fields, `new`, casts and call results. Resolve invocations per JLS 15.12.2 (strict, loose, varargs, most specific) over inherited and static-imported members. Emit an occurrence table {node → SymId | Unresolved(reason) | Ambiguous(cands)} in .sta, exportable as SCIP. Validate against semanticdb-javac/scip-java ground truth.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-11",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "JDK model is 12 hand-written stubs without members; no classpath, and java.util is treated as implicitly imported",
+  "files": [
+   "src/symbol/std_library/java_stubs.rs:31-106",
+   "src/symbol/std_library/java_stubs.rs:119-148",
+   "src/symbol/passes/pass3_types.rs:80-89",
+   "src/symbol/passes/pass3_types.rs:113-117"
+  ],
+  "evidence": "get_java_stubs lists 12 types: Object, String, Integer, Boolean, List, Map, Set, Collection, Iterable, Exception, RuntimeException and Throwable. They have no members or supertypes, and name_id is u32::MAX (122-143). java.util types resolve with no import (pass3:80-84). Long, Double, Number, Optional, Stream, Comparable, Runnable, CharSequence, StringBuilder, Enum and Class, plus every Spring, JPA or Jackson type, become SK_EXTERNALs qualified only by simple name (pass3:86-89). Same-named externals from different packages merge into one (113-117).",
+  "impact": "Type hierarchies stop at the project boundary, so there are no Object, Comparable or Iterable members for dispatch. Library calls cannot resolve, and unrelated same-named library types are conflated.",
+  "recommendation": "Load real signatures from ct.sym (release-specific, javac --release N) or from jmods/jimage, parsed with a Rust classfile crate such as cafebabe or ristretto_classfile. Index the build classpath lazily by package, using Maven dependency:build-classpath, a Gradle init script or scip-java's build integration, and cache by JDK or jar hash. Represent unknowns as SK_UNRESOLVED with their syntactic FQN and a reason. Done when the resolution rate is at least 99% on Spring PetClinic with its Maven classpath.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Binary artifact readers panic or allocate huge buffers on malformed input",
+  "files": [
+   "src/uma/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/ast/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "There are 291 .unwrap() calls in src, 286 outside tests, and 208 are bytes[a..b].try_into().unwrap(). 84% of the non-test ones are in five serializers: uma 96, symbol 66, tra 46, ast 17, psa 15. uma/serializer.rs:268-300 loops over counts taken from the header and slices bytes[offset..offset+4] without checking the remaining length. Before that it calls Vec::with_capacity(class_count) with a count read from the file. The CRC-64 check (239-249) catches accidental corruption, not crafted files.",
+  "impact": "inspect and every artifact reader crash on truncated or hostile files, either from an out-of-bounds index or a multi-GB allocation.",
+  "recommendation": "Add a bounds-checked cursor (read_u32()? returning InvalidData). Cap counts by the remaining bytes before allocating. Replace unwrap with ?. Add a cargo-fuzz target for each reader.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-11",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Heavy copy-paste in the diagram exporters (35% exact, 79% after normalization)",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/cfg/stmts/while_stmt.rs",
+   "src/symbol/passes/pass4_members.rs",
+   "tests/strategy_diagram_tests.rs"
+  ],
+  "evidence": "With 40-token windows: exporters 35.1% exact (json.rs 50%) and 78.8% normalized; all of src 13.0% exact and 54.1% normalized; tests 25.3% exact. Largest clones: json.rs:148-182 vs 445-479; mermaid.rs:383-424 vs plantuml.rs:76-117 (identical registries); mermaid.rs:1242-1257 vs plantuml.rs:1089-1102; for_stmt.rs:112-132 vs while_stmt.rs:31-51 (93% of while_stmt.rs); pass4_members.rs:18-32 vs pass5_hierarchy.rs:19-33; strategy_diagram_tests.rs:68-109 vs uma_tests.rs:49-100.",
+  "impact": "Every fix has to be made three times (JSON, PUML, Mermaid), and the copies have already drifted, e.g. the empty Mermaid state diagram.",
+  "recommendation": "Build one model per diagram type and render it through small per-format emitters. Use a generic registry and a macro for strategy impls. Share loop-lowering code in cfg. Move test fixtures into tests/common.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Overflow checks are off in dev and test builds, alongside 846 unchecked numeric casts",
+  "files": [
+   "Cargo.toml",
+   "src/uma/serializer.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/cfg/builder/mod.rs"
+  ],
+  "evidence": "Cargo.toml:23 sets overflow-checks = false under [profile.dev]. The test profile inherits from dev, so cargo test cannot catch integer overflow. src contains 846 numeric 'as' casts (pass1_discovery.rs 54, uma/serializer.rs 40, pass5_hierarchy.rs 27, cfg/builder/mod.rs 26). Example: uma/serializer.rs:39-42 writes counts as len() as u16, which silently truncates above 65,535.",
+  "impact": "On large repositories, silent wraparound and truncation produce wrong graphs or corrupt artifacts while the tests still pass.",
+  "recommendation": "Remove overflow-checks = false and keep opt-level = 2. Use u16::try_from(..)? and checked arithmetic in serializers and index math. Enable clippy::cast_possible_truncation.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-10",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Each file is read three times and parsed twice, single-threaded, with no content check between phases",
+  "files": [
+   "src/ingestion/mod.rs:50-59",
+   "src/ingestion/mod.rs:104-117",
+   "src/ast/mod.rs:136-155",
+   "src/ingestion/allocator.rs:3-21",
+   "src/ast/builder.rs:163-177",
+   "src/ingestion/serializer.rs:16-29",
+   "src/ast/mod.rs:48",
+   "src/symbol/serializer.rs:43"
+  ],
+  "evidence": "Phase 1 reads each file once to hash it (mod.rs:53) and again to parse it (mod.rs:111). Phase 2 reads it a third time from the stored path and re-parses it (ast/mod.rs:142-143), never comparing against content_sha256, and silently skips any file whose read or parse fails (`if let Ok`). There is no rayon: the Mutex<StringInterner> and the AtomicU32 allocator guard single-threaded loops. close_node walks every open ancestor for each node (O(N*depth)), although the reducer already propagates token ranges. A bit-at-a-time CRC-64 runs at least three times over the .tca.",
+  "impact": "Throughput is a fraction of what one core could deliver, and the other cores sit idle. A file edited mid-run yields an AST that silently disagrees with the token corpus, and unreadable files simply disappear.",
+  "recommendation": "Parse each file once and emit tokens plus the reduced AST in one pass, either by keeping the Tree or by building a rowan-style green tree. Use rayon par_iter over files with per-file buffers merged in file order, plus a concurrent interner (lasso ThreadedRodeo). Verify SHA-256 before reuse and fail loudly on unreadable files. Swap the CRC for crc64fast-nvme or xxh3/BLAKE3, delete the ancestor loop, and use tree-sitter incremental parsing (Tree::edit) in the server. Done = criterion LOC/s that scales with cores.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": ".sta drops resolution results, is byte-nondeterministic, and uses positional symbol ids",
+  "files": [
+   "src/symbol/serializer.rs:165-185",
+   "src/symbol/serializer.rs:138-143",
+   "src/symbol/builder.rs:30",
+   "src/symbol/builder.rs:68",
+   "src/symbol/scope_graph/mod.rs:15-16",
+   "src/cfg/mod.rs:30",
+   "src/cg/mod.rs:46",
+   "docs/openheart_research_paper.tex:1126-1127"
+  ],
+  "evidence": "type_ref_resolutions (builder.rs:30) and the import edges and mappings (scope_graph/mod.rs:15-16) are never serialized, and import_table_off is always 0. Project symbols never get a qual_name_id. Package maps are written in HashMap order (serializer.rs:165-185), so the bytes and CRC vary between runs, and that CRC is embedded in .cfa and .cga (cfg/mod.rs:30, cg/mod.rs:46). Symbol ids are pre-order positions (builder.rs:68), so adding one local renumbers every later file, contradicting the paper's incremental theorem (tex:1126-1127). TH edges are written as a flat list despite the 'CSR' doc (serializer.rs:2).",
+  "impact": "Downstream phases must re-resolve by name, artifacts are not reproducible, and incremental or cross-build diffing is impossible.",
+  "recommendation": "Persist an occurrence section and per-file import tables, writing every map sorted (BTreeMap). Give each symbol a stable SemanticDB/SCIP descriptor (e.g. com/acme/User#find(+1).) and keep the dense id only as an index; consider stack-graphs-style per-file partial results for incrementality. Store TH edges as CSR and check format_version on read. Add tests that two runs are byte-identical and that a body edit keeps other files' symbol keys unchanged.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Visibility and modifiers are probably never extracted for Java, and the defaults make package-private members public",
+  "files": [
+   "src/ast/adapter/java.rs:139-157",
+   "src/symbol/passes/pass1_discovery.rs:895-943",
+   "src/symbol/adapter/java.rs:125-133",
+   "src/core/types/symbol.rs:56-74"
+  ],
+  "evidence": "encode_attrs calls node.child_by_field_name(\"modifiers\") (ast java.rs:139). In tree-sitter-java, modifiers appears to be an unnamed child: corpus trees show (class_declaration (modifiers) name: ..) [https://hackage-origin.haskell.org/package/tree-sitter-java-0.7.0.2/candidate/src/vendor/tree-sitter-java/corpus/declarations.txt]. If so, the call always returns None, and Pass 1 uses default_visibility: Package for types, Public for all members (java.rs:125-133), contrary to JLS 6.6.1. When modifiers are found, contains(\"public\") also matches annotation text. Only static, final and abstract are mapped, so pass1:927-941 is dead code.",
+  "impact": "UML visibility markers, abstract and static stereotypes, CHA's abstract filter (cg/resolution.rs:89) and any singleton or composition heuristic would see empty or wrong modifiers.",
+  "recommendation": "Walk the modifiers child's children by node kind (keyword tokens, marker_annotation, annotation) and never substring-match. Apply the JLS implicit modifiers: interface members public, interface fields public static final, enum constructors private, record fields private final. Set DEFAULT, VARARGS, SEALED and NON_SEALED. Add a test that `public static final` yields non-zero attrs, plus a fixture covering every modifier.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SYM-16",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Phase 3 invariants are tautological: the data is repaired before it is verified",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs:622-628",
+   "src/symbol/builder.rs:161-234",
+   "src/symbol/builder.rs:256-309",
+   "src/symbol/builder.rs:352",
+   "src/symbol/passes/pass5_hierarchy.rs:218"
+  ],
+  "evidence": "Invariant 2 holds by construction: the safety sweep reparents every orphan to symbol 0 before verification runs (pass1:623-628). Acyclicity holds because sanitize_th_graph deletes edges first (builder.rs:161-234, called at pass5:218). It removes the first edge whose two endpoints are both unvisited, which can be a legitimate edge downstream of a cycle rather than on it. 'Invariant 4: BPA/TCA hash verification' exists only as comments (builder.rs:259, 292), and the cycle error is mislabelled Invariant 4 (352).",
+  "impact": "The invariants can never catch a resolution bug, and cycles caused by spurious edges silently delete edges that may be correct.",
+  "recommendation": "Make verify_invariants pure, with no mutation. Report cycles as diagnostics listing the SCC (Tarjan) and keep the edges, flagged. Implement the hash check. Add invariants that matter: every NN_TYPE_REF is resolved or explicitly Unresolved, every non-external symbol has a decl_node, and child chains are acyclic and consistent with parent_sym. Fail CI on any violation over the fixture corpus.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-20",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Kotlin (and the other advertised languages) get no CFG, SSA or call graph",
+  "files": [
+   "src/ast/adapter/registry.rs:19-41",
+   "src/symbol/passes/pass1_discovery.rs:439-447",
+   "src/cfg/mod.rs:55-58",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "Only Java has an AST adapter. Kotlin falls back to the generic adapter bound to tree_sitter_javascript (registry.rs:19-41), so .kt files are parsed as JavaScript. Kotlin `fun` symbols come from a token sweep that leaves decl_node = u32::MAX (SymbolRecord::UNINIT, pass1_discovery.rs:439-447), and Phase 4 skips such symbols (cfg/mod.rs:55-58); their call sites have no enclosing method and are dropped. Cargo.toml has no Kotlin, Python or C++ grammar.",
+  "impact": "The Java/Kotlin flow-analysis claim, and the multi-language F1 claim as applied to Phases 4-6, hold for nothing except Java.",
+  "recommendation": "Add tree-sitter-kotlin (or analyze kotlinc bytecode) with a dedicated reduction adapter and a Kotlin lowering for when, expression-bodied functions, ?., !!, inline lambdas and suspend state machines. Scope README claims per phase and language until golden tests cover them.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-13",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Open extension model: loadable language adapters, rule/pattern packs, stable schema",
+  "files": [
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "src/scpg/diagram/factory.rs"
+  ],
+  "evidence": "Adapters are hard-wired in AdapterRegistry::new (src/ingestion/adapter/registry.rs:19-42) and ASTAdapterRegistry::new (src/ast/adapter/registry.rs:15-31). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Exporter factories can only be registered from Rust (src/scpg/diagram/factory.rs:309), and pattern detectors are compiled-in functions.",
+  "impact": "Third parties cannot add a language, detector or exporter without forking. Joern frontends, CodeQL packs and Semgrep rules grew their ecosystems through exactly these extension points.",
+  "recommendation": "Publish a versioned SCPG schema and a semver crate API. Load language adapters from declarative tree-sitter query files (.scm) for declarations, calls and types, or as WASM components. Make pattern and architecture detectors data-driven rule packs. Document a 'write a frontend' guide with a reference Kotlin adapter.",
+  "effort": "L",
+  "confidence": "medium"
+ },
+ {
+  "id": "AUTO-12",
+  "kind": "enhancement",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Very long functions hold most of the risk",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/uma/serializer.rs",
+   "src/adapters/server.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/main.rs"
+  ],
+  "evidence": "Of 834 non-test functions (lengths by brace matching), the median is 10 lines and p90 is 65. 118 are over 50 lines, 43 over 100 and 13 over 200. Largest: pass1_discovery.rs:18-633 run (616), uma/serializer.rs:229-679 read (451), server.rs:366-762 process_analyze_request (397), class_diagram.rs:13-344 extract (332), json.rs:121-421 (301), main.rs:101-345 cmd_analyze (245).",
+  "impact": "These functions cannot be unit-tested, and defects such as the silent repo fallback hide inside 400-line handlers.",
+  "recommendation": "Split by concern: routing, validation, phase orchestration, record codecs. Enforce clippy::too_many_lines and cognitive_complexity limits in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-14",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No reference/occurrence index and no stable symbol identity (gap against Kythe/SCIP)",
+  "files": [
+   "src/tra/types.rs:125-136",
+   "src/symbol/serializer.rs:14-34",
+   "src/ingestion/mod.rs:69-70",
+   "src/tra/builder.rs:33-43"
+  ],
+  "evidence": "The .tra holds only declaration spans (BI_sym, sym_span, UMLLinks), and neither the STA nor the TRA records use-site occurrences. Find-references, go-to-definition from a use, and role-tagged occurrences are therefore impossible. All keys are positional: sym_id is the STA vector index, token ids are corpus-global, and file_id is the manifest position cast `as u16` (ingestion/mod.rs:70), which wraps beyond 65,535 files.",
+  "impact": "Below the Kythe/SCIP/LSIF baseline: no cross-reference navigation, no cross-repo linking, no IDE or Sourcegraph interoperability, and links that do not survive a rebuild.",
+  "recommendation": "Add an occurrence table (file, byte range, symbol, roles: definition/reference/read/write/import) populated during Phase 3 name resolution, with SCIP-style stable symbol strings (scheme, package, descriptor#method(sig).). Emit a SCIP index via the scip crate, report LSP positions (UTF-16 columns), and use u32 file ids. Done means `scip lint` passes and precision/recall is measured on a labelled Java corpus.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-17",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Dead and misleading code in the symbol module",
+  "files": [
+   "src/symbol/uml_meta/patterns.rs:102-137",
+   "src/symbol/qual_name_table.rs:40-47",
+   "src/symbol/scope_graph/resolver.rs:57-73",
+   "src/symbol/builder.rs:132-159",
+   "src/symbol/adapter/java.rs:103-123",
+   "src/symbol/scope_graph/mod.rs:35-36",
+   "src/symbol/passes/pass1_discovery.rs:29-31",
+   "src/symbol/passes/pass3_types.rs:103"
+  ],
+  "evidence": "symbol::uml_meta::PatternDetector is unused; the live detector is uma::patterns. Its is_observer passes a TCA name_id to qual_names.lookup_by_id (patterns.rs:118-121), and get_name treats ids below 0x80000000 as raw indexes (qual_name_table.rs:40-47), so it compares arbitrary strings. wildcard_imports, is_th_reachable (O(V·E)) and is_collection_type are never called. ScopeGraph::new creates root scope 0, Pass 1 creates a second root, scope 1 (pass1:29-31), and the ROOT_SCOPE fallback (pass3:103) points at the disconnected scope 0. Every class is logged at INFO (pass1:151-157).",
+  "impact": "Plausible-looking but broken APIs invite reuse, and the two roots make scope semantics ambiguous.",
+  "recommendation": "Delete the unused detector and helpers, or wire them up behind tests. Use a single root scope. Make QualifiedNameTable reject ids that are not offsets. Move per-symbol diagnostics to trace level.",
+  "effort": "S",
+  "confidence": "high"
+ }
+]

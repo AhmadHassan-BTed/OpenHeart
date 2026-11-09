@@ -3,11 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <title>OpenHeart — Precision Program Graph Studio</title>
-  <meta name="description" content="OpenHeart Interactive SCPG & UML Program Analysis Studio with live GitHub repository import." />
+  <!--
+    Content-Security-Policy (delivered as <meta> because GitHub Pages cannot send headers).
+    Scripts: this origin plus three exact, version-pinned CDN files. No inline script.
+    Trusted Types: raw HTML strings cannot reach DOM sinks; only the 'openheart-static'
+    policy (developer-authored constant icon markup) may create TrustedHTML.
+    frame-ancestors is ignored in <meta> CSP, so js/main.js refuses to run when framed.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types openheart-static" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <title>OpenHeart — Program Graph Studio</title>
+  <meta name="description" content="OpenHeart SCPG &amp; UML program analysis studio: view the Rust engine's diagrams, or import a GitHub repository, folder or ZIP for an approximate in-browser class model." />
   <meta name="google-site-verification" content="googled1934658a17ddea1" />
 
   <!-- Browser Tab Favicon -->
@@ -16,7 +22,7 @@
   <link rel="shortcut icon" href="favicon.ico" />
   <link rel="apple-touch-icon" href="favicon.svg" />
 
-  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <!-- Google Fonts: Inter & JetBrains Mono (the UI falls back to system fonts if blocked) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -25,62 +31,65 @@
   <link rel="stylesheet" href="themes/dark.css" />
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Cytoscape.js & Dagre for Hierarchical Layout -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js"></script>
-  <!-- JSZip for in-browser ZIP codebase decompression -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Renderer, SVG export plugin and ZIP reader: exact versions, loaded without blocking parsing. -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script type="module" src="js/main.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#interactive-canvas">Skip to diagram canvas</a>
 
   <div class="app-shell">
 
-    <!-- ── Top Modern Navigation Bar ── -->
+    <!-- ── Top Navigation Bar ── -->
     <header class="app-header">
       <div class="header-left-col">
-        <a href="#" class="brand-icon-box">
-          <div class="brand-glyph">Ω</div>
+        <a href="#" class="brand-icon-box" aria-label="OpenHeart Studio">
+          <div class="brand-glyph" aria-hidden="true">Ω</div>
           <span class="brand-title">OpenHeart</span>
         </a>
 
-        <div class="header-divider"></div>
+        <div class="header-divider" aria-hidden="true"></div>
 
         <!-- GitHub Repository Import Bar with Project History Dropdown -->
         <div class="repo-import-bar" style="position: relative;">
-          <span class="repo-import-icon">
+          <span class="repo-import-icon" aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
             </svg>
           </span>
-          <input 
-            type="text" 
-            id="input-repo-url" 
-            class="repo-import-input" 
-            placeholder="Paste GitHub URL or select past project..." 
+          <label for="input-repo-url" class="visually-hidden">GitHub repository URL</label>
+          <input
+            type="text"
+            id="input-repo-url"
+            class="repo-import-input"
+            placeholder="Paste a GitHub URL or pick a recent project..."
             value="https://github.com/iluwatar/java-design-patterns"
             autocomplete="off"
+            spellcheck="false"
           />
-          <button id="btn-repo-dropdown-toggle" class="btn-repo-dropdown-toggle" title="Recent Projects & Presets">▾</button>
-          <button id="btn-import-repo" class="btn-analyze-pill">Analyze Repo</button>
+          <button type="button" id="btn-repo-dropdown-toggle" class="btn-repo-dropdown-toggle" title="Recent Projects &amp; Presets" aria-label="Recent projects and presets" aria-haspopup="menu" aria-expanded="false" aria-controls="repo-history-dropdown">▾</button>
+          <button type="button" id="btn-github-token" class="btn-repo-dropdown-toggle btn-token-toggle" aria-label="GitHub access token" aria-pressed="false">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><circle cx="5" cy="11" r="3"/><line x1="7.2" y1="8.8" x2="14" y2="2"/><line x1="11.5" y1="4.5" x2="13.5" y2="6.5"/></svg>
+          </button>
+          <button type="button" id="btn-import-repo" class="btn-analyze-pill">Analyze Repo</button>
+          <button type="button" id="btn-cancel-analysis" class="btn-cancel-pill" hidden>Cancel</button>
 
-          <!-- Floating Project History & Presets Dropdown Popover -->
-          <div id="repo-history-dropdown" class="repo-history-dropdown hidden-dropdown">
-            <!-- Dynamically populated from JavaScript -->
-          </div>
+          <!-- Project History & Presets (populated by js/main.js) -->
+          <div id="repo-history-dropdown" class="repo-history-dropdown hidden-dropdown" role="menu" aria-label="Recent projects and presets"></div>
         </div>
 
-        <!-- Local Folder & ZIP Codebase Import Buttons -->
+        <!-- Local Folder & ZIP Codebase Import -->
         <div class="codebase-upload-group">
-          <input type="file" id="input-folder-picker" webkitdirectory directory multiple style="display: none;" />
-          <input type="file" id="input-zip-picker" accept=".zip,application/zip" style="display: none;" />
-          <button id="btn-import-folder" class="btn-upload-segment" title="Select local directory">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg>
+          <input type="file" id="input-folder-picker" webkitdirectory directory multiple style="display: none;" aria-hidden="true" tabindex="-1" />
+          <input type="file" id="input-zip-picker" accept=".zip,application/zip" style="display: none;" aria-hidden="true" tabindex="-1" />
+          <button type="button" id="btn-import-folder" class="btn-upload-segment" title="Analyze a local directory in the browser">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg>
             <span>Folder</span>
           </button>
-          <button id="btn-import-zip" class="btn-upload-segment" title="Upload ZIP archive">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="1.5" y="2.5" width="13" height="3" rx="0.5"/><path d="M2.5 5.5v7.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V5.5"/><line x1="6.5" y1="8" x2="9.5" y2="8"/></svg>
+          <button type="button" id="btn-import-zip" class="btn-upload-segment" title="Analyze a ZIP archive in the browser">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="3" rx="0.5"/><path d="M2.5 5.5v7.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V5.5"/><line x1="6.5" y1="8" x2="9.5" y2="8"/></svg>
             <span>ZIP</span>
           </button>
         </div>
@@ -88,300 +97,294 @@
         <!-- Quick Repository Preset Chips -->
         <div class="preset-chips-box">
           <span class="preset-label">Presets:</span>
-          <button class="preset-chip" data-repo="petclinic">spring-petclinic</button>
-          <button class="preset-chip" data-repo="patterns">design-patterns</button>
-          <button class="preset-chip" data-repo="payment">payment-service</button>
+          <button type="button" class="preset-chip" data-repo="petclinic">spring-petclinic</button>
+          <button type="button" class="preset-chip" data-repo="patterns">design-patterns</button>
         </div>
       </div>
 
       <div class="header-right-col">
-        <div class="status-pill-badge">
-          <span class="status-indicator-dot"></span>
-          <span id="header-hash-badge">SCPG 0x83D202B2 · Verified</span>
+        <div class="status-pill-badge" data-state="bundled" title="Where the current diagrams come from">
+          <span class="status-indicator-dot" aria-hidden="true"></span>
+          <span id="header-hash-badge">No analysis loaded</span>
         </div>
 
-        <button id="btn-theme-toggle" class="btn-header-action" title="Toggle Light / Dark Theme">
-          <span id="theme-toggle-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 8.8A6 6 0 1 1 7.2 2.5a4.7 4.7 0 0 0 6.3 6.3z"/></svg></span>
+        <button type="button" id="btn-theme-toggle" class="btn-header-action" title="Toggle Light / Dark Theme" aria-pressed="false">
+          <span id="theme-toggle-icon" aria-hidden="true"></span>
           <span id="theme-toggle-label">Theme</span>
         </button>
-        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" class="btn-header-action" title="View OpenHeart on GitHub">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="studio-icon"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <a href="https://github.com/AhmadHassan-BTed/OpenHeart" target="_blank" rel="noopener noreferrer" class="btn-header-action" title="View OpenHeart on GitHub">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="studio-icon" aria-hidden="true"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           <span>GitHub</span>
         </a>
       </div>
     </header>
 
-    <!-- Top Linear Live Progress Indicator -->
-    <div id="clone-progress-bar-container" class="clone-progress-track">
+    <!-- Analysis progress -->
+    <div id="clone-progress-bar-container" class="clone-progress-track" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-hidden="true">
       <div id="clone-progress-fill" class="clone-progress-fill"></div>
     </div>
 
-    <!-- ── 12-Column Responsive Workspace Grid ── -->
+    <!-- ── Workspace ── -->
     <main class="workspace-grid">
 
-      <!-- Left Sidebar: Graph Selection Rail -->
-      <aside class="sidebar-card">
-        <nav id="sidebar-diagram-categories" class="sidebar-dynamic-nav">
-          <!-- 1. UML 2.5 Structural Projections -->
-          <div class="sidebar-category-title">
-            <span>UML 2.5 Structural Projections</span>
-            <span class="phase-chip">7 TYPES</span>
-          </div>
-          <ul class="sidebar-nav-list">
-            <li><button class="sidebar-tab-btn active" data-graph-type="class"><span>01. Class Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="package"><span>02. Package Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="component"><span>03. Component Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="composite"><span>04. Composite Structure</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="object"><span>05. Object Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="deployment"><span>06. Deployment Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="profile"><span>07. Profile Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-          </ul>
-
-          <!-- 2. UML 2.5 Behavioral Projections -->
-          <div class="sidebar-category-title" style="margin-top: 18px;">
-            <span>UML 2.5 Behavioral Projections</span>
-            <span class="phase-chip">7 TYPES</span>
-          </div>
-          <ul class="sidebar-nav-list">
-            <li><button class="sidebar-tab-btn" data-graph-type="sequence"><span>08. Sequence Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="statemachine"><span>09. State Machine</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="activity"><span>10. Activity Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="usecase"><span>11. Use Case Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="communication"><span>12. Communication Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="interaction"><span>13. Interaction Overview</span><span class="phase-chip">Phase 9</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="timing"><span>14. Timing Diagram</span><span class="phase-chip">Phase 9</span></button></li>
-          </ul>
-
-          <!-- 3. Compiler Pipeline IRs -->
-          <div class="sidebar-category-title" style="margin-top: 18px;">
-            <span>Compiler Pipeline IRs</span>
-            <span class="phase-chip">5 GRAPHS</span>
-          </div>
-          <ul class="sidebar-nav-list">
-            <li><button class="sidebar-tab-btn" data-graph-type="cfg"><span>15. Control Flow (CFG)</span><span class="phase-chip">Phase 4</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="dfg"><span>16. Data Flow (DFG)</span><span class="phase-chip">Phase 5</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="cdg"><span>17. Control Dep (CDG)</span><span class="phase-chip">Phase 4</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="callgraph"><span>18. Call Graph (CG)</span><span class="phase-chip">Phase 6</span></button></li>
-            <li><button class="sidebar-tab-btn" data-graph-type="robdd"><span>19. ROBDD Saturation</span><span class="phase-chip">Phase 8</span></button></li>
-          </ul>
+      <!-- Left Sidebar: Diagram catalog (rendered from diagrams/manifest.json) -->
+      <aside class="sidebar-card" aria-label="Diagram views">
+        <nav id="sidebar-diagram-categories" class="sidebar-dynamic-nav" aria-label="Diagram types">
+          <div class="sidebar-loading">Loading diagram catalog…</div>
         </nav>
       </aside>
 
-      <!-- Center Viewport: Floating Interactive Canvas Card -->
-      <section class="canvas-card">
-        <!-- Floating Canvas HUD Pill -->
+      <!-- Center: Interactive Canvas -->
+      <section class="canvas-card" aria-label="Diagram">
         <div class="canvas-floating-toolbar">
           <div class="hud-status-capsule" id="hud-status">
-            <span class="status-indicator-dot"></span>
+            <span class="status-indicator-dot" aria-hidden="true"></span>
             <span id="hud-status-text">Mouse wheel to Zoom · Drag to Pan · Shift+Wheel to Pan H · Hover to trace path</span>
           </div>
           <div class="hud-action-controls hud-toolbar-cluster">
+            <div class="hud-group canvas-search-group">
+              <label for="canvas-search-input" class="visually-hidden">Search diagram elements</label>
+              <input type="search" id="canvas-search-input" class="canvas-search-input" placeholder="Search…" autocomplete="off" spellcheck="false"
+                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="canvas-search-results" />
+              <ul id="canvas-search-results" class="canvas-search-results" role="listbox" aria-label="Matching elements" hidden></ul>
+            </div>
+
+            <div class="hud-divider" aria-hidden="true"></div>
+
             <div class="hud-group">
-              <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad & Drag: 1% to 50%)">
-                <span class="pan-slider-label"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><line x1="2" y1="4.5" x2="14" y2="4.5"/><circle cx="5" cy="4.5" r="1.5"/><line x1="2" y1="11.5" x2="14" y2="11.5"/><circle cx="11" cy="11.5" r="1.5"/></svg> Pan</span>
+              <div class="pan-sensitivity-slider-box" title="Pan Sensitivity (Trackpad &amp; Drag: 1% to 50%)">
+                <label class="pan-slider-label" for="pan-sensitivity-slider"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><line x1="2" y1="4.5" x2="14" y2="4.5"/><circle cx="5" cy="4.5" r="1.5"/><line x1="2" y1="11.5" x2="14" y2="11.5"/><circle cx="11" cy="11.5" r="1.5"/></svg> Pan</label>
                 <input type="range" id="pan-sensitivity-slider" min="0.01" max="0.50" step="0.01" value="0.10" />
                 <span id="pan-sensitivity-val">10%</span>
               </div>
             </div>
 
-            <div class="hud-divider"></div>
+            <div class="hud-divider" aria-hidden="true"></div>
 
             <div class="hud-group">
-              <button id="btn-pan-lock" class="hud-tool-btn hud-pill-btn" title="Toggle Pan Lock (Lock diagram layout for pure panning & viewing)">
-                <span id="icon-pan-lock"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="3" y="7" width="10" height="7.5" rx="1.5"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0"/></svg></span> <span id="label-pan-lock" class="btn-text-label">Unlocked</span>
+              <button type="button" id="btn-pan-lock" class="hud-tool-btn hud-pill-btn" title="Toggle Pan Lock (lock the layout for pure panning and viewing)" aria-pressed="false">
+                <span id="icon-pan-lock" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="3" y="7" width="10" height="7.5" rx="1.5"/><path d="M5.5 7V4.5a2.5 2.5 0 0 1 5 0"/></svg></span> <span id="label-pan-lock" class="btn-text-label">Unlocked</span>
               </button>
-              <button id="btn-toggle-minimap" class="hud-tool-btn hud-pill-btn active-pill" title="Toggle Minimap Radar (Shortcut: M)">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="8" cy="8" r="3"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="8" y1="11" x2="8" y2="14"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="11" y1="8" x2="14" y2="8"/></svg> <span class="btn-text-label">Radar</span>
+              <button type="button" id="btn-toggle-minimap" class="hud-tool-btn hud-pill-btn active-pill" title="Toggle Minimap Radar (M while the canvas has focus)" aria-pressed="true">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2"/><circle cx="8" cy="8" r="3"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="8" y1="11" x2="8" y2="14"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="11" y1="8" x2="14" y2="8"/></svg> <span class="btn-text-label">Radar</span>
               </button>
-              <button id="btn-toggle-loupe" class="hud-tool-btn hud-pill-btn" title="Toggle Cursor Magnifier Lens (Shortcut: L)">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/><line x1="4.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="6.5" y1="4.5" x2="6.5" y2="8.5"/></svg> <span class="btn-text-label">Loupe</span>
+              <button type="button" id="btn-toggle-loupe" class="hud-tool-btn hud-pill-btn" title="Toggle Cursor Magnifier Lens (L while the canvas has focus)" aria-pressed="false">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14" y2="14"/><line x1="4.5" y1="6.5" x2="8.5" y2="6.5"/><line x1="6.5" y1="4.5" x2="6.5" y2="8.5"/></svg> <span class="btn-text-label">Loupe</span>
               </button>
             </div>
 
-            <div class="hud-divider"></div>
+            <div class="hud-divider" aria-hidden="true"></div>
 
             <div class="hud-group">
               <div class="export-dropdown-wrapper" style="position: relative;">
-                <button id="btn-export-menu" class="hud-tool-btn hud-pill-btn" title="Save or Export Diagram">
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 10v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3"/><polyline points="11 5.5 8 2.5 5 5.5"/><line x1="8" y1="2.5" x2="8" y2="10.5"/></svg> <span class="btn-text-label">Export</span> <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;"><polyline points="4 6 8 10 12 6"/></svg>
+                <button type="button" id="btn-export-menu" class="hud-tool-btn hud-pill-btn" title="Save or Export Diagram" aria-haspopup="menu" aria-expanded="false" aria-controls="export-menu-dropdown">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><path d="M13.5 10v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3"/><polyline points="11 5.5 8 2.5 5 5.5"/><line x1="8" y1="2.5" x2="8" y2="10.5"/></svg> <span class="btn-text-label">Export</span> <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>
                 </button>
-                <div id="export-menu-dropdown" class="export-menu-dropdown hidden-dropdown">
-                  <button class="export-item-btn" id="btn-save-json">
-                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M12.5 14.5h-9a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h7l3 3v9a1 1 0 0 1-1 1z"/><polyline points="11 14.5 11 9 5 9 5 14.5"/><polyline points="5 1.5 5 4.5 9.5 4.5"/></svg></span>
+                <div id="export-menu-dropdown" class="export-menu-dropdown hidden-dropdown" role="menu" aria-label="Save and export">
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-save-json">
+                    <span class="export-item-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M12.5 14.5h-9a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h7l3 3v9a1 1 0 0 1-1 1z"/><polyline points="11 14.5 11 9 5 9 5 14.5"/><polyline points="5 1.5 5 4.5 9.5 4.5"/></svg></span>
                     <div class="export-item-text">
                       <strong>Save Diagram State (.json)</strong>
-                      <small>Preserves exact layout to resume later</small>
+                      <small>Preserves the exact layout to resume later</small>
                     </div>
                   </button>
-                  <button class="export-item-btn" id="btn-load-json">
-                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 10v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3"/><polyline points="5 7.5 8 10.5 11 7.5"/><line x1="8" y1="10.5" x2="8" y2="2.5"/></svg></span>
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-load-json">
+                    <span class="export-item-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M13.5 10v3a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-3"/><polyline points="5 7.5 8 10.5 11 7.5"/><line x1="8" y1="10.5" x2="8" y2="2.5"/></svg></span>
                     <div class="export-item-text">
                       <strong>Load Saved State (.json)</strong>
-                      <small>Resume previously saved diagram</small>
+                      <small>Validated before it is rendered</small>
                     </div>
                   </button>
-                  <input type="file" id="input-load-json" accept=".json" style="display:none;" />
-                  <div class="export-menu-divider"></div>
-                  <div class="export-menu-header" style="padding: 4px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted, #94a3b8); display: flex; align-items: center; gap: 6px;">
-                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4m2-2h-4"/><path d="M4 14v-4m-2 2h4"/><path d="M14 14l-4-4"/><path d="M2 2l4 4"/></svg>
+                  <input type="file" id="input-load-json" accept=".json,application/json" style="display:none;" aria-hidden="true" tabindex="-1" />
+                  <div class="export-menu-divider" role="separator"></div>
+                  <div class="export-menu-header" aria-hidden="true">
                     <span>AI / LLM Code Structure</span>
                   </div>
-                  <button class="export-item-btn" id="btn-export-ai-json" title="Export clean AST & relationships without layout formatting">
-                    <span class="export-item-icon" style="color: #38bdf8;">
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-export-ai-json" title="Export types and relationships without layout data">
+                    <span class="export-item-icon export-icon-ai" aria-hidden="true">
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polygon points="8 1.5 10 6 15 6 11 9.5 12.5 14.5 8 11.5 3.5 14.5 5 9.5 1 6 6 6 8 1.5"/></svg>
                     </span>
                     <div class="export-item-text">
                       <strong>Export Code Structure (.ai.json)</strong>
-                      <small>Pure AST & relations for LLMs (zero layout bloat)</small>
+                      <small>Types and relations, with source provenance</small>
                     </div>
                   </button>
-                  <button class="export-item-btn" id="btn-export-ai-md" title="Copy formatted prompt markdown to paste into ChatGPT/Claude">
-                    <span class="export-item-icon" style="color: #a855f7;">
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-export-ai-md" title="Copy a Markdown description of the current view">
+                    <span class="export-item-icon export-icon-md" aria-hidden="true">
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 2.5 3.5v5a1.5 1.5 0 0 0 1.5 1.5h1.5"/></svg>
                     </span>
                     <div class="export-item-text">
                       <strong>Copy LLM Markdown Prompt</strong>
-                      <small>Copy prompt-ready architecture to clipboard</small>
+                      <small>Copy the current view's structure as Markdown</small>
                     </div>
                   </button>
-                  <div class="export-menu-divider"></div>
-                  <button class="export-item-btn" id="btn-export-png">
-                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="12" height="12" rx="1.5"/><circle cx="5.5" cy="5.5" r="1.5"/><polyline points="14 10 10.5 6.5 4 13"/><polyline points="10 10 12 12"/></svg></span>
+                  <div class="export-menu-divider" role="separator"></div>
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-export-png">
+                    <span class="export-item-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="12" height="12" rx="1.5"/><circle cx="5.5" cy="5.5" r="1.5"/><polyline points="14 10 10.5 6.5 4 13"/><polyline points="10 10 12 12"/></svg></span>
                     <div class="export-item-text">
-                      <strong>Export High-Res PNG</strong>
-                      <small>Crisp raster image for reports</small>
+                      <strong>Export PNG</strong>
+                      <small>Scaled to fit browser canvas limits</small>
                     </div>
                   </button>
-                  <button class="export-item-btn" id="btn-export-svg">
-                    <span class="export-item-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="4" height="4" rx="0.5"/><rect x="10" y="2" width="4" height="4" rx="0.5"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><rect x="2" y="10" width="4" height="4" rx="0.5"/><line x1="6" y1="4" x2="10" y2="4"/><line x1="4" y1="6" x2="4" y2="10"/><line x1="12" y1="6" x2="12" y2="10"/><line x1="6" y1="12" x2="10" y2="12"/></svg></span>
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-export-svg">
+                    <span class="export-item-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="2" y="2" width="4" height="4" rx="0.5"/><rect x="10" y="2" width="4" height="4" rx="0.5"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><rect x="2" y="10" width="4" height="4" rx="0.5"/><line x1="6" y1="4" x2="10" y2="4"/><line x1="4" y1="6" x2="4" y2="10"/><line x1="12" y1="6" x2="12" y2="10"/><line x1="6" y1="12" x2="10" y2="12"/></svg></span>
                     <div class="export-item-text">
                       <strong>Export Vector SVG</strong>
-                      <small>Infinite resolution vector graphic</small>
+                      <small>Resolution-independent vector graphic</small>
+                    </div>
+                  </button>
+                  <div class="export-menu-divider" role="separator"></div>
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-export-dot">
+                    <span class="export-item-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><circle cx="4" cy="4" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="8" cy="12" r="2"/><line x1="5.5" y1="5.5" x2="7" y2="10.5"/><line x1="10.5" y1="5.5" x2="9" y2="10.5"/></svg></span>
+                    <div class="export-item-text">
+                      <strong>Export Graphviz DOT</strong>
+                      <small>Packages as clusters</small>
+                    </div>
+                  </button>
+                  <button type="button" role="menuitem" class="export-item-btn" id="btn-export-graphml">
+                    <span class="export-item-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polyline points="5 4 1.5 8 5 12"/><polyline points="11 4 14.5 8 11 12"/><line x1="9.5" y1="3" x2="6.5" y2="13"/></svg></span>
+                    <div class="export-item-text">
+                      <strong>Export GraphML</strong>
+                      <small>For yEd, Gephi, Neo4j or NetworkX</small>
                     </div>
                   </button>
                 </div>
               </div>
             </div>
 
-            <div class="hud-divider"></div>
+            <div class="hud-divider" aria-hidden="true"></div>
 
             <div class="hud-group history-group">
-              <button id="btn-canvas-undo" class="hud-tool-btn hud-round-btn icon-only disabled" title="Undo (Ctrl+Z)" aria-label="Undo">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button type="button" id="btn-canvas-undo" class="hud-tool-btn hud-round-btn icon-only disabled" title="Undo (Ctrl+Z)" aria-label="Undo">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M4 7h7a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H4"/>
                   <polyline points="7 4 4 7 7 10"/>
                 </svg>
               </button>
-              <button id="btn-canvas-redo" class="hud-tool-btn hud-round-btn icon-only disabled" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" aria-label="Redo">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button type="button" id="btn-canvas-redo" class="hud-tool-btn hud-round-btn icon-only disabled" title="Redo (Ctrl+Y or Ctrl+Shift+Z)" aria-label="Redo">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 7H5a4 4 0 0 0-4 4v0a4 4 0 0 0 4 4h7"/>
                   <polyline points="9 4 12 7 9 10"/>
                 </svg>
               </button>
             </div>
 
-            <div class="hud-divider"></div>
+            <div class="hud-divider" aria-hidden="true"></div>
 
             <div class="hud-group zoom-group">
-              <button id="btn-zoom-in" class="hud-tool-btn hud-round-btn icon-only" title="Zoom In (+)">+</button>
-              <button id="btn-zoom-out" class="hud-tool-btn hud-round-btn icon-only" title="Zoom Out (−)">−</button>
-              <button id="btn-zoom-reset" class="hud-tool-btn hud-round-btn icon-only" title="Fit View (⊡)">⊡</button>
+              <button type="button" id="btn-zoom-in" class="hud-tool-btn hud-round-btn icon-only" title="Zoom In" aria-label="Zoom in">+</button>
+              <button type="button" id="btn-zoom-out" class="hud-tool-btn hud-round-btn icon-only" title="Zoom Out" aria-label="Zoom out">−</button>
+              <button type="button" id="btn-zoom-reset" class="hud-tool-btn hud-round-btn icon-only" title="Fit View" aria-label="Fit diagram to view">⊡</button>
             </div>
           </div>
         </div>
 
-        <!-- Cytoscape Graph Canvas -->
-        <div id="interactive-canvas"></div>
+        <!-- Notices: IR diagnostics, approximation disclosure, engine errors -->
+        <div id="canvas-notice" class="canvas-notice" role="note" hidden></div>
 
-        <!-- Floating Relationship Layers & Visibility Filter Panel -->
-        <div class="canvas-floating-layers-bar" id="canvas-layers-panel">
+        <!-- Cytoscape Graph Canvas -->
+        <div id="interactive-canvas" tabindex="0" role="region" aria-label="Diagram canvas" aria-describedby="canvas-keyboard-help"></div>
+        <p id="canvas-keyboard-help" class="visually-hidden">
+          While the canvas has focus: N and Shift+N move between elements, Enter inspects the selected element,
+          Escape clears the selection, arrow keys pan, Delete removes the selected element (undo with Ctrl+Z),
+          M toggles the minimap, L toggles the magnifier, and slash focuses search.
+        </p>
+
+        <!-- Relationship Layers & Visibility Filter Panel -->
+        <div class="canvas-floating-layers-bar" id="canvas-layers-panel" role="group" aria-labelledby="layers-panel-title">
           <div class="layers-panel-header">
             <div class="layers-title">
-              <span class="layers-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polygon points="8 1.5 14.5 5 8 8.5 1.5 5 8 1.5"/><polyline points="1.5 8 8 11.5 14.5 8"/><polyline points="1.5 11 8 14.5 14.5 11"/></svg></span>
-              <span>Relationship Layers</span>
+              <span class="layers-icon" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polygon points="8 1.5 14.5 5 8 8.5 1.5 5 8 1.5"/><polyline points="1.5 8 8 11.5 14.5 8"/><polyline points="1.5 11 8 14.5 14.5 11"/></svg></span>
+              <span id="layers-panel-title">Relationship Layers</span>
               <span class="phase-chip" id="layers-total-count">0 EDGES</span>
             </div>
             <div class="layers-quick-actions">
-              <button id="btn-layers-all" class="btn-layers-action" title="Show All Relationships">Select All</button>
-              <button id="btn-layers-none" class="btn-layers-action" title="Hide All Relationships">Deselect All</button>
+              <button type="button" id="btn-layers-all" class="btn-layers-action" title="Show All Relationships">Select All</button>
+              <button type="button" id="btn-layers-none" class="btn-layers-action" title="Hide All Relationships">Deselect All</button>
             </div>
           </div>
-          <div class="layers-checklist" id="layers-checklist-container">
-            <!-- Dynamic checklist generated dynamically for each diagram type -->
-          </div>
+          <div class="layers-checklist" id="layers-checklist-container"></div>
         </div>
       </section>
 
-      <!-- Right Inspector: Floating Card with Code Synchronizer & VS Code Project Tree -->
-      <aside class="inspector-card">
-        <div class="inspector-nav-tabs">
-          <button class="inspector-tab-btn active" id="tab-btn-explorer">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg>
+      <!-- Right Inspector -->
+      <aside class="inspector-card" aria-label="Inspector">
+        <div class="inspector-nav-tabs" role="tablist" aria-label="Inspector panels">
+          <button type="button" class="inspector-tab-btn active" id="tab-btn-explorer" role="tab" aria-selected="true" aria-controls="pane-explorer" tabindex="0">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg>
             <span>Project Explorer</span>
-            <span class="badge-count">35</span>
+            <span class="badge-count" id="explorer-file-count" aria-label="files">0</span>
           </button>
-          <button class="inspector-tab-btn" id="tab-btn-source">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="11"/><circle cx="8" cy="5" r="0.75" fill="currentColor"/></svg>
+          <button type="button" class="inspector-tab-btn" id="tab-btn-source" role="tab" aria-selected="false" aria-controls="pane-source" tabindex="-1">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="11"/><circle cx="8" cy="5" r="0.75" fill="currentColor"/></svg>
             <span>Details</span>
           </button>
         </div>
 
-        <!-- Tab 1: VS Code / Android Studio File Hierarchy Tree -->
-        <div class="inspector-tab-pane active" id="pane-explorer">
+        <!-- Tab 1: File Hierarchy Tree -->
+        <div class="inspector-tab-pane active" id="pane-explorer" role="tabpanel" aria-labelledby="tab-btn-explorer">
           <div class="tree-explorer-header">
             <span>REPOSITORY FILES</span>
           </div>
           <div id="file-tree-container" class="file-tree-scroll-container"></div>
         </div>
 
-        <!-- Tab 2: Code Synchronizer & Metrics -->
-        <div class="inspector-tab-pane" id="pane-source" style="display: none;">
+        <!-- Tab 2: Element Details -->
+        <div class="inspector-tab-pane" id="pane-source" role="tabpanel" aria-labelledby="tab-btn-source" style="display: none;" hidden>
           <div class="inspector-card-header">
-            <div class="inspector-headline-title" id="inspect-headline">VideoConversionFacade.java</div>
-            <div class="inspector-sub-caption" id="inspect-meta">Hover or select a node in canvas</div>
+            <div class="inspector-headline-title" id="inspect-headline">No element selected</div>
+            <div class="inspector-sub-caption" id="inspect-meta">Select an element in the canvas</div>
           </div>
 
           <div class="inspector-data-body">
             <div class="data-row">
               <span class="data-label">Entity Kind</span>
-              <span class="data-value" id="prop-kind">CLASS</span>
+              <span class="data-value" id="prop-kind">—</span>
             </div>
             <div class="data-row">
-              <span class="data-label">#SAT Feasible Paths</span>
-              <span class="data-value" id="prop-sat">3 Feasible</span>
+              <span class="data-label">Declared At</span>
+              <span class="data-value" id="prop-anchor">—</span>
+            </div>
+            <div class="data-row">
+              <span class="data-label">Container</span>
+              <span class="data-value" id="prop-container">—</span>
+            </div>
+            <div class="data-row">
+              <span class="data-label">#SAT Paths</span>
+              <span class="data-value" id="prop-sat">—</span>
             </div>
             <div class="data-row">
               <span class="data-label">Immediate Dominator</span>
-              <span class="data-value" id="prop-idom">Block #0 (Entry)</span>
+              <span class="data-value" id="prop-idom">—</span>
             </div>
             <div class="data-row">
-              <span class="data-label">Branch Guard</span>
-              <span class="data-value" id="prop-predicate">fileName != null &amp;&amp; format != null</span>
+              <span class="data-label">Branch Guard / v(G)</span>
+              <span class="data-value" id="prop-predicate">—</span>
             </div>
           </div>
         </div>
 
         <div class="monaco-editor-card">
           <div class="monaco-breadcrumb-bar">
-            <span class="breadcrumb-root" id="breadcrumb-root"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg> <span id="breadcrumb-root-label">Workspace</span></span>
-            <span class="breadcrumb-divider" id="breadcrumb-divider-pkg">/</span>
-            <span class="breadcrumb-pkg" id="breadcrumb-package">Package</span>
-            <span class="breadcrumb-divider" id="breadcrumb-divider-file">/</span>
-            <span class="breadcrumb-file" id="breadcrumb-filename">Ready</span>
+            <span class="breadcrumb-root" id="breadcrumb-root"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.2a1 1 0 0 1 .7.3l1.2 1.2h6.9a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-12a1 1 0 0 1-1-1z"/></svg> <span id="breadcrumb-root-label">Workspace</span></span>
+            <span class="breadcrumb-divider" id="breadcrumb-divider-pkg" aria-hidden="true">/</span>
+            <span class="breadcrumb-pkg" id="breadcrumb-package"></span>
+            <span class="breadcrumb-divider" id="breadcrumb-divider-file" aria-hidden="true">/</span>
+            <span class="breadcrumb-file" id="breadcrumb-filename">No source</span>
           </div>
           <div class="monaco-tab-bar">
             <div class="editor-tab-left">
-              <span id="editor-filename">Ready</span>
+              <span id="editor-filename">No source</span>
             </div>
             <div class="editor-tab-right">
               <div class="code-font-controls">
-                <button type="button" class="btn-code-tool" id="btn-code-font-dec" title="Decrease font size">A−</button>
+                <button type="button" class="btn-code-tool" id="btn-code-font-dec" title="Decrease font size" aria-label="Decrease font size">A−</button>
                 <span id="code-font-val" class="code-tool-label">11.5px</span>
-                <button type="button" class="btn-code-tool" id="btn-code-font-inc" title="Increase font size">A+</button>
+                <button type="button" class="btn-code-tool" id="btn-code-font-inc" title="Increase font size" aria-label="Increase font size">A+</button>
               </div>
-              <button type="button" class="btn-code-tool" id="btn-code-wrap" title="Toggle Word Wrap">Wrap</button>
-              <button type="button" class="btn-code-tool" id="btn-code-copy" title="Copy Code to Clipboard"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M2.5 10.5v-7a1 1 0 0 1 1-1h7"/></svg> Copy</button>
-              <span class="sync-status-pill">Synchronized</span>
+              <button type="button" class="btn-code-tool" id="btn-code-wrap" title="Toggle Word Wrap" aria-pressed="false">Wrap</button>
+              <button type="button" class="btn-code-tool" id="btn-code-copy" title="Copy Code to Clipboard"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="studio-icon" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M2.5 10.5v-7a1 1 0 0 1 1-1h7"/></svg> Copy</button>
+              <span class="sync-status-pill" id="editor-sync-status" data-state="idle">Idle</span>
             </div>
           </div>
           <div id="monaco-container"></div>
@@ -390,1115 +393,36 @@
 
     </main>
 
-    <!-- ── Modern Status Bar Footer ── -->
+    <!-- ── Status Bar Footer ── -->
     <footer class="app-footer">
       <div>
-        <span>Compiler Engine: 10-Phase Pipeline</span>
-        <span style="margin: 0 8px;">·</span>
-        <span>Cooper Dominators + ROBDD Active</span>
+        <span id="footer-provenance">Analysis source: bundled sample diagrams</span>
       </div>
       <div>
-        <span>OpenHeart Research Project · 2026 Production Build</span>
+        <span>OpenHeart Research Project</span>
       </div>
     </footer>
 
   </div>
 
-  <!-- Application Bootstrap Module -->
-  <script type="module">
-    import { Icons } from './js/icons.js';
-    import { InteractiveGraphCanvas } from './js/graph-canvas.js';
-    import { SourceEditorModule } from './js/editor.js';
-    import { FileTreeExplorer } from './js/file-tree.js';
-    import { GitHubEngine } from './js/github-engine.js';
-    import { initTheme, toggleTheme, onThemeChange, fetchManifest, getCachedManifest, isDarkMode } from './js/themes/index.js';
-
-    window.addEventListener('DOMContentLoaded', async () => {
-      const canvas = new InteractiveGraphCanvas('interactive-canvas');
-      const editor = new SourceEditorModule('monaco-container');
-
-      // ── 1. Fetch Declarative Manifest (Zero Hardcoding) ──
-      const manifest = await fetchManifest();
-
-      // ── 2. Dynamically Render Sidebar from Manifest ──
-      const sidebarNav = document.getElementById('sidebar-diagram-categories');
-      const savedGraph = localStorage.getItem('openheart_active_graph') || 'class';
-      canvas.currentGraphType = savedGraph;
-
-      function renderSidebarFromManifest(manifestData) {
-        if (!sidebarNav || !manifestData || !manifestData.categories) return;
-        sidebarNav.innerHTML = '';
-        manifestData.categories.forEach(cat => {
-          const catTitle = document.createElement('div');
-          catTitle.className = 'sidebar-category-title';
-          if (sidebarNav.children.length > 0) catTitle.style.marginTop = '18px';
-          catTitle.innerHTML = `<span>${cat.title}</span><span class="phase-chip">${cat.badge}</span>`;
-          sidebarNav.appendChild(catTitle);
-
-          const ul = document.createElement('ul');
-          ul.className = 'sidebar-nav-list';
-
-          cat.diagrams.forEach(diag => {
-            const li = document.createElement('li');
-            const btn = document.createElement('button');
-            btn.className = `sidebar-tab-btn ${diag.id === savedGraph ? 'active' : ''}`;
-            btn.setAttribute('data-graph-type', diag.id);
-            btn.innerHTML = `<span>${diag.number}. ${diag.name}</span><span class="phase-chip">${diag.phase}</span>`;
-
-            btn.addEventListener('click', () => {
-              document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
-              btn.classList.add('active');
-              localStorage.setItem('openheart_active_graph', diag.id);
-              canvas.renderGraph(diag.id);
-              if (canvas.customGraphIr) {
-                const customName = sessionStorage.getItem('openheart_custom_name') || 'Local Codebase';
-                const hudText = document.getElementById('hud-status-text');
-                if (hudText) {
-                  hudText.innerHTML = `Active codebase: <strong>${customName}</strong> · ${diag.name} (${diag.phase})`;
-                }
-              }
-            });
-
-            li.appendChild(btn);
-            ul.appendChild(li);
-          });
-
-          sidebarNav.appendChild(ul);
-        });
-      }
-
-      renderSidebarFromManifest(manifest || getCachedManifest());
-
-      function updateStudioBreadcrumbs(selectedFile, nodeData) {
-        const rootLabel = document.getElementById('breadcrumb-root-label');
-        const pkgEl = document.getElementById('breadcrumb-package');
-        const fileEl = document.getElementById('breadcrumb-filename');
-        const divPkg = document.getElementById('breadcrumb-divider-pkg');
-        const divFile = document.getElementById('breadcrumb-divider-file');
-        const editorFilename = document.getElementById('editor-filename');
-
-        // Resolve active root name
-        let rootName = (typeof fileTree !== 'undefined' && fileTree && fileTree.treeData && fileTree.treeData.name) || sessionStorage.getItem('openheart_custom_name');
-        if (!rootName || rootName === 'Local Codebase' || rootName === 'OpenHeart') {
-          const inputEl = document.getElementById('input-repo-url');
-          if (inputEl && inputEl.value) {
-            const v = inputEl.value.replace(' (Active Codebase)', '').trim();
-            const match = v.match(/github\.com\/[^\/]+\/([^\/\?#]+)/);
-            rootName = match ? match[1].replace(/\.git$/, '') : (v || 'Workspace');
-          } else {
-            rootName = 'Workspace';
-          }
-        }
-
-        if (rootLabel) rootLabel.textContent = rootName;
-
-        if (!selectedFile) {
-          if (pkgEl) pkgEl.style.display = 'none';
-          if (divPkg) divPkg.style.display = 'none';
-          if (divFile) divFile.style.display = 'none';
-          if (fileEl) fileEl.textContent = 'Ready';
-          if (editorFilename) editorFilename.textContent = 'Ready';
-          return;
-        }
-
-        const normalized = selectedFile.replace(/\\/g, '/').replace(/^\/+/, '');
-        let parts = normalized.split('/').filter(Boolean);
-
-        // Strip project root prefix if present in file path
-        if (parts.length > 1 && parts[0].toLowerCase() === rootName.toLowerCase()) {
-          parts = parts.slice(1);
-        }
-
-        const baseFileName = parts.length > 0 ? parts[parts.length - 1] : selectedFile;
-        const folderParts = parts.slice(0, parts.length - 1);
-
-        if (editorFilename) {
-          editorFilename.textContent = baseFileName;
-          editorFilename.title = normalized;
-        }
-
-        if (fileEl) {
-          fileEl.textContent = baseFileName;
-          fileEl.title = normalized;
-        }
-
-        let folderText = '';
-        if (folderParts.length > 0) {
-          folderText = folderParts.join(' / ');
-        } else if (nodeData && nodeData.parent) {
-          folderText = nodeData.parent.replace(/^pkg_/, '').replace(/_/g, ' / ');
-        }
-
-        if (pkgEl) {
-          if (folderText) {
-            pkgEl.textContent = folderText;
-            pkgEl.style.display = '';
-            if (divPkg) divPkg.style.display = '';
-            if (divFile) divFile.style.display = '';
-          } else {
-            pkgEl.textContent = '';
-            pkgEl.style.display = 'none';
-            if (divPkg) divPkg.style.display = 'none';
-            if (divFile) divFile.style.display = '';
-          }
-        }
-      }
-
-      const fileTree = new FileTreeExplorer('file-tree-container', (selectedFile, fileEntry) => {
-        const nodeData = fileEntry?.data || canvas.getNodeDataByFile(selectedFile) || canvas.getNodeDataById(fileEntry?.nodeId);
-        editor.loadFile(selectedFile, nodeData, [1, 5]);
-        canvas.focusNodeByFile(selectedFile);
-        
-        updateStudioBreadcrumbs(selectedFile, nodeData);
-        if (nodeData) {
-          document.getElementById('prop-kind').innerText = (nodeData.kind || 'CLASS').toUpperCase();
-        }
-      });
-
-      // Dynamic tree updater on graph render
-      canvas.setRenderCompleteCallback((elements) => {
-        fileTree.updateFromElements(elements);
-        const countBadge = document.querySelector('.badge-count');
-        if (countBadge) {
-          const fileCount = elements.filter(e => e.data && e.data.file && !e.data.isPackage && !e.data.source).length;
-          countBadge.textContent = fileCount.toString();
-        }
-        const rootLabel = document.getElementById('breadcrumb-root-label');
-        if (rootLabel && fileTree.treeData && fileTree.treeData.name) {
-          rootLabel.textContent = fileTree.treeData.name;
-        }
-      });
-
-      // Pan Sensitivity Slider Control (1% - 50%, Default: 10%)
-      const panSlider = document.getElementById('pan-sensitivity-slider');
-      const panValLabel = document.getElementById('pan-sensitivity-val');
-      if (panSlider && panValLabel) {
-        const savedPan = localStorage.getItem('openheart_pan_sensitivity') || '0.10';
-        panSlider.value = savedPan;
-        const pct = Math.round(parseFloat(savedPan) * 100);
-        panValLabel.textContent = `${pct}%`;
-        canvas.setPanSensitivity(parseFloat(savedPan));
-
-        panSlider.addEventListener('input', (e) => {
-          const val = parseFloat(e.target.value);
-          const percent = Math.round(val * 100);
-          panValLabel.textContent = `${percent}%`;
-          canvas.setPanSensitivity(val);
-        });
-      }
-
-      // Inspector Tab Switching
-      const tabExplorer = document.getElementById('tab-btn-explorer');
-      const tabSource = document.getElementById('tab-btn-source');
-      const paneExplorer = document.getElementById('pane-explorer');
-      const paneSource = document.getElementById('pane-source');
-
-      tabExplorer.addEventListener('click', () => {
-        tabExplorer.classList.add('active');
-        tabSource.classList.remove('active');
-        paneExplorer.style.display = 'block';
-        paneSource.style.display = 'none';
-      });
-
-      tabSource.addEventListener('click', () => {
-        tabSource.classList.add('active');
-        tabExplorer.classList.remove('active');
-        paneSource.style.display = 'block';
-        paneExplorer.style.display = 'none';
-      });
-
-      // ── Persistent Custom Codebase Restoration (Preserves loaded codebase across reloads) ──
-      const savedCustomIr = sessionStorage.getItem('openheart_custom_graph_ir');
-      if (savedCustomIr) {
-        try {
-          const parsedIr = JSON.parse(savedCustomIr);
-          const customName = sessionStorage.getItem('openheart_custom_name') || 'Local Codebase';
-          canvas.customGraphIr = parsedIr;
-
-          const savedFiles = sessionStorage.getItem('openheart_custom_files');
-          if (savedFiles) {
-            const fileEntries = JSON.parse(savedFiles);
-            editor.setMultipleSources(new Map(fileEntries));
-          }
-
-          const inputEl = document.getElementById('input-repo-url');
-          if (inputEl) {
-            inputEl.value = `${customName} (Active Codebase)`;
-          }
-
-          const hudText = document.getElementById('hud-status-text');
-          if (hudText) {
-            hudText.innerHTML = `Persistent codebase restored: <strong>${customName}</strong> · Ready`;
-          }
-        } catch (restoreErr) {
-          console.warn('[OpenHeart Studio] Failed restoring custom codebase from storage:', restoreErr);
-        }
-      }
-
-      canvas.init();
-      editor.init();
-
-      // Hook canvas selection to Monaco editor and File Tree Explorer dynamically
-      canvas.setNodeSelectCallback((nodeData) => {
-        const fileName = nodeData.file || (nodeData.id ? `${nodeData.id}.java` : 'Source.java');
-        updateStudioBreadcrumbs(fileName, nodeData);
-        if (typeof fileTree !== 'undefined' && fileTree) {
-          fileTree.selectFile(fileName, nodeData.id);
-        }
-
-        const labelHeader = nodeData.textLabel ? nodeData.textLabel.split('\n')[0] : (nodeData.label ? nodeData.label.split('\n')[0] : nodeData.id);
-        document.getElementById('inspect-headline').innerText = labelHeader;
-        document.getElementById('inspect-meta').innerText = `ID: ${nodeData.id} | Kind: ${nodeData.kind || 'node'}`;
-        
-        const nodeKinds = manifest?.node_kinds || {};
-        const kindConf = nodeKinds[nodeData.kind] || { label: (nodeData.kind || 'CLASS').toUpperCase() };
-        document.getElementById('prop-kind').innerText = kindConf.label.toUpperCase();
-
-        // Rich compiler metrics
-        if (nodeData.bddSatCount !== undefined) {
-          document.getElementById('prop-sat').innerText = `${nodeData.bddSatCount} Paths Verified`;
-        } else {
-          document.getElementById('prop-sat').innerText = `1 Canonical SAT`;
-        }
-        if (nodeData.idomRank !== undefined) {
-          document.getElementById('prop-idom').innerText = `Rank #${nodeData.idomRank} (Cooper IDOM)`;
-        } else {
-          document.getElementById('prop-idom').innerText = nodeData.parent ? `Parent: ${nodeData.parent}` : `Root Tier`;
-        }
-        if (nodeData.cyclomatic !== undefined) {
-          document.getElementById('prop-predicate').innerText = `v(G) = ${nodeData.cyclomatic}`;
-        } else {
-          document.getElementById('prop-predicate').innerText = `Invariant Verified (ROBDD Sat)`;
-        }
-
-        fileTree.selectFile(fileName);
-        editor.loadFile(fileName, nodeData, nodeData.lines || [1]);
-      });
-
-      canvas.setNodeHoverCallback((nodeData) => {
-        const hudText = document.getElementById('hud-status-text');
-        if (hudText) {
-          const title = nodeData.textLabel ? nodeData.textLabel.split('\n')[0] : (nodeData.label ? nodeData.label.split('\n')[0] : nodeData.id);
-          hudText.innerHTML = `Path Illuminated: <strong>${title}</strong>`;
-        }
-      });
-
-      // ── Relationship Layers & Checklist Filter Synchronizer (100% Manifest Driven) ──
-      const layersPanel = document.getElementById('canvas-layers-panel');
-      const layersContainer = document.getElementById('layers-checklist-container');
-      const layersTotalCount = document.getElementById('layers-total-count');
-
-      canvas.setLayersUpdateCallback((activeKinds) => {
-        if (!layersContainer) return;
-        layersContainer.innerHTML = '';
-
-        if (!activeKinds || activeKinds.length === 0) {
-          if (layersPanel) layersPanel.style.display = 'none';
-          return;
-        }
-
-        if (layersPanel) layersPanel.style.display = 'flex';
-        let totalEdges = 0;
-        const relTypes = manifest?.relationship_types || {};
-        const isDark = isDarkMode();
-
-        activeKinds.forEach(item => {
-          totalEdges += item.count;
-          const conf = relTypes[item.kind] || {
-            label: `${item.kind.toUpperCase()} (-->)`,
-            icon: '→',
-            color_light: '#334155',
-            color_dark: '#94A3B8'
-          };
-          const color = isDark ? (conf.color_dark || '#38BDF8') : (conf.color_light || '#0284C7');
-
-          const chip = document.createElement('label');
-          chip.className = `layer-chip-label ${item.visible ? '' : 'unchecked'}`;
-          chip.setAttribute('data-kind', item.kind);
-          chip.style.borderLeft = `3px solid ${color}`;
-
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.checked = item.visible;
-          checkbox.style.accentColor = color;
-
-          checkbox.addEventListener('change', () => {
-            const isChecked = checkbox.checked;
-            canvas.setEdgeFilter(item.kind, isChecked);
-            chip.classList.toggle('unchecked', !isChecked);
-          });
-
-          const span = document.createElement('span');
-          span.style.display = 'inline-flex';
-          span.style.alignItems = 'center';
-          span.style.gap = '5px';
-          span.innerHTML = `<span style="display:inline-block; width:7px; height:7px; border-radius:50%; background-color:${color}; box-shadow:0 0 5px ${color};"></span><strong style="color:${color}; font-size:12px; font-weight:800;">${conf.icon || '→'}</strong> <span>${conf.label || item.kind}</span> <span style="opacity: 0.7; font-size: 9.5px; font-weight:700;">(${item.count})</span>`;
-
-          chip.appendChild(checkbox);
-          chip.appendChild(span);
-          layersContainer.appendChild(chip);
-        });
-
-        if (layersTotalCount) {
-          layersTotalCount.innerText = `${totalEdges} RELATIONS`;
-        }
-      });
-
-      // Quick Actions: Select All / Deselect All
-      document.getElementById('btn-layers-all').addEventListener('click', () => {
-        document.querySelectorAll('#layers-checklist-container .layer-chip-label').forEach(chip => {
-          const kind = chip.getAttribute('data-kind');
-          const cb = chip.querySelector('input[type="checkbox"]');
-          if (cb) cb.checked = true;
-          chip.classList.remove('unchecked');
-          canvas.setEdgeFilter(kind, true);
-        });
-      });
-
-      document.getElementById('btn-layers-none').addEventListener('click', () => {
-        document.querySelectorAll('#layers-checklist-container .layer-chip-label').forEach(chip => {
-          const kind = chip.getAttribute('data-kind');
-          const cb = chip.querySelector('input[type="checkbox"]');
-          if (cb) cb.checked = false;
-          chip.classList.add('unchecked');
-          canvas.setEdgeFilter(kind, false);
-        });
-      });
-
-      // Theme toggle handler (Dark / Light Mode)
-      const btnTheme = document.getElementById('btn-theme-toggle');
-      onThemeChange((theme, isDark) => {
-        if (btnTheme) {
-          const iconSpan = btnTheme.querySelector('#theme-toggle-icon');
-          const labelSpan = btnTheme.querySelector('#theme-toggle-label');
-          if (iconSpan) iconSpan.innerHTML = isDark ? Icons.sun : Icons.moon;
-          if (labelSpan) labelSpan.textContent = isDark ? 'Light' : 'Dark';
-        }
-      });
-      initTheme();
-
-      if (btnTheme) {
-        btnTheme.addEventListener('click', () => {
-          toggleTheme();
-        });
-      }
-
-      // HUD Zoom Controls
-      document.getElementById('btn-zoom-in').addEventListener('click', () => canvas.zoomIn());
-      document.getElementById('btn-zoom-out').addEventListener('click', () => canvas.zoomOut());
-      document.getElementById('btn-zoom-reset').addEventListener('click', () => canvas.resetView());
-
-      // ── Dynamic GitHub Import & Analyze Action with Live Progress ──
-      const importRepo = async (repoUrl) => {
-        const hudText = document.getElementById('hud-status-text');
-        const hashBadge = document.getElementById('header-hash-badge');
-        const btnImport = document.getElementById('btn-import-repo');
-        const progressTrack = document.getElementById('clone-progress-bar-container');
-        const progressFill = document.getElementById('clone-progress-fill');
-
-        // Guard against analyzing active local codebase as a GitHub URL
-        if (repoUrl.startsWith('local:') || repoUrl.includes('(Active Codebase)') || repoUrl.includes('(Local Codebase)') || (canvas.customGraphIr && !repoUrl.startsWith('http') && !repoUrl.includes('/'))) {
-          if (canvas.customGraphIr) {
-            const cbName = sessionStorage.getItem('openheart_custom_name') || canvas.customGraphIr.title || 'Local Codebase';
-            hudText.innerHTML = `Active codebase: <strong>${cbName}</strong> · Rendering ${canvas.currentGraphType.toUpperCase()}`;
-            await canvas.renderGraph(canvas.currentGraphType);
-            return;
-          } else {
-            hudText.innerHTML = `<span style="color: var(--accent-amber);">Select your local folder using the Folder button above.</span>`;
-            return;
-          }
-        }
-
-        const parts = repoUrl.trim().split('/');
-        const repoName = parts[parts.length - 1] || 'repository';
-
-        if (btnImport) {
-          btnImport.disabled = true;
-          btnImport.innerHTML = '<span class="btn-spinner"></span> Cloning 10%';
-        }
-        if (progressTrack) progressTrack.classList.add('active');
-        if (progressFill) progressFill.style.width = '10%';
-
-        const startTime = Date.now();
-        let progress = 10;
-
-        const phases = [
-          { p: 25, label: `[1/5] Connecting to GitHub & Cloning repository...` },
-          { p: 45, label: `[2/5] Scanning source tree & parsing ASTs...` },
-          { p: 70, label: `[3/5] Compiling SCPG program graphs (Dominators, SSA, ROBDD)...` },
-          { p: 90, label: `[4/5] Synthesizing deterministic UML 2.5 projections & layouts...` }
-        ];
-
-        let phaseIdx = 0;
-        hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${phases[0].label} <span style="opacity:0.75; font-size:10px;">(0.0s)</span>`;
-
-        let progressInterval = setInterval(() => {
-          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-          if (phaseIdx < phases.length) {
-            const curPhase = phases[phaseIdx];
-            if (progress < curPhase.p) {
-              progress += 2;
-            } else if (phaseIdx + 1 < phases.length) {
-              phaseIdx++;
-            }
-            if (progressFill) progressFill.style.width = `${progress}%`;
-            if (btnImport) btnImport.innerHTML = `<span class="btn-spinner"></span> ${progress}%`;
-            hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${phases[phaseIdx].label} <span style="opacity:0.75; font-size:10px;">(${elapsed}s)</span>`;
-          } else {
-            if (progress < 95) progress += 0.5;
-            if (progressFill) progressFill.style.width = `${progress}%`;
-            if (btnImport) btnImport.innerHTML = `<span class="btn-spinner"></span> ${Math.floor(progress)}%`;
-            hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: Finalizing graph export... <span style="opacity:0.75; font-size:10px;">(${elapsed}s)</span>`;
-          }
-        }, 120);
-
-        try {
-          // Attempt 1: Connect to local or cloud Rust backend daemon
-          let backendSucceeded = false;
-          let backendData = null;
-
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-            const res = await fetch('/api/analyze', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                repo_url: repoUrl,
-                diagram_types: ['class', 'package', 'component', 'activity', 'sequence', 'statemachine']
-              }),
-              signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-
-            if (res.ok) {
-              backendData = await res.json();
-              if (backendData.status === 'success' || !backendData.errors || backendData.errors.length === 0) {
-                backendSucceeded = true;
-              }
-            }
-          } catch (backendFetchErr) {
-            // Local backend not reachable — fallback to GitHub Engine
-            console.log('[OpenHeart Studio] Backend daemon offline, activating in-browser GitHub Engine.');
-          }
-
-          clearInterval(progressInterval);
-
-          if (backendSucceeded && backendData) {
-            if (progressFill) progressFill.style.width = '100%';
-            const scpgHash = '0x' + (backendData.session_id ? backendData.session_id.slice(-8).toUpperCase() : '9BAF8700');
-            hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
-            
-            const filesCount = backendData.stats ? backendData.stats.files_processed : 0;
-            const classesCount = backendData.stats ? backendData.stats.total_classes : 0;
-            const timeMs = backendData.stats ? backendData.stats.execution_time_ms : 0;
-            const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-            hudText.innerHTML = `[5/5] SCPG Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${timeMs}ms / ${totalSec}s total) · Ready`;
-            addToProjectHistory({
-              id: repoUrl,
-              name: repoName,
-              type: 'github',
-              icon: 'github',
-              url: repoUrl,
-              badge: 'GitHub'
-            });
-            await canvas.renderGraph(canvas.currentGraphType);
-          } else {
-            // Attempt 2: Zero-Backend In-Browser GitHub Engine (GitHub Pages Native)
-            hudText.innerHTML = `Activating GitHub Client Engine for <strong>${repoName}</strong>...`;
-            
-            const ghResult = await GitHubEngine.analyzeGitHubRepo(repoUrl, (pct, msg) => {
-              if (progressFill) progressFill.style.width = `${pct}%`;
-              if (btnImport) btnImport.innerHTML = `<span class="btn-spinner"></span> ${pct}%`;
-              hudText.innerHTML = `Cloning &amp; Analyzing <strong>${repoName}</strong>: ${msg}`;
-            });
-
-            if (progressFill) progressFill.style.width = '100%';
-            const scpgHash = '0x' + (ghResult.session_id ? ghResult.session_id.slice(-8).toUpperCase() : '9BAF8700');
-            hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
-            
-            const filesCount = ghResult.stats ? ghResult.stats.files_processed : 0;
-            const classesCount = ghResult.stats ? ghResult.stats.total_classes : 0;
-            const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-            hudText.innerHTML = `[5/5] In-Browser Graph Generated for <strong>${repoName}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
-            addToProjectHistory({
-              id: repoUrl,
-              name: repoName,
-              type: 'github',
-              icon: 'github',
-              url: repoUrl,
-              badge: 'GitHub'
-            });
-            await canvas.renderCustomGraphIr(ghResult.graph_ir);
-          }
-
-        } catch (err) {
-          clearInterval(progressInterval);
-          console.error('[OpenHeart Studio] Repo analysis error:', err);
-          hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}</span>`;
-        } finally {
-          setTimeout(() => {
-            if (progressTrack) progressTrack.classList.remove('active');
-            if (progressFill) progressFill.style.width = '0%';
-          }, 800);
-          if (btnImport) {
-            btnImport.disabled = false;
-            btnImport.innerHTML = 'Analyze Repo';
-          }
-        }
-      };
-
-
-      // ── Custom Local Folder & ZIP Codebase Ingestion ──
-      const importCustomCodebase = async (fileItems, name) => {
-        const hudText = document.getElementById('hud-status-text');
-        const hashBadge = document.getElementById('header-hash-badge');
-        const progressTrack = document.getElementById('clone-progress-bar-container');
-        const progressFill = document.getElementById('clone-progress-fill');
-        const startTime = Date.now();
-
-        if (progressTrack) progressTrack.classList.add('active');
-        if (progressFill) progressFill.style.width = '15%';
-
-        try {
-          hudText.innerHTML = `Ingesting &amp; analyzing codebase: <strong>${name}</strong>...`;
-
-          const result = await GitHubEngine.analyzeSourceFiles(fileItems, name, (pct, msg) => {
-            if (progressFill) progressFill.style.width = `${pct}%`;
-            hudText.innerHTML = `Analyzing <strong>${name}</strong>: ${msg}`;
-          });
-
-          // Cache source code in Monaco editor
-          if (result.fileCache) {
-            editor.setMultipleSources(result.fileCache);
-          }
-
-          // Persist to sessionStorage so all 19 diagram types and page reloads keep this codebase active!
-          try {
-            sessionStorage.setItem('openheart_custom_graph_ir', JSON.stringify(result.graph_ir));
-            sessionStorage.setItem('openheart_custom_name', name);
-            if (result.fileCache) {
-              sessionStorage.setItem('openheart_custom_files', JSON.stringify(Array.from(result.fileCache.entries())));
-            }
-          } catch (storageErr) {
-            console.warn('[OpenHeart Studio] Could not save custom codebase to sessionStorage:', storageErr);
-          }
-
-          if (progressFill) progressFill.style.width = '100%';
-          const scpgHash = '0x' + (result.session_id ? result.session_id.slice(-8).toUpperCase() : '9BAF8700');
-          hashBadge.innerText = `SCPG ${scpgHash} · Verified`;
-
-          const filesCount = result.stats ? result.stats.files_processed : 0;
-          const classesCount = result.stats ? result.stats.total_classes : 0;
-          const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-          hudText.innerHTML = `[5/5] In-Browser Graph Generated for <strong>${name}</strong> (${filesCount} files, ${classesCount} classes in ${totalSec}s) · Ready`;
-          document.getElementById('input-repo-url').value = `${name} (Active Codebase)`;
-
-          addToProjectHistory({
-            id: name,
-            name: name,
-            type: 'local',
-            icon: 'folder',
-            url: `${name} (Active Codebase)`,
-            badge: 'Local Codebase'
-          });
-
-          await canvas.renderCustomGraphIr(result.graph_ir);
-        } catch (err) {
-          console.error('[OpenHeart Studio] Codebase import error:', err);
-          hudText.innerHTML = `<span style="color: #f87171;">Analysis Failed: ${err.message}</span>`;
-        } finally {
-          setTimeout(() => {
-            if (progressTrack) progressTrack.classList.remove('active');
-            if (progressFill) progressFill.style.width = '0%';
-          }, 800);
-        }
-      };
-
-      // Folder Picker Action
-      const inputFolder = document.getElementById('input-folder-picker');
-      const btnFolder = document.getElementById('btn-import-folder');
-      if (btnFolder && inputFolder) {
-        btnFolder.addEventListener('click', () => {
-          inputFolder.value = '';
-          inputFolder.click();
-        });
-
-        inputFolder.addEventListener('change', async (e) => {
-          const files = Array.from(e.target.files || []);
-          if (files.length === 0) return;
-          const firstPath = files[0].webkitRelativePath || files[0].name;
-          const folderName = firstPath.split('/')[0] || 'LocalFolder';
-
-          const fileItems = files.map(f => ({
-            path: f.webkitRelativePath || f.name,
-            getText: () => f.text()
-          }));
-
-          await importCustomCodebase(fileItems, folderName);
-        });
-      }
-
-      // ZIP Picker Action
-      const inputZip = document.getElementById('input-zip-picker');
-      const btnZip = document.getElementById('btn-import-zip');
-      if (btnZip && inputZip) {
-        btnZip.addEventListener('click', () => {
-          inputZip.value = '';
-          inputZip.click();
-        });
-
-        inputZip.addEventListener('change', async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const zipName = file.name.replace(/\.zip$/i, '');
-
-          if (typeof JSZip === 'undefined') {
-            alert('JSZip library is still loading. Please try again in a moment.');
-            return;
-          }
-
-          const hudText = document.getElementById('hud-status-text');
-          hudText.innerHTML = `Unpacking ZIP archive: <strong>${file.name}</strong>...`;
-
-          try {
-            const zip = await JSZip.loadAsync(file);
-            const fileItems = [];
-            zip.forEach((relPath, zipEntry) => {
-              if (!zipEntry.dir) {
-                fileItems.push({
-                  path: relPath,
-                  getText: () => zipEntry.async('string')
-                });
-              }
-            });
-
-            await importCustomCodebase(fileItems, zipName);
-          } catch (zipErr) {
-            console.error('[OpenHeart Studio] ZIP read error:', zipErr);
-            hudText.innerHTML = `<span style="color: #f87171;">Failed to read ZIP: ${zipErr.message}</span>`;
-          }
-        });
-      }
-
-      // Drag and Drop ZIP / Folder onto window
-      window.addEventListener('dragover', (e) => e.preventDefault());
-      window.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        const files = Array.from(e.dataTransfer?.files || []);
-        if (files.length === 0) return;
-
-        const zipFile = files.find(f => f.name.toLowerCase().endsWith('.zip'));
-        if (zipFile && typeof JSZip !== 'undefined') {
-          const zipName = zipFile.name.replace(/\.zip$/i, '');
-          const zip = await JSZip.loadAsync(zipFile);
-          const fileItems = [];
-          zip.forEach((relPath, zipEntry) => {
-            if (!zipEntry.dir) {
-              fileItems.push({
-                path: relPath,
-                getText: () => zipEntry.async('string')
-              });
-            }
-          });
-          await importCustomCodebase(fileItems, zipName);
-        } else if (files.length > 0 && files[0].webkitRelativePath) {
-          const folderName = files[0].webkitRelativePath.split('/')[0] || 'LocalFiles';
-          const fileItems = files.map(f => ({
-            path: f.webkitRelativePath || f.name,
-            getText: () => f.text()
-          }));
-          await importCustomCodebase(fileItems, folderName);
-        }
-      });
-
-      const inputRepoEl = document.getElementById('input-repo-url');
-      if (inputRepoEl) {
-        inputRepoEl.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            const url = inputRepoEl.value.trim();
-            if (url) importRepo(url);
-          }
-        });
-      }
-
-      document.getElementById('btn-import-repo').addEventListener('click', () => {
-        const url = document.getElementById('input-repo-url').value.trim();
-        if (url) {
-          importRepo(url);
-        }
-      });
-
-      document.querySelectorAll('.preset-chip').forEach(chip => {
-        chip.addEventListener('click', (e) => {
-          // Clear custom codebase state when user explicitly chooses a preset
-          canvas.customGraphIr = null;
-          try {
-            sessionStorage.removeItem('openheart_custom_graph_ir');
-            sessionStorage.removeItem('openheart_custom_name');
-            sessionStorage.removeItem('openheart_custom_files');
-          } catch (e) {}
-
-          const chipEl = e.currentTarget;
-          const repo = chipEl.getAttribute('data-repo');
-          let targetUrl = 'https://github.com/spring-projects/spring-petclinic';
-          if (repo === 'patterns') {
-            targetUrl = 'https://github.com/iluwatar/java-design-patterns';
-          } else if (repo === 'fractal') {
-            targetUrl = 'https://github.com/Fractal-Compute-Orchestrations/FractalAndroid';
-          } else if (repo !== 'petclinic') {
-            targetUrl = 'https://github.com/example/payment-service';
-          }
-          document.getElementById('input-repo-url').value = targetUrl;
-          importRepo(targetUrl);
-        });
-      });
-
-      // ── Project History & Recent Projects Dropdown ──
-      function getProjectHistory() {
-        try {
-          return JSON.parse(localStorage.getItem('openheart_project_history') || '[]');
-        } catch (e) {
-          return [];
-        }
-      }
-
-      function addToProjectHistory(item) {
-        let history = getProjectHistory();
-        history = history.filter(h => h.id !== item.id && h.name !== item.name);
-        history.unshift(item);
-        if (history.length > 8) history = history.slice(0, 8);
-        try {
-          localStorage.setItem('openheart_project_history', JSON.stringify(history));
-        } catch (e) {}
-        renderProjectHistoryDropdown();
-      }
-
-      function renderProjectHistoryDropdown() {
-        const dropdown = document.getElementById('repo-history-dropdown');
-        if (!dropdown) return;
-        const history = getProjectHistory();
-
-        let html = '';
-        if (history.length > 0) {
-          html += `
-            <div class="repo-history-section-title">
-              <span>Recent Projects</span>
-              <button class="repo-history-clear-btn" id="btn-clear-history">Clear</button>
-            </div>
-          `;
-          history.forEach(item => {
-            const iconSvg = Icons[item.icon] || (item.type === 'github' ? Icons.github : (item.type === 'zip' ? Icons.archive : Icons.folder));
-            html += `
-              <button class="repo-history-item" data-history-id="${encodeURIComponent(item.id)}" data-history-type="${item.type}" data-history-url="${encodeURIComponent(item.url)}">
-                <span class="repo-history-icon">${iconSvg}</span>
-                <span class="repo-history-text">${item.name}</span>
-                <span class="repo-history-badge">${item.badge || item.type}</span>
-              </button>
-            `;
-          });
-          html += '<div class="repo-history-divider"></div>';
-        }
-
-        html += `
-          <div class="repo-history-section-title">
-            <span>Presets & Demo Codebases</span>
-          </div>
-          <button class="repo-history-item" data-preset="patterns" data-history-url="https://github.com/iluwatar/java-design-patterns">
-            <span class="repo-history-icon">${Icons.fileCode}</span>
-            <span class="repo-history-text">iluwatar/java-design-patterns</span>
-            <span class="repo-history-badge">Preset</span>
-          </button>
-          <button class="repo-history-item" data-preset="petclinic" data-history-url="https://github.com/spring-projects/spring-petclinic">
-            <span class="repo-history-icon">${Icons.fileCode}</span>
-            <span class="repo-history-text">spring-projects/spring-petclinic</span>
-            <span class="repo-history-badge">Preset</span>
-          </button>
-          <button class="repo-history-item" data-preset="fractal" data-history-url="https://github.com/Fractal-Compute-Orchestrations/FractalAndroid">
-            <span class="repo-history-icon">${Icons.fileCode}</span>
-            <span class="repo-history-text">FractalAndroid (Mobile SDK)</span>
-            <span class="repo-history-badge">Preset</span>
-          </button>
-        `;
-
-        dropdown.innerHTML = html;
-
-        const btnClear = document.getElementById('btn-clear-history');
-        if (btnClear) {
-          btnClear.addEventListener('click', (e) => {
-            e.stopPropagation();
-            localStorage.removeItem('openheart_project_history');
-            renderProjectHistoryDropdown();
-          });
-        }
-
-        dropdown.querySelectorAll('.repo-history-item').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdown.classList.add('hidden-dropdown');
-            const rawUrl = decodeURIComponent(btn.getAttribute('data-history-url') || '');
-            const type = btn.getAttribute('data-history-type');
-            const id = decodeURIComponent(btn.getAttribute('data-history-id') || '');
-
-            if (type === 'local' || type === 'zip') {
-              const activeName = sessionStorage.getItem('openheart_custom_name');
-              if (activeName === id && canvas.customGraphIr) {
-                document.getElementById('input-repo-url').value = rawUrl;
-                canvas.renderGraph(canvas.currentGraphType);
-              } else {
-                document.getElementById('input-repo-url').value = rawUrl;
-                const hudText = document.getElementById('hud-status-text');
-                if (hudText) {
-                  hudText.innerHTML = `Project <strong>${id}</strong> selected. Choose Folder or ZIP to load its files.`;
-                }
-              }
-            } else {
-              document.getElementById('input-repo-url').value = rawUrl;
-              importRepo(rawUrl);
-            }
-          });
-        });
-      }
-
-      renderProjectHistoryDropdown();
-
-      const btnHistoryToggle = document.getElementById('btn-repo-dropdown-toggle');
-      const repoHistoryDropdown = document.getElementById('repo-history-dropdown');
-      if (btnHistoryToggle && repoHistoryDropdown) {
-        btnHistoryToggle.addEventListener('click', (e) => {
-          e.stopPropagation();
-          renderProjectHistoryDropdown();
-          repoHistoryDropdown.classList.toggle('hidden-dropdown');
-        });
-      }
-
-      if (inputRepoEl && repoHistoryDropdown) {
-        inputRepoEl.addEventListener('focus', () => {
-          renderProjectHistoryDropdown();
-          repoHistoryDropdown.classList.remove('hidden-dropdown');
-        });
-      }
-
-      // ── Pan Lock (View Only Mode) Toggle ──
-      const btnPanLock = document.getElementById('btn-pan-lock');
-      const iconPanLock = document.getElementById('icon-pan-lock');
-      const labelPanLock = document.getElementById('label-pan-lock');
-      if (btnPanLock) {
-        btnPanLock.addEventListener('click', () => {
-          const isLocked = canvas.togglePanLock();
-          if (iconPanLock) iconPanLock.innerHTML = isLocked ? Icons.lock : Icons.unlock;
-          if (labelPanLock) labelPanLock.innerText = isLocked ? 'Locked' : 'Unlocked';
-          btnPanLock.classList.toggle('active-locked', isLocked);
-          const hudText = document.getElementById('hud-status-text');
-          if (hudText) {
-            hudText.innerHTML = isLocked
-              ? `<strong>Pan Lock Active</strong>: Layout locked. Pure pan &amp; inspect mode enabled.`
-              : `<strong>Pan Lock Disabled</strong>: Diagram nodes can be repositioned freely.`;
-          }
-        });
-      }
-
-      // ── Minimap & Loupe Controls ──
-      const btnToggleMinimap = document.getElementById('btn-toggle-minimap');
-      if (btnToggleMinimap) {
-        btnToggleMinimap.addEventListener('click', () => {
-          canvas.toggleMinimap();
-        });
-      }
-
-      const btnToggleLoupe = document.getElementById('btn-toggle-loupe');
-      if (btnToggleLoupe) {
-        btnToggleLoupe.addEventListener('click', () => {
-          canvas.toggleLoupe();
-        });
-      }
-
-      // ── Save / Export & Load Diagram State ──
-      const btnExportMenu = document.getElementById('btn-export-menu');
-      const exportMenuDropdown = document.getElementById('export-menu-dropdown');
-      if (btnExportMenu && exportMenuDropdown) {
-        btnExportMenu.addEventListener('click', (e) => {
-          e.stopPropagation();
-          exportMenuDropdown.classList.toggle('hidden-dropdown');
-        });
-      }
-
-      function downloadBlob(content, mimeType, filename) {
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }
-
-      function downloadDataUri(dataUri, filename) {
-        const a = document.createElement('a');
-        a.href = dataUri;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-
-      // 1. Save Diagram State (.json)
-      const btnSaveJson = document.getElementById('btn-save-json');
-      if (btnSaveJson) {
-        btnSaveJson.addEventListener('click', () => {
-          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
-          const state = canvas.getDiagramStateJson();
-          if (!state) return;
-          const jsonText = JSON.stringify(state, null, 2);
-          const filename = `${state.codebase_name || 'OpenHeart'}_${canvas.currentGraphType}_state.openheart.json`;
-          downloadBlob(jsonText, 'application/json', filename);
-          const hudText = document.getElementById('hud-status-text');
-          if (hudText) {
-            hudText.innerHTML = `Diagram state saved as <strong>${filename}</strong>`;
-          }
-        });
-      }
-
-      // 2. Load Saved State (.json / .openheart.json)
-      const btnLoadJson = document.getElementById('btn-load-json');
-      const inputLoadJson = document.getElementById('input-load-json');
-      if (btnLoadJson && inputLoadJson) {
-        btnLoadJson.addEventListener('click', () => {
-          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
-          inputLoadJson.value = '';
-          inputLoadJson.click();
-        });
-
-        inputLoadJson.addEventListener('change', async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          try {
-            const text = await file.text();
-            const savedState = JSON.parse(text);
-            await canvas.loadDiagramState(savedState);
-            const hudText = document.getElementById('hud-status-text');
-            if (hudText) {
-              hudText.innerHTML = `Successfully loaded diagram state from <strong>${file.name}</strong> (${(savedState.diagram_type || 'DIAGRAM').toUpperCase()})`;
-            }
-            // Update active sidebar tab button
-            document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
-              btn.classList.toggle('active', btn.getAttribute('data-graph-type') === savedState.diagram_type);
-            });
-            // Update pan lock button if present
-            const btnPanLock = document.getElementById('btn-pan-lock');
-            const iconPanLock = document.getElementById('icon-pan-lock');
-            const labelPanLock = document.getElementById('label-pan-lock');
-            if (btnPanLock && iconPanLock && labelPanLock) {
-              const isLocked = canvas.isPanLocked;
-              btnPanLock.classList.toggle('active-locked', isLocked);
-              iconPanLock.innerHTML = isLocked ? Icons.lock : Icons.unlock;
-              labelPanLock.textContent = isLocked ? 'Locked' : 'Unlocked';
-            }
-          } catch (err) {
-            console.error('Failed to load diagram state:', err);
-            alert(`Could not load diagram JSON: ${err.message}`);
-          }
-        });
-      }
-
-      // 3. Export Code Structure for AI (.ai.json)
-      const btnExportAiJson = document.getElementById('btn-export-ai-json');
-      if (btnExportAiJson) {
-        btnExportAiJson.addEventListener('click', () => {
-          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
-          const aiStructure = canvas.getCodeStructureForAi();
-          if (!aiStructure) return;
-          const jsonText = JSON.stringify(aiStructure, null, 2);
-          const filename = `${aiStructure.project_name || 'OpenHeart'}_code_structure.ai.json`;
-          downloadBlob(jsonText, 'application/json', filename);
-          const hudText = document.getElementById('hud-status-text');
-          if (hudText) {
-            hudText.innerHTML = `AI Code Structure saved as <strong>${filename}</strong> (${aiStructure.summary.total_types} types, ${aiStructure.summary.total_relationships} relations)`;
-          }
-        });
-      }
-
-      // 4. Copy LLM Markdown Prompt
-      const btnExportAiMd = document.getElementById('btn-export-ai-md');
-      if (btnExportAiMd) {
-        btnExportAiMd.addEventListener('click', async () => {
-          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
-          const mdPrompt = canvas.getCodeStructureMarkdownForAi();
-          if (!mdPrompt) return;
-          try {
-            await navigator.clipboard.writeText(mdPrompt);
-            const hudText = document.getElementById('hud-status-text');
-            if (hudText) {
-              hudText.innerHTML = `Copied <strong>LLM Markdown Prompt</strong> to clipboard (Ready for ChatGPT / Claude / Gemini)`;
-            }
-          } catch (err) {
-            console.error('Clipboard copy failed:', err);
-            const filename = `${sessionStorage.getItem('openheart_custom_name') || 'OpenHeart'}_llm_prompt.md`;
-            downloadBlob(mdPrompt, 'text/markdown;charset=utf-8', filename);
-            const hudText = document.getElementById('hud-status-text');
-            if (hudText) {
-              hudText.innerHTML = `Saved LLM prompt as <strong>${filename}</strong>`;
-            }
-          }
-        });
-      }
-
-      // 5. Export High-Res PNG
-      const btnExportPng = document.getElementById('btn-export-png');
-      if (btnExportPng) {
-        btnExportPng.addEventListener('click', () => {
-          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
-          const pngData = canvas.exportPng();
-          if (!pngData) return;
-          const name = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
-          const filename = `${name}_${canvas.currentGraphType}.png`;
-          downloadDataUri(pngData, filename);
-          const hudText = document.getElementById('hud-status-text');
-          if (hudText) {
-            hudText.innerHTML = `High-res PNG exported as <strong>${filename}</strong>`;
-          }
-        });
-      }
-
-      // 4. Export Vector SVG
-      const btnExportSvg = document.getElementById('btn-export-svg');
-      if (btnExportSvg) {
-        btnExportSvg.addEventListener('click', () => {
-          if (exportMenuDropdown) exportMenuDropdown.classList.add('hidden-dropdown');
-          const name = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
-          const filename = `${name}_${canvas.currentGraphType}.svg`;
-          const svgData = canvas.exportSvg();
-          if (svgData) {
-            downloadBlob(svgData, 'image/svg+xml;charset=utf-8', filename);
-            const hudText = document.getElementById('hud-status-text');
-            if (hudText) {
-              hudText.innerHTML = `Vector SVG exported as <strong>${filename}</strong>`;
-            }
-          } else {
-            // Fallback to high-res PNG if cytoscape-svg plugin isn't active
-            const pngData = canvas.exportPng();
-            if (pngData) downloadDataUri(pngData, `${name}_${canvas.currentGraphType}.png`);
-          }
-        });
-      }
-
-      // ── Close Popover Dropdowns on Outside Click ──
-      window.addEventListener('click', (e) => {
-        if (repoHistoryDropdown && !repoHistoryDropdown.contains(e.target) && e.target !== btnHistoryToggle && e.target !== inputRepoEl) {
-          repoHistoryDropdown.classList.add('hidden-dropdown');
-        }
-        if (exportMenuDropdown && !exportMenuDropdown.contains(e.target) && e.target !== btnExportMenu && !btnExportMenu?.contains(e.target)) {
-          exportMenuDropdown.classList.add('hidden-dropdown');
-        }
-      });
-    });
-  </script>
+  <!-- Screen-reader announcements for analysis progress, results and errors -->
+  <div id="studio-live-region" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Optional GitHub token (sessionStorage only; sent only to api.github.com) -->
+  <dialog id="github-token-dialog" class="token-dialog" aria-labelledby="token-dialog-title" aria-describedby="token-dialog-desc">
+    <h2 id="token-dialog-title">GitHub access token</h2>
+    <p id="token-dialog-desc">
+      Optional. A fine-grained token with read-only <em>Contents</em> permission raises the GitHub API limit from
+      60 to 5,000 requests per hour and allows private repositories. It is kept only in this tab's
+      sessionStorage, is cleared when the tab closes, and is sent only to api.github.com.
+    </p>
+    <label for="github-token-input">Token</label>
+    <input id="github-token-input" type="password" autocomplete="off" spellcheck="false" />
+    <div class="token-dialog-actions">
+      <button type="button" id="btn-token-forget" class="btn-layers-action">Forget token</button>
+      <button type="button" id="btn-token-cancel" class="btn-layers-action">Cancel</button>
+      <button type="button" id="btn-token-save" class="btn-analyze-pill">Use token</button>
+    </div>
+  </dialog>
 </body>
 </html>

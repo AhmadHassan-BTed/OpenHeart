@@ -2,6 +2,8 @@
 
 Authored and maintained solely by **Ahmad Hassan (B-Ted)**.
 
+> **Status: design overview.** This page describes the pipeline as designed. Every phase runs end to end on Java input, but none is complete against its design; see [docs/status.md](../status.md) for what each phase computes today.
+
 The **OpenHeart** static analysis engine transforms raw source code repositories into a memory-mapped **Succinct Compositional Program Graph (SCPG)** through a 10-phase deterministic compilation pipeline.
 
 👉 **[Launch OpenHeart Web Studio Portal (GitHub Pages)](https://ahmadhassan-bted.github.io/OpenHeart/)**

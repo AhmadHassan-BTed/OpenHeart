@@ -8,9 +8,88 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.sh text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf
+# Analysis inputs and fixtures: line endings change byte offsets, columns and the
+# per-file SHA-256, so checkouts on every platform must see the same bytes.
+*.java text eol=lf
+*.kt text eol=lf
+*.kts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.py text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.cc text eol=lf
+*.cpp text eol=lf
+*.cxx text eol=lf
+*.c++ text eol=lf
+*.hh text eol=lf
+*.hpp text eol=lf
+*.hxx text eol=lf
+*.h++ text eol=lf
+*.inl text eol=lf
+*.ipp text eol=lf
+*.tpp text eol=lf
+*.cs text eol=lf
+*.csx text eol=lf
+*.puml text eol=lf
+*.mmd text eol=lf
+# Build descriptions read by the project model (compile_commands.json, CMake, MSBuild).
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+*.csproj text eol=lf
+*.vcxproj text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.sln text eol=lf
+
+# Windows batch files: cmd.exe misparses labels and `goto` targets without CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Cargo regenerates the lockfile; collapse it in GitHub diffs and language stats.
+Cargo.lock text eol=lf linguist-generated=true
+
+# Diagrams emitted by the engine for the Pages demo are build output, not source.
+web/diagrams/** linguist-generated=true
 
 # Binary files
-*.tca binary
 *.png binary
 *.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
 *.ico binary
+*.pdf binary
+*.mp4 binary
+*.webm binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.xz binary
+*.7z binary
+*.tar binary
+*.jar binary
+*.class binary
+*.dll binary
+*.exe binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+
+# SCPG pipeline artifacts (Phases 1–10) are binary containers with CRC trailers
+*.tca binary
+*.bpa binary
+*.sta binary
+*.cfa binary
+*.ssa binary
+*.cga binary
+*.tra binary
+*.psa binary
+*.uma binary
+*.scpg binary

@@ -1,0 +1,1000 @@
+[
+ {
+  "id": "COMP-R3-1",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "/api/source reads any file the server can access: unauthenticated arbitrary file read on 0.0.0.0 with CORS *",
+  "files": [
+   "src/adapters/server.rs:95-240",
+   "src/adapters/server.rs:32",
+   "src/adapters/server.rs:327",
+   "src/main.rs:534",
+   "web/js/editor.js:161"
+  ],
+  "evidence": "server.rs:96-112 takes the file/path query value and decodes only %2F, %20 and %2B. server.rs:120 places the raw decoded_path first in direct_candidates. server.rs:200-203 calls fs::read_to_string on it, and server.rs:226-233 returns the content in JSON. There is no canonicalize or containment check, unlike the static branch at server.rs:256-272. The server binds 0.0.0.0 (server.rs:32), the default port is 8080 (main.rs:534), and every JSON response sends Access-Control-Allow-Origin: * (server.rs:327). Trigger: GET /api/source?file=/etc/passwd, or file=C:/Users/<u>/.ssh/id_ed25519, or path=..%2F..%2F.aws%2Fcredentials, returns 200 {\"found\":true,\"content\":\"...\"}. A Node mirror of the parsing confirmed that candidate[0] equals the raw path.",
+  "impact": "Anyone on the network can exfiltrate SSH keys, cloud credentials and source code from a machine running `openheart server`. So can any web page the user visits, because a simple GET is readable under ACAO * and the unchecked Host header also allows DNS rebinding.",
+  "recommendation": "Canonicalize the requested path and require it to lie under an allow-listed root (the analyzed repo directory). Drop the raw-path candidates and the walkdir fallbacks. Bind 127.0.0.1 by default, restrict or remove ACAO *, and validate the Host header.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-01",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "/api/source lets any client read any file; server listens on all interfaces with CORS *",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "server.rs:95-125 reads the file/path query value and only decodes %2F, %20 and %2B. The raw decoded_path is tried first (server.rs:118) with fs::read_to_string (198-203), then a directory-walk fallback (206-222). The file content is returned as JSON (226-233). Paths are never canonicalized or checked against a root. The server binds 0.0.0.0 (server.rs:32) and every response sends Access-Control-Allow-Origin: * (server.rs:327). Found while scanning for hardcoded paths (FractalAndroid probe, server.rs:124).",
+  "impact": "Anyone on the network, or any web page the developer opens (because of CORS *), can read any file the process can read, e.g. ?file=/etc/passwd or ?file=..%2F..%2F.ssh%2Fid_rsa.",
+  "recommendation": "Only serve files under the analyzed repo root: canonicalize, check the prefix, reject absolute and '..' paths. Bind 127.0.0.1 by default. Restrict CORS to the Pages origin. Remove the hardcoded list of probe paths.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Only Java has a real grammar: Kotlin is parsed as Java then JavaScript; Python/Rust/TS/C++ as JavaScript",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs:29-31",
+   "src/ingestion/adapter/registry.rs:34-39",
+   "src/ingestion/adapter/registry.rs:52-57",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ast/adapter/registry.rs:37-42",
+   "src/ingestion/adapter/mod.rs:14-16",
+   "src/ingestion/adapter/generic.rs:52-58",
+   "src/adapters/server.rs:805-830",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "KotlinLanguageAdapter::ts_language() returns tree_sitter_java::language(), and Cargo.toml has only the java and javascript grammars. AdapterRegistry::get falls back to a LangId::Unknown adapter built on tree_sitter_javascript, so .py/.rs/.ts/.cpp/.go files, all of which the server collects, are lexed as JavaScript. Phase 2 registers no Kotlin adapter, so Kotlin is reduced by the generic JS reducer. The generic Phase-1 adapter keeps include_anonymous()=false, so it emits no keywords, operators or punctuation, and it types any alphabetic named leaf as Keyword. No test ingests a .kt file.",
+  "impact": "Every non-Java file produces error-ridden CSTs and meaningless ASTs, so later phases fall back to token heuristics. The README's 'F1 = 1.0000 across Java, Kotlin, Python, Rust, TypeScript, C++' is not supported by Phases 1 and 2.",
+  "recommendation": "Upgrade to tree-sitter 0.25 and add real grammars (tree-sitter-kotlin-ng, -python, -typescript, -rust, -cpp, -go). For each language, write Phase 1/2 adapters whose classification tables are generated from or tested against the grammar's node-types.json, with a test that fails on any unclassified kind. Skip unsupported extensions with a diagnostic instead of re-parsing them with another grammar. Done = per-language golden AST snapshot tests and published per-language accuracy on a public corpus.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-01",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "/api/source reads arbitrary files; basename walkdir fallback + CORS * enables cross-origin exfiltration",
+  "files": [
+   "src/adapters/server.rs:95-240",
+   "src/adapters/server.rs:109-116",
+   "src/adapters/server.rs:200-224",
+   "src/adapters/server.rs:320-334"
+  ],
+  "evidence": "`decoded_path` is built from three `.replace` calls (%2F,%20,%2B) then used verbatim as the first read candidate: `direct_candidates = [decoded_path.as_str(), ...]` and `fs::read_to_string(candidate)` (server.rs:119-205). So `GET /api/source?file=/etc/passwd` or `?file=../../../../etc/passwd` returns file contents. If that misses, `walkdir_find` returns the first file matching the basename anywhere under examples/target_repos/web (:207-224). Responses carry `Access-Control-Allow-Origin: *` (:327), so any website's JS can read a developer's local files cross-origin.",
+  "impact": "Full unauthenticated read of any file the server user can access (SSH keys, .env, source), locally and cross-origin from any browser tab, on the default 0.0.0.0 bind.",
+  "recommendation": "Treat file params as untrusted: reject absolute paths and `..`, then `fs::canonicalize` and verify `starts_with` an allowed root, exactly as the static route at server.rs:254-286 already does. Remove the basename `walkdir_find` fallback (it defeats confinement). Replace ad-hoc `.replace` decoding with real percent-decoding (percent-encoding crate) and reject non-UTF8. Drop CORS `*` for an explicit localhost allowlist. Serve this through axum + tower-http ServeDir.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-02",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "/api/analyze clones an unvalidated URL: SSRF, git argument injection, arbitrary transports, path traversal; validate_url is dead code",
+  "files": [
+   "src/adapters/server.rs:366-465",
+   "src/adapters/server.rs:393-416",
+   "src/adapters/server.rs:429-437",
+   "src/adapters/web_repo.rs:97-119"
+  ],
+  "evidence": "`repo_url` is parsed from the body and passed straight to `Command::new(\"git\").args([\"clone\",\"--depth\",\"1\",repo_url, &format!(\"./target_repos/{}\",repo_name)])` (server.rs:429-437) with no scheme/host check. `repo_name` is the last `/`-segment (:393-398), so `..`/`.git` games escape target_repos. The URL may be `file:///…`, `ssh://`, `ext::sh -c …`, or start with `-` (git option injection, e.g. `--upload-pack`). `WebRepoFetcher::validate_url` (web_repo.rs:97) exists but is never called from the server. Clones are never cleaned up (no cleanup of ./target_repos on failure) and have no size/time bound.",
+  "impact": "Unauthenticated SSRF to internal hosts, local-file and arbitrary-transport cloning, potential command execution via git `ext::`/option injection, disk exhaustion, and directory traversal — from any origin on the default bind.",
+  "recommendation": "Do not clone attacker URLs server-side by default; make it opt-in and sandboxed. Enforce an allowlist (https host == github.com), reject URLs beginning with `-` and any non-https scheme, and pass `--` before the URL. Run git with `GIT_ALLOW_PROTOCOL=https`, `-c protocol.ext.allow=never`, a timeout, a disk quota (temp dir on a size-limited mount), and guaranteed cleanup. Wire the (fixed) validate_url in before any clone. Consider gitoxide (gix) to avoid shelling out entirely.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-01",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Genuine Kotlin and multi-language frontends with a versioned support matrix",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "Cargo.toml",
+   "README.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The Kotlin adapter returns tree_sitter_java::language() (src/ingestion/adapter/kotlin.rs:29-31). The AST registry maps JavaScript, TypeScript, Rust, Generic and Unknown to one JavaScript-grammar adapter, and Kotlin falls through to it (src/ast/adapter/registry.rs:19-28,37-42). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Cargo.toml:9-11 pulls in only the tree-sitter 0.20 Java and JavaScript grammars. Yet README.md:60 claims six languages and src/adapters/server.rs:83-85 advertises seven. Tests and examples contain no lambdas, sealed types or switch patterns.",
+  "impact": "Kotlin and every non-Java input produce Java parses full of errors or JavaScript-shaped ASTs, so multi-language results cannot be trusted. CodeQL and Joern publish support per language and per version. Without that, OpenHeart cannot be compared even on Java and Kotlin, its stated core.",
+  "recommendation": "Upgrade to a current tree-sitter release. Add tree-sitter-kotlin-ng with Kotlin AST and semantic adapters. Gate Java 8-25 and Kotlin 1.9-2.x features behind conformance fixtures, and publish a support matrix. Reject unsupported files instead of silently using the JavaScript grammar. Drop unimplemented languages from the README and /api/supported-languages until they pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-02",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Build-system, classpath and bytecode awareness",
+  "files": [
+   "src/main.rs",
+   "src/symbol/std_library/java_stubs.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Input is whatever .java/.kt/.kts files a directory walk finds (src/main.rs:76-98). Nothing in src handles Maven, Gradle or a classpath, and there is no JAR or class-file reader. The JDK is modelled by 12 stub classes, Object through Throwable (src/symbol/std_library/java_stubs.rs:8-21). The server also feeds about 50 unrelated extensions into the Java pipeline (src/adapters/server.rs:805-867).",
+  "impact": "Calls into the JDK, Spring, Android or any dependency stay unresolved. Call graphs, sequence diagrams and data flow therefore stop at the first library boundary, which is exactly where CodeQL, Joern, SootUp, WALA and OPAL resolve types.",
+  "recommendation": "Add --classpath and --build maven|gradle modes that resolve dependencies (mvn dependency:build-classpath, Gradle Tooling API). Add a Rust class-file reader that loads signatures from JARs and JDK jmods, and cache library summaries. Later, add a bytecode frontend so compiled Java and Kotlin can be analysed the way SootUp and Joern's jimple2cpg do.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-V1-01",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "high",
+  "title": "Binary ignores HOST/PORT env and hardcodes 0.0.0.0 bind; no localhost-only option",
+  "files": [
+   "src/adapters/server.rs:32",
+   "src/main.rs:532-538",
+   "Dockerfile:43-44"
+  ],
+  "evidence": "start() binds format!(\"0.0.0.0:{}\", self.port) (server.rs:32). The port comes only from argv (main.rs:533-537, args[2].parse). grep across src shows no env::var(\"HOST\") or env::var(\"PORT\") anywhere (only OPENHEART_LOG in core/logger.rs:98), so Dockerfile ENV HOST=0.0.0.0 / PORT=8080 (43-44) are never read. There is no flag or env to bind 127.0.0.1 only.",
+  "impact": "The unauthenticated arbitrary-file-read (SRV-01) and git-clone/SSRF/RCE (SRV-02) endpoints are reachable from every host on the LAN, not just localhost, with no opt-out; the documented env-based configuration is inert and run scripts advertising 'localhost' are misleading.",
+  "recommendation": "Read HOST/PORT from env with safe defaults, default the bind to 127.0.0.1, and require an explicit flag to expose on 0.0.0.0.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-R3-2",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Studio silently replaces Rust-engine output with a 30-file regex sampler and labels it 'SCPG ... Verified'",
+  "files": [
+   "web/index.html:862",
+   "web/index.html:881",
+   "web/index.html:912-935",
+   "web/js/github-engine.js:103",
+   "web/js/github-engine.js:161-164",
+   "web/js/github-engine.js:576-577",
+   "src/adapters/server.rs:251-253"
+  ],
+  "evidence": "index.html:862 aborts the /api/analyze fetch after 2500 ms. The server writes its response only after git clone and the full 10-phase pipeline (server.rs:251-253, 429-436). On abort, or on the GitHub Pages deployment where /api/analyze does not exist (deploy_pages.yml uploads web/), index.html:881 and 912 fall back to GitHubEngine. That engine regex-parses only sourceFiles.slice(0, 30) (github-engine.js:103; 80 files for folder or ZIP at :200). It reports files_processed as the count of all discovered files and execution_time_ms as a hard-coded 280 (github-engine.js:161-164). It sets a random compiler_hash with verified: true (:576-577). The badge at index.html:920 shows 'SCPG 0x<base36 timestamp> · Verified'; a Node mirror printed 'SCPG 0xMW94DEQI · Verified'. Non-class projections are further capped at 4-12 classes (graph-canvas.js:240-538).",
+  "impact": "When clone plus analysis takes longer than 2.5 s, or on any import in the hosted studio, users see diagrams of at most the first 30 files in tree order from a regex parser. These are presented as a verified SCPG of the whole repo. In that session the Rust engine's output is never shown, because customGraphIr pins the view (graph-canvas.js:100, 604-617).",
+  "recommendation": "Make /api/analyze asynchronous (job id plus polling) or raise the timeout well above clone time. Label any fallback result as a partial in-browser sample, report the true parsed-file count, and remove the fabricated hash and verified fields.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-02",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "high",
+  "title": "Unvalidated repo_url goes straight into git clone (option injection, SSRF)",
+  "files": [
+   "src/adapters/server.rs",
+   "src/adapters/web_repo.rs"
+  ],
+  "evidence": "process_analyze_request gets repo_url by splitting the raw body on quote characters (server.rs:366-371). It passes the value to 'git clone --depth 1 <repo_url> ./target_repos/<name>' (server.rs:429-437) with no '--' separator. WebRepoFetcher::validate_url (web_repo.rs:97) exists but only its unit test calls it (web_repo.rs:128). repo_name is the last URL segment, used unsanitized (server.rs:392-399).",
+  "impact": "Callers can inject git options (values starting with '-'), make the server clone any host or protocol (file://, internal http), and fill its disk. Because of CORS *, other websites can trigger this too.",
+  "recommendation": "Run validate_url and accept only https://github.com/owner/repo. Put '--' before the URL, limit allowed protocols to https, and sanitize the target directory name. Add timeouts, size limits and authentication.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-05",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Only Java and JavaScript grammars exist; Kotlin, TypeScript and Rust use the wrong grammar",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/adapters/server.rs",
+   "README.md"
+  ],
+  "evidence": "Cargo.toml lists only tree-sitter-java and tree-sitter-javascript. The Kotlin adapter returns tree_sitter_java::language() (kotlin.rs:30). TypeScript, Rust, Generic and Unknown are reduced with the JavaScript grammar (ast/adapter/registry.rs:21-28), and files with any other extension are parsed as JavaScript (ingestion/adapter/registry.rs:34-38). The API advertises java, python, typescript, javascript, cpp, rust and go (server.rs:84). README.md:60 claims F1 = 1.0000 across six languages.",
+  "impact": "Non-Java input quietly produces CSTs full of parse errors. Any outside benchmark will disprove the multi-language accuracy claims.",
+  "recommendation": "Either add real grammars and adapters (kotlin, python, rust, typescript, cpp) with tests, or narrow the README and API claims to Java and JS. Reject unsupported extensions instead of falling back to JavaScript.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-07",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "high",
+  "title": "Docker image cannot build or start; minimum Rust version is undeclared and misdocumented",
+  "files": [
+   "Dockerfile",
+   "Cargo.toml",
+   "src/main.rs",
+   "README.md",
+   "docs/getting_started.md"
+  ],
+  "evidence": "Dockerfile:49 runs 'openheart serve --port 8080', but the CLI only accepts 'server [PORT]' (main.rs:532) and exits with code 1 on unknown subcommands (main.rs:544-548). Dockerfile:2 uses rust:1.80-slim, while the locked sha2 0.11.1 requires Rust 1.88 and edition 2024 according to crates.io. README.md:7 and getting_started.md:19 say Rust 1.75+. Cargo.toml has no rust-version, and the HOST/PORT environment variables are never read.",
+  "impact": "The documented container path is broken at both build and start. Users on the advertised Rust version get build failures. CI only tests stable and beta, so it cannot catch either problem.",
+  "recommendation": "Change CMD to [\"openheart\",\"server\",\"8080\"] or add a serve alias. Move the base image to rust:1.88 or later. Declare rust-version in Cargo.toml and the docs. Add CI jobs for the minimum Rust version and a Docker build plus smoke run.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-03",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Static variable orders make ROBDDs exponential on plain sequential code, with no node or time budget",
+  "files": [
+   "src/psa/ordering/rpo.rs:12-64",
+   "src/psa/ordering/force.rs:19-76",
+   "src/psa/ordering/force.rs:106-118",
+   "src/psa/construction/mod.rs:73-87",
+   "src/adapters/server.rs:241-253",
+   "src/adapters/server.rs:612"
+  ],
+  "evidence": "The initial order is DFS edge pre-order (rpo.rs:12-64), not RPO. FORCE then refines it, but its branch hyperedge omits the predecessor edges that Phi_b couples (force.rs:106-118), and it runs a fixed number of iterations with no span check. Ported pipeline on k sequential if/else: 9,344 / 18,688 / 37,376 reachable nodes at k=10/11/12 (83k / 174k / 348k stored). At k=9, FORCE gives 11,588 nodes against 103 for a plain topological order, and 4,736 against Theorem 5.2's bound of 75 (m=38). There is no node limit, timeout or fallback, and recursion depth is unbounded.",
+  "impact": "A method with about 20-24 sequential if/else needs gigabytes and minutes, then runs out of memory. /api/analyze runs Phase 8 synchronously on cloned repositories, so this is a remotely triggerable DoS.",
+  "recommendation": "Seed with a locality-preserving order: blocks in RPO, each block's in and out edges adjacent. Keep FORCE only with its span-based stopping rule, then apply real sifting (BDD-06). Enforce a per-function node budget and deadline (as CUDD's Cudd_SetMaxMemory / Cudd_SetTimeLimit do) that degrades to a 'summary unavailable' record with DP metrics. Make apply/restrict/sat_count iterative. Done means a criterion benchmark showing linear growth on series-parallel CFG families.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": ".scpg loader never verifies CRC or version and panics or aborts on corrupt or hostile files",
+  "files": [
+   "src/scpg/mmap/mod.rs:34-35",
+   "src/scpg/mmap/mod.rs:52-72",
+   "src/scpg/mmap/mod.rs:86-89",
+   "src/scpg/serializer/integrity.rs:3-16",
+   "src/scpg/serializer/mod.rs:111",
+   "src/scpg/serializer/mod.rs:167",
+   "src/main.rs:469-474",
+   "docs/plans/phase10.md:548-549"
+  ],
+  "evidence": "The writer uses a bitwise CRC-32/IEEE (0xEDB88320), not the CRC-64 the README claims. `open` reads the CRC and `format_version` but checks neither. `section_count` comes straight from the file into `Vec::with_capacity`: 0xFFFFFFFF asks for about 103 GB and aborts, and count 12 on a 392-byte file panics on an out-of-range slice. `get_section` computes `start + byte_length` unchecked, so it can wrap and then panic on slicing. There is no header checksum, duplicate sections are accepted, and `fs::write` is not atomic. `inspect` prints \"SYSTEM PRODUCTION READY\" without verifying anything.",
+  "impact": "Truncated, corrupted or version-skewed files are silently accepted or crash the process. A 392-byte crafted file kills the CLI.",
+  "recommendation": "Validate before allocating: magic, a known major version, section_count up to a fixed maximum, checked_add offsets that stay inside the file, and unique, non-overlapping sections. Verify a header CRC and a per-section CRC-64/NVME or xxh3 checksum (crc64fast or xxhash-rust) lazily, and return Err on mismatch. Write via temp file, fsync and rename. Add a cargo-fuzz target for open. Done means a clean fuzz run of 24 hours and corruption tests that return Err.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "XMI export is a placeholder: class shells with numbered names and obsolete namespaces, unreachable from CLI and server",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs:8-19",
+   "src/scpg/diagram/factory.rs:140-148",
+   "src/main.rs:281-309",
+   "docs/plans/phase10.md:560"
+  ],
+  "evidence": "The output is `<uml:Model xmi:version=\"2.1\" xmlns:xmi=\"http://schema.omg.org/spec/XMI/2.1\" xmlns:uml=\"http://www.eclipse.org/uml2/3.0.0/UML\">` with one `<packagedElement xmi:type=\"uml:Class\" xmi:id=\"sym_N\" name=\"Class_N\"/>` per class. It has no real names, packages, attributes, operations, generalizations, realizations or associations, and the Model itself has no xmi:id. `XMIFactory` ignores the diagram type. The CLI and server write only .puml, .mmd and .json files.",
+  "impact": "Nothing useful can be imported into Papyrus, Enterprise Architect or MagicDraw, so the 'Eclipse-compatible XMI / UML 2.x' interchange claim is not backed by code.",
+  "recommendation": "Emit a full model through quick-xml, with proper escaping. Target XMI 2.5.1 (http://www.omg.org/spec/XMI/20131001) with UML 2.5.1 (http://www.omg.org/spec/UML/20161101), or Eclipse UML2 5.0.0 for Papyrus. Include nested packages, ownedAttribute with type refs, multiplicity and aggregation, ownedOperation/ownedParameter, generalization, interfaceRealization and Association memberEnds, with stable FQN-hash ids. Done means a round-trip import into headless Eclipse UML2 and an EA import check.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-10",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "The .uma reader misparses the design-pattern table and desynchronizes on large records; objects and labels are never persisted",
+  "files": [
+   "src/uma/serializer.rs:213-218",
+   "src/uma/serializer.rs:650-664",
+   "src/uma/serializer.rs:39-43",
+   "src/uma/serializer.rs:161-163",
+   "src/uma/serializer.rs:272-294",
+   "src/uma/serializer.rs:666-678",
+   "src/main.rs:459-466",
+   "tests/uma_tests.rs:111-113",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "The writer emits each pattern as class_sym u32, `pattern_kind as u32`, `confidence as u32` and reserved u32 (16 bytes). The reader consumes u32+u16+u16+u32 (12 bytes): confidence always reads 0, every later record is misaligned, and there is no end-offset check. Counts are written `as u16` while all records follow, so above 65,535 messages or blocks the reader desynchronizes, unchecked `bytes[offset..]` slicing panics, and `with_capacity` trusts header counts. Objects and label_texts are never written. Artifact inspection prints 'CRC-64 Check : VERIFIED VALID'; the round-trip test compares only version and hash.",
+  "impact": "Every consumer of a persisted .uma reads corrupted pattern data, and large projects can crash the reader, so the artifact is not a faithful interchange format.",
+  "recommendation": "Define the layout once with derive-based codecs (binrw or zerocopy) or a schema (FlatBuffers, Cap'n Proto), and use u32 counts. Make reads bounds-checked and error-returning, assert the payload ends exactly at the CRC, add sections for objects and labels, and add a proptest asserting read(write(x)) == x for every record type.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-09",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Quadratic loops (O(R·S), O(E²), O(C·S)) contradict the O(n_a) claim and expose the serial server to CPU exhaustion",
+  "files": [
+   "src/symbol/passes/pass3_types.rs:108-118",
+   "src/symbol/builder.rs:112-130",
+   "src/symbol/passes/pass1_discovery.rs:373-382",
+   "src/symbol/passes/pass3_types.rs:51-62",
+   "src/symbol/passes/pass1_discovery.rs:274-276",
+   "src/symbol/scope_graph/mod.rs:40-66",
+   "docs/openheart_research_paper.tex:599",
+   "src/adapters/server.rs:31-41"
+  ],
+  "evidence": "get_or_create_external scans every symbol for each unresolved type ref (pass3:113-117), which is O(R·S). add_th_edge scans every edge on each insert (builder.rs:117-123), and there is one TH_USES per field, so O(E²). The sweep calls position() over all symbols per class keyword (pass1:373-382). resolve_lexical UTF-8-decodes each candidate (pass3:56-58) and reaches a root scope holding every file's module. There are three interner lookups per token (274-276), and each declaration allocates a scope plus three HashMap entries. The paper claims O(n_a) (tex:599). The server runs the pipeline inside a serial accept loop bound to 0.0.0.0 (server.rs:31-41).",
+  "impact": "Phase 3 is super-linear: roughly 10^11 record visits for a ~1M-LOC repository, an estimated tens of minutes. A crafted repository with many distinct field types can stall the single-threaded server.",
+  "recommendation": "Key externals by FQN in a HashMap. Deduplicate TH edges with a HashSet<(from,to,rel)>, then build CSR. Give each scope a name_id→decls index and compare interned ids only. Use dense Vecs for node_to_symbol and type_ref_resolutions, open scopes only for scope-forming constructs, and parallelize per-file passes with rayon. Add criterion benchmarks at 10K, 100K and 1M LOC with a log-log slope gate of 1.1, and give the server a per-request time and size budget.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-14",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "Unbounded recursion on CFG size can abort the analysis server",
+  "files": [
+   "src/cfg/analysis/rpo.rs:7-20",
+   "src/cfg/analysis/loops.rs:29-48",
+   "src/ssa/cdg.rs:37-56",
+   "src/ssa/renaming.rs:103-211",
+   "src/cg/scc.rs:63-106",
+   "src/adapters/server.rs:32-41",
+   "src/adapters/server.rs:241-253"
+  ],
+  "evidence": "The RPO, loop and CDG DFS, the dominator-tree renaming (12 arguments plus a HashMap per frame) and Tarjan's strongconnect all recurse. Depth tracks block count, not AST depth: K sequential ifs give a DFS path of about 2K blocks and a dominator tree about K deep. The server binds 0.0.0.0, clones any GitHub repo posted to /api/analyze (server.rs:429), and runs every phase on the main thread, whose stack is 1 MiB on Windows. A Rust stack overflow aborts the process; it is not a catchable panic.",
+  "impact": "One generated or crafted method with a few thousand sequential ifs can crash the server. Tarjan will face the same risk once the call graph is real.",
+  "recommendation": "Rewrite the DFS walks, renaming and Tarjan with explicit stacks (as in LLVM's po_iterator, petgraph's iterative tarjan_scc, or Pearce 2016). Run per-function work on worker threads with an explicit std::thread::Builder::stack_size and catch_unwind isolation. Add stress tests with generated 10^5-block methods and very deep call chains.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "SRV-03",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "high",
+  "title": "Docker default command invokes a 'serve' subcommand the CLI does not implement; container exits immediately",
+  "files": [
+   "Dockerfile:49",
+   "src/main.rs:508-548"
+  ],
+  "evidence": "Dockerfile ends with `CMD [\"openheart\", \"serve\", \"--port\", \"8080\"]`. main.rs only matches `analyze|inspect|server|help`; any other first arg hits the `unknown =>` arm which prints usage and `std::process::exit(1)` (main.rs:544-548). So the documented container fails on startup. Even with `server`, the port is positional (`args[2].parse::<u16>()`, main.rs:533-536), so `--port 8080` would parse-fail and silently fall back to 8080, and a real `--port 9000` would be ignored.",
+  "impact": "The primary advertised deployment (Docker) never starts the server at all; anyone running the image gets an immediate exit(1). The Dockerfile/CLI contract is inconsistent.",
+  "recommendation": "Align the CLI and container: add a real `serve`/`server` subcommand parsed by clap with a `--port`/`-p` option and env fallback, then set `CMD [\"openheart\",\"server\",\"8080\"]` (or the clap form). Add a CI smoke test that builds the image and curls `/api/health` so this cannot regress.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-04",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Single-threaded serial accept loop runs the full 10-phase pipeline (and a network clone) per request with no limits",
+  "files": [
+   "src/adapters/server.rs:40-44",
+   "src/adapters/server.rs:241-253",
+   "src/adapters/server.rs:505-699"
+  ],
+  "evidence": "`for mut stream in listener.incoming().flatten() { Self::handle_connection(&mut stream); }` (server.rs:40-42) handles connections serially on one thread. A POST /api/analyze synchronously runs ingestion→…→UML export (server.rs:505-699) plus a `git clone` over the network. There is no thread pool, no request queue bound, no per-request CPU/time budget, and no body-size cap.",
+  "impact": "A single in-flight analyze request blocks every other client for the full pipeline duration; one unauthenticated request against a large repo is a trivial denial of service for the whole server.",
+  "recommendation": "Move to an async runtime (tokio) with axum/hyper; offload the CPU-heavy pipeline to a bounded `spawn_blocking`/rayon pool, cap concurrent analyses (tower `ConcurrencyLimit`/semaphore), and add tower-http `TimeoutLayer` and `RequestBodyLimitLayer`. Return 429/503 when saturated rather than head-of-line blocking.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-05",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "high",
+  "title": "Binds 0.0.0.0 with CORS * and no authentication or CSRF protection",
+  "files": [
+   "src/adapters/server.rs:31-38",
+   "src/adapters/server.rs:71-74",
+   "src/adapters/server.rs:320-334"
+  ],
+  "evidence": "`let addr = format!(\"0.0.0.0:{}\", self.port)` (server.rs:32) exposes the server on all interfaces. OPTIONS replies `Access-Control-Allow-Origin: *` with methods GET/POST (server.rs:72) and every JSON response sets `Access-Control-Allow-Origin: *` and `Access-Control-Allow-Headers: *` (:327). There is no auth token, no Origin check, and no CSRF defense on the state-changing POST /api/analyze.",
+  "impact": "Any web page a developer visits can script the local server: trigger clones, run analysis, and read local files via /api/source, with responses readable cross-origin. On a shared network the whole API is exposed to the LAN.",
+  "recommendation": "Default-bind 127.0.0.1 (make the interface an explicit, documented flag). Replace CORS `*` with an allowlist of expected origins and drop wildcard allow-headers. Require a local auth token (printed at startup) for mutating/file-reading endpoints, following tower-http CorsLayer and OWASP ASVS V13 API guidance.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Non-compliant HTTP parsing: Content-Length ignored, body is one 8 KiB read gated on a substring, 500 ms timeout truncates, HEAD returns a body",
+  "files": [
+   "src/adapters/server.rs:46-69",
+   "src/adapters/server.rs:241-253",
+   "src/adapters/server.rs:292-318"
+  ],
+  "evidence": "Request reading is a single `[0u8;8192]` read with a 500 ms timeout (server.rs:47-52); larger or slower requests are truncated or dropped. The body is parsed by splitting on the first blank line and taking the remainder (extract_body, :292-300), Content-Length is never consulted, and only one extra 4 KiB read happens, conditioned on the raw request not already containing the substring `\"repo_url\"` (:242-250). HEAD is treated as GET (`is_get_or_head`, :69) and `serve_file` writes the file body for HEAD (:302-312), violating RFC 9110. Keep-alive/chunked are unsupported.",
+  "impact": "Legitimate requests with headers pushing the body past 8 KiB, bodies split across TCP segments, or a field ordering where `repo_url` appears late are silently mis-parsed, producing wrong or failed analyses; HEAD responses are malformed.",
+  "recommendation": "Stop hand-rolling HTTP. Use hyper/axum, which parse Content-Length/transfer-encoding, framing, and HEAD correctly. If a minimal server must remain, read until Content-Length bytes are consumed with a configurable total timeout and a max-body guard, and send HEAD responses with headers only.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Silent fallback analyzes the first directory in ./target_repos, returning a different repo's results as success",
+  "files": [
+   "src/adapters/server.rs:439-482"
+  ],
+  "evidence": "On clone failure the code only logs (server.rs:446-459) and continues. If the derived `repo_dir` still does not exist, it iterates `./target_repos` and picks the first directory: `target_dir = entry.path(); logs.push(\"Using fallback local repository path…\")` (:467-482), then analyzes that tree and returns `status\":\"success\"`. The substituted repository is reported only as a log line the UI treats as progress text.",
+  "impact": "When a clone fails (network, bad URL, auth), the server silently analyzes an unrelated cached repository and labels it success, so users receive diagrams/metrics for a codebase they never requested — silently wrong results.",
+  "recommendation": "Remove the first-directory fallback. On clone failure or missing target, return a structured error (`status\":\"error\"`) with the git stderr and an HTTP 4xx/5xx; never substitute a different repository. Key cached clones by a sanitized owner/repo and verify the resolved path matches the requested URL before analysis.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-05",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Declarative query language exposed via CLI, HTTP and library",
+  "files": [
+   "src/scpg/query/mod.rs",
+   "src/scpg/query/cfl.rs",
+   "src/scpg/query/slice.rs",
+   "src/scpg/query/navigation.rs",
+   "src/adapters/server.rs",
+   "src/main.rs"
+  ],
+  "evidence": "QueryEngine caches only two calls (src/scpg/query/mod.rs:39-83) over eight fixed helpers. None is routed through the CLI (src/main.rs:509-549) or the HTTP server (src/adapters/server.rs:77-289). CFL reachability is a BFS that rescans all edges per node (src/scpg/query/cfl.rs:21-31). The backward slice ignores SSA and CDG (src/scpg/query/slice.rs:12-45). 'O(1)' navigation is a linear scan (src/scpg/query/navigation.rs:8-27).",
+  "impact": "Users cannot ask their own questions. QL, CPGQL, Semgrep rules and Doop's Datalog turn their engines into platforms; OpenHeart remains a fixed report generator.",
+  "recommendation": "Expose the SCPG layers as relations and either embed a Datalog dialect (Ascent/Crepe, or export Soufflé facts) or offer a Cypher subset. Add `openheart query` and /api/query with streaming JSON. Implement true Dyck/CFL reachability and SDG slicing over def-use plus CDG. Ship a starter query library with docs.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-07",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Real incremental, commit-aware analysis",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/ingestion/parser/tree_sitter.rs",
+   "src/main.rs",
+   "docs/traceability_and_incremental.md",
+   "ROADMAP.md"
+  ],
+  "evidence": "apply_delta classifies a delta and returns current_hash ^ 0x0101_0101 (src/scpg/incremental/mod.rs:26-34). Staleness is a hash comparison (src/tra/delta/invalidation.rs:10-21). Parsing passes no old tree (src/ingestion/parser/tree_sitter.rs:21-23), and analyze reruns all ten phases (src/main.rs:150-254). Neither the five-stage Merkle protocol (docs/traceability_and_incremental.md:71-80) nor ROADMAP's 'O(1) incremental delta update' (ROADMAP.md:116) is implemented.",
+  "impact": "Every edit or PR forces a full rebuild. That rules out IDE-level latency and PR-time use, where CodeQL overlay databases, Infer's compositional diff analysis and Semgrep baselines compete.",
+  "recommendation": "Content-hash files and functions, and persist per-file artifacts. Reparse using tree-sitter edits and the old tree. Track dependencies between phases (salsa-style) so CFG, SSA and PSA are recomputed only for touched functions and their callers. Add --baseline <commit> to produce findings and diagrams for the diff only.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-08",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Demonstrated large-codebase scale: indexed, parallel, streaming pipeline",
+  "files": [
+   "src/cg/resolution.rs",
+   "src/scpg/query/cfl.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "Cargo.toml"
+  ],
+  "evidence": "Every call site rescans all symbols (src/cg/resolution.rs:84,133,185,212,225). CFL reachability scans the full edge list on each pop (src/scpg/query/cfl.rs:27). The server is a single-threaded accept loop that reads one 8 KiB buffer (src/adapters/server.rs:40-48). Cargo.toml:8-16 has no parallelism crate. The browser engine stops at 30 remote / 80 local files (web/js/github-engine.js:103,200).",
+  "impact": "Quadratic hot paths make 1M-LOC targets impractical and undercut the compression story. By contrast, Joern builds a full Linux-kernel CPG and Infer runs on Meta-scale code.",
+  "recommendation": "Index symbols by (parent, name) and store the call graph as CSR adjacency. Parallelise the per-file and per-function phases with rayon. Stream ingestion and artifact writes. Make the server async with bounded request bodies. Publish LOC/s and peak RSS at 100K, 1M and 5M LOC alongside Joern and CodeQL.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-09",
+  "kind": "enhancement",
+  "category": "devops",
+  "severity": "high",
+  "title": "CI distribution: binaries, GitHub Action, SARIF upload and PR diagram diffs",
+  "files": [
+   ".github/workflows/release.yml",
+   ".github/workflows/ci.yml",
+   "Dockerfile",
+   "src/main.rs"
+  ],
+  "evidence": "Releases attach only target/release/libopenheart.rlib (.github/workflows/release.yml:21-26). The image runs `openheart serve --port 8080` (Dockerfile:49), but the CLI accepts only `server [PORT]` and exits 1 on unknown subcommands (src/main.rs:532-548). CI tests only OpenHeart itself (.github/workflows/ci.yml:40-47). The CLI has no format, baseline or fail-on options (src/main.rs:28-74).",
+  "impact": "Teams cannot adopt OpenHeart in their pipelines, which is the channel through which CodeQL and Semgrep win users.",
+  "recommendation": "Ship signed CLI binaries for Linux, macOS and Windows on x64 and arm64, and a working container. Publish an Action that runs analyze, uploads SARIF and comments a Mermaid architecture diff on each PR (GitHub renders Mermaid natively). Add --format, --baseline and --fail-on, and publish the crate.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-10",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Wire token-anchored traceability into exports and the studio",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/query/navigation.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "JSON nodes get file set to '<Name>.java' and lines set to [1, 5, 10] (src/scpg/diagram/export/json.rs:267-268) or [1] (json.rs:581). No exporter or factory reads the TRA artifact. Navigation is linear despite the 'O(1)'/'O(log n)' comments (src/scpg/query/navigation.rs:8-27). Source files are found through hard-coded example paths (web/js/editor.js:183-193; src/adapters/server.rs:119-198).",
+  "impact": "The headline 'O(1) bidirectional source-to-diagram traceability' (README.md:48) never reaches users. Clicking a diagram element cannot reliably open its code, which IntelliJ and Sourcetrail do by default.",
+  "recommendation": "Emit real UMLLink spans (path, line/column range, token ids, scpg_hash) on every node, edge, member and message. Build the dense backward index for O(1) lookup. Resolve files by file_id from the corpus instead of guessing by name. Add end-to-end tests that check click-to-source lands on the right code.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-09",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "high",
+  "title": "There is no machine-readable export, so scoring has to regex-parse PlantUML",
+  "files": [
+   "src/main.rs",
+   "src/scpg/api/mod.rs",
+   "ruthless_verify.py",
+   "scripts/test_authored_design_patterns.py"
+  ],
+  "evidence": "The CLI offers only analyze, inspect, server and help (main.rs:508-547). Exports are PlantUML, Mermaid, JSON-graph and XMI (scpg/api/mod.rs:74-111). Every scorer recovers classes and relations with regexes over PlantUML text (ruthless_verify.py:225-241; benchmark_all_java_design_patterns.py:51-74; test_authored_design_patterns.py:66-122).",
+  "impact": "Scoring loses information: only simple names, no source spans, no call-site positions. A cosmetic exporter change can silently change a metric. Phase 3-8 outputs cannot be scored at all.",
+  "recommendation": "Add 'openheart export --format ohb-json' with versioned JSON Schemas covering: symbols (FQN, kind, byte span); type edges; per-method CFG, idom and phi; call edges (JVM descriptors, call-site line/col); points-to; pattern instances with role bindings; the UML model; BDD statistics; and per-phase timings. Add 'openheart query' so latency can be benchmarked.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-V1-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Failed git clone silently analyzes the first cached repo and returns success for the wrong repository",
+  "files": [
+   "src/adapters/server.rs:418-459",
+   "src/adapters/server.rs:467-482"
+  ],
+  "evidence": "A clone failure only pushes a log line and never aborts (439-459). Execution falls through to target_dir = repo_dir (467); when that path does not exist, the code iterates ./target_repos and picks the FIRST directory found (470-481), then runs the pipeline on it and returns status:success with 14 diagrams. Triggers on any clone failure (URL typo, private/nonexistent repo, offline, rate-limit) whenever >=1 repo is already cached.",
+  "impact": "Callers receive a successful-looking analysis and diagrams for a different repository than the one requested, with no error surfaced; core output is silently mislabeled.",
+  "recommendation": "On clone failure return an error; analyze only the exact resolved repo_dir and drop the first-directory fallback.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-V1-03",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "validate_url panics on unchecked parts[1] for URLs lacking a repo segment",
+  "files": [
+   "src/adapters/web_repo.rs:111-112"
+  ],
+  "evidence": "parts = split('/') of the path after github.com/ with '.git' trimmed; parts[0] and parts[1] are indexed without bounds checks. Inputs that pass the starts_with gate but have no second segment, e.g. \"https://github.com/foo\" or \"https://github.com/\", yield a 1- or 0-element vec and panic with index-out-of-bounds. Only reached from tests today (grep: sole caller web_repo.rs:128), but SRV-02's own remediation recommends wiring validate_url into the clone path.",
+  "impact": "If adopted as the clone guard per SRV-02, a crafted repo_url crashes the handling thread and, given the single-threaded accept loop (SRV-04), the whole server. Latent as currently wired.",
+  "recommendation": "Use parts.get(0)/get(1) with a returned Err on missing segments, add negative tests, and prefer a parsed-URL/regex host check over trim/replace.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Diagram files: duplicate copies, communication equals sequence, empty Mermaid files, duplicate ids",
+  "files": [
+   "web/diagrams/manifest.json",
+   "web/diagrams/communication.json",
+   "web/diagrams/class.json",
+   "src/scpg/diagram/export/json.rs",
+   "src/adapters/server.rs",
+   "web/js/graph-loader.js"
+  ],
+  "evidence": "communication.json is byte-identical to sequence.json (diagram_type \"sequence\"). The current exporter only relabels the sequence IR (json.rs:1660-1669). state.json and use_case.json are duplicates because the server writes both alias names (server.rs:648-652). The manifest references no .mmd files. statemachine, callgraph and robdd .mmd are empty headers or comments, against 11, 7 and 5 nodes in JSON. class.json has 0 edges and 5 duplicate ids, and graph-loader.js does not de-duplicate.",
+  "impact": "Only 13 distinct UML diagrams back the 14-diagram claim, and the JSON and Mermaid outputs disagree. Cytoscape requires unique element ids, so the class view can break or lose nodes.",
+  "recommendation": "Give the communication diagram its own IR. Write one canonical file name per type. List .mmd files in the manifest or delete them. Add CI checks for unique ids, a non-empty class edge set, and matching node counts across formats.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Server quietly analyzes a different repository and swallows I/O errors",
+  "files": [
+   "src/adapters/server.rs",
+   "src/main.rs"
+  ],
+  "evidence": "When the clone fails, process_analyze_request takes the first directory in ./target_repos and keeps going (server.rs:467-481). Artifacts are read with fs::read(..).unwrap_or_default() (server.rs:536, 556, 581, 593, 609). Diagram writes ignore errors: 'let _ = fs::write' at server.rs:671, 680, 689, and .ok() at main.rs:258, 289, 298.",
+  "impact": "A caller can get diagrams of an unrelated codebase labeled as the repo they asked for. Missing artifacts produce plausible empty diagrams instead of errors, which corrupts benchmark runs.",
+  "recommendation": "Return an error status when the clone or any phase fails. Propagate I/O errors with context. Include the analyzed commit SHA and path in the response.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-15",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "The web studio uses a separate regex extractor capped at 80 files",
+  "files": [
+   "web/js/github-engine.js",
+   "README.md",
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The GitHub Pages studio finds classes with a regex (github-engine.js:291), falls back to classes derived from file names (:383-392), and parses only the first 80 files (:199-200). README.md:57 calls this client-side AST parsing. The CLI scans only .java/.kt/.kts files and does not exclude tests (main.rs:76-99). The server, which every script uses, accepts about 60 extensions and skips tests (server.rs:790-884).",
+  "impact": "What most users see is not produced by the engine being benchmarked, and results differ by entry point. Any number given without naming the entry point is ambiguous.",
+  "recommendation": "Benchmark the browser extractor, the CLI and the server as separate systems, and record each one's input-selection rules in every result. Disclose the 80-file cap in the UI. Longer term, compile the Rust engine to WASM so a single extractor serves every entry point.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Impact, navigation and ROBDD queries miss their stated semantics and complexity",
+  "files": [
+   "src/scpg/query/impact.rs:10-34",
+   "src/scpg/query/navigation.rs:8-27",
+   "src/scpg/query/robdd.rs:9-20",
+   "src/tra/types.rs:125-136",
+   "src/main.rs:508-548"
+  ],
+  "evidence": "`impact_set` promises \"callers, overrides, and dependents\" but ignores `_sta` and follows only reverse call edges, scanning every edge per node. `to_source` is documented as O(1) but is `uml_links.iter().find`. `from_source` is documented as O(log n) but is a linear filter that returns every overlapping link instead of the innermost one. TRA's dense `bi_sym` and `sym_span` arrays go unused. `path_count` and `cyclomatic` return 1 for unknown symbols. No CLI command or HTTP route exposes any of these queries.",
+  "impact": "Change impact is under-reported when virtual dispatch is involved, every navigation lookup is O(n), and unknown symbols report fake metrics.",
+  "recommendation": "Compute impact as reverse reachability over call, override (CHA/RTA), field read/write and type-reference edges, or use Chianti-style atomic changes. Navigate with `bi_sym[sym_id]` plus an interval tree or binary search over sorted spans that returns the innermost entity. Return Option for unknown ids, and expose the queries through the CLI and an HTTP or LSP API. Done means tests for override-aware impact and benchmarks that confirm the stated complexity.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact readers trust file-supplied lengths; Phase 2 never checks the .tca's magic, version or CRC; `inspect` claims 'VERIFIED VALID' without checking",
+  "files": [
+   "src/ast/mod.rs:40-60",
+   "src/ast/serializer.rs:105-142",
+   "src/ingestion/serializer.rs:212-300",
+   "src/ingestion/serializer.rs:247-251",
+   "src/ingestion/mod.rs:136-138",
+   "src/ingestion/serializer.rs:93-98",
+   "src/main.rs:373-388",
+   "README.md:59"
+  ],
+  "evidence": "ASTStage::run parses the mmapped .tca at fixed offsets without checking TCA_MAGIC, the version or the stored CRC. BPASTSerializer::read slices buf[offset..offset+8] using lengths taken from the file, so a CRC-valid file with inconsistent lengths panics. It also ignores _format_ver, never checks bit_count against words.len() (get_bit then panics), and passes file-controlled u32 counts to with_capacity, which can abort on a multi-GB allocation. CRC-64 is not a MAC. path_str_offset holds a text_id in memory but a byte offset on disk, and read() discards the paths. cmd_inspect prints 'VERIFIED VALID' after matching only the magic.",
+  "impact": "Corrupt, stale or crafted artifacts are either consumed silently or crash the process. The README's 'zero-copy, CRC-64 verified' format is neither: sections are unaligned and get copied (the BP words start at offset 68).",
+  "recommendation": "Define one versioned container with magic, version, a section table (offset, length, alignment) and 8- or 64-byte-aligned sections, all validated before use. Read it through zerocopy/bytemuck try_from_bytes for real mmap views, or adopt rkyv with validation, FlatBuffers or Arrow IPC. Use checked arithmetic, cap allocations by the bytes remaining, and give each field one meaning. Make inspect actually verify, and add cargo-fuzz targets for every reader.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-08",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Safe wrapper over unsafe mmap combined with in-place truncating writes to fixed, predictable paths",
+  "files": [
+   "src/core/io/mmap.rs:13-17",
+   "src/ingestion/serializer.rs:168-170",
+   "src/ast/serializer.rs:21",
+   "src/core/pipeline.rs:113",
+   "src/core/pipeline.rs:159-168",
+   "src/main.rs:120-148"
+  ],
+  "evidence": "MemoryMappedFile::open is a safe fn wrapping `unsafe { Mmap::map(&file)? }` and exposes &[u8] with no stated invariant. Artifacts are written with File::create (truncating) straight to fixed names (corpus.tca, ast.bpa), either in ./openheart_output or, for SCPGPipelineBuilder::new(), in std::env::temp_dir(). Two concurrent runs sharing a directory truncate a file the other run has mapped: SIGBUS on Unix, an error on Windows. On a shared /tmp, a planted symlink at /tmp/corpus.tca is followed and its target overwritten (CWE-377/CWE-59). Writes are not atomic.",
+  "impact": "Concurrent runs crash or corrupt artifacts. Library users of the default builder face a local file-clobber hazard.",
+  "recommendation": "Hand the in-memory Phase 1 artifact to Phase 2 instead of mmapping it. If mmap stays, make the constructor an `unsafe fn` with a documented contract and take an advisory lock (fd-lock). Write each artifact to a tempfile::NamedTempFile in the target directory and persist() it (atomic rename). Default to a fresh tempfile::TempDir rather than fixed names in temp_dir().",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Source discovery follows symlinks, aborts on the first I/O error, ignores .gitignore and generated code, and neither dedups nor caps file size",
+  "files": [
+   "src/main.rs:76-99",
+   "src/adapters/server.rs:764-830",
+   "src/ingestion/mod.rs:38-39",
+   "src/ingestion/mod.rs:51-54"
+  ],
+  "evidence": "collect_source_files recurses via Path::is_dir(), which follows symlinks, so a symlink cycle recurses until the OS returns an error. Any read_dir or entry error propagates through `?` and aborts the whole analysis. The server's copy also follows symlinks. There is no .gitignore, hidden-directory or build-output filtering (target/, build/generated/), and extension matching is case-sensitive. IngestionStage::run sorts paths but never dedups them, so one file reached by two paths gets two file_ids, and fs::read loads files of any size, twice.",
+  "impact": "Real repositories with symlinks, unreadable directories or generated sources either fail or produce duplicate symbols, and one huge generated file can exhaust memory.",
+  "recommendation": "Use the ignore crate's WalkBuilder (gitignore and hidden-file handling, follow_links(false) or loop detection, max_filesize, parallel walk) with globset include/exclude configuration. Canonicalize and dedup paths. Log and skip unreadable entries. Tag generated files (@Generated, build directories) so they can be excluded or analysed separately.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-08",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "validate_url panics on index [1] for URLs without a repo segment, and is never called on the clone path",
+  "files": [
+   "src/adapters/web_repo.rs:104-118"
+  ],
+  "evidence": "After stripping the host prefix, `let parts: Vec<&str> = …split('/').collect();` then `let repo = parts[1]…` (web_repo.rs:111-112) indexes position 1 unconditionally. Input `https://github.com/owner` (no trailing repo) yields a one-element vector, so `parts[1]` panics with index-out-of-bounds. The only tests cover well-formed URLs (:126-139). This function is also dead code relative to the actual clone in server.rs, which does its own unchecked parsing.",
+  "impact": "If this validator is ever wired into the request path (its stated purpose) it panics the thread on a common malformed URL; today it gives a false sense of input validation while the clone path has none.",
+  "recommendation": "Use `parts.get(0)`/`parts.get(1)` with explicit `Err` on missing segments, reject empty/`..`/control characters, and return the normalized owner/repo. Add tests for host-only, trailing-slash, `-`-prefixed, and non-github URLs. Then actually call it before every clone (ties to SRV-02).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact deserializers slice fixed header offsets after only a minimal length check, panicking on truncated-but-magic-valid files",
+  "files": [
+   "src/main.rs:347-485",
+   "src/uma/serializer.rs:238-270",
+   "src/tra/serializer.rs:114-170"
+  ],
+  "evidence": "`inspect` dispatches on magic then calls sub-deserializers. Readers validate only a coarse minimum length (e.g. `bytes.len() < UMA_HEADER_SIZE + 8`, uma/serializer.rs:230) or `buf.len() < 96` (tra:114) and then index many fixed ranges via `try_into().unwrap()` and derive counts used to slice payloads. A file with a valid magic/CRC-consistent prefix but a truncated or oversized declared count can panic on slice-out-of-range during body parsing. No `catch_unwind` guards these.",
+  "impact": "`openheart inspect` on a crafted or corrupted artifact can panic instead of returning the intended 'corrupted artifact' error; the same parsers are reachable from the engine open path.",
+  "recommendation": "Bounds-check every read against remaining length and return `io::Error` on shortfall (consider a small cursor helper or the `zerocopy`/`bytes` crates). Validate declared element counts against remaining bytes before allocating/slicing. Add fuzz targets (cargo-fuzz) for each `.tca/.bpa/.sta/.cfa/.ssa/.cga/.tra/.psa/.uma/.scpg` reader.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "SRV-10",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "medium",
+  "title": "Hand-rolled CLI: silent flag dropping, positional-only port, no --version, subcommand name drift",
+  "files": [
+   "src/main.rs:487-555",
+   "src/main.rs:532-539"
+  ],
+  "evidence": "Argument handling is manual `Vec<String>` matching (main.rs:490-549). Verbosity flags are `retain`-filtered anywhere in argv but any other `--flag` is ignored or misread as a positional. `server` takes a positional port (`args[2].parse::<u16>().unwrap_or(8080)`, :533-536), so `--port` is unsupported (conflicting with the Dockerfile) and a bad port silently becomes 8080. There is no `--version`, no `--help` for subcommands, and exit codes are inconsistent (help prints usage/ok; missing args print usage then exit 1).",
+  "impact": "Confusing, error-prone CLI that silently ignores or misinterprets options; mismatched with the container command and with Rust CLI norms, undermining benchmark-grade polish.",
+  "recommendation": "Adopt clap (derive API) with real subcommands (`analyze`, `inspect`, `server`), typed `--port`/`-p` with env fallback, `--verbose`/`--trace` as global flags, auto `--help`/`--version` (from CARGO_PKG_VERSION), and documented exit codes. Follows the Rust CLI Book / clap conventions.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-12",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "No security headers on server responses; Pages app loads CDN scripts without SRI or CSP",
+  "files": [
+   "src/adapters/server.rs:302-334",
+   "web/index.html:29-34"
+  ],
+  "evidence": "`serve_file`/`respond_json` emit only Content-Type, Content-Length and CORS headers (server.rs:305-333) — no `X-Content-Type-Options: nosniff`, `Content-Security-Policy`, `X-Frame-Options`, or `Referrer-Policy`. index.html pulls five third-party scripts (cytoscape, dagre, cytoscape-dagre, cytoscape-svg, jszip) from cdnjs/jsdelivr with no `integrity`/`crossorigin` attributes (index.html:29-34) and the page defines no CSP meta (confirmed none).",
+  "impact": "MIME-sniffing and clickjacking exposure on the local server; on the public GitHub Pages studio, a compromised or MITM'd CDN can execute arbitrary JS in users' browsers with no subresource-integrity backstop.",
+  "recommendation": "Add `X-Content-Type-Options: nosniff` and a restrictive CSP to all server responses (tower-http `SetResponseHeaderLayer`). On the web app, pin each CDN `<script>` with an `integrity=\"sha384-…\"` SRI hash and `crossorigin=\"anonymous\"`, or vendor the libraries locally, and add a `<meta http-equiv=\"Content-Security-Policy\">` restricting script/connect sources (allowing api.github.com and kroki.io).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-13",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Duplicated pipeline orchestration; server omits Phase 10 yet reports 'All 10 phases verified' and writes into the live served web/diagrams",
+  "files": [
+   "src/adapters/server.rs:505-699",
+   "src/adapters/server.rs:636-693",
+   "src/main.rs:101-345"
+  ],
+  "evidence": "`process_analyze_request` re-implements the pipeline that `cmd_analyze` already contains (main.rs:101-345), but runs only Phases 1–9 (no Phase10Stage call anywhere in server.rs) while logging `\"Pipeline complete… All 10 phases verified.\"` (server.rs:696-699). It also writes every diagram into `web/diagrams` (`Path::new(\"web\").join(\"diagrams\")`, :636-691) — the directory the server serves to all clients — with no per-request isolation, then deletes only its temp dir (:693).",
+  "impact": "Two divergent orchestrations drift out of sync; the server's own success message is false (Phase 10 never runs); concurrent or sequential requests overwrite shared web/diagrams, so one user's analysis is served to another and results race.",
+  "recommendation": "Extract a single `run_pipeline(files, out_dir) -> Artifacts` used by both CLI and server, returning in-memory results. Write per-request outputs to a unique temp/session directory and stream them in the response instead of mutating the shared web/diagrams tree. Make the server's phase log reflect what actually executed.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-14",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Security/config docs describe controls the code does not implement (env knobs, forbid(unsafe_code), module paths, supported versions)",
+  "files": [
+   ".env.example:1-17",
+   "docs/security-architecture.md:9-34",
+   "src/core/logger.rs:97-108",
+   "SECURITY.md:9-13"
+  ],
+  "evidence": "security-architecture.md states env vars `OPENHEART_MAX_MEMORY_MB`, `OPENHEART_NUM_THREADS`, `OPENHEART_ARTIFACT_DIR` are 'managed via .env with safe fallback defaults' and that ingestion modules carry `#![forbid(unsafe_code)]`. grep finds no code reading those vars (logger reads only `OPENHEART_LOG`, logger.rs:98; .env.example advertises `RUST_LOG`, which is unused), `forbid(unsafe_code)` appears in no source file, and the cited `src/phase1/parser/tree_sitter.rs` path does not exist (it is src/ingestion/parser/…). SECURITY.md lists supported versions 1.0.x/1.1.x though the crate is 0.1.0.",
+  "impact": "The advertised memory cap (a DoS mitigation) and unsafe-code guarantee are fictional, and the version-support table is false — misleading for a project positioned as benchmark-grade and auditable.",
+  "recommendation": "Either implement the knobs (read and enforce OPENHEART_MAX_MEMORY_MB as a real cap, honor OPENHEART_NUM_THREADS/ARTIFACT_DIR, support RUST_LOG) or delete them from docs and .env.example. Add `#![forbid(unsafe_code)]` to the modules that truly contain none, fix the module paths, and correct SECURITY.md to the versions that exist. Add a doc-lint/test asserting every documented env var is referenced in code.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-12",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "IDE and LSP integration",
+  "files": [
+   "src/main.rs",
+   "Cargo.toml",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The only subcommands are analyze, inspect, server and help (src/main.rs:509-549). Cargo.toml:8-16 has no LSP or editor-protocol dependency, and the HTTP server exposes no editor-oriented routes (src/adapters/server.rs:77-289).",
+  "impact": "Developers have to leave the editor to see diagrams or results. IntelliJ diagrams, Semgrep's LSP-based extensions, CodeQL for VS Code and Sourcetrail's plugins have set the expectation of in-IDE use.",
+  "recommendation": "Add `openheart lsp` (tower-lsp) with diagnostics from the analyses and code lenses such as 'show in class/sequence diagram'. Support go-to-diagram and back via UMLLink spans, with incremental updates on didChange. Host the studio canvas in a VS Code webview, and rely on JetBrains' LSP support for IntelliJ.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-12",
+  "kind": "enhancement",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Very long functions hold most of the risk",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/uma/serializer.rs",
+   "src/adapters/server.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/main.rs"
+  ],
+  "evidence": "Of 834 non-test functions (lengths by brace matching), the median is 10 lines and p90 is 65. 118 are over 50 lines, 43 over 100 and 13 over 200. Largest: pass1_discovery.rs:18-633 run (616), uma/serializer.rs:229-679 read (451), server.rs:366-762 process_analyze_request (397), class_diagram.rs:13-344 extract (332), json.rs:121-421 (301), main.rs:101-345 cmd_analyze (245).",
+  "impact": "These functions cannot be unit-tested, and defects such as the silent repo fallback hide inside 400-line handlers.",
+  "recommendation": "Split by concern: routing, validation, phase orchestration, record codecs. Enforce clippy::too_many_lines and cognitive_complexity limits in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-13",
+  "kind": "enhancement",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Only 29.6% of public Rust items have doc comments",
+  "files": [
+   "src/lib.rs",
+   "src/ssa",
+   "src/cfg",
+   "src/ingestion",
+   "src/ast",
+   "src/symbol",
+   "src/scpg",
+   "src/uma"
+  ],
+  "evidence": "Public fn/struct/enum/trait items preceded by ///, skipping attributes: 247 of 834 (fn 29.5%, struct 25.9%, enum 55%, trait 75%). By module: ssa 0/28, cfg 1/48, ingestion 6/50, ast 8/59, symbol 11/70, uma 24/114, scpg 44/214, tra 15/48, core 46/100, cg 10/14, psa 78/78. lib.rs has no #![warn(missing_docs)].",
+  "impact": "Outside users and reviewers cannot use the query engine, SCPG format or IR types without reading the source.",
+  "recommendation": "Turn on #![warn(missing_docs)] and later deny it. Document the scpg query and IR types first. Shrink the public surface with pub(crate). Run cargo doc with -D warnings in CI.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPG-19",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No standard interop or query surface (SCIP/LSIF, a query language, LSP) and no stable symbol ids",
+  "files": [
+   "src/scpg/query/mod.rs:22-84",
+   "src/scpg/types.rs:44-59",
+   "src/main.rs:508-548",
+   "docs/plans/phase10.md:562-567"
+  ],
+  "evidence": "QueryEngine offers just two hard-coded Rust calls, reachability and backward slice, and the u8 `query_type` field is not extensible. The CLI has only analyze, inspect, server and help. The LSPBridge, FileWatcher and didChange-to-SourceDelta pieces described in the docs do not exist. Entities are positional u32 sym_ids that change between builds, so cross-build diffs and external links are impossible.",
+  "impact": "OpenHeart cannot plug into Sourcegraph, IDEs or CI, and users cannot write their own analyses. Joern (CPGQL), CodeQL (QL), Glean (Angle) and Kythe/SCIP all support this.",
+  "recommendation": "Assign stable SCIP-style symbol strings or Kythe VNames, and export SCIP using the scip crate. Add a query layer, for example Datalog via ascent or crepe, a Trustfall adapter, or a Gremlin-like DSL. Add a tower-lsp server for definition, references and hover backed by TRA. Done means `scip lint` passes and an LSP smoke test works in VS Code.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-14",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Pipeline abstraction is decorative: the stage template has no implementors and orchestration is copy-pasted three times",
+  "files": [
+   "src/core/pipeline.rs:34-78",
+   "src/core/pipeline.rs:97-101",
+   "src/core/pipeline.rs:143-148",
+   "src/core/pipeline.rs:151-238",
+   "src/main.rs:139-200",
+   "src/adapters/server.rs:506-600",
+   "Cargo.toml:14"
+  ],
+  "evidence": "PipelineStageTemplate, with its verify_invariants and timing hooks, has zero implementors. SCPGPipelineBuilder::execute, cmd_analyze and the server each wire all 10 phases by hand, with different error handling. The server uses fs::read(..).unwrap_or_default() and passes empty bytes onward. diagram_formats is stored but never used. Every phase writes its artifact and the caller reads it back with fs::read. Phases 7-10 return plain values and cannot report errors. Errors are Strings or io::Error; thiserror is a dependency but is never used.",
+  "impact": "The CLI, server and library behave differently. There is no caching, cancellation, per-stage metrics or partial re-run, and errors lose their structure.",
+  "recommendation": "Define one Stage trait with typed inputs and outputs and a thiserror error enum, driven by a single Pipeline that the CLI, server and library all use. Hand artifacts over in memory and persist them optionally. Key each stage's output by a hash of its inputs and config so unchanged stages are skipped, salsa or Bazel style. Add cancellation tokens and per-stage timing and RSS metrics, and either wire up or remove diagram_formats.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-11",
+  "kind": "enhancement",
+  "category": "devops",
+  "severity": "medium",
+  "title": "Docker image is unhardened: root user, no healthcheck, build errors swallowed, no .dockerignore, base-image/version drift",
+  "files": [
+   "Dockerfile:1-49"
+  ],
+  "evidence": "Runtime stage `FROM debian:bookworm-slim` runs with no `USER` (root) and no `HEALTHCHECK`. The dependency-cache layer uses `cargo build --release || true` (Dockerfile:16), hiding real build failures. There is no .dockerignore (confirmed absent), so `COPY src`/`COPY tests` pull in whatever is present and the build context is unbounded. Builder is `rust:1.80-slim` while README/getting_started claim support for Rust 1.75+. `git` is installed in the runtime image to enable the SSRF-prone clone (SRV-02).",
+  "impact": "Larger attack surface and image size, no container liveness signal, masked build breakage, and an unverified MSRV claim — below distroless/non-root container-hardening norms.",
+  "recommendation": "Add a non-root `USER`, a `HEALTHCHECK` curling `/api/health`, and a read-only root FS with a writable tmpfs for clones. Remove `|| true` (use proper dependency caching via cargo-chef). Add a .dockerignore (target/, .git/, web/diagrams outputs). Move to a distroless or `gcr.io/distroless/cc` runtime; drop `git` unless server-side cloning is retained and sandboxed. Reconcile the base image with the documented MSRV (CI job pinned to 1.75).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-20",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Hardcoded developer paths, ports and personal URLs",
+  "files": [
+   "src/adapters/server.rs",
+   "src/adapters/web_repo.rs",
+   "ruthless_verify.py",
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/generate_diagrams.py",
+   "web/index.html"
+  ],
+  "evidence": "server.rs:118-195 probes a fixed list that includes ./target_repos/FractalAndroid (124), and target_repos is hardcoded again at 211 and 399-470. Scripts expect untracked datasets (benchmark_all_java_design_patterns.py:28; test_ruthless_popular_datasets.py:83, 190, 236; test_authored_design_patterns.py:129). localhost:8080 is fixed in generate_diagrams.py:8 and ruthless_verify.py:17. Personal repo URLs appear at web_repo.rs:128 and index.html:107. The FractalAndroid owner differs between index.html:1153 and test_diagrams_outputs_refresh.py:143.",
+  "impact": "Behavior depends on the author's disk layout, so results cannot be reproduced on another machine.",
+  "recommendation": "Move paths and ports into CLI flags or environment variables. Add a datasets manifest with pinned commit SHAs. Keep personal URLs to README and docs.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-21",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": ".env.example documents settings the code never reads",
+  "files": [
+   ".env.example",
+   "src/core/logger.rs",
+   "Dockerfile"
+  ],
+  "evidence": ".env.example defines RUST_LOG, OPENHEART_ARTIFACT_DIR, OPENHEART_MAX_MEMORY_MB, OPENHEART_NUM_THREADS and OPENHEART_STRICT_INVARIANTS. None of them appears anywhere in src/. The only environment variable the code reads is OPENHEART_LOG (core/logger.rs:98), and it is not documented. The Dockerfile's HOST and PORT are ignored too, and the code has no threading at all.",
+  "impact": "Operators believe they are controlling memory, thread count and invariant checks when they are not.",
+  "recommendation": "Either implement a single Config read from environment and CLI, or delete the unused keys. Document OPENHEART_LOG.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-17",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "PSA/TRA readers trust header counts; the PSA uses a different and slow CRC-64 variant",
+  "files": [
+   "src/psa/serializer.rs:192-244",
+   "src/psa/serializer.rs:259-279",
+   "src/tra/serializer.rs:130-138",
+   "src/tra/serializer.rs:172-295",
+   "src/main.rs:432",
+   "src/main.rs:448"
+  ],
+  "evidence": "Both readers slice `bytes[pos..pos+N]` and call `Vec::with_capacity(n)` using untrusted u32 counts, without validating them against the remaining length. A crafted file with a recomputed CRC therefore panics, or attempts a multi-GB allocation through the CLI inspect path. The PSA's bit-serial CRC-64 (init/xorout all-ones, augmented form) differs from ingestion's CRC-64/ECMA-182, despite the comment saying it 'matches all other serializers' (serializer.rs:262).",
+  "impact": "Local DoS on malformed artifacts, inconsistent integrity checks across formats, and bit-at-a-time hashing of large files.",
+  "recommendation": "Parse through a bounds-checked cursor (binrw, zerocopy, or get() with checked_mul), and validate each count against the remaining bytes before allocating. Use one standard checksum everywhere (the crc crate's CRC_64_ECMA_182 with table/SIMD) or BLAKE3. Add cargo-fuzz targets for both readers. Done means an hour of clean fuzzing.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-15",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "low",
+  "title": "Server leaks internal filesystem paths and raw git stderr to clients and stdout",
+  "files": [
+   "src/adapters/server.rs:313-314",
+   "src/adapters/server.rs:446-451",
+   "src/adapters/server.rs:474-502"
+  ],
+  "evidence": "`serve_file` prints `\"[SERVER ERROR] Failed to read file '{}': {}\"` with the path to stdout (server.rs:313-314). Analyze logs — returned to the client in the JSON `logs` array — include raw `git clone` stderr (:446-451), the server-side absolute/relative target path via `target_dir.display()` (:474-502), and the requested `repo_url`. `[SERVER] Backend analyzing repository: {url}` is printed to stdout (:384).",
+  "impact": "Internal directory layout, cached repository names belonging to other analyses, and git error detail are disclosed to unauthenticated callers, aiding reconnaissance for the traversal/SSRF issues above.",
+  "recommendation": "Return generic client-facing errors and move diagnostic detail to server-side logs only. Strip filesystem paths and raw subprocess stderr from the `logs`/`errors` fields. Adopt a structured logger (tracing) with levels so verbose diagnostics are opt-in and never serialized into API responses.",
+  "effort": "S",
+  "confidence": "high"
+ }
+]

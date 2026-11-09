@@ -5,16 +5,34 @@
  *      Level 1: Domain Tier Container (Solid border, soft pastel backdrop)
  *      Level 2: Subpackage Container (Dashed border, saturated pastel backdrop)
  *      Level 3: Enclosed 3-Compartment Class Cards (Crisp pure white with drop shadow)
- *  - Deterministic Preset Layout Engine (100% Collision-Free Guarantee)
- *  - Orthogonal Taxi Wiring for Clean, Non-Entangled Routing
+ *  - Deterministic preset layouts (see uml-layout.js)
+ *  - Orthogonal taxi wiring
+ * Diagram data comes from exactly one session source (studio-store.js): bundled sample files,
+ * the Rust analysis server, or the in-browser declaration extractor. Views the active source
+ * cannot provide render an explicit empty state; nothing is synthesised.
  */
 
 import { parsePumlToCytoscape } from './puml-parser.js';
 import { computeDeterministicLayout } from './uml-layout.js';
-import { loadGraphIrToCytoscape } from './graph-loader.js';
-import { generatePackageFolderSvg } from './uml-card-renderer.js';
-import { getTheme, onThemeChange, buildCytoscapeStylesheet } from './themes/index.js';
+import { loadGraphIrToCytoscape, renderCardSvg, cardFromNodeData } from './graph-loader.js';
+import { getTheme, onThemeChange, buildCytoscapeStylesheet, isDarkMode, getCachedManifest } from './themes/index.js';
 import { MinimapNavigator } from './minimap-navigator.js';
+import { validateGraphIr, DIAGRAM_STATE_FORMAT, DIAGRAM_STATE_VERSION } from './graph-ir-validate.js';
+import { studioStore } from './studio-store.js';
+import { localStore } from './storage.js';
+
+const LOD_ZOOM_THRESHOLD = 0.35;
+const LARGE_GRAPH_ELEMENTS = 1000;
+const HIT_CELL_SIZE = 400;
+const MAX_EXPORT_DIMENSION = 16000;
+const MAX_EXPORT_PIXELS = 120e6;
+const DEFAULT_HUD_HINT = 'Mouse wheel to Zoom · Drag to Pan · Shift+Wheel to Pan H · Hover to trace path';
+
+function formatParameter(p) {
+  if (!p) return '_';
+  if (p.name && p.type) return `${p.name}: ${p.type}`;
+  return p.name || p.type || '_';
+}
 
 export class InteractiveGraphCanvas {
   constructor(containerId = 'interactive-canvas') {
@@ -25,7 +43,8 @@ export class InteractiveGraphCanvas {
     this.onNodeSelectedCallback = null;
     this.onNodeHoverCallback = null;
     this.onRenderCompleteCallback = null;
-    this.panSensitivity = parseFloat(localStorage.getItem('openheart_pan_sensitivity') || '0.10');
+    this.onAnnounceCallback = null;
+    this.panSensitivity = localStore.getNumber('openheart_pan_sensitivity', 0.10);
     this.activeHoverId = null;
     this.hoverTimeout = null;
     this.collapsedPackages = new Set();
@@ -38,6 +57,11 @@ export class InteractiveGraphCanvas {
     this.redoStack = [];
     this.maxHistory = 50;
     this._hudStatusTimer = null;
+    this.renderSeq = 0;
+    this.lastRenderMeta = null;
+    this.lodActive = false;
+    this.hitIndex = null;
+    this.snapshotLabel = null;
   }
 
   init() {
@@ -48,11 +72,35 @@ export class InteractiveGraphCanvas {
     if (this.minimap) {
       this.minimap.mount(this.containerId);
     }
-    this.renderGraph(this.currentGraphType);
-
     onThemeChange((theme, isDark) => {
       this.setTheme(isDark);
     });
+    return this.renderGraph(this.currentGraphType);
+  }
+
+  setAnnounceCallback(cb) {
+    this.onAnnounceCallback = cb;
+  }
+
+  announce(message) {
+    if (this.onAnnounceCallback) this.onAnnounceCallback(message);
+  }
+
+  /**
+   * True while keyboard focus is on the diagram canvas itself; single-key shortcuts
+   * (Delete, Space, arrows, M, L, N) only act then (WCAG 2.1.4).
+   */
+  isCanvasFocused() {
+    const container = document.getElementById(this.containerId);
+    const active = document.activeElement;
+    return Boolean(container && active && (active === container || container.contains(active)));
+  }
+
+  isFocusInCanvasCard() {
+    const container = document.getElementById(this.containerId);
+    const card = container ? container.closest('.canvas-card') : null;
+    const active = document.activeElement;
+    return Boolean(card && active && card.contains(active));
   }
 
   setNodeSelectCallback(cb) {
@@ -69,607 +117,238 @@ export class InteractiveGraphCanvas {
 
   setPanSensitivity(val) {
     this.panSensitivity = val;
-    localStorage.setItem('openheart_pan_sensitivity', val.toString());
+    localStore.set('openheart_pan_sensitivity', val.toString());
   }
 
-  getNodeDataById(nodeId) {
-    if (!this.cy || !nodeId) return null;
-    const node = this.cy.getElementById(nodeId);
-    return node && node.length > 0 ? node.data() : null;
-  }
-
-  getNodeDataByFile(fileName) {
-    if (!this.cy || !fileName) return null;
-    const nodes = this.cy.nodes();
-    const cleanFile = fileName.replace(/\.java$/, '').replace(/\.kt$/, '').toLowerCase();
-    for (let i = 0; i < nodes.length; i++) {
-      const d = nodes[i].data();
-      if (!d) continue;
-      const dFile = (d.file || '').replace(/\.java$/, '').replace(/\.kt$/, '').toLowerCase();
-      const dId = (d.id || '').toLowerCase();
-      const dName = (d.name || '').toLowerCase();
-      if (dFile === cleanFile || dId === cleanFile || dName === cleanFile || dFile.includes(cleanFile)) {
-        return d;
-      }
+  diagramDisplayName(graphType) {
+    const manifest = getCachedManifest();
+    for (const cat of (manifest && manifest.categories) || []) {
+      const hit = (cat.diagrams || []).find(d => d.id === graphType);
+      if (hit) return hit.name;
     }
-    return null;
-  }
-
-  async renderCustomGraphIr(graphIr) {
-    if (!graphIr) return;
-    this.customGraphIr = graphIr;
-    const elements = loadGraphIrToCytoscape(graphIr);
-    await this.renderGraph(graphIr.diagram_type || 'class', elements);
+    return graphType;
   }
 
   /**
-   * Dynamically project any of the 19 diagram types from the ingested custom codebase Graph IR
+   * Projections the in-browser declaration extractor can derive truthfully:
+   * the class model itself, and packages with dependencies aggregated from resolved relations.
+   * Every other view needs data only the Rust engine computes and gets an explicit empty state.
    */
-  projectCustomDiagram(customGraphIr, graphType) {
-    if (!customGraphIr || !customGraphIr.nodes) return [];
-
-    const rawClasses = customGraphIr.nodes.filter(n => !n.is_package && n.kind !== 'package');
-    const rawPackages = customGraphIr.nodes.filter(n => n.is_package || n.kind === 'package');
-    const rawEdges = customGraphIr.edges || [];
-
+  projectInBrowserDiagram(ir, graphType) {
     const normType = (graphType || 'class').toLowerCase().replace(/_/g, '');
-
-    // 1. CLASS DIAGRAM: Return the full model
     if (normType === 'class') {
-      return loadGraphIrToCytoscape(customGraphIr);
+      return { elements: loadGraphIrToCytoscape(ir), emptyReason: null };
     }
-
-    // 2. PACKAGE DIAGRAM: Filter to packages and inter-package dependencies
     if (normType === 'package') {
-      let pkgNodes = [...rawPackages];
       const classToPkg = new Map();
-      rawClasses.forEach(c => {
-        if (c.parent) classToPkg.set(c.id, c.parent);
+      ir.nodes.forEach(n => {
+        if (!n.is_package && n.parent) classToPkg.set(n.id, n.parent);
       });
-
-      if (pkgNodes.length === 0) {
-        // Synthesize packages from class package paths
-        const synthetic = new Map();
-        rawClasses.forEach(c => {
-          const pId = c.parent || 'pkg_root';
-          if (!synthetic.has(pId)) {
-            const shortName = pId.replace(/^pkg_/, '').replace(/_/g, '.');
-            synthetic.set(pId, {
-              id: pId,
-              name: shortName,
-              label: `package [${shortName}]`,
-              kind: 'package',
-              stereotype: '<<package>>',
-              is_package: true,
-              nest_level: 0
-            });
-          }
-        });
-        pkgNodes = Array.from(synthetic.values());
-      }
-
-      const pkgEdgeSet = new Set();
-      const pkgEdges = [];
-      rawEdges.forEach(e => {
-        const srcPkg = classToPkg.get(e.source);
-        const tgtPkg = classToPkg.get(e.target);
-        if (srcPkg && tgtPkg && srcPkg !== tgtPkg) {
-          const edgeKey = `${srcPkg}->${tgtPkg}`;
-          if (!pkgEdgeSet.has(edgeKey)) {
-            pkgEdgeSet.add(edgeKey);
-            pkgEdges.push({
-              id: `pkg_dep_${srcPkg}_${tgtPkg}`,
-              source: srcPkg,
-              target: tgtPkg,
-              kind: 'dependency',
-              label: '<<import>>',
-              arrow: '-->'
-            });
-          }
+      const pkgNodes = ir.nodes.filter(n => n.is_package).map(p => Object.assign({}, p, { parent: null }));
+      const counts = new Map();
+      (ir.edges || []).forEach(e => {
+        const s = classToPkg.get(e.source);
+        const t = classToPkg.get(e.target);
+        if (s && t && s !== t) {
+          const key = `${s}\u0000${t}`;
+          counts.set(key, (counts.get(key) || 0) + 1);
         }
       });
-
-      return loadGraphIrToCytoscape({
-        diagram_type: 'package',
-        nodes: pkgNodes,
-        edges: pkgEdges
+      const pkgEdges = Array.from(counts.entries()).map(([key, n]) => {
+        const [s, t] = key.split('\u0000');
+        return { id: `pkgdep:${s}->${t}`, source: s, target: t, kind: 'dependency', label: `${n} relation${n === 1 ? '' : 's'}`, arrow: '..>' };
       });
+      return {
+        elements: loadGraphIrToCytoscape({ diagram_type: 'package', nodes: pkgNodes, edges: pkgEdges }),
+        emptyReason: pkgNodes.length ? null : 'No packages were recovered from the analyzed files.'
+      };
     }
-
-    // 3. COMPONENT DIAGRAM: Map packages / core services to components and interfaces
-    if (normType === 'component') {
-      const compNodes = [];
-      const compEdges = [];
-
-      rawPackages.forEach(p => {
-        compNodes.push({
-          id: p.id,
-          name: p.name || p.id,
-          label: p.name || p.id,
-          kind: 'component',
-          stereotype: '<<component>>',
-          is_package: false,
-          file: null,
-          lines: []
-        });
-      });
-
-      if (compNodes.length === 0) {
-        rawClasses.slice(0, 10).forEach(c => {
-          compNodes.push({
-            id: `comp_${c.id}`,
-            name: c.name,
-            label: c.name,
-            kind: 'component',
-            stereotype: '<<component>>',
-            is_package: false,
-            file: c.file,
-            lines: c.lines || [1]
-          });
-        });
-      }
-
-      rawClasses.filter(c => c.kind === 'interface').slice(0, 15).forEach(iface => {
-        compNodes.push({
-          id: iface.id,
-          name: iface.name,
-          label: iface.name,
-          kind: 'interface',
-          stereotype: '<<interface>>',
-          is_package: false,
-          file: iface.file,
-          lines: iface.lines || [1]
-        });
-      });
-
-      rawEdges.forEach(e => {
-        compEdges.push({
-          id: `comp_edge_${e.id || Math.random().toString(36).substring(2, 7)}`,
-          source: e.source,
-          target: e.target,
-          kind: e.kind || 'dependency',
-          label: e.label || ''
-        });
-      });
-
-      return loadGraphIrToCytoscape({ diagram_type: 'component', nodes: compNodes, edges: compEdges });
-    }
-
-    // 4. COMPOSITE STRUCTURE: Primary classes as parts with internal ports
-    if (normType === 'composite') {
-      const nodes = rawClasses.slice(0, 12).map(c => ({
-        id: c.id,
-        name: c.name,
-        label: c.name,
-        kind: 'part',
-        stereotype: '<<part>>',
-        fields: c.fields || [],
-        methods: c.methods || [],
-        file: c.file,
-        lines: c.lines || [1]
-      }));
-      return loadGraphIrToCytoscape({ diagram_type: 'composite', nodes, edges: rawEdges.slice(0, 10) });
-    }
-
-    // 5. OBJECT DIAGRAM: Runtime instance snapshots
-    if (normType === 'object') {
-      const nodes = rawClasses.slice(0, 12).map(c => ({
-        id: `obj_${c.id}`,
-        name: `_${c.name.toLowerCase()} : ${c.name}`,
-        label: `_${c.name.toLowerCase()} : ${c.name}`,
-        kind: 'object',
-        stereotype: '<<object>>',
-        fields: (c.fields || []).map(f => typeof f === 'string' ? f : `${f.name || 'slot'} = [active]`),
-        file: c.file,
-        lines: c.lines || [1]
-      }));
-      const edges = rawEdges.slice(0, 10).map(e => ({
-        id: `obj_link_${e.id || Math.random().toString(36).substring(2, 7)}`,
-        source: `obj_${e.source}`,
-        target: `obj_${e.target}`,
-        kind: 'association',
-        label: '<<link>>'
-      }));
-      return loadGraphIrToCytoscape({ diagram_type: 'object', nodes, edges });
-    }
-
-    // 6. DEPLOYMENT DIAGRAM: Execution nodes with software artifacts
-    if (normType === 'deployment') {
-      const nodes = [
-        { id: 'node_client', name: 'Client Workstation', label: 'Client Device', kind: 'device', stereotype: '<<device>>' },
-        { id: 'node_server', name: 'Application Server Node', label: 'App Server', kind: 'device', stereotype: '<<executionEnvironment>>' },
-        { id: 'node_storage', name: 'Data / Cluster Tier', label: 'Storage Node', kind: 'device', stereotype: '<<device>>' }
-      ];
-      rawClasses.slice(0, 6).forEach((c, idx) => {
-        nodes.push({
-          id: `art_${c.id}`,
-          name: `${c.name}.dll`,
-          label: `${c.name}.dll`,
-          kind: 'artifact',
-          stereotype: '<<artifact>>',
-          parent: idx % 2 === 0 ? 'node_server' : 'node_client',
-          file: c.file,
-          lines: c.lines || [1]
-        });
-      });
-      const edges = [
-        { id: 'dep_1', source: 'node_client', target: 'node_server', kind: 'dependency', label: 'TCP/IP (Socket)' },
-        { id: 'dep_2', source: 'node_server', target: 'node_storage', kind: 'dependency', label: 'Cluster Wire' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'deployment', nodes, edges });
-    }
-
-    // 7. PROFILE DIAGRAM: Stereotypes and Metaclasses
-    if (normType === 'profile') {
-      const nodes = [
-        { id: 'meta_class', name: 'Class', kind: 'metaclass', stereotype: '<<metaclass>>' },
-        { id: 'meta_interface', name: 'Interface', kind: 'metaclass', stereotype: '<<metaclass>>' }
-      ];
-      rawClasses.slice(0, 8).forEach(c => {
-        nodes.push({
-          id: `st_${c.id}`,
-          name: c.name,
-          kind: 'stereotype',
-          stereotype: `<<${c.kind || 'stereotype'}>>`,
-          fields: (c.fields || []).slice(0, 2)
-        });
-      });
-      const edges = rawClasses.slice(0, 8).map(c => ({
-        id: `st_ext_${c.id}`,
-        source: `st_${c.id}`,
-        target: c.kind === 'interface' ? 'meta_interface' : 'meta_class',
-        kind: 'generalization',
-        label: '<<extend>>'
-      }));
-      return loadGraphIrToCytoscape({ diagram_type: 'profile', nodes, edges });
-    }
-
-    // 8. SEQUENCE DIAGRAM: Primary interacting lifelines with message traces
-    if (normType === 'sequence') {
-      const topClasses = rawClasses.slice(0, 5);
-      const nodes = [
-        { id: 'actor_client', name: 'ClientApp', label: 'ClientApp', kind: 'actor', stereotype: '<<actor>>' },
-        ...topClasses.map(c => ({
-          id: `part_${c.id}`,
-          name: c.name,
-          label: c.name,
-          kind: 'participant',
-          stereotype: '<<participant>>',
-          file: c.file,
-          lines: c.lines || [1]
-        }))
-      ];
-      const edges = [];
-      if (topClasses.length > 0) {
-        edges.push({ id: 'seq_0', source: 'actor_client', target: `part_${topClasses[0].id}`, kind: 'call', label: '1: Execute()' });
-        for (let i = 0; i < topClasses.length - 1; i++) {
-          const mName = topClasses[i + 1].methods?.[0]?.name || 'Process';
-          edges.push({
-            id: `seq_${i + 1}`,
-            source: `part_${topClasses[i].id}`,
-            target: `part_${topClasses[i + 1].id}`,
-            kind: 'call',
-            label: `${i + 2}: ${mName}()`
-          });
-        }
-        edges.push({
-          id: 'seq_ret',
-          source: `part_${topClasses[topClasses.length - 1].id}`,
-          target: 'actor_client',
-          kind: 'call',
-          label: `${topClasses.length + 1}: ResultAck`
-        });
-      }
-      return loadGraphIrToCytoscape({ diagram_type: 'sequence', nodes, edges });
-    }
-
-    // 9. STATE MACHINE DIAGRAM
-    if (normType === 'statemachine' || normType === 'state') {
-      const mainName = rawClasses[0]?.name || 'Controller';
-      const nodes = [
-        { id: 'st_init', name: '[*] Initializing', kind: 'state', instructions: [`entry / ${mainName}.Initialize()`] },
-        { id: 'st_ready', name: 'Ready / Idle', kind: 'state', instructions: ['do / ListenForRequests()'] },
-        { id: 'st_executing', name: 'ProcessingRequest', kind: 'state', instructions: ['entry / AllocateContext()', 'do / ExecutePipeline()'] },
-        { id: 'st_syncing', name: 'SyncingState', kind: 'state', instructions: ['entry / FlushState()'] },
-        { id: 'st_disposed', name: '[*] Disposed', kind: 'state', instructions: [`exit / ${mainName}.Dispose()`] }
-      ];
-      const edges = [
-        { id: 'sm_1', source: 'st_init', target: 'st_ready', kind: 'transition', label: 'ConfigLoaded' },
-        { id: 'sm_2', source: 'st_ready', target: 'st_executing', kind: 'transition', label: 'RequestReceived' },
-        { id: 'sm_3', source: 'st_executing', target: 'st_syncing', kind: 'transition', label: 'OperationSuccess' },
-        { id: 'sm_4', source: 'st_syncing', target: 'st_ready', kind: 'transition', label: 'SyncAcknowledged' },
-        { id: 'sm_5', source: 'st_ready', target: 'st_disposed', kind: 'transition', label: 'Shutdown()' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'statemachine', nodes, edges });
-    }
-
-    // 10. ACTIVITY DIAGRAM: Pipeline workflow
-    if (normType === 'activity') {
-      const nodes = [
-        { id: 'act_start', name: 'start', label: 'start', kind: 'action' },
-        { id: 'act_init', name: 'Initialize Configuration', label: 'Initialize Configuration', kind: 'action' },
-        { id: 'act_validate', name: 'Validate Request Parameters', label: 'Validate Request Parameters', kind: 'action' },
-        { id: 'act_exec', name: `Execute Core Logic (${rawClasses[0]?.name || 'Engine'})`, label: 'Execute Core Logic', kind: 'action' },
-        { id: 'act_persist', name: 'Commit & Persist Results', label: 'Commit & Persist Results', kind: 'action' },
-        { id: 'act_stop', name: 'stop', label: 'stop', kind: 'action' }
-      ];
-      const edges = [
-        { id: 'a_1', source: 'act_start', target: 'act_init', kind: 'control_flow' },
-        { id: 'a_2', source: 'act_init', target: 'act_validate', kind: 'control_flow' },
-        { id: 'a_3', source: 'act_validate', target: 'act_exec', kind: 'control_flow', label: '[valid]' },
-        { id: 'a_4', source: 'act_exec', target: 'act_persist', kind: 'control_flow' },
-        { id: 'a_5', source: 'act_persist', target: 'act_stop', kind: 'control_flow' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'activity', nodes, edges });
-    }
-
-    // 11. USE CASE DIAGRAM
-    if (normType === 'usecase' || normType === 'use_case') {
-      const nodes = [
-        { id: 'uc_admin', name: 'Administrator', label: 'Administrator', kind: 'actor' },
-        { id: 'uc_user', name: 'Client App', label: 'Client App', kind: 'actor' }
-      ];
-      rawClasses.slice(0, 6).forEach(c => {
-        nodes.push({
-          id: `uc_${c.id}`,
-          name: `Manage & Use ${c.name}`,
-          label: `Manage & Use ${c.name}`,
-          kind: 'usecase'
-        });
-      });
-      const edges = [];
-      rawClasses.slice(0, 6).forEach((c, idx) => {
-        edges.push({
-          id: `uce_${c.id}`,
-          source: idx % 2 === 0 ? 'uc_admin' : 'uc_user',
-          target: `uc_${c.id}`,
-          kind: 'association'
-        });
-      });
-      return loadGraphIrToCytoscape({ diagram_type: 'usecase', nodes, edges });
-    }
-
-    // 12. COMMUNICATION DIAGRAM
-    if (normType === 'communication') {
-      const topClasses = rawClasses.length > 0 ? rawClasses.slice(0, 6) : [{ id: 'core_service', name: 'CoreService', kind: 'class', file: null, lines: [1] }];
-      const nodes = topClasses.map(c => ({
-        id: c.id,
-        name: c.name,
-        label: c.name,
-        kind: c.kind || 'class',
-        file: c.file,
-        lines: c.lines || [1]
-      }));
-      const edges = rawEdges.slice(0, 8).map((e, idx) => ({
-        id: `comm_${idx}`,
-        source: e.source,
-        target: e.target,
-        kind: 'association',
-        label: `${idx + 1}: dispatch()`
-      }));
-      return loadGraphIrToCytoscape({ diagram_type: 'communication', nodes, edges });
-    }
-
-    // 13. INTERACTION OVERVIEW
-    if (normType === 'interaction') {
-      const sourceList = rawPackages.length > 0 ? rawPackages : (rawClasses.length > 0 ? rawClasses : [{ id: 'pkg_main', name: 'MainModule' }]);
-      const nodes = sourceList.slice(0, 5).map(p => ({
-        id: `io_${p.id}`,
-        name: `ref sd: ${p.name || p.id}`,
-        label: `ref sd: ${p.name || p.id}`,
-        kind: 'action',
-        stereotype: '<<interaction_use>>',
-        instructions: ['sd SequenceTrace', 'par parallel dispatch']
-      }));
-      const edges = [];
-      for (let i = 0; i < nodes.length - 1; i++) {
-        edges.push({
-          id: `ioe_${i}`,
-          source: nodes[i].id,
-          target: nodes[i + 1].id,
-          kind: 'control_flow'
-        });
-      }
-      return loadGraphIrToCytoscape({ diagram_type: 'interaction', nodes, edges });
-    }
-
-    // 14. TIMING DIAGRAM
-    if (normType === 'timing') {
-      const topClasses = rawClasses.length > 0 ? rawClasses.slice(0, 4) : [{ id: 'engine', name: 'Engine' }];
-      const nodes = topClasses.map(c => ({
-        id: `track_${c.id}`,
-        name: c.name,
-        label: c.name,
-        kind: 'timing_track',
-        instructions: ['@0ms: Idle', '@50ms: Active', '@120ms: Sync', '@200ms: Idle']
-      }));
-      return loadGraphIrToCytoscape({ diagram_type: 'timing', nodes, edges: [] });
-    }
-
-    // 15. CFG: Control Flow Graph Basic Blocks
-    if (normType === 'cfg') {
-      const mainClass = rawClasses[0]?.name || 'MainComponent';
-      const nodes = [
-        { id: 'bb_0', label: `Block #0 (Entry: ${mainClass})`, instructions: ['let ctx = InitializeContext();', 'if (ctx == null) goto BB_ERR;'], kind: 'bb' },
-        { id: 'bb_1', label: 'Block #1 (Validation & Dispatch)', instructions: ['ValidateRequest(ctx);', 'dispatchQueue.Enqueue(ctx);'], kind: 'bb' },
-        { id: 'bb_2', label: 'Block #2 (Core Execution Loop)', instructions: ['let res = ExecutePipeline();', 'return res;'], kind: 'bb' },
-        { id: 'bb_err', label: 'Block #ERR (Exception)', instructions: ['throw new InvalidOperationException();'], kind: 'bb' }
-      ];
-      const edges = [
-        { id: 'cf_1', source: 'bb_0', target: 'bb_1', kind: 'control_flow', label: '[ctx != null]' },
-        { id: 'cf_2', source: 'bb_0', target: 'bb_err', kind: 'control_flow', label: '[ctx == null]' },
-        { id: 'cf_3', source: 'bb_1', target: 'bb_2', kind: 'control_flow' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'cfg', nodes, edges });
-    }
-
-    // 16. DFG: Data Flow Graph SSA Lineage
-    if (normType === 'dfg') {
-      const nodes = [
-        { id: 'df_0', label: 'SSA v0: arg_input', instructions: ['v0 = Param[0] (RawPayload)'], kind: 'bb' },
-        { id: 'df_1', label: 'SSA v1: parsed_data', instructions: ['v1 = Parse(v0)'], kind: 'bb' },
-        { id: 'df_2', label: 'SSA v2: validated_state', instructions: ['v2 = Validate(v1)'], kind: 'bb' },
-        { id: 'df_3', label: 'SSA v3: return_val', instructions: ['v3 = Phi(v1, v2)'], kind: 'bb' }
-      ];
-      const edges = [
-        { id: 'dfe_1', source: 'df_0', target: 'df_1', kind: 'data_flow', label: 'def-use' },
-        { id: 'dfe_2', source: 'df_1', target: 'df_2', kind: 'data_flow', label: 'def-use' },
-        { id: 'dfe_3', source: 'df_2', target: 'df_3', kind: 'data_flow', label: 'phi-merge' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'dfg', nodes, edges });
-    }
-
-    // 17. CDG: Control Dependence Graph
-    if (normType === 'cdg') {
-      const nodes = [
-        { id: 'cd_root', label: 'Entry CDG Root', instructions: ['Condition True'], kind: 'bb' },
-        { id: 'cd_branch', label: 'Branch Guard (pred != null)', instructions: ['Controlled Block'], kind: 'bb' },
-        { id: 'cd_body', label: 'Dependent Body', instructions: ['ExecuteAction()'], kind: 'bb' }
-      ];
-      const edges = [
-        { id: 'cde_1', source: 'cd_root', target: 'cd_branch', kind: 'control_flow', label: 'controls' },
-        { id: 'cde_2', source: 'cd_branch', target: 'cd_body', kind: 'control_flow', label: 'guards' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'cdg', nodes, edges });
-    }
-
-    // 18. CALL GRAPH: Interprocedural Call Sites
-    if (normType === 'callgraph' || normType === 'cg') {
-      const topClasses = rawClasses.slice(0, 6);
-      const nodes = topClasses.map(c => {
-        const m = c.methods?.[0]?.name || 'Execute';
-        return {
-          id: `cg_${c.id}`,
-          name: `${c.name}.${m}()`,
-          label: `${c.name}.${m}()`,
-          kind: 'class',
-          file: c.file,
-          lines: c.lines || [1]
-        };
-      });
-      const edges = [];
-      for (let i = 0; i < nodes.length - 1; i++) {
-        edges.push({
-          id: `cge_${i}`,
-          source: nodes[i].id,
-          target: nodes[i + 1].id,
-          kind: 'call',
-          label: 'calls'
-        });
-      }
-      return loadGraphIrToCytoscape({ diagram_type: 'callgraph', nodes, edges });
-    }
-
-    // 19. ROBDD SATURATION
-    if (normType === 'robdd') {
-      const nodes = [
-        { id: 'bdd_root', name: 'var_isValid', kind: 'bdd_gate' },
-        { id: 'bdd_mid', name: 'var_isReady', kind: 'bdd_gate' },
-        { id: '1', name: 'True (1)', kind: 'bdd_terminal' },
-        { id: '0', name: 'False (0)', kind: 'bdd_terminal' }
-      ];
-      const edges = [
-        { id: 'b_1', source: 'bdd_root', target: 'bdd_mid', kind: 'control_flow', label: 'hi (1)' },
-        { id: 'b_2', source: 'bdd_root', target: '0', kind: 'control_flow', label: 'lo (0)' },
-        { id: 'b_3', source: 'bdd_mid', target: '1', kind: 'control_flow', label: 'hi (1)' },
-        { id: 'b_4', source: 'bdd_mid', target: '0', kind: 'control_flow', label: 'lo (0)' }
-      ];
-      return loadGraphIrToCytoscape({ diagram_type: 'robdd', nodes, edges });
-    }
-
-    return loadGraphIrToCytoscape(customGraphIr);
+    return {
+      elements: [],
+      emptyReason: `${this.diagramDisplayName(graphType)} is not available from in-browser analysis. The in-browser extractor recovers type declarations, members and type relations only; control flow, data flow, call graphs, behaviour and deployment views require the OpenHeart Rust engine (run "openheart server" and analyze there).`
+    };
   }
 
-  async renderGraph(graphType, customElements = null, preservePositions = false) {
-    this.currentGraphType = graphType;
-    const container = document.getElementById(this.containerId);
-    if (!container) return;
+  async fetchGraphIrElements(url, graphType) {
+    let res;
+    try {
+      res = await fetch(url, { cache: 'no-cache' });
+    } catch (err) {
+      return { elements: null, warnings: [], reason: `Could not fetch ${url}: ${(err && err.message) || err}.`, metadata: null };
+    }
+    if (!res.ok) return { elements: null, warnings: [], reason: `${url} returned HTTP ${res.status}.`, metadata: null };
+    let json;
+    try {
+      json = await res.json();
+    } catch (_) {
+      return { elements: null, warnings: [], reason: `${url} is not valid JSON.`, metadata: null, fatal: true };
+    }
+    const v = validateGraphIr(json, { expectedType: graphType });
+    if (!v.ok) {
+      return { elements: null, warnings: v.errors, reason: `Rejected ${url}: ${v.errors.join(' ')}`, metadata: null, fatal: true };
+    }
+    return { elements: loadGraphIrToCytoscape(v.ir), warnings: v.warnings, reason: null, metadata: v.ir.metadata || null, ir: v.ir };
+  }
 
+  async fetchPumlElements(url, graphType) {
+    try {
+      const res = await fetch(url, { cache: 'no-cache' });
+      if (!res.ok) return null;
+      const text = await res.text();
+      return { elements: parsePumlToCytoscape(text, graphType), text };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Resolves the elements for a view from the active session source.
+   * @returns {Promise<{ elements: object[], warnings: string[], emptyReason: string|null, origin: string, metadata: object|null, ir: object|null }>}
+   */
+  async resolveDiagramElements(graphType) {
+    const session = studioStore.get();
+    const kind = session.source.kind;
+    const safeType = encodeURIComponent(graphType);
+
+    if (session.ir && (kind === 'github' || kind === 'folder' || kind === 'zip')) {
+      const { elements, emptyReason } = this.projectInBrowserDiagram(session.ir, graphType);
+      return { elements, warnings: [], emptyReason, origin: 'in-browser', metadata: session.ir.metadata || null, ir: graphType === 'class' ? session.ir : null };
+    }
+
+    if (kind === 'engine' && session.engine) {
+      const engine = session.engine;
+      if (engine.artifact_base_url) {
+        const base = engine.artifact_base_url.replace(/\/+$/, '');
+        const r = await this.fetchGraphIrElements(`${base}/${safeType}.json`, graphType);
+        if (r.elements) return { elements: r.elements, warnings: r.warnings, emptyReason: r.elements.length ? null : `The engine produced an empty ${graphType} diagram.`, origin: 'engine', metadata: r.metadata, ir: r.ir };
+        if (r.fatal) return { elements: [], warnings: r.warnings, emptyReason: r.reason, origin: 'engine', metadata: null, ir: null };
+      }
+      const puml = engine.puml_by_type ? engine.puml_by_type[graphType] : null;
+      if (typeof puml === 'string' && puml.trim()) {
+        const elements = parsePumlToCytoscape(puml, graphType);
+        return {
+          elements,
+          warnings: [],
+          emptyReason: elements.length ? null : `The engine's ${graphType} PlantUML contained no drawable elements.`,
+          origin: 'engine',
+          metadata: null,
+          ir: null,
+          pumlText: puml
+        };
+      }
+      return {
+        elements: [],
+        warnings: [],
+        emptyReason: `The analysis server's response for this session did not include a "${this.diagramDisplayName(graphType)}" diagram.`,
+        origin: 'engine',
+        metadata: null,
+        ir: null
+      };
+    }
+
+    const r = await this.fetchGraphIrElements(`diagrams/${safeType}.json`, graphType);
+    if (r.elements && r.elements.length) {
+      return { elements: r.elements, warnings: r.warnings, emptyReason: null, origin: 'bundled', metadata: r.metadata, ir: r.ir };
+    }
+    if (!r.fatal) {
+      const puml = await this.fetchPumlElements(`diagrams/${safeType}.puml`, graphType);
+      if (puml && puml.elements.length) {
+        return { elements: puml.elements, warnings: r.warnings, emptyReason: null, origin: 'bundled', metadata: null, ir: null, pumlText: puml.text };
+      }
+    }
+    return {
+      elements: [],
+      warnings: r.warnings,
+      emptyReason: r.reason || `No bundled sample exists for "${this.diagramDisplayName(graphType)}".`,
+      origin: 'bundled',
+      metadata: null,
+      ir: null
+    };
+  }
+
+  emptyStateElements(graphType, reason) {
+    const text = `${this.diagramDisplayName(graphType)}\n\n${reason}`;
+    return [{
+      data: {
+        id: '__openheart_empty_state__',
+        label: text,
+        name: this.diagramDisplayName(graphType),
+        kind: 'notice',
+        isNotice: true,
+        width: 460,
+        height: 170,
+        file: null,
+        lines: []
+      },
+      classes: 'empty-state'
+    }];
+  }
+
+  /**
+   * Renders a view. Overlapping calls are ordered by a monotonically increasing render id:
+   * only the most recent call commits, so a slow earlier fetch never replaces a later choice.
+   * @param {string} graphType
+   * @param {{ elements?: object[], preservePositions?: boolean, origin?: string }} options
+   * @returns {Promise<boolean>} true when this call committed its render
+   */
+  async renderGraph(graphType, options = {}) {
+    const renderId = ++this.renderSeq;
+    const container = document.getElementById(this.containerId);
+    if (!container) return false;
+    const providedElements = Array.isArray(options.elements) ? options.elements : null;
+    const preservePositions = Boolean(options.preservePositions);
+
+    let resolved;
+    if (providedElements) {
+      resolved = { elements: providedElements, warnings: options.warnings || [], emptyReason: null, origin: options.origin || 'state-file', metadata: null, ir: null };
+    } else {
+      try {
+        resolved = await this.resolveDiagramElements(graphType);
+      } catch (err) {
+        resolved = { elements: [], warnings: [], emptyReason: `Loading this view failed: ${(err && err.message) || err}`, origin: studioStore.sourceKind, metadata: null, ir: null };
+      }
+    }
+    if (renderId !== this.renderSeq) return false;
+
+    this.currentGraphType = graphType;
+    // A loaded state file is a standalone snapshot; its codebase label lasts until the next render.
+    this.snapshotLabel = resolved.origin === 'state-file' ? (options.snapshotLabel || null) : null;
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
       this.hoverTimeout = null;
     }
-
     if (this.cy) {
       this.cy.destroy();
       this.cy = null;
     }
-
     this.activeHoverId = null;
     this.collapsedPackages.clear();
+    this.selectedNode = null;
+    this.hitIndex = null;
+    this.lodActive = false;
 
-    let elements = customElements;
-    if (!elements) {
-      // ── 0. Persistent Custom Ingested Codebase (Folder / ZIP / Imported Repo) ──
-      if (this.customGraphIr) {
-        try {
-          elements = this.projectCustomDiagram(this.customGraphIr, graphType);
-          console.log(`[OpenHeart Canvas] Projected custom diagram for ${graphType}: ${elements?.length || 0} elements`);
-        } catch (projErr) {
-          console.warn(`[OpenHeart Canvas] Custom projection for ${graphType} error:`, projErr);
-        }
+    let elements = resolved.elements;
+    const isEmpty = !elements || elements.length === 0;
+    const emptyReason = isEmpty ? (resolved.emptyReason || 'No diagram data is available for this view.') : null;
+    if (isEmpty) elements = this.emptyStateElements(graphType, emptyReason);
 
-        // If custom projection yielded empty, stay strictly in custom codebase context
-        if (!elements || elements.length === 0) {
-          const cbTitle = this.customGraphIr.title || 'Custom Codebase';
-          elements = [
-            { data: { id: 'root', label: `<<diagram>>\n${graphType.toUpperCase()}\n──────────────────────\nActive Codebase: ${cbTitle}\nNo elements for this view`, kind: 'entry', width: 320, height: 90 } }
-          ];
-        }
-      }
-
-      // ── 1. Official Direct Ingestion: Strongly-Typed Graph IR from Rust Compiler ──
-      // (Only executed when NO custom codebase is active)
-      if (!this.customGraphIr && (!elements || elements.length === 0)) {
-        try {
-          const jsonRes = await fetch(`diagrams/${graphType}.json`);
-          if (jsonRes.ok) {
-            const graphIr = await jsonRes.json();
-            elements = loadGraphIrToCytoscape(graphIr);
-            console.log(`[OpenHeart Pipeline] Loaded Official Direct Graph IR for ${graphType}: ${elements.length} elements`);
-          }
-        } catch (jsonErr) {
-          console.warn(`[OpenHeart Pipeline] Direct JSON IR fetch failed, trying PUML fallback:`, jsonErr);
-        }
-
-        // ── 2. Fallback: Parse PUML if JSON is absent ──
-        if (!elements || elements.length === 0) {
-          try {
-            const pumlRes = await fetch(`diagrams/${graphType}.puml`);
-            if (pumlRes.ok) {
-              const pumlText = await pumlRes.text();
-              elements = parsePumlToCytoscape(pumlText, graphType);
-            }
-          } catch (pumlErr) {
-            console.warn(`[OpenHeart Pipeline] PUML fallback failed:`, pumlErr);
-          }
-        }
-      }
-    }
-
-    if (!elements || elements.length === 0) {
-      elements = [
-        { data: { id: 'root', label: `<<diagram>>\n${graphType.toUpperCase()}\n──────────────────────\nCompiled Live from Source`, kind: 'entry', width: 260, height: 80, file: 'VideoConversionFacade.java', lines: [1] } }
-      ];
-    }
-
-    // Compute exact collision-free coordinates across all 3 tiers (unless restoring saved layout)
     let safeElements;
-    if (preservePositions) {
+    if (isEmpty) {
+      safeElements = elements.map(e => Object.assign({}, e, { position: { x: 0, y: 0 } }));
+    } else if (preservePositions) {
       safeElements = elements;
     } else {
       const layoutElements = computeDeterministicLayout(elements, graphType);
       const nodeIds = new Set(layoutElements.filter(e => e.data && !e.data.source).map(e => e.data.id));
       safeElements = layoutElements.filter(e => {
-        if (e.data && e.data.source) {
-          return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
-        }
+        if (e.data && e.data.source) return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
         return true;
       });
     }
 
+    const large = safeElements.length > LARGE_GRAPH_ELEMENTS;
     this.cy = cytoscape({
-      container: container,
+      container,
       elements: safeElements,
       boxSelectionEnabled: false,
       autounselectify: false,
@@ -679,15 +358,12 @@ export class InteractiveGraphCanvas {
       minZoom: 0.04,
       maxZoom: 5.0,
       pixelRatio: 'auto',
-      textureOnViewport: false,
-      hideEdgesOnViewport: false,
+      textureOnViewport: large,
+      hideEdgesOnViewport: large,
       motionBlur: false,
       wheelSensitivity: 0.05,
       style: this.getModernStyleSheet(),
-      layout: {
-        name: 'preset',
-        animate: false
-      }
+      layout: { name: 'preset', animate: false }
     });
 
     if (this.isPanLocked) {
@@ -695,34 +371,220 @@ export class InteractiveGraphCanvas {
     }
 
     this.attachEventListeners(container);
-    if (!preservePositions) {
+    if (!preservePositions || isEmpty) {
       this.cy.fit(undefined, 60);
-      this.undoStack = [];
-      this.redoStack = [];
-      this.updateUndoRedoButtons();
     }
+    // Every newly loaded diagram starts with a fresh history, so earlier actions can never
+    // replay against different elements.
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateUndoRedoButtons();
+    this.applyEdgeFilters();
+    this.updateLevelOfDetail();
 
     if (this.minimap) {
+      this.minimap.invalidateCaches();
       this.minimap.onGraphRendered();
-      this.cy.on('pan zoom viewport', () => {
-        this.minimap.onViewportChange();
-      });
     }
+    this.cy.on('pan zoom viewport', () => {
+      if (this.minimap) this.minimap.onViewportChange();
+    });
+    this.cy.on('zoom', () => this.updateLevelOfDetail());
+
+    this.lastRenderMeta = {
+      graphType,
+      origin: resolved.origin,
+      warnings: resolved.warnings || [],
+      emptyReason,
+      metadata: resolved.metadata || null,
+      ir: resolved.ir || null,
+      pumlText: resolved.pumlText || null,
+      elementCount: isEmpty ? 0 : elements.length,
+      largeGraph: large
+    };
 
     if (this.onRenderCompleteCallback) {
-      this.onRenderCompleteCallback(elements);
+      this.onRenderCompleteCallback(isEmpty ? [] : elements, this.lastRenderMeta);
     }
-
     if (this.onLayersUpdateCallback) {
       this.onLayersUpdateCallback(this.getActiveEdgeKinds());
     }
+    return true;
   }
 
+  /**
+   * Restyles the current diagram for a theme change in place: the stylesheet and card images
+   * are replaced inside one batch, so positions, deletions, collapses and history survive.
+   */
   setTheme(isDark) {
-    if (this.cy) {
-      this.cy.style(buildCytoscapeStylesheet(getTheme(isDark)));
+    if (!this.cy) return;
+    const cy = this.cy;
+    let pumlCards = null;
+    if (this.lastRenderMeta && this.lastRenderMeta.pumlText) {
+      pumlCards = new Map();
+      parsePumlToCytoscape(this.lastRenderMeta.pumlText, this.currentGraphType).forEach(el => {
+        if (el.data && el.data.svgDataUri) pumlCards.set(el.data.id, el.data.svgDataUri);
+      });
     }
-    this.renderGraph(this.currentGraphType);
+    cy.batch(() => {
+      cy.style(buildCytoscapeStylesheet(getTheme(isDark)));
+      cy.nodes().forEach(node => {
+        const data = node.data();
+        if (!data.svgDataUri) return;
+        if (data.cardSource === 'ir') {
+          try {
+            node.data('svgDataUri', renderCardSvg(cardFromNodeData(data), isDark).dataUri);
+          } catch (err) {
+            console.warn('[OpenHeart Canvas] Could not restyle card', data.id, err);
+          }
+        } else if (pumlCards && pumlCards.has(data.id)) {
+          node.data('svgDataUri', pumlCards.get(data.id));
+        }
+      });
+    });
+    if (this.minimap) {
+      this.minimap.invalidateCaches();
+      this.minimap.onGraphRendered();
+    }
+  }
+
+  /**
+   * Level of detail: below the zoom threshold cards are drawn as plain labelled shapes,
+   * which keeps pan and zoom responsive on large diagrams.
+   */
+  updateLevelOfDetail() {
+    if (!this.cy) return;
+    const shouldSimplify = this.cy.zoom() < LOD_ZOOM_THRESHOLD && this.cy.nodes('[?svgDataUri]').length > 40;
+    if (shouldSimplify === this.lodActive) return;
+    this.lodActive = shouldSimplify;
+    this.cy.batch(() => {
+      const cards = this.cy.nodes('[?svgDataUri]');
+      if (shouldSimplify) cards.addClass('lod-low');
+      else cards.removeClass('lod-low');
+    });
+  }
+
+  focusNodeById(nodeId, { inspect = true } = {}) {
+    if (!this.cy || !nodeId) return false;
+    const node = this.cy.getElementById(nodeId);
+    if (!node || node.length === 0) return false;
+    const hiddenAncestor = node.ancestors().filter(a => a.hasClass('package-collapsed'));
+    if (hiddenAncestor.length) {
+      hiddenAncestor.forEach(a => this.togglePackageCollapse(a, false));
+    }
+    this.cy.animate({ center: { eles: node }, zoom: Math.max(0.7, this.cy.zoom()), duration: 250 });
+    this.cy.nodes().unselect();
+    node.select();
+    if (inspect && !node.data('isPackage') && !node.data('isNotice')) {
+      this.selectedNode = node.data();
+      if (this.onNodeSelectedCallback) this.onNodeSelectedCallback(node.data());
+    }
+    return true;
+  }
+
+  /**
+   * Fuzzy search over node names and qualified names (subsequence match, scored by
+   * contiguity, word-start hits and name length).
+   */
+  searchNodes(query, limit = 20) {
+    if (!this.cy) return [];
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return [];
+    const scoreText = (text) => {
+      const t = text.toLowerCase();
+      const direct = t.indexOf(q);
+      if (direct >= 0) return 1000 - direct * 2 - (t.length - q.length) * 0.5 + (direct === 0 ? 200 : 0);
+      let score = 0;
+      let ti = 0;
+      let streak = 0;
+      for (let qi = 0; qi < q.length; qi++) {
+        const ch = q[qi];
+        let found = -1;
+        while (ti < t.length) {
+          if (t[ti] === ch) { found = ti; break; }
+          ti++;
+        }
+        if (found < 0) return -Infinity;
+        const atWordStart = found === 0 || /[^a-z0-9]/.test(t[found - 1]) || (text[found] !== t[found]);
+        streak = (qi > 0 && found === ti && streak > 0) ? streak + 1 : 1;
+        score += 10 + streak * 4 + (atWordStart ? 12 : 0);
+        ti = found + 1;
+      }
+      return score - t.length * 0.2;
+    };
+    const results = [];
+    this.cy.nodes().forEach(n => {
+      const d = n.data();
+      if (d.isNotice) return;
+      const name = String(d.name || d.rawName || d.id);
+      const qualified = String(d.qualifiedName || d.id);
+      const best = Math.max(scoreText(name), scoreText(qualified) - 15);
+      if (best > -Infinity) {
+        results.push({ id: d.id, name, qualifiedName: qualified, kind: d.kind || 'node', isPackage: Boolean(d.isPackage || d.isLeafPackage), score: best });
+      }
+    });
+    results.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    return results.slice(0, limit);
+  }
+
+  /**
+   * Keyboard traversal over visible, non-package nodes in reading order (top-to-bottom,
+   * left-to-right). Returns the newly focused node's data or null.
+   */
+  navigateNodes(step) {
+    if (!this.cy) return null;
+    const nodes = this.cy.nodes().filter(n => n.visible() && !n.data('isPackage') && !n.data('isNotice')).toArray();
+    if (nodes.length === 0) return null;
+    nodes.sort((a, b) => {
+      const pa = a.position();
+      const pb = b.position();
+      if (Math.abs(pa.y - pb.y) > 40) return pa.y - pb.y;
+      return pa.x - pb.x;
+    });
+    const currentId = this.selectedNode ? this.selectedNode.id : null;
+    let idx = currentId ? nodes.findIndex(n => n.id() === currentId) : -1;
+    idx = idx < 0 ? (step > 0 ? 0 : nodes.length - 1) : (idx + step + nodes.length) % nodes.length;
+    const node = nodes[idx];
+    this.cy.nodes().unselect();
+    node.select();
+    this.selectedNode = node.data();
+    this.cy.animate({ center: { eles: node }, duration: 180 });
+    return node.data();
+  }
+
+  /**
+   * Plain structural snapshot of the current view for interchange exports (DOT, GraphML).
+   */
+  getGraphSnapshot() {
+    if (!this.cy) return null;
+    const nodes = [];
+    const edges = [];
+    this.cy.nodes().forEach(n => {
+      const d = n.data();
+      if (d.isNotice) return;
+      nodes.push({
+        id: d.id,
+        name: String(d.name || d.rawName || d.id),
+        kind: d.kind || 'node',
+        stereotype: d.stereotype || null,
+        parent: d.parent || null,
+        isPackage: Boolean(d.isPackage || d.isLeafPackage),
+        file: d.file || null,
+        line: Array.isArray(d.lines) && d.lines.length ? d.lines[0] : null,
+        qualifiedName: d.qualifiedName || null
+      });
+    });
+    this.cy.edges().forEach(e => {
+      const d = e.data();
+      edges.push({ id: d.id, source: d.source, target: d.target, kind: d.uml_kind || 'association', label: d.label || '' });
+    });
+    return {
+      diagramType: this.currentGraphType,
+      codebaseName: studioStore.codebaseName,
+      sourceKind: studioStore.sourceKind,
+      nodes,
+      edges
+    };
   }
 
   focusNodeByFile(fileName) {
@@ -776,21 +638,29 @@ export class InteractiveGraphCanvas {
   }
 
   setEdgeFilter(umlKind, isVisible) {
-    if (!this.cy) return;
     if (isVisible) {
       this.hiddenEdgeKinds.delete(umlKind);
     } else {
       this.hiddenEdgeKinds.add(umlKind);
     }
+    this.applyEdgeFilters();
+  }
 
+  /**
+   * Re-applies the relationship-kind filters through the 'layer-hidden' class (independent
+   * of package-collapse hiding). Called after every render and state load.
+   */
+  applyEdgeFilters() {
+    if (!this.cy) return;
+    const hidden = this.hiddenEdgeKinds;
     this.cy.batch(() => {
-      const edges = this.cy.edges(`[uml_kind = "${umlKind}"]`);
-      if (isVisible) {
-        edges.style('display', 'element');
-      } else {
-        edges.style('display', 'none');
-      }
+      this.cy.edges().forEach(edge => {
+        const kind = edge.data('uml_kind') || 'association';
+        if (hidden.has(kind)) edge.addClass('layer-hidden');
+        else edge.removeClass('layer-hidden');
+      });
     });
+    this.hitIndex = null;
   }
 
   getActiveEdgeKinds() {
@@ -888,37 +758,28 @@ export class InteractiveGraphCanvas {
       navPhysics.zoomRafId = requestAnimationFrame(step);
     };
 
-    // ── Prevent Windows Menu Bar / Chrome Shortcut Capture on Alt Key ──
-    let isAltHeld = false;
-
+    // ── Alt+wheel gestures: suppress the browser menu bar only while the canvas has focus ──
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
-        const activeTag = document.activeElement ? document.activeElement.tagName : '';
-        if (!['INPUT', 'TEXTAREA'].includes(activeTag) && !document.activeElement?.isContentEditable) {
-          e.preventDefault();
-          isAltHeld = true;
-        }
+      if ((e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') && this.isCanvasFocused()) {
+        e.preventDefault();
       }
     }, { capture: true });
 
     window.addEventListener('keyup', (e) => {
-      if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
-        const activeTag = document.activeElement ? document.activeElement.tagName : '';
-        if (!['INPUT', 'TEXTAREA'].includes(activeTag) && !document.activeElement?.isContentEditable) {
-          e.preventDefault();
-          isAltHeld = false;
-        }
+      if ((e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') && this.isCanvasFocused()) {
+        e.preventDefault();
       }
     }, { capture: true });
-
-    window.addEventListener('blur', () => {
-      isAltHeld = false;
-    });
 
     // Attach wheel listener to full viewport area (canvas + overlay card)
     const viewportTarget = container.closest('.canvas-card') || container;
 
     viewportTarget.addEventListener('wheel', (e) => {
+      // Scrollable overlays (relationship layers list, search results, menus) keep native scrolling.
+      const target = e.target instanceof Element ? e.target : null;
+      if (target && target.closest('.layers-checklist, .canvas-search-results, .export-menu-dropdown, .canvas-notice, .canvas-floating-layers-bar')) {
+        return;
+      }
       e.preventDefault();
       if (!this.cy) return;
 
@@ -1042,6 +903,10 @@ export class InteractiveGraphCanvas {
     };
 
     container.addEventListener('mousedown', (e) => {
+      // Pointer interaction moves keyboard focus to the canvas so canvas shortcuts apply.
+      if (document.activeElement !== container) {
+        container.focus({ preventScroll: true });
+      }
       // Middle click pan (button 1)
       if (e.button === 1) {
         e.preventDefault();
@@ -1118,7 +983,10 @@ export class InteractiveGraphCanvas {
             y: e.clientY - rect.top
           };
           const targetNode = this.getNodeAtRenderedPos(renderedPos);
-          if (targetNode) {
+          if (!targetNode) {
+            this.selectedNode = null;
+            this.cy.nodes().unselect();
+          } else if (!targetNode.data('isNotice')) {
             if (targetNode.data('isPackage')) {
               this.togglePackageCollapse(targetNode);
             } else {
@@ -1135,13 +1003,10 @@ export class InteractiveGraphCanvas {
       }
     }, { capture: true });
 
-    // ── 3. Figma Hand Tool (Spacebar Key Listeners) ──
+    // ── 3. Figma Hand Tool (Spacebar, only while the canvas has focus) ──
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !e.repeat) {
-        const activeTag = document.activeElement ? document.activeElement.tagName : '';
-        if (['INPUT', 'TEXTAREA'].includes(activeTag) || document.activeElement?.isContentEditable) {
-          return;
-        }
+        if (!this.isCanvasFocused()) return;
         e.preventDefault();
         isSpacePressed = true;
         container.classList.add('cursor-grab');
@@ -1178,10 +1043,15 @@ export class InteractiveGraphCanvas {
 
     // ── 4. Figma Keyboard Shortcuts (Ctrl + / -, Ctrl 0, Shift 1, Arrow Keys) ──
     window.addEventListener('keydown', (e) => {
-      const activeTag = document.activeElement ? document.activeElement.tagName : '';
-      if (['INPUT', 'TEXTAREA'].includes(activeTag) || document.activeElement?.isContentEditable) {
+      const active = document.activeElement;
+      const activeTag = active ? active.tagName : '';
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag) || active?.isContentEditable) {
         return;
       }
+      const canvasFocused = this.isCanvasFocused();
+      // Modifier shortcuts apply when focus is on the canvas card or nowhere in particular.
+      const modifierScope = canvasFocused || this.isFocusInCanvasCard() || !active || active === document.body;
+      if (!canvasFocused && !modifierScope) return;
 
       const isCtrl = e.ctrlKey || e.metaKey;
       const isZ = e.key === 'z' || e.key === 'Z' || e.code === 'KeyZ';
@@ -1201,10 +1071,29 @@ export class InteractiveGraphCanvas {
         return;
       }
 
-      // ── Delete / Backspace: Remove selected node with full undo/redo ──
-      if ((e.key === 'Delete' || e.key === 'Backspace') && (this.selectedNode || (this.cy && this.cy.nodes(':selected').length > 0))) {
+      // ── Delete / Backspace: Remove selected node with full undo/redo (canvas focus only) ──
+      if (canvasFocused && (e.key === 'Delete' || e.key === 'Backspace') && (this.selectedNode || (this.cy && this.cy.nodes(':selected').length > 0))) {
         e.preventDefault();
         this.deleteSelectedNode();
+        return;
+      }
+
+      // ── Keyboard node traversal: N / Shift+N, Enter to inspect, Escape to clear ──
+      if (canvasFocused && !isCtrl && !e.altKey && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        const data = this.navigateNodes(e.shiftKey ? -1 : 1);
+        if (data) this.announce(`${data.name || data.id} (${data.kind || 'node'}). Press Enter to inspect.`);
+        return;
+      }
+      if (canvasFocused && e.key === 'Enter' && this.selectedNode) {
+        e.preventDefault();
+        if (this.onNodeSelectedCallback) this.onNodeSelectedCallback(this.selectedNode);
+        return;
+      }
+      if (canvasFocused && e.key === 'Escape' && this.selectedNode && this.cy) {
+        this.cy.nodes().unselect();
+        this.selectedNode = null;
+        this.announce('Selection cleared.');
         return;
       }
 
@@ -1244,8 +1133,8 @@ export class InteractiveGraphCanvas {
         return;
       }
 
-      // Arrow Keys: Nudge/pan canvas when not inspecting or typing
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !this.selectedNode) {
+      // Arrow Keys: pan the canvas (canvas focus only)
+      if (canvasFocused && !isCtrl && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         const dist = e.shiftKey ? 120 : 40;
         const dx = e.key === 'ArrowLeft' ? dist : (e.key === 'ArrowRight' ? -dist : 0);
@@ -1332,93 +1221,141 @@ export class InteractiveGraphCanvas {
     return this.setPanLock(!this.isPanLocked);
   }
 
+  /**
+   * Uniform-grid spatial index of visible node bounding boxes, rebuilt lazily after any
+   * position, add/remove, collapse or filter change. Hit tests then inspect one cell.
+   */
+  buildHitIndex() {
+    const cells = new Map();
+    const boxes = [];
+    this.cy.nodes().forEach(node => {
+      if (!node.visible()) return;
+      const bb = node.boundingBox();
+      const depth = node.ancestors().length;
+      const entry = { node, bb, leaf: !node.isParent(), depth };
+      boxes.push(entry);
+      const cx1 = Math.floor(bb.x1 / HIT_CELL_SIZE);
+      const cx2 = Math.floor(bb.x2 / HIT_CELL_SIZE);
+      const cy1 = Math.floor(bb.y1 / HIT_CELL_SIZE);
+      const cy2 = Math.floor(bb.y2 / HIT_CELL_SIZE);
+      for (let cx = cx1; cx <= cx2; cx++) {
+        for (let cyi = cy1; cyi <= cy2; cyi++) {
+          const key = `${cx},${cyi}`;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(entry);
+        }
+      }
+    });
+    this.hitIndex = { cells };
+  }
+
   getNodeAtRenderedPos(renderedPos) {
     if (!this.cy || !renderedPos) return null;
+    if (!this.hitIndex) this.buildHitIndex();
     const pan = this.cy.pan();
     const zoom = this.cy.zoom();
     const modelX = (renderedPos.x - pan.x) / zoom;
     const modelY = (renderedPos.y - pan.y) / zoom;
-
-    const hitNodes = this.cy.nodes().filter(node => {
-      if (node.style('display') === 'none') return false;
-      const bb = node.boundingBox();
-      return modelX >= bb.x1 && modelX <= bb.x2 && modelY >= bb.y1 && modelY <= bb.y2;
-    });
-
-    if (hitNodes.length === 0) return null;
-    // Prefer innermost leaf nodes (classes/interfaces) over parent compound packages
-    const leafNodes = hitNodes.filter(n => !n.isParent());
-    return leafNodes.length > 0 ? leafNodes[leafNodes.length - 1] : hitNodes[hitNodes.length - 1];
+    const key = `${Math.floor(modelX / HIT_CELL_SIZE)},${Math.floor(modelY / HIT_CELL_SIZE)}`;
+    const candidates = this.hitIndex.cells.get(key) || [];
+    let best = null;
+    for (const c of candidates) {
+      const bb = c.bb;
+      if (modelX < bb.x1 || modelX > bb.x2 || modelY < bb.y1 || modelY > bb.y2) continue;
+      // Prefer leaf cards over compound packages, then the most deeply nested.
+      if (!best || (c.leaf && !best.leaf) || (c.leaf === best.leaf && c.depth > best.depth)) best = c;
+    }
+    return best ? best.node : null;
   }
 
   getDiagramStateJson() {
     if (!this.cy) return null;
-    const codebaseName = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
-    const elements = this.cy.elements().map(el => {
+    const session = studioStore.get();
+    const elements = [];
+    this.cy.elements().forEach(el => {
+      if (el.data('isNotice')) return;
       const isNode = el.isNode();
-      return {
+      const classes = el.classes().filter(c => c !== 'path-highlighted' && c !== 'lod-low').join(' ');
+      elements.push({
         group: isNode ? 'nodes' : 'edges',
         data: { ...el.data() },
         position: isNode ? { ...el.position() } : undefined,
-        classes: el.classes().join(' ')
-      };
+        classes
+      });
     });
 
     return {
-      $schema: "https://openheart.dev/schema/v1/diagram-state.json",
-      generator: "OpenHeart Studio 2026",
-      version: "1.0.0",
-      format: "OpenHeart-Diagram-IR",
+      format: DIAGRAM_STATE_FORMAT,
+      version: DIAGRAM_STATE_VERSION,
+      generator: 'OpenHeart Studio',
       diagram_type: this.currentGraphType,
-      codebase_name: codebaseName,
+      codebase_name: this.snapshotLabel || session.source.name,
+      source: {
+        kind: session.source.kind,
+        url: session.source.url || null,
+        commit: session.source.commit || null
+      },
       timestamp: new Date().toISOString(),
       pan: { ...this.cy.pan() },
       zoom: this.cy.zoom(),
       pan_locked: this.isPanLocked,
-      active_filters: this.hiddenEdgeKinds ? Array.from(this.hiddenEdgeKinds) : [],
-      elements: elements
+      active_filters: Array.from(this.hiddenEdgeKinds),
+      elements
     };
   }
 
-  async loadDiagramState(savedState) {
-    if (!savedState || !savedState.elements || !Array.isArray(savedState.elements)) {
-      throw new Error("Invalid OpenHeart diagram state format.");
+  /**
+   * Loads a saved state that has already passed validateDiagramState().
+   */
+  async loadDiagramState(validState) {
+    if (!validState || !Array.isArray(validState.elements)) {
+      throw new Error('Invalid OpenHeart diagram state.');
     }
-    const targetGraphType = savedState.diagram_type || this.currentGraphType || 'class';
-    this.currentGraphType = targetGraphType;
-    
-    // Check if elements have custom positions
-    const hasCustomPositions = savedState.elements.some(e => e.position && (e.position.x !== undefined || e.position.y !== undefined));
+    const hasPositions = validState.elements.some(e => e.group === 'nodes' && e.position);
+    this.hiddenEdgeKinds = new Set(validState.active_filters || []);
+    const committed = await this.renderGraph(validState.diagram_type, {
+      elements: validState.elements,
+      preservePositions: hasPositions,
+      origin: 'state-file',
+      snapshotLabel: validState.codebase_name || 'Saved state'
+    });
+    if (!committed || !this.cy) return false;
 
-    await this.renderGraph(targetGraphType, savedState.elements, hasCustomPositions);
-
-    if (savedState.zoom && savedState.pan && this.cy) {
-      this.cy.viewport({
-        zoom: savedState.zoom,
-        pan: savedState.pan
-      });
+    // Restore collapse bookkeeping from the saved classes.
+    this.cy.nodes('.package-collapsed').forEach(n => this.collapsedPackages.add(n.id()));
+    if (validState.zoom !== null && validState.pan) {
+      this.cy.viewport({ zoom: validState.zoom, pan: validState.pan });
     }
-
-    if (savedState.pan_locked !== undefined) {
-      this.setPanLock(savedState.pan_locked);
+    this.setPanLock(validState.pan_locked);
+    if (this.onLayersUpdateCallback) {
+      this.onLayersUpdateCallback(this.getActiveEdgeKinds());
     }
-
-    if (Array.isArray(savedState.active_filters)) {
-      this.hiddenEdgeKinds = new Set(savedState.active_filters);
-      if (this.onLayersUpdateCallback) {
-        this.onLayersUpdateCallback(this.getActiveEdgeKinds());
-      }
-    }
+    if (this.minimap) this.minimap.onGraphRendered();
+    return true;
   }
 
+  /**
+   * Exports the full diagram as PNG, scaled down so neither side exceeds the browser canvas
+   * limits. Throws when the diagram is too large to export legibly as a single image.
+   * @returns {{ dataUri: string, scale: number, downscaled: boolean }}
+   */
   exportPng() {
     if (!this.cy) return null;
-    const isDark = isDarkMode();
-    return this.cy.png({
+    const bb = this.cy.elements().boundingBox();
+    const w = Math.max(1, bb.w);
+    const h = Math.max(1, bb.h);
+    const scale = Math.min(2.0, MAX_EXPORT_DIMENSION / w, MAX_EXPORT_DIMENSION / h, Math.sqrt(MAX_EXPORT_PIXELS / (w * h)));
+    if (scale < 0.08) {
+      throw new Error(`The diagram is ${Math.round(w)}×${Math.round(h)} px; a single PNG would be illegible at ${(scale * 100).toFixed(1)}% scale. Collapse packages, filter relationships or export SVG instead.`);
+    }
+    // The scale is computed here rather than via cytoscape's maxWidth/maxHeight, which would
+    // also upscale small diagrams to the maximum size.
+    const dataUri = this.cy.png({
       full: true,
-      scale: 2.0,
-      bg: isDark ? '#0b0f19' : '#ffffff'
+      scale,
+      bg: isDarkMode() ? '#0b0f19' : '#ffffff'
     });
+    return { dataUri, scale, downscaled: scale < 2.0 };
   }
 
   exportSvg() {
@@ -1437,7 +1374,7 @@ export class InteractiveGraphCanvas {
 
     if (typeof f === 'object') {
       const name = f.name || 'field';
-      const type = f.type || f.type_name || 'unknown';
+      const type = f.type || f.type_name || null;
       let visibility = f.visibility || 'private';
       if (visibility === '+') visibility = 'public';
       else if (visibility === '-') visibility = 'private';
@@ -1446,9 +1383,9 @@ export class InteractiveGraphCanvas {
 
       const isStatic = Boolean(f.is_static || f.isStatic);
       const isFinal = Boolean(f.is_final || f.isFinal || f.is_readonly || f.readonly);
-      const isCollection = Boolean(f.is_collection || f.isCollection || /List|Set|Map|Collection|Iterable|Array|Vec|\[\]/i.test(type));
+      const isCollection = Boolean(f.is_collection || f.isCollection || (type && /List|Set|Map|Collection|Iterable|Array|Vec|\[\]/i.test(type)));
       const defaultValue = f.default_value || f.defaultValue || null;
-      const signature = f.signature || `${visibility} ${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}${name}: ${type}${defaultValue ? ` = ${defaultValue}` : ''}`.trim();
+      const signature = f.signature || `${visibility} ${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}${name}${type ? `: ${type}` : ''}${defaultValue ? ` = ${defaultValue}` : ''}`.trim();
 
       return {
         name,
@@ -1492,12 +1429,12 @@ export class InteractiveGraphCanvas {
       }
 
       let name = 'field';
-      let type = 'unknown';
+      let type = null;
 
       if (clean.includes(':')) {
         const parts = clean.split(':');
         name = parts[0].trim().replace(/[^a-zA-Z0-9_$]/g, '');
-        type = parts[1].trim();
+        type = parts.slice(1).join(':').trim() || null;
       } else if (clean.includes(' ')) {
         const tokens = clean.split(/\s+/).filter(Boolean);
         if (tokens.length >= 2) {
@@ -1505,15 +1442,13 @@ export class InteractiveGraphCanvas {
           type = tokens.slice(0, -1).join(' ');
         } else if (tokens.length === 1) {
           name = tokens[0].replace(/[^a-zA-Z0-9_$]/g, '');
-          type = 'any';
         }
       } else {
         name = clean.replace(/[^a-zA-Z0-9_$]/g, '') || 'field';
-        type = 'any';
       }
 
-      const isCollection = /List|Set|Map|Collection|Iterable|Array|Vec|\[\]|<[^>]+>/i.test(type);
-      const signature = `${visibility} ${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}${name}: ${type}${defaultValue ? ` = ${defaultValue}` : ''}`.trim();
+      const isCollection = Boolean(type && /List|Set|Map|Collection|Iterable|Array|Vec|\[\]|<[^>]+>/i.test(type));
+      const signature = `${visibility} ${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}${name}${type ? `: ${type}` : ''}${defaultValue ? ` = ${defaultValue}` : ''}`.trim();
 
       return {
         name,
@@ -1538,7 +1473,7 @@ export class InteractiveGraphCanvas {
 
     if (typeof m === 'object') {
       const name = m.name || 'method';
-      const returnType = m.return_type || m.returnType || m.type_name || 'void';
+      const returnType = m.return_type || m.returnType || m.type_name || null;
       let visibility = m.visibility || 'public';
       if (visibility === '+') visibility = 'public';
       else if (visibility === '-') visibility = 'private';
@@ -1553,14 +1488,14 @@ export class InteractiveGraphCanvas {
       if (Array.isArray(m.parameters)) {
         parameters = m.parameters.map(p => {
           if (typeof p === 'object' && p !== null) {
-            return { name: p.name || 'arg', type: p.type || p.type_name || 'any' };
+            return { name: p.name || null, type: p.type || p.type_name || null };
           }
-          return { name: String(p), type: 'any' };
+          return { name: String(p), type: null };
         });
       }
 
-      const paramSig = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
-      const signature = m.signature || `${visibility} ${isStatic ? 'static ' : ''}${isAbstract ? 'abstract ' : ''}${isAsync ? 'async ' : ''}${name}(${paramSig}): ${returnType}`.trim();
+      const paramSig = parameters.map(formatParameter).join(', ');
+      const signature = m.signature || `${visibility} ${isStatic ? 'static ' : ''}${isAbstract ? 'abstract ' : ''}${isAsync ? 'async ' : ''}${name}(${paramSig})${returnType ? `: ${returnType}` : ''}`.trim();
 
       return {
         name,
@@ -1608,7 +1543,7 @@ export class InteractiveGraphCanvas {
           if (!trimmed) continue;
           if (trimmed.includes(':')) {
             const [pName, pType] = trimmed.split(':').map(s => s.trim());
-            parameters.push({ name: pName.replace(/[^a-zA-Z0-9_$]/g, '') || 'arg', type: pType || 'any' });
+            parameters.push({ name: pName.replace(/[^a-zA-Z0-9_$]/g, '') || null, type: pType || null });
           } else {
             const tokens = trimmed.replace(/\bfinal\b|\bval\b|\bvar\b/g, '').trim().split(/\s+/);
             if (tokens.length >= 2) {
@@ -1616,13 +1551,13 @@ export class InteractiveGraphCanvas {
               const pName = tokens[tokens.length - 1].replace(/[^a-zA-Z0-9_$]/g, '');
               parameters.push({ name: pName || 'arg', type: pType });
             } else if (tokens.length === 1) {
-              parameters.push({ name: tokens[0].replace(/[^a-zA-Z0-9_$]/g, '') || 'arg', type: 'any' });
+              parameters.push({ name: tokens[0].replace(/[^a-zA-Z0-9_$]/g, '') || null, type: null });
             }
           }
         }
       }
 
-      let returnType = 'void';
+      let returnType = null;
       let name = 'method';
 
       const afterParenMatch = clean.match(/\)\s*:\s*([A-Za-z0-9_<>[\]?]+)/);
@@ -1634,15 +1569,15 @@ export class InteractiveGraphCanvas {
       const nameTokens = beforeParen.split(/\s+/).filter(Boolean);
       if (nameTokens.length >= 2) {
         name = nameTokens[nameTokens.length - 1].replace(/[^a-zA-Z0-9_$]/g, '');
-        if (returnType === 'void') {
+        if (returnType === null) {
           returnType = nameTokens.slice(0, -1).join(' ');
         }
       } else if (nameTokens.length === 1) {
         name = nameTokens[0].replace(/[^a-zA-Z0-9_$]/g, '');
       }
 
-      const paramSig = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
-      const signature = `${visibility} ${isStatic ? 'static ' : ''}${isAbstract ? 'abstract ' : ''}${isAsync ? 'async ' : ''}${name}(${paramSig}): ${returnType}`.trim();
+      const paramSig = parameters.map(formatParameter).join(', ');
+      const signature = `${visibility} ${isStatic ? 'static ' : ''}${isAbstract ? 'abstract ' : ''}${isAsync ? 'async ' : ''}${name}(${paramSig})${returnType ? `: ${returnType}` : ''}`.trim();
 
       return {
         name,
@@ -1662,8 +1597,9 @@ export class InteractiveGraphCanvas {
   /**
    * Generates natural language semantic explanation for an architectural relationship.
    */
-  describeRelationSemantics(srcName, tgtName, kind, arrow, label) {
+  describeRelationSemantics(srcName, tgtName, kind, rawArrow, label) {
     const k = (kind || '').toLowerCase();
+    const arrow = rawArrow || '';
     const lblStr = label ? ` ('${label}')` : '';
 
     if (k === 'generalization' || arrow === '--|>' || arrow === '<|--') {
@@ -1682,7 +1618,7 @@ export class InteractiveGraphCanvas {
       return `${srcName} depends on and consumes ${tgtName}${lblStr} (Dependency)`;
     }
     if (k === 'association' || arrow.includes('-->') || arrow.includes('<--')) {
-      return `${srcName} is associated with and calls ${tgtName}${lblStr} (Association)`;
+      return `${srcName} is associated with ${tgtName}${lblStr} (Association)`;
     }
     if (k === 'message') {
       return `${srcName} sends message '${label || 'invokes'}' to ${tgtName} (Sequence Message)`;
@@ -1706,7 +1642,8 @@ export class InteractiveGraphCanvas {
   getCodeStructureForAi() {
     if (!this.cy) return null;
 
-    const codebaseName = sessionStorage.getItem('openheart_custom_name') || 'OpenHeart';
+    const session = studioStore.get();
+    const codebaseName = session.source.name;
     const nodes = this.cy.nodes();
     const edges = this.cy.edges();
 
@@ -1716,6 +1653,7 @@ export class InteractiveGraphCanvas {
 
     nodes.forEach(node => {
       const d = node.data() || {};
+      if (d.isNotice) return;
       nodeById.set(node.id(), d);
 
       const isPkg = Boolean(d.isPackage || d.isLeafPackage || d.kind === 'package' || node.isParent());
@@ -1868,7 +1806,9 @@ export class InteractiveGraphCanvas {
         kind: kind,
         stereotype: stereotype,
         package: packageName || undefined,
-        file_path: d.file || `${typeName}.java`,
+        qualified_name: d.qualifiedName || undefined,
+        file_path: d.file || null,
+        declaration_line: Array.isArray(d.lines) && d.lines.length ? d.lines[0] : null,
         extends: extendsList.length > 0 ? (extendsList.length === 1 ? extendsList[0] : extendsList) : undefined,
         implements: implementsList.length > 0 ? implementsList : undefined,
         properties: properties,
@@ -1885,13 +1825,24 @@ export class InteractiveGraphCanvas {
       members: p.members
     }));
 
+    const provenance = session.provenance || {};
     return {
-      $schema: "https://openheart.dev/schema/v1/code-structure.ai.json",
-      generator: "OpenHeart Studio 2026 - AI Code Structure Exporter",
+      format: 'OpenHeart-Code-Structure',
+      version: '1.1.0',
+      generator: 'OpenHeart Studio - AI Code Structure Exporter',
       project_name: codebaseName,
       diagram_type: this.currentGraphType,
       export_timestamp: new Date().toISOString(),
-      description: "Semantic codebase architecture AST, complete type contracts, and relationship matrix for AI/LLM contextual understanding, reasoning, and code generation. Layout coordinates and UI formatting are excluded.",
+      source: {
+        kind: session.source.kind,
+        url: session.source.url || null,
+        commit: session.source.commit || null,
+        engine: provenance.engine || null,
+        approximate: provenance.approximate === true,
+        content_hash: provenance.content_hash || null,
+        coverage: provenance.coverage || null
+      },
+      description: 'Types, members and relationships of the current diagram view for AI/LLM context. Layout coordinates and UI formatting are excluded. When source.approximate is true the model comes from the in-browser declaration extractor over a sample of files, not from the Rust engine.',
       summary: {
         total_packages: packages.length,
         total_types: types.length,
@@ -1922,6 +1873,9 @@ export class InteractiveGraphCanvas {
     lines.push('');
     lines.push(`## Architectural Overview`);
     lines.push(`- **Project Name:** ${data.project_name}`);
+    lines.push(`- **Analysis Source:** ${data.source.engine || data.source.kind}${data.source.approximate ? ' (approximate, sampled files)' : ''}`);
+    if (data.source.coverage) lines.push(`- **Coverage:** ${data.source.coverage}`);
+    if (data.source.content_hash) lines.push(`- **IR Content Hash:** ${data.source.content_hash}`);
     lines.push(`- **Diagram Projection:** ${data.diagram_type.toUpperCase()}`);
     lines.push(`- **Total Packages:** ${data.summary.total_packages}`);
     lines.push(`- **Total Types:** ${data.summary.total_types} (${data.summary.total_classes} Classes, ${data.summary.total_interfaces} Interfaces, ${data.summary.total_abstract_classes} Abstract Classes, ${data.summary.total_enums} Enums)`);
@@ -1966,7 +1920,7 @@ export class InteractiveGraphCanvas {
             p.is_collection ? 'collection' : ''
           ].filter(Boolean).join(' ');
           const valStr = p.default_value ? ` = ${p.default_value}` : '';
-          lines.push(`- \`${modStr ? modStr + ' ' : ''}${p.name}: ${p.type}${valStr}\``);
+          lines.push(`- \`${modStr ? modStr + ' ' : ''}${p.name}${p.type ? `: ${p.type}` : ''}${valStr}\``);
         });
       }
 
@@ -1980,8 +1934,8 @@ export class InteractiveGraphCanvas {
             m.is_abstract ? 'abstract' : '',
             m.is_async ? 'async' : ''
           ].filter(Boolean).join(' ');
-          const paramStr = m.parameters.map(p => `${p.name}: ${p.type}`).join(', ');
-          lines.push(`- \`${modStr ? modStr + ' ' : ''}${m.name}(${paramStr}): ${m.return_type}\``);
+          const paramStr = m.parameters.map(formatParameter).join(', ');
+          lines.push(`- \`${modStr ? modStr + ' ' : ''}${m.name}(${paramStr})${m.return_type ? `: ${m.return_type}` : ''}\``);
         });
       }
 
@@ -2057,7 +2011,8 @@ export class InteractiveGraphCanvas {
     // ── Click to Inspect & Synchronize Monaco ──
     this.cy.on('tap', 'node', (e) => {
       const node = e.target;
-      
+      if (node.data('isNotice')) return;
+
       // If clicking package container, toggle collapse/expand (Opening & Closing)
       if (node.data('isPackage')) {
         this.togglePackageCollapse(node);
@@ -2070,12 +2025,27 @@ export class InteractiveGraphCanvas {
       }
     });
 
+    // Tapping the background clears the selection so Delete and arrow keys stop targeting it.
+    this.cy.on('tap', (e) => {
+      if (e.target === this.cy) {
+        this.selectedNode = null;
+        this.cy.nodes().unselect();
+      }
+    });
+
+    // Any geometry or membership change invalidates the hit-test index.
+    this.cy.on('position add remove', () => {
+      this.hitIndex = null;
+    });
+
     // ── Node Reposition Tracking for Figma-Style Undo / Redo ──
     const dragStartPositions = new Map();
 
-    this.cy.on('grab', 'node', () => {
+    this.cy.on('grab', 'node', (e) => {
       dragStartPositions.clear();
-      this.cy.nodes().forEach(n => {
+      // Only the grabbed node, its descendants and the current selection can move.
+      const moving = e.target.union(e.target.descendants()).union(this.cy.nodes(':selected'));
+      moving.union(moving.descendants()).forEach(n => {
         dragStartPositions.set(n.id(), { ...n.position() });
       });
     });
@@ -2098,6 +2068,10 @@ export class InteractiveGraphCanvas {
       });
       dragStartPositions.clear();
 
+      if (movedNodes.length > 0 && this.minimap) {
+        this.minimap.scheduleThumbnailRefresh();
+      }
+
       if (movedNodes.length > 0) {
         const targetLabel = movedNodes.length === 1
           ? (this.cy.getElementById(movedNodes[0].id).data('label') || movedNodes[0].id)
@@ -2118,7 +2092,7 @@ export class InteractiveGraphCanvas {
                 }
               }
             });
-            if (this.minimap) this.minimap.onViewportChange();
+            if (this.minimap) this.minimap.scheduleThumbnailRefresh();
           },
           redo: () => {
             const canAnimate = movedNodes.length <= 15;
@@ -2132,7 +2106,7 @@ export class InteractiveGraphCanvas {
                 }
               }
             });
-            if (this.minimap) this.minimap.onViewportChange();
+            if (this.minimap) this.minimap.scheduleThumbnailRefresh();
           }
         });
       }
@@ -2143,31 +2117,49 @@ export class InteractiveGraphCanvas {
     if (!pkgNode || (typeof pkgNode.id !== 'function' && !pkgNode.length)) return;
     const actualNode = pkgNode.length !== undefined ? pkgNode[0] : pkgNode;
     const pkgId = actualNode.id();
-    const children = this.cy.nodes(`[parent = "${pkgId}"]`);
+    const children = actualNode.children();
     const isCollapsed = this.collapsedPackages.has(pkgId);
     const rawName = actualNode.data('rawName') || pkgId.replace(/^pkg_/, '').replace(/_/g, '.');
     const shortName = rawName.split('.').pop();
     const isDomainTier = actualNode.data('isDomainTier');
+    const childPackages = children.filter(c => c.data('isPackage') || c.data('isLeafPackage')).length;
+    const childTypes = children.length - childPackages;
 
     this.cy.batch(() => {
       if (isCollapsed) {
-        // Expand (Open)
+        // Expand: reveal descendants, except those still inside a nested collapsed package.
         this.collapsedPackages.delete(pkgId);
         actualNode.removeClass('package-collapsed');
-        actualNode.data('width', actualNode.data('origWidth') || 650);
-        actualNode.data('height', actualNode.data('origHeight') || 400);
-        actualNode.data('label', isDomainTier ? `[−] DOMAIN LAYER: ${rawName.toUpperCase()}` : `[−] package [${shortName}]`);
-        children.style('display', 'element');
-        children.connectedEdges().style('display', 'element');
+        actualNode.data('label', isDomainTier ? `DOMAIN: ${rawName.toUpperCase()}` : `package [${shortName}]`);
+        const reveal = actualNode.descendants().filter(d => {
+          let p = d.parent();
+          while (p && p.length && p.id() !== pkgId) {
+            if (this.collapsedPackages.has(p.id())) return false;
+            p = p.parent();
+          }
+          return true;
+        });
+        reveal.removeClass('collapsed-hidden');
+        reveal.connectedEdges().forEach(edge => {
+          if (edge.source().hasClass('collapsed-hidden') || edge.target().hasClass('collapsed-hidden')) return;
+          edge.removeClass('collapsed-hidden');
+        });
       } else {
-        // Collapse (Close)
+        // Collapse: hide every descendant and every edge touching one.
         this.collapsedPackages.add(pkgId);
         actualNode.addClass('package-collapsed');
-        actualNode.data('label', isDomainTier ? `[+] DOMAIN LAYER: ${rawName.toUpperCase()} (${children.length} subpackages)` : `[+] package [${shortName}] (${children.length} classes)`);
-        children.style('display', 'none');
-        children.connectedEdges().style('display', 'none');
+        const parts = [];
+        if (childPackages) parts.push(`${childPackages} package${childPackages === 1 ? '' : 's'}`);
+        if (childTypes) parts.push(`${childTypes} type${childTypes === 1 ? '' : 's'}`);
+        const summary = parts.length ? ` (${parts.join(', ')})` : '';
+        actualNode.data('label', isDomainTier ? `[+] DOMAIN: ${rawName.toUpperCase()}${summary}` : `[+] package [${shortName}]${summary}`);
+        const hide = actualNode.descendants();
+        hide.addClass('collapsed-hidden');
+        hide.connectedEdges().addClass('collapsed-hidden');
       }
     });
+    this.hitIndex = null;
+    if (this.minimap) this.minimap.scheduleThumbnailRefresh();
 
     if (recordUndo) {
       this.pushUndoAction({
@@ -2342,7 +2334,7 @@ export class InteractiveGraphCanvas {
       clearTimeout(this._hudStatusTimer);
       this._hudStatusTimer = setTimeout(() => {
         if (statusText) {
-          statusText.textContent = 'Mouse wheel to Zoom · Drag to Pan · Shift+Wheel to Pan H · Hover to trace path';
+          statusText.textContent = DEFAULT_HUD_HINT;
         }
       }, 2500);
     }
@@ -2357,34 +2349,46 @@ export class InteractiveGraphCanvas {
 
     if (!targetNodes || targetNodes.length === 0) return;
 
-    const validTargets = targetNodes.filter(n => n.id() !== 'interactive-canvas');
+    const validTargets = targetNodes.filter(n => !n.data('isNotice'));
     if (validTargets.length === 0) return;
 
-    const toDelete = validTargets.union(validTargets.connectedEdges());
-    const elesJson = toDelete.jsons();
+    // cytoscape's remove() also removes descendants of compound nodes, so the undo record
+    // must capture every descendant and every edge touching any removed node.
+    const removedNodes = validTargets.union(validTargets.descendants());
+    const toDelete = removedNodes.union(removedNodes.connectedEdges());
+    const depthOf = new Map();
+    removedNodes.forEach(n => depthOf.set(n.id(), n.ancestors().length));
+    const nodeJsons = removedNodes.jsons().sort((a, b) => (depthOf.get(a.data.id) || 0) - (depthOf.get(b.data.id) || 0));
+    const edgeJsons = toDelete.edges().jsons();
+    const elesJson = [...nodeJsons, ...edgeJsons];
+    const removedIds = elesJson.map(item => item.data.id);
     const label = validTargets.length === 1
-      ? (validTargets[0].data('label') || validTargets[0].id())
+      ? (validTargets[0].data('name') || validTargets[0].data('rawName') || validTargets[0].id())
       : `${validTargets.length} nodes`;
 
     toDelete.remove();
     this.selectedNode = null;
-    if (this.minimap) this.minimap.onViewportChange();
+    this.hitIndex = null;
+    if (this.minimap) this.minimap.scheduleThumbnailRefresh();
 
     this.pushUndoAction({
       type: 'delete',
       description: `Delete ${label}`,
       undo: () => {
         const added = this.cy.add(elesJson);
-        if (this.minimap) this.minimap.onViewportChange();
-        added.nodes().select();
+        this.applyEdgeFilters();
+        this.hitIndex = null;
+        if (this.minimap) this.minimap.scheduleThumbnailRefresh();
+        added.nodes().filter(n => validTargets.some(v => v.id() === n.id())).select();
       },
       redo: () => {
-        elesJson.forEach(item => {
-          const el = this.cy.getElementById(item.data.id);
+        removedIds.forEach(id => {
+          const el = this.cy.getElementById(id);
           if (el && el.length > 0) el.remove();
         });
         this.selectedNode = null;
-        if (this.minimap) this.minimap.onViewportChange();
+        this.hitIndex = null;
+        if (this.minimap) this.minimap.scheduleThumbnailRefresh();
       }
     });
 

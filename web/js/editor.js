@@ -1,53 +1,207 @@
 /**
- * OpenHeart Precision Source Code Engine & Line Synchronizer
- * High-performance, zero-dependency code viewer with sticky line numbers,
- * full bidirectional 2D scrolling (vertical & horizontal), dynamic syntax
- * highlighting, configurable font scaling, word-wrap toggling, and theme reactivity.
+ * OpenHeart Source Viewer & Line Synchronizer
+ * Read-only code viewer with sticky line numbers, a single-pass tokenizer for highlighting
+ * (each token becomes a text node, so highlighting can never produce markup), configurable
+ * font size and word wrap.
+ *
+ * Sources are resolved only from data the session actually has: the in-memory source map of
+ * an imported codebase, the node's raw_url (raw.githubusercontent.com or same-origin), or the
+ * analysis server's /api/source for an engine session. Nothing is guessed or synthesised; when
+ * no source exists the viewer says so.
  */
 
-import { isDarkMode, onThemeChange } from './themes/index.js';
+import { h, replaceChildren } from './dom.js';
+import { icon } from './icons.js';
+import { localStore } from './storage.js';
+import { studioStore } from './studio-store.js';
+import { isAllowedSourceUrl } from './graph-ir-validate.js';
+import { languageForPath } from './analysis/source-parser.js';
+
+const KEYWORDS = new Set([
+  'public', 'private', 'protected', 'internal', 'class', 'interface', 'enum', 'record', 'implements', 'extends',
+  'static', 'final', 'abstract', 'void', 'return', 'new', 'this', 'super', 'import', 'package', 'synchronized',
+  'volatile', 'transient', 'native', 'strictfp', 'throws', 'throw', 'try', 'catch', 'finally', 'if', 'else',
+  'while', 'for', 'do', 'switch', 'case', 'default', 'break', 'continue', 'instanceof', 'assert', 'val', 'var',
+  'fun', 'override', 'const', 'let', 'mut', 'struct', 'impl', 'fn', 'pub', 'trait', 'type', 'match', 'self',
+  'Self', 'use', 'mod', 'crate', 'where', 'async', 'await', 'ref', 'move', 'def', 'None', 'True', 'False',
+  'from', 'as', 'in', 'is', 'not', 'and', 'or', 'yield', 'lambda', 'with', 'object', 'companion', 'data',
+  'sealed', 'open', 'when', 'namespace', 'using', 'readonly', 'export', 'function', 'typeof', 'null', 'true',
+  'false', 'undefined', 'func', 'go', 'defer', 'chan', 'select', 'range', 'virtual', 'template', 'typename',
+  'protocol', 'extension', 'guard', 'init', 'deinit', 'struct', 'union', 'operator', 'inline', 'suspend'
+]);
+
+const TYPES = new Set([
+  'int', 'long', 'boolean', 'double', 'float', 'char', 'byte', 'short', 'String', 'Object', 'List', 'Map', 'Set',
+  'Optional', 'Integer', 'Long', 'Boolean', 'Double', 'Float', 'Void', 'i8', 'i16', 'i32', 'i64', 'u8', 'u16',
+  'u32', 'u64', 'usize', 'isize', 'f32', 'f64', 'bool', 'str', 'Option', 'Result', 'Some', 'Ok', 'Err', 'Vec',
+  'BigInteger', 'BigDecimal', 'Int', 'Unit', 'Any', 'string', 'number', 'void', 'any', 'unknown', 'never'
+]);
+
+const CHAR_LITERAL_LANGS = new Set(['java', 'kotlin', 'csharp', 'cpp', 'rust', 'go', 'scala', 'swift']);
+
+function isIdentStart(c) {
+  return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 36 || c > 127;
+}
+
+function isIdentPart(c) {
+  return isIdentStart(c) || (c >= 48 && c <= 57);
+}
+
+/**
+ * Splits text into highlight tokens in one forward pass.
+ * @returns {Array<{ type: string|null, text: string }>}
+ */
+export function tokenizeForHighlight(text, lang) {
+  const tokens = [];
+  const n = text.length;
+  const hashComments = lang === 'python';
+  const slashComments = lang !== 'python';
+  const backtickStrings = lang === 'javascript' || lang === 'typescript' || lang === 'go';
+  let plainStart = 0;
+  let i = 0;
+  const flushPlain = (end) => {
+    if (end > plainStart) tokens.push({ type: null, text: text.slice(plainStart, end) });
+  };
+  const emit = (type, end) => {
+    flushPlain(i);
+    tokens.push({ type, text: text.slice(i, end) });
+    i = end;
+    plainStart = end;
+  };
+
+  while (i < n) {
+    const c = text.charCodeAt(i);
+    if (slashComments && c === 47 && text.charCodeAt(i + 1) === 47) {
+      const end = text.indexOf('\n', i);
+      emit('comment', end === -1 ? n : end);
+      continue;
+    }
+    if (slashComments && c === 47 && text.charCodeAt(i + 1) === 42) {
+      const close = text.indexOf('*/', i + 2);
+      emit('comment', close === -1 ? n : close + 2);
+      continue;
+    }
+    if (hashComments && c === 35) {
+      const end = text.indexOf('\n', i);
+      emit('comment', end === -1 ? n : end);
+      continue;
+    }
+    if (c === 34 || c === 39 || (c === 96 && backtickStrings)) {
+      const quote = text[i];
+      if (text.startsWith(quote.repeat(3), i) && (lang === 'python' || lang === 'kotlin' || lang === 'java' || lang === 'scala' || lang === 'swift')) {
+        const close = text.indexOf(quote.repeat(3), i + 3);
+        emit('string', close === -1 ? n : close + 3);
+        continue;
+      }
+      if (c === 39 && CHAR_LITERAL_LANGS.has(lang)) {
+        // Char literal only when it closes within a few characters (otherwise e.g. a Rust lifetime).
+        let close = -1;
+        for (let j = i + 1; j < Math.min(n, i + 12); j++) {
+          const d = text.charCodeAt(j);
+          if (d === 92) { j++; continue; }
+          if (d === 39) { close = j; break; }
+          if (d === 10) break;
+        }
+        if (close === -1 || close - i > 10) {
+          i++;
+          continue;
+        }
+        emit('string', close + 1);
+        continue;
+      }
+      let j = i + 1;
+      while (j < n) {
+        const d = text.charCodeAt(j);
+        if (d === 92) { j += 2; continue; }
+        if (d === c) { j++; break; }
+        if (d === 10 && c !== 96) break;
+        j++;
+      }
+      emit('string', Math.min(j, n));
+      continue;
+    }
+    if (c === 64 && i + 1 < n && isIdentStart(text.charCodeAt(i + 1))) {
+      let j = i + 2;
+      while (j < n && (isIdentPart(text.charCodeAt(j)) || text.charCodeAt(j) === 46)) j++;
+      emit('annotation', j);
+      continue;
+    }
+    if (c >= 48 && c <= 57 && (i === 0 || !isIdentPart(text.charCodeAt(i - 1)))) {
+      let j = i + 1;
+      while (j < n && (isIdentPart(text.charCodeAt(j)) || text.charCodeAt(j) === 46)) j++;
+      emit('number', j);
+      continue;
+    }
+    if (isIdentStart(c)) {
+      let j = i + 1;
+      while (j < n && isIdentPart(text.charCodeAt(j))) j++;
+      const word = text.slice(i, j);
+      if (KEYWORDS.has(word)) emit('keyword', j);
+      else if (TYPES.has(word)) emit('type', j);
+      else i = j;
+      continue;
+    }
+    i++;
+  }
+  i = n;
+  flushPlain(n);
+  return tokens;
+}
+
+function normalizePath(path) {
+  return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+function isSafeRelativePath(path) {
+  return Boolean(path) && !path.includes('..') && !path.includes(':') && !path.startsWith('/') && !path.includes('\\');
+}
 
 export class SourceEditorModule {
-  constructor(containerId = "monaco-container") {
+  constructor(containerId = 'monaco-container') {
     this.containerId = containerId;
     this.currentFile = null;
-    this.currentContent = "";
+    this.currentContent = '';
+    this.contentIsSource = false;
     this.targetLines = [];
     this.sourceCache = new Map();
-    this.fontSize = parseFloat(localStorage.getItem('openheart_code_fontsize') || '11.5');
-    this.wordWrap = localStorage.getItem('openheart_code_wrap') === 'true';
-    this.isDark = isDarkMode();
+    this.fontSize = Math.min(18, Math.max(9.5, localStore.getNumber('openheart_code_fontsize', 11.5)));
+    this.wordWrap = localStore.getBoolean('openheart_code_wrap', false);
+    this.requestSeq = 0;
+    this.abortController = null;
+    this.rows = [];
+    this.gutterRows = [];
   }
 
   init() {
     const container = document.getElementById(this.containerId);
     if (!container) return;
-
     this.bindToolbarControls();
-
-    onThemeChange((theme, isDark) => {
-      this.isDark = isDark;
-      this.render();
+    container.addEventListener('click', (e) => {
+      const gutter = e.target instanceof Element ? e.target.closest('.code-gutter-line') : null;
+      if (!gutter) return;
+      const line = parseInt(gutter.getAttribute('data-line'), 10);
+      if (Number.isInteger(line)) this.highlightLines([line]);
     });
+    this.showMessage([
+      'OpenHeart source viewer',
+      '',
+      'Select a type in the diagram or a file in the Project Explorer to view its source.'
+    ], null);
+  }
 
-    // Initial placeholder render
-    this.renderInitialPlaceholder();
+  /** Clears every cached source (called when the active codebase changes). */
+  clearSources() {
+    this.sourceCache.clear();
   }
 
   setSource(fileName, content) {
-    if (!fileName || !content) return;
-    this.sourceCache.set(fileName, content);
-    const baseName = fileName.split('/').pop();
-    if (baseName && baseName !== fileName) {
-      this.sourceCache.set(baseName, content);
-    }
+    if (!fileName || typeof content !== 'string') return;
+    this.sourceCache.set(normalizePath(fileName), content);
   }
 
   setMultipleSources(fileMap) {
     if (!fileMap) return;
-    fileMap.forEach((content, fileName) => {
-      this.setSource(fileName, content);
-    });
+    fileMap.forEach((content, fileName) => this.setSource(fileName, content));
   }
 
   bindToolbarControls() {
@@ -57,51 +211,44 @@ export class SourceEditorModule {
     const btnWrap = document.getElementById('btn-code-wrap');
     const btnCopy = document.getElementById('btn-code-copy');
 
-    if (fontValLabel) {
-      fontValLabel.textContent = `${this.fontSize}px`;
-    }
+    if (fontValLabel) fontValLabel.textContent = `${this.fontSize}px`;
 
-    if (btnFontDec) {
-      btnFontDec.addEventListener('click', () => {
-        this.fontSize = Math.max(9.5, +(this.fontSize - 0.5).toFixed(1));
-        localStorage.setItem('openheart_code_fontsize', this.fontSize.toString());
-        if (fontValLabel) fontValLabel.textContent = `${this.fontSize}px`;
-        this.updateFontAndLayout();
-      });
-    }
-
-    if (btnFontInc) {
-      btnFontInc.addEventListener('click', () => {
-        this.fontSize = Math.min(18.0, +(this.fontSize + 0.5).toFixed(1));
-        localStorage.setItem('openheart_code_fontsize', this.fontSize.toString());
-        if (fontValLabel) fontValLabel.textContent = `${this.fontSize}px`;
-        this.updateFontAndLayout();
-      });
-    }
+    const applyFont = (next) => {
+      this.fontSize = next;
+      localStore.set('openheart_code_fontsize', this.fontSize.toString());
+      if (fontValLabel) fontValLabel.textContent = `${this.fontSize}px`;
+      this.updateFontAndLayout();
+    };
+    if (btnFontDec) btnFontDec.addEventListener('click', () => applyFont(Math.max(9.5, +(this.fontSize - 0.5).toFixed(1))));
+    if (btnFontInc) btnFontInc.addEventListener('click', () => applyFont(Math.min(18.0, +(this.fontSize + 0.5).toFixed(1))));
 
     if (btnWrap) {
-      if (this.wordWrap) btnWrap.classList.add('active');
+      btnWrap.classList.toggle('active', this.wordWrap);
+      btnWrap.setAttribute('aria-pressed', String(this.wordWrap));
       btnWrap.addEventListener('click', () => {
         this.wordWrap = !this.wordWrap;
-        localStorage.setItem('openheart_code_wrap', this.wordWrap.toString());
+        localStore.set('openheart_code_wrap', this.wordWrap.toString());
         btnWrap.classList.toggle('active', this.wordWrap);
+        btnWrap.setAttribute('aria-pressed', String(this.wordWrap));
         this.updateFontAndLayout();
       });
     }
 
     if (btnCopy) {
       btnCopy.addEventListener('click', async () => {
-        if (!this.currentContent) return;
+        if (!this.currentContent || !this.contentIsSource) return;
         try {
           await navigator.clipboard.writeText(this.currentContent);
-          const orig = btnCopy.innerHTML;
-          btnCopy.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="studio-icon"><polyline points="2.5 8.5 6 12 13.5 4"/></svg> Copied';
+          replaceChildren(btnCopy, icon('check'), ' Copied');
           btnCopy.classList.add('copied');
           setTimeout(() => {
-            btnCopy.innerHTML = orig;
+            replaceChildren(btnCopy, icon('copy'), ' Copy');
             btnCopy.classList.remove('copied');
           }, 1800);
-        } catch (_) {}
+        } catch (_) {
+          replaceChildren(btnCopy, icon('copy'), ' Copy failed');
+          setTimeout(() => replaceChildren(btnCopy, icon('copy'), ' Copy'), 1800);
+        }
       });
     }
   }
@@ -109,489 +256,204 @@ export class SourceEditorModule {
   updateFontAndLayout() {
     const container = document.getElementById(this.containerId);
     if (!container) return;
-
     const viewport = container.querySelector('.code-editor-viewport');
     if (viewport) {
       viewport.style.setProperty('--code-font-size', `${this.fontSize}px`);
       const body = viewport.querySelector('.code-content-body');
-      if (body) {
-        body.classList.toggle('wrap-lines', this.wordWrap);
-      }
+      if (body) body.classList.toggle('wrap-lines', this.wordWrap);
     }
   }
 
-  setTheme(isDark) {
-    this.isDark = isDark;
-    this.render();
+  setTheme() {
+    // Colours are driven entirely by CSS custom properties; no re-render is needed.
   }
 
-  renderInitialPlaceholder() {
-    const container = document.getElementById(this.containerId);
-    if (!container) return;
-
-    this.currentContent = `// OpenHeart Precision Code Engine & AST Synchronizer
-// ─────────────────────────────────────────────────────────────
-// Select any class, interface, or edge in the diagram
-// or choose a file from Project Explorer to view complete source.`;
-    this.render();
+  setSyncStatus(text, state) {
+    const pill = document.getElementById('editor-sync-status');
+    if (!pill) return;
+    pill.textContent = text;
+    pill.dataset.state = state;
   }
 
+  /**
+   * Loads and shows a file. A newer call supersedes (and aborts) any load still in flight.
+   */
   async loadFile(fileName, nodeData = null, targetLines = []) {
-    this.currentFile = fileName;
-    this.targetLines = Array.isArray(targetLines) ? targetLines : [];
+    const requestId = ++this.requestSeq;
+    if (this.abortController) this.abortController.abort();
+    const controller = new AbortController();
+    this.abortController = controller;
 
-    let content = this.sourceCache.get(fileName);
-    if (!content) {
-      // 0. Direct Raw GitHub URL if available
-      if (nodeData && (nodeData.raw_url || nodeData.rawUrl)) {
+    this.currentFile = fileName ? normalizePath(fileName) : null;
+    this.targetLines = Array.isArray(targetLines) ? targetLines.filter(l => Number.isInteger(l) && l > 0) : [];
+    this.setSyncStatus('Loading…', 'loading');
+
+    let result;
+    try {
+      result = await this.resolveSource(this.currentFile, nodeData, controller.signal);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      result = { content: null, reason: `Loading failed: ${(err && err.message) || err}` };
+    }
+    if (requestId !== this.requestSeq) return;
+
+    if (result.content !== null) {
+      this.currentContent = result.content;
+      this.contentIsSource = true;
+      this.render(languageForPath(this.currentFile || '') || null);
+      this.scrollToHighlightedLine();
+      this.setSyncStatus(result.originLabel, 'ok');
+      return;
+    }
+
+    const lines = [result.reason];
+    const insts = nodeData && Array.isArray(nodeData.instructions) ? nodeData.instructions.filter(x => typeof x === 'string') : [];
+    if (insts.length) {
+      lines.push('', 'Recorded IR data for this node:');
+      insts.forEach(inst => lines.push(`  ${inst}`));
+    }
+    this.showMessage(lines, nodeData);
+    this.setSyncStatus('No source', 'missing');
+  }
+
+  async resolveSource(path, nodeData, signal) {
+    if (!path) {
+      return { content: null, reason: 'This element has no source file recorded in the diagram data.' };
+    }
+    if (this.sourceCache.has(path)) {
+      return { content: this.sourceCache.get(path), originLabel: 'Imported source' };
+    }
+    const attempts = [];
+    const rawUrl = nodeData ? (nodeData.raw_url || nodeData.rawUrl) : null;
+    if (rawUrl) {
+      if (!isAllowedSourceUrl(rawUrl)) {
+        attempts.push('the recorded source URL is not on raw.githubusercontent.com or this site, so it was not fetched');
+      } else {
         try {
-          const rawUrl = nodeData.raw_url || nodeData.rawUrl;
-          const rResp = await fetch(rawUrl);
-          if (rResp.ok) {
-            content = await rResp.text();
-            this.sourceCache.set(fileName, content);
+          const res = await fetch(rawUrl, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+          if (res.ok) {
+            const text = await res.text();
+            this.sourceCache.set(path, text);
+            return { content: text, originLabel: 'GitHub raw' };
           }
-        } catch (_) {}
+          attempts.push(`the source URL returned HTTP ${res.status}`);
+        } catch (err) {
+          if (err && err.name === 'AbortError') throw err;
+          attempts.push(`the source URL could not be fetched (${(err && err.message) || err})`);
+        }
       }
-
-      // 1. Try to fetch from server /api/source endpoint dynamically
-      if (!content) {
+    }
+    if (studioStore.sourceKind === 'engine') {
+      if (!isSafeRelativePath(path)) {
+        attempts.push('the recorded path is not a repository-relative path');
+      } else {
         try {
-          const filePathParam = encodeURIComponent(nodeData?.file || fileName);
-          const apiRes = await fetch(`/api/source?file=${filePathParam}`);
-          if (apiRes.ok) {
-            const resJson = await apiRes.json();
-            if (resJson && resJson.found && resJson.content) {
-              content = resJson.content;
-              this.sourceCache.set(fileName, content);
+          const res = await fetch(`/api/source?file=${encodeURIComponent(path)}`, { signal });
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.found && typeof json.content === 'string') {
+              this.sourceCache.set(path, json.content);
+              return { content: json.content, originLabel: 'Analysis server' };
             }
+            attempts.push('the analysis server has no source for this path');
+          } else {
+            attempts.push(`the analysis server returned HTTP ${res.status}`);
           }
-        } catch (_) {}
-      }
-
-      // 2. Try static candidate paths
-      if (!content) {
-        const candidatePaths = [
-          `examples/test_patterns_codebase/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/behavioral/observer/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/behavioral/strategy/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/behavioral/templatemethod/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/creational/builder/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/creational/factory/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/creational/singleton/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/structural/adapter/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/structural/decorator/${fileName}`,
-          `examples/test_patterns_codebase/com/patterns/structural/facade/${fileName}`,
-          `test_patterns_codebase/${fileName}`,
-          `test_patterns_codebase/com/patterns/behavioral/observer/${fileName}`,
-          `test_patterns_codebase/com/patterns/behavioral/strategy/${fileName}`,
-          `test_patterns_codebase/com/patterns/behavioral/templatemethod/${fileName}`,
-          `test_patterns_codebase/com/patterns/creational/builder/${fileName}`,
-          `test_patterns_codebase/com/patterns/creational/factory/${fileName}`,
-          `test_patterns_codebase/com/patterns/creational/singleton/${fileName}`,
-          `test_patterns_codebase/com/patterns/structural/adapter/${fileName}`,
-          `test_patterns_codebase/com/patterns/structural/decorator/${fileName}`,
-          `test_patterns_codebase/com/patterns/structural/facade/${fileName}`,
-          fileName
-        ];
-
-        for (const p of candidatePaths) {
-          try {
-            const res = await fetch(p);
-            if (res.ok) {
-              content = await res.text();
-              this.sourceCache.set(fileName, content);
-              break;
-            }
-          } catch (_) {}
+        } catch (err) {
+          if (err && err.name === 'AbortError') throw err;
+          attempts.push(`the analysis server could not be reached (${(err && err.message) || err})`);
         }
       }
-
-      // 3. If not found on disk, dynamically construct full source code with actual fields, types, and methods from parsed nodeData AST
-      if (!content && nodeData) {
-        content = this.synthesizeSourceFromNode(fileName, nodeData);
-        this.sourceCache.set(fileName, content);
-      }
     }
-
-    if (!content) {
-      const baseClean = fileName.replace(/\\/g, '/').split('/').pop().replace(/\.[^/.]+$/, '');
-      content = `// Source file: ${fileName}\n// Package / Namespace: ${nodeData?.parent || 'default'}\n\npublic class ${baseClean} {\n    // Compiled SCPG AST Node\n}\n`;
+    if (attempts.length === 0) {
+      return { content: null, reason: `The source of ${path} is not available in this session (the diagram data references it, but no file contents or source URL were provided).` };
     }
-
-    this.currentContent = content;
-    this.render();
-    this.scrollToHighlightedLine();
+    return { content: null, reason: `The source of ${path} could not be loaded: ${attempts.join('; ')}.` };
   }
 
-  synthesizeSourceFromNode(fileName, nodeData) {
-    const baseClean = fileName.replace(/\\/g, '/').split('/').pop().replace(/\.[^/.]+$/, '');
-    const className = baseClean;
-    let pkg = nodeData.parent ? nodeData.parent.replace(/^pkg_/, '').replace(/_/g, '.') : 'OpenHeart.Architecture';
-    if (nodeData.package_name) {
-      pkg = nodeData.package_name;
-    }
-    const kind = nodeData.kind || 'class';
-
-    // Parse attributes/fields with smart type inference
-    const rawFields = nodeData.fields || nodeData.attributes || [];
-    const fields = [];
-    rawFields.forEach(f => {
-      if (typeof f === 'string') {
-        const clean = f.replace(/^[+\-#~]\s*/, '').trim();
-        const parts = clean.split(':').map(s => s.trim());
-        const name = parts[0] || 'field';
-        const rawType = parts[1] || '';
-        const type = this.inferFieldType(name, rawType);
-        const vis = f.startsWith('-') ? 'private' : f.startsWith('#') ? 'protected' : 'public';
-        fields.push({ name, type, visibility: vis });
-      } else if (typeof f === 'object' && f !== null) {
-        const name = f.name || 'field';
-        const rawType = f.type_name || f.type || '';
-        const type = this.inferFieldType(name, rawType);
-        fields.push({
-          name: name,
-          type: type,
-          visibility: f.visibility === '-' ? 'private' : f.visibility === '#' ? 'protected' : 'public',
-          isStatic: f.is_static || false,
-          isFinal: f.is_final || false
-        });
-      }
-    });
-
-    // Parse methods with smart signature inference
-    const rawMethods = nodeData.methods || nodeData.operations || [];
-    const methods = [];
-    rawMethods.forEach(m => {
-      if (typeof m === 'string') {
-        const clean = m.replace(/^[+\-#~]\s*/, '').trim();
-        const parenIdx = clean.indexOf('(');
-        let name = clean;
-        let params = '';
-        let returnType = 'void';
-
-        if (parenIdx !== -1) {
-          name = clean.substring(0, parenIdx).trim();
-          const closeParenIdx = clean.indexOf(')', parenIdx);
-          if (closeParenIdx !== -1) {
-            params = clean.substring(parenIdx + 1, closeParenIdx).trim();
-            const rest = clean.substring(closeParenIdx + 1).replace(/^:\s*/, '').trim();
-            if (rest) returnType = rest;
-          }
-        } else if (clean.includes(':')) {
-          const parts = clean.split(':').map(s => s.trim());
-          name = parts[0];
-          returnType = parts[1] || 'void';
-        }
-
-        const vis = m.startsWith('-') ? 'private' : m.startsWith('#') ? 'protected' : 'public';
-        methods.push({
-          name,
-          params: this.formatParams(params),
-          returnType: this.normalizeType(returnType),
-          visibility: vis,
-          isAbstract: kind === 'interface' || kind === 'abstract'
-        });
-      } else if (typeof m === 'object' && m !== null) {
-        const name = m.name || 'method';
-        const returnType = this.normalizeType(m.return_type || m.returnType || 'void');
-        const vis = m.visibility === '-' ? 'private' : m.visibility === '#' ? 'protected' : 'public';
-        const params = (m.parameters || []).map(p => `${p.type_name || 'Object'} ${p.name || 'param'}`).join(', ');
-        methods.push({
-          name,
-          params,
-          returnType,
-          visibility: vis,
-          isAbstract: kind === 'interface' || (kind === 'abstract' && (m.is_abstract || false)),
-          isStatic: m.is_static || false
-        });
-      }
-    });
-
-    // Check for special compiler pipeline and behavioral IR nodes
-    if (kind === 'bb') {
-      let out = `// ── Basic Block Control Flow IR ──\n`;
-      out += `block ${nodeData.id} [${nodeData.name || 'Block'}] {\n`;
-      const insts = nodeData.instructions || [];
-      if (insts.length > 0) {
-        insts.forEach((inst, idx) => {
-          out += `    ${String(idx + 1).padStart(2, '0')}: ${inst};\n`;
-        });
-      } else {
-        out += `    01: nop;\n`;
-      }
-      out += `}\n`;
-      return out;
-    }
-
-    if (kind === 'state') {
-      let out = `// ── UML 2.5 State Machine Specification ──\n`;
-      out += `state ${className} {\n`;
-      const insts = nodeData.instructions || [];
-      if (insts.length > 0) {
-        insts.forEach(inst => {
-          out += `    ${inst}\n`;
-        });
-      } else {
-        out += `    entry / logState("${className}")\n`;
-        out += `    do / processQueue()\n`;
-        out += `    exit / notifyCompleted()\n`;
-      }
-      out += `}\n`;
-      return out;
-    }
-
-    if (kind === 'timing_track') {
-      let out = `// ── UML 2.5 Timing Waveform Specification ──\n`;
-      out += `lifeline "${nodeData.name || className}" {\n`;
-      const insts = nodeData.instructions || [];
-      insts.forEach(inst => {
-        out += `    ${inst}\n`;
-      });
-      out += `}\n`;
-      return out;
-    }
-
-    if (kind === 'bdd_gate' || kind === 'bdd_terminal') {
-      let out = `// ── Reduced Ordered Binary Decision Diagram (ROBDD) ──\n`;
-      out += `node ${nodeData.id} {\n`;
-      out += `    variable: "${nodeData.name || nodeData.label || 'x'}"\n`;
-      out += `    saturated_paths: ${nodeData.bddSatCount || 1}\n`;
-      out += `}\n`;
-      return out;
-    }
-
-    // Generate Java/Kotlin AST code with full signatures
-    let out = `package ${pkg};\n\n`;
-    out += `import java.util.*;\n`;
-    out += `import java.io.*;\n`;
-    out += `import java.util.concurrent.*;\n\n`;
-
-    out += `/**\n`;
-    out += ` * OpenHeart Generated AST Representation\n`;
-    out += ` * Entity: ${className}\n`;
-    out += ` * Stereotype: <<${kind}>>\n`;
-    out += ` * Source: Grounded from Deep Program Graph Analysis\n`;
-    out += ` */\n`;
-
-    const kindKeyword = kind === 'interface' ? 'interface' : kind === 'enum' ? 'enum' : kind === 'abstract' ? 'abstract class' : 'class';
-    out += `public ${kindKeyword} ${className} {\n\n`;
-
-    if (fields.length > 0) {
-      out += `    // ── Fields & Member Attributes ──\n`;
-      fields.forEach(f => {
-        out += `    ${f.visibility} ${f.type} ${f.name};\n`;
-      });
-      out += `\n`;
-    }
-
-    if (kind === 'class' || kind === 'abstract') {
-      out += `    // ── Constructors ──\n`;
-      if (fields.length > 0) {
-        const ctorParams = fields.slice(0, 3).map(f => `${f.type} ${f.name}`).join(', ');
-        out += `    public ${className}(${ctorParams}) {\n`;
-        fields.slice(0, 3).forEach(f => {
-          out += `        this.${f.name} = ${f.name};\n`;
-        });
-        out += `    }\n\n`;
-      } else {
-        out += `    public ${className}() {\n`;
-        out += `        // Default constructor\n`;
-        out += `    }\n\n`;
-      }
-    }
-
-    if (methods.length > 0) {
-      out += `    // ── Member Methods & Behaviors ──\n`;
-      methods.forEach(m => {
-        if (kind === 'interface' || m.isAbstract) {
-          out += `    ${m.visibility} ${m.returnType} ${m.name}(${m.params});\n\n`;
-        } else {
-          out += `    ${m.visibility} ${m.returnType} ${m.name}(${m.params}) {\n`;
-          out += this.generateMethodBody(m, className);
-          out += `    }\n\n`;
-        }
-      });
-    }
-
-    out += `}\n`;
-    return out;
-  }
-
-  inferFieldType(name, rawType) {
-    if (rawType && rawType !== 'void') {
-      return this.normalizeType(rawType);
-    }
-    const lower = name.toLowerCase();
-    if (lower.startsWith('is') || lower.startsWith('has') || lower.startsWith('can') || lower.endsWith('enabled') || lower.endsWith('active')) return 'boolean';
-    if (lower.endsWith('id') || lower.endsWith('count') || lower.endsWith('size') || lower.endsWith('index') || lower.endsWith('port') || lower.endsWith('age') || lower.endsWith('length')) return 'int';
-    if (lower.endsWith('timestamp') || lower.endsWith('time') || lower.endsWith('millis')) return 'long';
-    if (lower.endsWith('price') || lower.endsWith('rate') || lower.endsWith('score') || lower.endsWith('weight') || lower.endsWith('ratio')) return 'double';
-    if (lower.endsWith('list') || lower.endsWith('items') || lower.endsWith('nodes') || lower.endsWith('records')) return 'List<String>';
-    if (lower.endsWith('map') || lower.endsWith('cache') || lower.endsWith('lookup')) return 'Map<String, Object>';
-    if (lower.endsWith('set')) return 'Set<String>';
-    if (lower.endsWith('name') || lower.endsWith('title') || lower.endsWith('label') || lower.endsWith('description') || lower.endsWith('url') || lower.endsWith('path') || lower.endsWith('msg') || lower.endsWith('message') || lower.endsWith('key') || lower.endsWith('token') || lower.endsWith('status') || lower.endsWith('type')) return 'String';
-    return 'Object';
-  }
-
-  normalizeType(t) {
-    if (!t) return 'void';
-    const clean = t.trim();
-    if (clean === 'int' || clean === 'Integer') return 'int';
-    if (clean === 'long' || clean === 'Long') return 'long';
-    if (clean === 'boolean' || clean === 'Boolean' || clean === 'bool') return 'boolean';
-    if (clean === 'double' || clean === 'Double') return 'double';
-    if (clean === 'float' || clean === 'Float') return 'float';
-    if (clean === 'string' || clean === 'String') return 'String';
-    if (clean === 'void') return 'void';
-    return clean;
-  }
-
-  formatParams(raw) {
-    if (!raw) return '';
-    const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
-    return parts.map((p, idx) => {
-      if (p.includes(' ')) return p;
-      if (p.includes(':')) {
-        const [n, t] = p.split(':').map(s => s.trim());
-        return `${this.normalizeType(t || 'Object')} ${n || `param${idx}`}`;
-      }
-      return `Object ${p}`;
-    }).join(', ');
-  }
-
-  generateMethodBody(m, className) {
-    const rawName = m.name.toLowerCase();
-    const lines = [];
-
-    if (rawName.startsWith('get') || rawName.startsWith('is')) {
-      const prop = m.name.replace(/^(get|is)/i, '');
-      const propName = prop.length > 0 ? prop.charAt(0).toLowerCase() + prop.slice(1) : 'value';
-      if (m.returnType === 'boolean') {
-        lines.push(`return this.${propName} != null;`);
-      } else if (m.returnType === 'int' || m.returnType === 'long') {
-        lines.push(`return this.${propName} != 0 ? this.${propName} : 1;`);
-      } else if (m.returnType === 'String') {
-        lines.push(`return this.${propName} != null ? this.${propName} : "${className}";`);
-      } else {
-        lines.push(`return this.${propName};`);
-      }
-    } else if (rawName.startsWith('set')) {
-      const prop = m.name.replace(/^set/i, '');
-      const propName = prop.length > 0 ? prop.charAt(0).toLowerCase() + prop.slice(1) : 'value';
-      lines.push(`this.${propName} = param;`);
-    } else {
-      if (m.returnType === 'void') {
-        lines.push('// Domain operation execution');
-      } else if (m.returnType === 'boolean') {
-        lines.push('return true;');
-      } else if (m.returnType === 'int' || m.returnType === 'long') {
-        lines.push('return 0;');
-      } else if (m.returnType === 'float' || m.returnType === 'double') {
-        lines.push('return 0.0f;');
-      } else if (m.returnType === 'String') {
-        lines.push(`return "${className}." + "${rawName}";`);
-      } else {
-        lines.push('return null;');
-      }
-    }
-
-    return lines.map(l => `        ${l}\n`).join('');
+  showMessage(lines, nodeData) {
+    this.currentContent = lines.join('\n');
+    this.contentIsSource = false;
+    this.targetLines = [];
+    this.renderTokens(lines.map(text => [{ type: 'comment', text }]));
   }
 
   highlightLines(lines = []) {
-    this.targetLines = Array.isArray(lines) ? lines : [];
-    this.render();
+    this.targetLines = Array.isArray(lines) ? lines.filter(l => Number.isInteger(l) && l > 0) : [];
+    const set = new Set(this.targetLines);
+    this.rows.forEach((row, idx) => row.classList.toggle('highlighted', set.has(idx + 1)));
+    this.gutterRows.forEach((row, idx) => row.classList.toggle('highlighted', set.has(idx + 1)));
     this.scrollToHighlightedLine();
   }
 
   scrollToHighlightedLine() {
     if (!this.targetLines || this.targetLines.length === 0) return;
-    const targetLineNum = this.targetLines[0];
-    setTimeout(() => {
-      const container = document.getElementById(this.containerId);
-      if (!container) return;
-      const targetRow = container.querySelector(`.code-line-row[data-line="${targetLineNum}"]`);
-      if (targetRow) {
-        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        targetRow.classList.add('pulse-highlight');
-        setTimeout(() => targetRow.classList.remove('pulse-highlight'), 1200);
-      }
-    }, 40);
-  }
-
-  render() {
-    const container = document.getElementById(this.containerId);
-    if (!container) return;
-
-    const rawLines = (this.currentContent || '').split('\n');
-    const totalLines = Math.max(1, rawLines.length);
-
-    let gutterHtml = '';
-    let codeHtml = '';
-
-    for (let i = 0; i < totalLines; i++) {
-      const lineNum = i + 1;
-      const isHighlighted = this.targetLines.includes(lineNum);
-      const rawText = rawLines[i] !== undefined ? rawLines[i] : '';
-
-      gutterHtml += `<div class="code-gutter-line ${isHighlighted ? 'highlighted' : ''}" data-line="${lineNum}">${lineNum}</div>`;
-      
-      const highlightedCode = this.highlightSyntax(rawText);
-      codeHtml += `<div class="code-line-row ${isHighlighted ? 'highlighted' : ''}" data-line="${lineNum}">${highlightedCode || '&nbsp;'}</div>`;
-    }
-
-    container.innerHTML = `
-      <div class="code-editor-viewport" style="--code-font-size: ${this.fontSize}px;">
-        <div class="code-gutter">${gutterHtml}</div>
-        <pre class="code-content-body ${this.wordWrap ? 'wrap-lines' : ''}"><code>${codeHtml}</code></pre>
-      </div>
-    `;
-
-    // Click gutter line to jump / highlight
-    container.querySelectorAll('.code-gutter-line').forEach(el => {
-      el.addEventListener('click', () => {
-        const line = parseInt(el.getAttribute('data-line'), 10);
-        this.highlightLines([line]);
-      });
+    const targetRow = this.rows[this.targetLines[0] - 1];
+    if (!targetRow) return;
+    requestAnimationFrame(() => {
+      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      targetRow.classList.add('pulse-highlight');
+      setTimeout(() => targetRow.classList.remove('pulse-highlight'), 1200);
     });
   }
 
-  highlightSyntax(text) {
-    if (!text) return '';
-
-    // Quick regex token replacement for Java/Kotlin/TypeScript
-    // 1. Comments
-    if (text.trim().startsWith('//')) {
-      return `<span class="syn-comment">${this.escapeHtml(text)}</span>`;
-    }
-    if (text.trim().startsWith('/*') || text.trim().startsWith('*')) {
-      return `<span class="syn-comment">${this.escapeHtml(text)}</span>`;
-    }
-
-    let escaped = this.escapeHtml(text);
-
-    // Strings: "..." or '...'
-    escaped = escaped.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="syn-string">$&</span>');
-
-    // Annotations: @Override, @Entity, etc.
-    escaped = escaped.replace(/(@[A-Za-z0-9_]+)/g, '<span class="syn-annotation">$1</span>');
-
-    // Keywords (Java, Kotlin, Rust, Python, TypeScript, PlantUML)
-    const keywords = /\b(public|private|protected|class|interface|enum|implements|extends|static|final|abstract|void|return|new|this|super|import|package|synchronized|volatile|transient|native|strictfp|throws|throw|try|catch|finally|if|else|while|for|do|switch|case|default|break|continue|instanceof|assert|val|var|fun|override|const|let|mut|struct|impl|fn|pub|trait|type|match|self|Self|use|mod|crate|where|async|await|ref|move|def|None|True|False|from|as|in|is|not|and|or|yield|lambda|with|skinparam|state|robust|concise|usecase|actor|component|artifact)\b/g;
-    escaped = escaped.replace(keywords, '<span class="syn-keyword">$1</span>');
-
-    // Primitive / Standard Types
-    const types = /\b(int|long|boolean|double|float|char|byte|short|String|Object|List|Map|Set|Optional|Integer|Long|Boolean|Double|Float|Void|i32|i64|u32|u64|usize|f64|bool|str|Option|Result|Some|None|Ok|Err|Vec|BigInteger)\b/g;
-    escaped = escaped.replace(types, '<span class="syn-type">$1</span>');
-
-    // Numbers
-    escaped = escaped.replace(/\b(\d+(?:\.\d+)?[fFdDlL]?)\b/g, '<span class="syn-number">$1</span>');
-
-    return escaped;
+  render(lang) {
+    const tokens = tokenizeForHighlight(this.currentContent || '', lang);
+    const lines = [[]];
+    tokens.forEach(tok => {
+      const parts = tok.text.split('\n');
+      parts.forEach((part, idx) => {
+        if (idx > 0) lines.push([]);
+        if (part) lines[lines.length - 1].push({ type: tok.type, text: part });
+      });
+    });
+    this.renderTokens(lines);
   }
 
-  escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  renderTokens(lines) {
+    const container = document.getElementById(this.containerId);
+    if (!container) return;
+    const highlighted = new Set(this.targetLines);
+    const gutter = h('div', { className: 'code-gutter', 'aria-hidden': 'true' });
+    const code = h('code');
+    const gutterFrag = document.createDocumentFragment();
+    const codeFrag = document.createDocumentFragment();
+    this.rows = [];
+    this.gutterRows = [];
+    lines.forEach((parts, idx) => {
+      const lineNum = idx + 1;
+      const isHl = highlighted.has(lineNum);
+      const g = document.createElement('div');
+      g.className = isHl ? 'code-gutter-line highlighted' : 'code-gutter-line';
+      g.setAttribute('data-line', String(lineNum));
+      g.textContent = String(lineNum);
+      gutterFrag.appendChild(g);
+      this.gutterRows.push(g);
+
+      const row = document.createElement('div');
+      row.className = isHl ? 'code-line-row highlighted' : 'code-line-row';
+      row.setAttribute('data-line', String(lineNum));
+      if (parts.length === 0) {
+        row.textContent = ' ';
+      } else {
+        parts.forEach(p => {
+          if (p.type) {
+            const span = document.createElement('span');
+            span.className = `syn-${p.type}`;
+            span.textContent = p.text;
+            row.appendChild(span);
+          } else {
+            row.appendChild(document.createTextNode(p.text));
+          }
+        });
+      }
+      codeFrag.appendChild(row);
+      this.rows.push(row);
+    });
+    gutter.appendChild(gutterFrag);
+    code.appendChild(codeFrag);
+    const body = h('pre', { className: `code-content-body ${this.wordWrap ? 'wrap-lines' : ''}`, tabindex: '0', 'aria-label': this.currentFile ? `Source of ${this.currentFile}` : 'Source viewer' }, code);
+    const viewport = h('div', { className: 'code-editor-viewport', style: { '--code-font-size': `${this.fontSize}px` } }, gutter, body);
+    replaceChildren(container, viewport);
   }
 }

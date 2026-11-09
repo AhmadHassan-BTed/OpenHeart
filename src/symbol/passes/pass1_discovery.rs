@@ -1,16 +1,43 @@
 //! Pass 1 — Declaration Discovery
-//! Walks BP AST in non-recursive pre-order DFS, builds skeletal SymbolRecords, scope graph, and child/sibling chains.
+//!
+//! Sets up one compilation unit per source file (package symbol and scope, module symbol and
+//! compilation-unit scope) and then discovers declarations with the front end that fits the
+//! file's language:
+//!
+//! * Structural (Java): every name comes from the grammar position that holds it — the
+//!   `identifier` child of a type, method, constructor, parameter or variable declarator —
+//!   never from a token window. One symbol is created per variable declarator. Constructs that
+//!   Phase 2 drops (enum constants, interface constants, catch parameters, inferred lambda
+//!   parameters, type parameters) are recovered by grammar-anchored token recognizers, and the
+//!   implicit members of records and enums are synthesized (JLS 8.9.3, 8.10.3).
+//! * AstHeuristic (files that only have the generic AST): declarations from AST nodes, names
+//!   from a token heuristic, flagged `HEURISTIC_NAME`.
+//! * Lexical (Kotlin, whose Phase 2 tree is a JavaScript parse): the brace-scoped token front
+//!   end in `pass1_lexical`.
+//!
+//! Containment is recorded through `parent_sym` only; child chains are derived at the end.
 
 use crate::ast::BPASTArtifact;
 use crate::core::types::ast::{ASTNodeType, NodeAttr};
 use crate::core::types::symbol::{
     ScopeKind, SymbolKind, SymbolModifiers, SymbolRecord, SymbolVisibility,
 };
-use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::adapter::SemanticAdapter;
-use crate::symbol::builder::SymbolTableBuilder;
-use std::collections::HashMap;
+use crate::symbol::ast_index::AstIndex;
+use crate::symbol::builder::{SymbolTableBuilder, TypeSpan, UnitInfo};
+use crate::symbol::model::{
+    DiagnosticCode, Dialect, FrontEnd, Occurrence, OccurrenceRole, ResolutionStatus, SymbolFlags,
+};
+use crate::symbol::passes::pass1_lexical::KotlinFrontEnd;
+use crate::symbol::scope_graph::{Namespace, ScopeFlags};
+use crate::symbol::syntax::{
+    parse_catch_parameter, parse_compilation_unit_header, parse_enum_constants,
+    parse_field_declarations, parse_inferred_lambda_params, parse_java_type_header,
+    parse_trailing_dims, scan_java_modifiers, skip_annotation, ModifierScan, TokenView,
+    TypeOptions, TypeParser,
+};
+use std::collections::{BTreeSet, HashMap};
 
 pub struct Pass1Discovery;
 
@@ -21,936 +48,1763 @@ impl Pass1Discovery {
         adapter: &dyn SemanticAdapter,
         builder: &mut SymbolTableBuilder,
     ) {
-        if bpa.node_count == 0 {
-            return;
-        }
+        let ast = AstIndex::build(bpa, tca);
+        Self::run_with_index(bpa, tca, &ast, adapter, builder);
+    }
+
+    /// Same as `run`, reusing an index the caller already built over `bpa`.
+    pub fn run_with_index(
+        bpa: &BPASTArtifact,
+        tca: &TokenCorpusArtifact,
+        ast: &AstIndex,
+        adapter: &dyn SemanticAdapter,
+        builder: &mut SymbolTableBuilder,
+    ) {
         let pass1_start = std::time::Instant::now();
+        let tv = TokenView::new(tca);
+        builder.init_node_tables(bpa.node_count);
+        builder.std_lib.bind_names(&tca.interner);
 
-        let root_scope = builder
-            .scope_graph
-            .create_scope(u32::MAX, u32::MAX, ScopeKind::File);
-
-        let blocklist_raw = [
-            "class",
-            "interface",
-            "object",
-            "enum",
-            "fun",
-            "val",
-            "var",
-            "public",
-            "private",
-            "protected",
-            "internal",
-            "data",
-            "sealed",
-            "open",
-            "abstract",
-            "companion",
-            "constructor",
-            "package",
-            "import",
-            "override",
-            "struct",
-            "trait",
-            "impl",
-            "let",
-            "const",
-            "def",
-            "fn",
-            "new",
-            "this",
-            "super",
-            "null",
-            "true",
-            "false",
-            "void",
-            "return",
-            "if",
-            "else",
-            "for",
-            "while",
-            "do",
-            "switch",
-            "case",
-            "break",
-            "continue",
-            "try",
-            "catch",
-            "finally",
-            "throw",
-            "by",
-            "as",
-            "in",
-            "is",
-            "default",
-            "export",
-            "declare",
-            "async",
-            "yield",
-            "await",
-            "function",
-        ];
-        let blocklist_ids: std::collections::HashSet<u32> = blocklist_raw
-            .iter()
-            .filter_map(|s| {
-                let id = tca.interner.find_id(s.as_bytes());
-                if id != u32::MAX {
-                    Some(id)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let mut sym_id_by_node: Vec<u32> = vec![u32::MAX; bpa.node_count as usize];
-        let mut scope_id_by_node: Vec<u32> = vec![root_scope; bpa.node_count as usize];
-
-        for pre_idx in 0..bpa.node_count {
-            let node_type = bpa.node_type(pre_idx);
-            let parent_node = bpa.parent(pre_idx);
-
-            let (parent_scope, parent_sym) =
-                if parent_node != u32::MAX && (parent_node as usize) < (bpa.node_count as usize) {
-                    (
-                        scope_id_by_node[parent_node as usize],
-                        sym_id_by_node[parent_node as usize],
-                    )
-                } else {
-                    (root_scope, u32::MAX)
-                };
-
-            let mut current_scope = parent_scope;
-            let mut current_parent = parent_sym;
-
-            if pre_idx < 100 {
-                crate::core::logger::log_debug(&format!(
-                    "[DIAG-PASS1] pre_idx={} node_type={:?} is_decl={}",
-                    pre_idx,
-                    node_type,
-                    adapter.is_declaration(node_type)
-                ));
+        let file_ranges = tv.file_ranges();
+        let mut work: Vec<(Option<u16>, u32)> = Vec::new();
+        let mut files_with_root: BTreeSet<u16> = BTreeSet::new();
+        for &root in ast.roots() {
+            let fid = ast.file_of_root(root);
+            if let Some(f) = fid {
+                files_with_root.insert(f);
             }
-            if adapter.is_declaration(node_type) {
-                let name_id = Self::extract_name_token(pre_idx, bpa, tca, adapter, &blocklist_ids);
-                let vis = Self::extract_visibility(pre_idx, bpa, adapter);
-                let mods = Self::extract_modifiers(pre_idx, bpa, adapter);
-                let kind = adapter.symbol_kind(node_type);
-                let (ft, lt) = bpa.token_range(pre_idx);
+            work.push((fid, root));
+        }
+        for &fid in file_ranges.keys() {
+            if !files_with_root.contains(&fid) {
+                work.push((Some(fid), u32::MAX));
+            }
+        }
 
-                if kind == SymbolKind::SK_CLASS
-                    || kind == SymbolKind::SK_INTERFACE
-                    || kind == SymbolKind::SK_ENUM
-                    || kind == SymbolKind::SK_RECORD
-                {
-                    let name_bytes = if name_id != u32::MAX {
-                        tca.interner.lookup_text(name_id)
-                    } else {
-                        b""
+        for (fid, root) in work {
+            let lang = fid.and_then(|f| ast.language_of_file(f));
+            let front_end = adapter.front_end(lang);
+            let dialect = adapter.dialect(lang);
+            let token_range = fid
+                .and_then(|f| file_ranges.get(&f).copied())
+                .unwrap_or((u32::MAX, u32::MAX));
+            let unit = Self::open_unit(
+                bpa, ast, &tv, builder, fid, root, token_range, front_end, dialect,
+            );
+
+            match front_end {
+                FrontEnd::Structural if root != u32::MAX => {
+                    let walk = StructuralWalk {
+                        bpa,
+                        ast,
+                        tv,
+                        adapter,
+                        unit: &unit,
                     };
-                    crate::core::logger::log_info(&format!(
-                        "[DIAG-PASS1] Class Discovered: pre_idx={} name_id={} name={} kind={:?}",
-                        pre_idx,
-                        name_id,
-                        String::from_utf8_lossy(name_bytes),
-                        kind
-                    ));
+                    walk.run(builder);
                 }
-
-                let sym_id = builder.create_symbol(SymbolRecord {
-                    symbol_id: u32::MAX,
-                    name_id,
-                    qual_name_id: u32::MAX,
-                    type_id: u32::MAX,
-                    decl_node: pre_idx,
-                    def_node: pre_idx,
-                    parent_sym: current_parent,
-                    first_child: u32::MAX,
-                    next_sibling: u32::MAX,
-                    scope_id: current_scope,
-                    uml_meta_offset: 0,
-                    param_count: Self::count_params(pre_idx, bpa),
-                    modifiers: mods,
-                    kind: kind as u8,
-                    visibility: vis as u8,
-                    type_param_count: 0,
-                    flags: 0,
-                    first_token_id: ft,
-                    last_token_id: lt,
-                    _reserved: 0,
-                });
-
-                builder.append_child(current_parent, sym_id);
-
-                let child_scope =
-                    builder.create_scope(sym_id, current_scope, adapter.scope_kind(node_type));
-
-                current_scope = child_scope;
-                current_parent = sym_id;
-            }
-
-            sym_id_by_node[pre_idx as usize] = current_parent;
-            scope_id_by_node[pre_idx as usize] = current_scope;
-        }
-        crate::core::logger::log_info(&format!(
-            "[PASS1] Primary loop done in {:?}",
-            pass1_start.elapsed()
-        ));
-
-        // ── Secondary Token-Level Discovery Sweep for Kotlin & Multi-Lang Declarations ──
-        let mut registered_name_ids: std::collections::HashSet<(u16, u32)> = builder
-            .symbols
-            .iter()
-            .filter_map(|s| {
-                if s.name_id != u32::MAX
-                    && s.first_token_id != u32::MAX
-                    && (s.first_token_id as usize) < tca.token_records.len()
-                {
-                    let fid =
-                        unpack_sort_key(tca.token_records[s.first_token_id as usize].sort_key).0;
-                    let kind = SymbolKind::from(s.kind);
-                    if matches!(
-                        kind,
-                        SymbolKind::SK_CLASS
-                            | SymbolKind::SK_INTERFACE
-                            | SymbolKind::SK_ENUM
-                            | SymbolKind::SK_RECORD
-                    ) {
-                        Some((fid, s.name_id))
-                    } else {
-                        None
+                FrontEnd::AstHeuristic if root != u32::MAX => {
+                    builder.add_diagnostic(
+                        DiagnosticCode::HeuristicFrontEnd,
+                        unit.module_sym,
+                        Self::valid_or_max(&tv, token_range.0),
+                        Vec::new(),
+                        format!(
+                            "file {:?} ({:?}) has no structural front end; declaration names are heuristic",
+                            fid, lang
+                        ),
+                    );
+                    let walk = HeuristicWalk {
+                        bpa,
+                        ast,
+                        tv,
+                        adapter,
+                        unit: &unit,
+                    };
+                    walk.run(builder);
+                }
+                FrontEnd::Lexical => {
+                    if root != u32::MAX {
+                        builder.exclude_node_range(root, ast.subtree_end(root));
                     }
-                } else {
-                    None
+                    builder.add_diagnostic(
+                        DiagnosticCode::LexicalFrontEnd,
+                        unit.module_sym,
+                        Self::valid_or_max(&tv, token_range.0),
+                        Vec::new(),
+                        format!(
+                            "file {:?} ({:?}) has no usable AST; declarations come from the token-level front end and have no AST nodes",
+                            fid, lang
+                        ),
+                    );
+                    if dialect == Dialect::Kotlin && token_range.0 != u32::MAX {
+                        KotlinFrontEnd::new(tv, &unit).run(builder);
+                    }
                 }
-            })
-            .collect();
-
-        // Default top-level class symbol to parent orphan top-level methods/fields
-        let mut default_file_class = u32::MAX;
-        for sym_id in 0..builder.symbols.len() as u32 {
-            if let Some(sym) = builder.symbols.get(sym_id as usize) {
-                if sym.kind == crate::core::types::symbol::SymbolKind::SK_CLASS as u8
-                    || sym.kind == crate::core::types::symbol::SymbolKind::SK_MODULE as u8
-                {
-                    default_file_class = sym_id;
-                    break;
+                _ => {
+                    builder.add_diagnostic(
+                        DiagnosticCode::MissingAst,
+                        unit.module_sym,
+                        Self::valid_or_max(&tv, token_range.0),
+                        Vec::new(),
+                        format!(
+                            "file {:?} has tokens but Phase 2 produced no syntax tree; its declarations are not discovered",
+                            fid
+                        ),
+                    );
                 }
             }
         }
-        if default_file_class == u32::MAX {
-            let mut sym_rec = SymbolRecord::UNINIT;
-            sym_rec.kind = crate::core::types::symbol::SymbolKind::SK_MODULE as u8;
-            sym_rec.visibility = crate::core::types::symbol::SymbolVisibility::Public as u8;
-            sym_rec.scope_id = root_scope;
-            default_file_class = builder.create_symbol(sym_rec);
+
+        builder.rebuild_child_chains();
+        crate::core::logger::log_info(&format!(
+            "[PASS1] Discovery done in {:?}: {} symbols, {} scopes, {} units",
+            pass1_start.elapsed(),
+            builder.symbols.len(),
+            builder.scope_graph.scope_count(),
+            builder.units.len()
+        ));
+    }
+
+    fn valid_or_max(tv: &TokenView, tok: u32) -> u32 {
+        if tv.valid(tok) {
+            tok
+        } else {
+            u32::MAX
+        }
+    }
+
+    /// Creates the package (if any), module symbol and compilation-unit scope of one file.
+    #[allow(clippy::too_many_arguments)]
+    fn open_unit(
+        bpa: &BPASTArtifact,
+        ast: &AstIndex,
+        tv: &TokenView,
+        b: &mut SymbolTableBuilder,
+        file_id: Option<u16>,
+        root: u32,
+        token_range: (u32, u32),
+        front_end: FrontEnd,
+        dialect: Dialect,
+    ) -> UnitInfo {
+        let header = if token_range.0 != u32::MAX && dialect != Dialect::Other {
+            parse_compilation_unit_header(tv, token_range.0, token_range.1, dialect)
+        } else {
+            Default::default()
+        };
+
+        let package_name: String = header
+            .package
+            .iter()
+            .map(|&t| tv.text_str(t))
+            .collect::<Vec<_>>()
+            .join(".");
+        let (package_sym, package_scope) = if header.package.is_empty() {
+            (u32::MAX, b.unnamed_package_scope())
+        } else {
+            let segments: Vec<String> = header
+                .package
+                .iter()
+                .map(|&t| tv.text_str(t).to_string())
+                .collect();
+            let ids: Vec<u32> = header.package.iter().map(|&t| tv.text_id(t)).collect();
+            let entry = b.ensure_package(&segments, &ids);
+            if let Some(sym) = b.symbols.get_mut(entry.sym as usize) {
+                if sym.first_token_id == u32::MAX {
+                    sym.first_token_id = header.package_token;
+                    sym.last_token_id = header.package.last().copied().unwrap_or(u32::MAX);
+                }
+            }
+            (entry.sym, entry.scope)
+        };
+
+        let (first, last) = if token_range.0 != u32::MAX {
+            (token_range.0, token_range.1.saturating_sub(1))
+        } else if root != u32::MAX {
+            let (ft, lt) = bpa.token_range(root);
+            (
+                if tv.valid(ft) { ft } else { u32::MAX },
+                if tv.valid(lt) { lt } else { u32::MAX },
+            )
+        } else {
+            (u32::MAX, u32::MAX)
+        };
+
+        let mut rec = SymbolRecord::UNINIT;
+        rec.kind = SymbolKind::SK_MODULE as u8;
+        rec.visibility = SymbolVisibility::Public as u8;
+        rec.decl_node = root;
+        rec.def_node = root;
+        rec.scope_id = package_scope;
+        rec.first_token_id = first;
+        rec.last_token_id = last;
+        if root == u32::MAX {
+            rec.flags |= SymbolFlags::LEXICAL;
+        }
+        let module_sym = b.create_symbol(rec);
+        b.set_parent(module_sym, package_sym);
+        let cu_scope = b.create_scope(module_sym, package_scope, ScopeKind::File);
+        b.scope_graph
+            .add_flags(cu_scope, ScopeFlags::COMPILATION_UNIT);
+        b.set_owned_scope(module_sym, cu_scope);
+        if root != u32::MAX {
+            b.set_node_context(root, cu_scope, module_sym);
         }
 
-        let kw_class = tca.interner.find_id(b"class");
-        let kw_interface = tca.interner.find_id(b"interface");
-        let kw_object = tca.interner.find_id(b"object");
-        let kw_enum = tca.interner.find_id(b"enum");
-        let kw_record = tca.interner.find_id(b"record");
-        let kw_struct = tca.interner.find_id(b"struct");
-        let kw_trait = tca.interner.find_id(b"trait");
+        let node_range = if root != u32::MAX {
+            (root, ast.subtree_end(root))
+        } else {
+            (u32::MAX, u32::MAX)
+        };
+        let unit = UnitInfo {
+            file_id,
+            root_node: root,
+            node_range,
+            module_sym,
+            cu_scope,
+            package_scope,
+            package_sym,
+            package_name,
+            dialect,
+            front_end,
+            header_end: header.end,
+            token_range,
+        };
+        b.add_unit(unit.clone());
+        unit
+    }
+}
 
-        let mut current_class_sym = default_file_class;
-        let mut tok_idx = 0usize;
-        while tok_idx < tca.token_records.len() {
-            let rec = &tca.token_records[tok_idx];
-            if rec.token_type == crate::core::types::token::TokenType::StringLiteral as u8
-                || rec.token_type == crate::core::types::token::TokenType::CommentLine as u8
-                || rec.token_type == crate::core::types::token::TokenType::CommentBlock as u8
-                || rec.token_type == crate::core::types::token::TokenType::CommentDoc as u8
+/// Builds a symbol record with the fields every front end sets.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn new_record(
+    kind: SymbolKind,
+    name_id: u32,
+    decl_node: u32,
+    scope: u32,
+    visibility: SymbolVisibility,
+    modifiers: u16,
+    first: u32,
+    last: u32,
+) -> SymbolRecord {
+    SymbolRecord {
+        symbol_id: u32::MAX,
+        name_id,
+        qual_name_id: u32::MAX,
+        type_id: u32::MAX,
+        decl_node,
+        def_node: decl_node,
+        parent_sym: u32::MAX,
+        first_child: u32::MAX,
+        next_sibling: u32::MAX,
+        scope_id: scope,
+        uml_meta_offset: 0,
+        param_count: 0,
+        modifiers,
+        kind: kind as u8,
+        visibility: visibility as u8,
+        type_param_count: 0,
+        flags: 0,
+        first_token_id: first,
+        last_token_id: last,
+        _reserved: 0,
+    }
+}
+
+/// Records the definition occurrence of a symbol at its name token.
+pub(crate) fn define(b: &mut SymbolTableBuilder, token: u32, node: u32, symbol: u32) {
+    b.add_occurrence(Occurrence {
+        token,
+        node,
+        symbol,
+        role: OccurrenceRole::Definition as u8,
+        status: ResolutionStatus::Project as u8,
+        candidates: Vec::new(),
+    });
+}
+
+fn is_type_decl(t: ASTNodeType) -> bool {
+    matches!(
+        t,
+        ASTNodeType::NN_CLASS_DECL
+            | ASTNodeType::NN_INTERFACE_DECL
+            | ASTNodeType::NN_ENUM_DECL
+            | ASTNodeType::NN_RECORD_DECL
+            | ASTNodeType::NN_ANNOTATION_DECL
+    )
+}
+
+fn is_type_kind(kind: SymbolKind) -> bool {
+    matches!(
+        kind,
+        SymbolKind::SK_CLASS
+            | SymbolKind::SK_INTERFACE
+            | SymbolKind::SK_ENUM
+            | SymbolKind::SK_RECORD
+            | SymbolKind::SK_ANNOTATION_TYPE
+    )
+}
+
+/// Kind of the declaration enclosing a member, `None` at top level.
+fn enclosing_decl_kind(b: &SymbolTableBuilder, sym: u32) -> Option<SymbolKind> {
+    match b.symbol_kind(sym) {
+        Some(SymbolKind::SK_MODULE) | Some(SymbolKind::SK_PACKAGE) | None => None,
+        k => k,
+    }
+}
+
+/// Body information of a type declaration discovered in the walk.
+struct TypeBody {
+    sym: u32,
+    node: u32,
+    kind: SymbolKind,
+    name_tok: u32,
+    body_open: Option<u32>,
+    body_close: Option<u32>,
+}
+
+struct StructuralWalk<'a, 'u> {
+    bpa: &'a BPASTArtifact,
+    ast: &'u AstIndex,
+    tv: TokenView<'a>,
+    adapter: &'u dyn SemanticAdapter,
+    unit: &'u UnitInfo,
+}
+
+impl<'a, 'u> StructuralWalk<'a, 'u> {
+    fn file_end(&self) -> u32 {
+        if self.unit.token_range.1 == u32::MAX {
+            self.tv.len()
+        } else {
+            self.unit.token_range.1
+        }
+    }
+
+    fn tok(&self, t: u32) -> u32 {
+        if self.tv.valid(t) {
+            t
+        } else {
+            u32::MAX
+        }
+    }
+
+    fn name_token_of(&self, node: u32) -> Option<u32> {
+        self.ast
+            .first_child_of_type(self.bpa, node, ASTNodeType::NN_IDENTIFIER_EXPR)
+            .map(|n| self.bpa.token_range(n).0)
+            .filter(|&t| self.tv.valid(t))
+    }
+
+    fn name_id_of(&self, tok: Option<u32>) -> u32 {
+        tok.map(|t| self.tv.text_id(t)).unwrap_or(u32::MAX)
+    }
+
+    /// Modifier list at the start of `node`, scanned from tokens. Phase 2's attribute word is
+    /// only used when the node covers no token.
+    fn scan_modifiers(&self, node: u32, limit: Option<u32>) -> ModifierScan {
+        let (ft, _) = self.bpa.token_range(node);
+        if self.tv.valid(ft) {
+            let limit = limit.unwrap_or(u32::MAX).min(self.file_end());
+            let mut scan = scan_java_modifiers(&self.tv, ft, limit);
+            if scan
+                .annotations
+                .iter()
+                .any(|&a| self.tv.text(a) == b"Deprecated")
             {
-                tok_idx += 1;
-                continue;
+                scan.modifiers |= SymbolModifiers::DEPRECATED;
             }
+            return scan;
+        }
+        let attr = self.bpa.node_attr(node);
+        let visibility = match NodeAttr::unpack_visibility(attr) {
+            NodeAttr::VISIBILITY_PUBLIC => Some(SymbolVisibility::Public),
+            NodeAttr::VISIBILITY_PRIVATE => Some(SymbolVisibility::Private),
+            NodeAttr::VISIBILITY_PROTECTED => Some(SymbolVisibility::Protected),
+            NodeAttr::VISIBILITY_PACKAGE_PRIVATE => Some(SymbolVisibility::Package),
+            _ => None,
+        };
+        let raw = NodeAttr::unpack_modifiers(attr);
+        let mut modifiers = 0u16;
+        let table = [
+            (NodeAttr::MOD_STATIC, SymbolModifiers::STATIC),
+            (NodeAttr::MOD_FINAL, SymbolModifiers::FINAL),
+            (NodeAttr::MOD_ABSTRACT, SymbolModifiers::ABSTRACT),
+            (NodeAttr::MOD_SYNCHRONIZED, SymbolModifiers::SYNCHRONIZED),
+            (NodeAttr::MOD_NATIVE, SymbolModifiers::NATIVE),
+            (NodeAttr::MOD_VOLATILE, SymbolModifiers::VOLATILE),
+            (NodeAttr::MOD_TRANSIENT, SymbolModifiers::TRANSIENT),
+            (NodeAttr::MOD_SEALED, SymbolModifiers::SEALED),
+        ];
+        for (bit, m) in table {
+            if raw & bit != 0 {
+                modifiers |= m;
+            }
+        }
+        ModifierScan {
+            modifiers,
+            visibility,
+            end: u32::MAX,
+            ..Default::default()
+        }
+    }
 
-            let cur_fid = unpack_sort_key(rec.sort_key).0;
-            let tid = rec.text_id;
+    /// Token span `[first, last]` of a written type that starts at `start` and is followed by
+    /// the declarator name `name_tok`.
+    fn type_span(&self, start: u32, name_tok: u32, extra_dims: u8) -> Option<TypeSpan> {
+        if !self.tv.valid(start) || !self.tv.valid(name_tok) {
+            return None;
+        }
+        let first = self.tv.sig(start, name_tok)?;
+        let last = self.tv.prev(name_tok, first)?;
+        if last < first {
+            return None;
+        }
+        Some(TypeSpan {
+            first,
+            last,
+            dialect: Dialect::Java,
+            extra_dims,
+            union_parts: Vec::new(),
+        })
+    }
 
-            // kw_* variables already computed before loop (lines 249-255)
-            let kw_fun = tca.interner.find_id(b"fun");
-            let kw_val = tca.interner.find_id(b"val");
-            let kw_var = tca.interner.find_id(b"var");
+    fn run(&self, b: &mut SymbolTableBuilder) {
+        let root = self.unit.root_node;
+        let end = self.ast.subtree_end(root);
+        let mut types: Vec<TypeBody> = Vec::new();
 
-            let sym_kind = if tid == kw_class || tid == kw_object || tid == kw_struct {
-                Some(crate::core::types::symbol::SymbolKind::SK_CLASS)
-            } else if tid == kw_interface || tid == kw_trait {
-                Some(crate::core::types::symbol::SymbolKind::SK_INTERFACE)
-            } else if tid == kw_enum {
-                Some(crate::core::types::symbol::SymbolKind::SK_ENUM)
-            } else if tid == kw_record {
-                Some(crate::core::types::symbol::SymbolKind::SK_RECORD)
+        for node in (root + 1)..end {
+            let parent = self.ast.parent(node);
+            let (scope, enclosing) = if parent == u32::MAX {
+                (self.unit.cu_scope, self.unit.module_sym)
+            } else {
+                (b.scope_of_node(parent), b.enclosing_symbol_of_node(parent))
+            };
+            let (child_scope, child_sym) =
+                self.visit(b, node, parent, scope, enclosing, &mut types);
+            b.set_node_context(node, child_scope, child_sym);
+        }
+
+        for t in &types {
+            match t.kind {
+                SymbolKind::SK_ENUM => self.complete_enum(b, t),
+                SymbolKind::SK_INTERFACE => self.recover_interface_constants(b, t),
+                SymbolKind::SK_RECORD => self.complete_record(b, t),
+                _ => {}
+            }
+        }
+    }
+
+    fn visit(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        parent: u32,
+        scope: u32,
+        enclosing: u32,
+        types: &mut Vec<TypeBody>,
+    ) -> (u32, u32) {
+        let ty = self.bpa.node_type(node);
+        let parent_ty = self.bpa.node_type(parent);
+        match ty {
+            t if is_type_decl(t) => self.declare_type(b, node, t, scope, enclosing, types),
+            ASTNodeType::NN_METHOD_DECL | ASTNodeType::NN_CONSTRUCTOR_DECL => {
+                self.declare_method(b, node, ty, scope, enclosing)
+            }
+            ASTNodeType::NN_FIELD_DECL => {
+                let has_declarators = self
+                    .ast
+                    .children_of_type(self.bpa, node, ASTNodeType::NN_LOCAL_VAR_DECL)
+                    .next()
+                    .is_some();
+                if !has_declarators {
+                    // A field declaration whose declarators Phase 2 did not keep: one field of
+                    // unknown name stands for it.
+                    self.declare_variable(b, node, None, SymbolKind::SK_FIELD, scope, enclosing);
+                }
+                (scope, enclosing)
+            }
+            ASTNodeType::NN_LOCAL_VAR_DECL => match parent_ty {
+                ASTNodeType::NN_FIELD_DECL => self.declare_variable(
+                    b,
+                    node,
+                    Some(parent),
+                    SymbolKind::SK_FIELD,
+                    scope,
+                    enclosing,
+                ),
+                ASTNodeType::NN_LOCAL_VAR_DECL => self.declare_variable(
+                    b,
+                    node,
+                    Some(parent),
+                    SymbolKind::SK_LOCAL_VAR,
+                    scope,
+                    enclosing,
+                ),
+                // Declarator of a spread parameter: the parameter symbol carries its name.
+                ASTNodeType::NN_PARAM_DECL => (scope, enclosing),
+                _ => {
+                    let has_declarators = self
+                        .ast
+                        .children_of_type(self.bpa, node, ASTNodeType::NN_LOCAL_VAR_DECL)
+                        .next()
+                        .is_some();
+                    if has_declarators {
+                        (scope, enclosing)
+                    } else {
+                        self.declare_variable(
+                            b,
+                            node,
+                            None,
+                            SymbolKind::SK_LOCAL_VAR,
+                            scope,
+                            enclosing,
+                        )
+                    }
+                }
+            },
+            ASTNodeType::NN_PARAM_DECL => self.declare_param(b, node, parent_ty, scope, enclosing),
+            ASTNodeType::NN_TYPE_PARAM => {
+                self.declare_type_params(b, node, scope, enclosing);
+                (scope, enclosing)
+            }
+            ASTNodeType::NN_LAMBDA_EXPR => self.declare_lambda(b, node, scope, enclosing),
+            ASTNodeType::NN_NEW_EXPR => match self.anonymous_body(node) {
+                Some((new_tok, close)) => {
+                    self.declare_anonymous(b, node, new_tok, close, scope, enclosing)
+                }
+                None => (scope, enclosing),
+            },
+            ASTNodeType::NN_BLOCK => {
+                let declares_body = matches!(
+                    parent_ty,
+                    ASTNodeType::NN_CLASS_DECL
+                        | ASTNodeType::NN_ENUM_DECL
+                        | ASTNodeType::NN_RECORD_DECL
+                ) || (parent_ty == ASTNodeType::NN_NEW_EXPR
+                    && b.symbol_at_node(parent) == Some(enclosing)
+                    && b.symbol_kind(enclosing) == Some(SymbolKind::SK_ANON_CLASS));
+                if declares_body {
+                    self.declare_initializer(b, node, SymbolKind::SK_INSTANCE_INIT, scope, enclosing)
+                } else {
+                    (self.open_block(b, scope, enclosing), enclosing)
+                }
+            }
+            ASTNodeType::NN_JAVA_STATIC_INIT => {
+                self.declare_initializer(b, node, SymbolKind::SK_STATIC_INIT, scope, enclosing)
+            }
+            ASTNodeType::NN_ENHANCED_FOR => {
+                let block = self.open_block(b, scope, enclosing);
+                self.declare_for_each_variable(b, node, block, enclosing);
+                (block, enclosing)
+            }
+            ASTNodeType::NN_CATCH_CLAUSE => {
+                let block = self.open_block(b, scope, enclosing);
+                self.declare_catch_parameter(b, node, block, enclosing);
+                (block, enclosing)
+            }
+            ASTNodeType::NN_INSTANCEOF_EXPR => {
+                self.declare_pattern_variable(b, node, scope, enclosing);
+                (scope, enclosing)
+            }
+            t if self.adapter.opens_block_scope(t) => {
+                (self.open_block(b, scope, enclosing), enclosing)
+            }
+            _ => (scope, enclosing),
+        }
+    }
+
+    fn open_block(&self, b: &mut SymbolTableBuilder, scope: u32, owner: u32) -> u32 {
+        let block = b.create_scope(owner, scope, ScopeKind::Block);
+        b.scope_graph.add_flags(block, ScopeFlags::ORDERED);
+        block
+    }
+
+    // ── Types ────────────────────────────────────────────────────────────────
+
+    fn declare_type(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        ty: ASTNodeType,
+        scope: u32,
+        enclosing: u32,
+        types: &mut Vec<TypeBody>,
+    ) -> (u32, u32) {
+        let kind = self.adapter.symbol_kind(ty);
+        let name_tok = self.name_token_of(node);
+        let name_id = self.name_id_of(name_tok);
+        let (ft, lt) = self.bpa.token_range(node);
+        let scan = self.scan_modifiers(node, name_tok);
+        let encl_kind = enclosing_decl_kind(b, enclosing);
+        let visibility = scan
+            .visibility
+            .unwrap_or_else(|| self.adapter.default_visibility(kind, encl_kind));
+        let modifiers = scan.modifiers
+            | self
+                .adapter
+                .implicit_modifiers(kind, encl_kind, scan.modifiers, scan.visibility, true);
+
+        let header = name_tok.map(|t| parse_java_type_header(&self.tv, t, self.file_end()));
+        let body_open = header.as_ref().and_then(|h| h.body_open);
+        let body_close = body_open.and_then(|o| self.tv.matching_close(o, self.file_end()));
+        let last = body_close.unwrap_or(self.tok(lt));
+
+        let mut rec = new_record(
+            kind,
+            name_id,
+            node,
+            scope,
+            visibility,
+            modifiers,
+            self.tok(ft),
+            last,
+        );
+        if kind == SymbolKind::SK_RECORD {
+            let components = self
+                .ast
+                .children_of_type(self.bpa, node, ASTNodeType::NN_PARAM_DECL)
+                .count();
+            rec.param_count = u16::try_from(components).unwrap_or(u16::MAX);
+        }
+        let sym = b.create_symbol(rec);
+
+        let top_level = b.symbol_kind(enclosing) == Some(SymbolKind::SK_MODULE);
+        let parent = if top_level && self.unit.package_sym != u32::MAX {
+            self.unit.package_sym
+        } else {
+            enclosing
+        };
+        b.set_parent(sym, parent);
+        let order = name_tok.unwrap_or(0);
+        b.bind_name(scope, Namespace::Type, name_id, sym, order);
+        if top_level {
+            b.bind_name(self.unit.package_scope, Namespace::Type, name_id, sym, 0);
+        }
+
+        if let Some(t) = name_tok {
+            let simple = self.tv.text_str(t);
+            let fqn = if top_level {
+                Some(if self.unit.package_name.is_empty() {
+                    simple.to_string()
+                } else {
+                    format!("{}.{}", self.unit.package_name, simple)
+                })
+            } else if b.symbol_kind(enclosing).map(is_type_kind).unwrap_or(false) {
+                b.qualified_name_of(enclosing)
+                    .map(|outer| format!("{}.{}", outer, simple))
             } else {
                 None
             };
+            if let Some(fqn) = fqn {
+                b.register_type_fqn(&fqn, sym);
+            }
+            define(b, t, node, sym);
+        }
 
-            if let Some(kind) = sym_kind {
-                let mut lookahead = tok_idx + 1;
-                while lookahead < tca.token_records.len() && lookahead < tok_idx + 10 {
-                    let next_rec = &tca.token_records[lookahead];
-                    if unpack_sort_key(next_rec.sort_key).0 != cur_fid {
-                        break;
-                    }
-                    if next_rec.token_type
-                        == crate::core::types::token::TokenType::StringLiteral as u8
-                        || next_rec.token_type
-                            == crate::core::types::token::TokenType::CommentLine as u8
-                        || next_rec.token_type
-                            == crate::core::types::token::TokenType::CommentBlock as u8
-                        || next_rec.token_type
-                            == crate::core::types::token::TokenType::CommentDoc as u8
-                    {
-                        break;
-                    }
-                    let ntid = next_rec.text_id;
-                    let next_bytes = tca.interner.lookup_text(ntid);
-                    if matches!(next_bytes, b"{" | b"}" | b";" | b"=") {
-                        break;
-                    }
-                    if lookahead > 0 {
-                        let prev_rec = &tca.token_records[lookahead - 1];
-                        let prev_bytes = tca.interner.lookup_text(prev_rec.text_id);
-                        if matches!(
-                            prev_bytes,
-                            b"fun"
-                                | b"function"
-                                | b"def"
-                                | b"fn"
-                                | b"val"
-                                | b"var"
-                                | b"let"
-                                | b"const"
-                                | b"import"
-                                | b"package"
-                        ) {
-                            lookahead += 1;
-                            continue;
-                        }
-                    }
-                    let next_bytes = tca.interner.lookup_text(ntid);
-                    if matches!(
-                        next_bytes,
-                        b"default"
-                            | b"abstract"
-                            | b"export"
-                            | b"public"
-                            | b"private"
-                            | b"protected"
-                            | b"internal"
-                            | b"pub"
-                    ) {
-                        lookahead += 1;
-                        continue;
-                    }
+        let own = b.create_scope(sym, scope, ScopeKind::Class);
+        b.set_owned_scope(sym, own);
+        b.structural_types
+            .push((sym, node, name_tok.unwrap_or(u32::MAX)));
+        types.push(TypeBody {
+            sym,
+            node,
+            kind,
+            name_tok: name_tok.unwrap_or(u32::MAX),
+            body_open,
+            body_close,
+        });
+        (own, sym)
+    }
 
-                    if !blocklist_ids.contains(&ntid) {
-                        if let Ok(next_str) = std::str::from_utf8(next_bytes) {
-                            if !next_str.is_empty()
-                                && !next_str.starts_with('"')
-                                && !next_str.starts_with('\'')
-                                && (next_str.as_bytes()[0].is_ascii_uppercase()
-                                    || (next_str.contains('_') && !next_str.starts_with('_')))
-                                && !matches!(
-                                    next_str,
-                                    "Class"
-                                        | "Interface"
-                                        | "Enum"
-                                        | "Object"
-                                        | "String"
-                                        | "Boolean"
-                                        | "Number"
-                                        | "Function"
-                                        | "Array"
-                                        | "Map"
-                                        | "Set"
-                                        | "Promise"
-                                )
-                            {
-                                if registered_name_ids.contains(&(cur_fid, ntid)) {
-                                    if let Some(pos) = builder.symbols.iter().position(|s| {
-                                        s.name_id == ntid
-                                            && s.first_token_id != u32::MAX
-                                            && (s.first_token_id as usize) < tca.token_records.len()
-                                            && unpack_sort_key(
-                                                tca.token_records[s.first_token_id as usize]
-                                                    .sort_key,
-                                            )
-                                            .0 == cur_fid
-                                    }) {
-                                        let ex_kind = SymbolKind::from(builder.symbols[pos].kind);
-                                        if ex_kind == SymbolKind::SK_METHOD {
-                                            break;
-                                        }
-                                        if ex_kind != SymbolKind::SK_CLASS
-                                            && ex_kind != SymbolKind::SK_INTERFACE
-                                            && ex_kind != SymbolKind::SK_ENUM
-                                            && ex_kind != SymbolKind::SK_RECORD
-                                        {
-                                            builder.symbols[pos].kind = kind as u8;
-                                        }
-                                        current_class_sym = pos as u32;
-                                    }
-                                } else if registered_name_ids.insert((cur_fid, ntid)) {
-                                    let mut sym_rec = SymbolRecord::UNINIT;
-                                    sym_rec.name_id = ntid;
-                                    sym_rec.kind = kind as u8;
-                                    sym_rec.visibility =
-                                        crate::core::types::symbol::SymbolVisibility::Public as u8;
-                                    sym_rec.scope_id = root_scope;
-                                    sym_rec.first_token_id = lookahead as u32;
-                                    sym_rec.last_token_id = lookahead as u32;
-                                    let sym_id = builder.create_symbol(sym_rec);
-                                    current_class_sym = sym_id;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    lookahead += 1;
-                }
-            } else if tid == kw_fun || tid == kw_val || tid == kw_var {
-                let is_func = tid == kw_fun;
-                let kind = if is_func {
-                    crate::core::types::symbol::SymbolKind::SK_METHOD
-                } else {
-                    crate::core::types::symbol::SymbolKind::SK_FIELD
-                };
-                let mut lookahead = tok_idx + 1;
-                while lookahead < tca.token_records.len() && lookahead < tok_idx + 10 {
-                    let next_rec = &tca.token_records[lookahead];
-                    if unpack_sort_key(next_rec.sort_key).0 != cur_fid {
-                        break;
-                    }
-                    let ntid = next_rec.text_id;
-                    if !blocklist_ids.contains(&ntid) {
-                        let next_bytes = tca.interner.lookup_text(ntid);
-                        if !next_bytes.is_empty()
-                            && (next_bytes[0].is_ascii_alphabetic() || next_bytes[0] == b'_')
-                        {
-                            if registered_name_ids.insert((cur_fid, ntid)) {
-                                let target_parent = if current_class_sym != u32::MAX {
-                                    current_class_sym
-                                } else {
-                                    default_file_class
-                                };
-                                let mut sym_rec = SymbolRecord::UNINIT;
-                                sym_rec.name_id = ntid;
-                                sym_rec.kind = kind as u8;
-                                sym_rec.visibility =
-                                    crate::core::types::symbol::SymbolVisibility::Public as u8;
-                                sym_rec.scope_id = root_scope;
-                                sym_rec.parent_sym = target_parent;
-                                let sym_id = builder.create_symbol(sym_rec);
-                                builder.append_child(target_parent, sym_id);
-                            }
-                            break;
-                        }
-                    }
-                    lookahead += 1;
+    // ── Methods and constructors ─────────────────────────────────────────────
+
+    fn declare_method(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        ty: ASTNodeType,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let kind = if ty == ASTNodeType::NN_CONSTRUCTOR_DECL {
+            SymbolKind::SK_CONSTRUCTOR
+        } else {
+            SymbolKind::SK_METHOD
+        };
+        let name_tok = self.name_token_of(node);
+        let name_id = self.name_id_of(name_tok);
+        let (ft, lt) = self.bpa.token_range(node);
+        let params: Vec<u32> = self
+            .ast
+            .children_of_type(self.bpa, node, ASTNodeType::NN_PARAM_DECL)
+            .collect();
+        let body = self
+            .ast
+            .first_child_of_type(self.bpa, node, ASTNodeType::NN_BLOCK);
+        // Phase 2 drops `constructor_body`; a constructor always has a body in Java.
+        let has_body = kind == SymbolKind::SK_CONSTRUCTOR || body.is_some();
+
+        let scan = self.scan_modifiers(node, name_tok);
+        let encl_kind = enclosing_decl_kind(b, enclosing);
+        let visibility = scan
+            .visibility
+            .unwrap_or_else(|| self.adapter.default_visibility(kind, encl_kind));
+        let mut modifiers = scan.modifiers
+            | self
+                .adapter
+                .implicit_modifiers(kind, encl_kind, scan.modifiers, scan.visibility, has_body);
+        if params
+            .last()
+            .map(|&p| self.is_spread_parameter(p))
+            .unwrap_or(false)
+        {
+            modifiers |= SymbolModifiers::VARARGS;
+        }
+
+        let last = match body {
+            Some(block) => {
+                let open = self.bpa.token_range(block).0;
+                self.tv
+                    .matching_close(open, self.file_end())
+                    .unwrap_or(self.tok(lt))
+            }
+            None if kind == SymbolKind::SK_CONSTRUCTOR => name_tok
+                .and_then(|t| self.constructor_body_close(t))
+                .unwrap_or(self.tok(lt)),
+            None => self.tok(lt),
+        };
+
+        let mut rec = new_record(
+            kind,
+            name_id,
+            node,
+            scope,
+            visibility,
+            modifiers,
+            self.tok(ft),
+            last,
+        );
+        rec.param_count = u16::try_from(params.len()).unwrap_or(u16::MAX);
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(scope, Namespace::Method, name_id, sym, name_tok.unwrap_or(0));
+
+        if kind == SymbolKind::SK_METHOD {
+            if let Some(t) = name_tok {
+                if let Some(span) = self.method_return_span(&scan, t) {
+                    b.type_spans.insert(sym, span);
                 }
             }
-            tok_idx += 1;
         }
-        crate::core::logger::log_info(&format!(
-            "[PASS1] Secondary sweep done in {:?}",
-            pass1_start.elapsed()
-        ));
+        if let Some(t) = name_tok {
+            define(b, t, node, sym);
+        }
+        let own = b.create_scope(sym, scope, ScopeKind::Method);
+        b.set_owned_scope(sym, own);
+        (own, sym)
+    }
 
-        // ── Link class symbols to their file package symbols ──
-        let mut file_pkg_map: HashMap<u16, u32> = HashMap::new();
-        let kw_package = tca.interner.find_id(b"package");
+    /// Return type span of a method: after modifiers, type parameters and their annotations.
+    fn method_return_span(&self, scan: &ModifierScan, name_tok: u32) -> Option<TypeSpan> {
+        let mut pos = scan.end;
+        let lt = self.tv.sig(pos, name_tok)?;
+        if self.tv.punct(lt, "<") {
+            let mut parser = TypeParser::new(&self.tv, name_tok, Dialect::Java);
+            let (_, after, _) = parser.parse_type_params(lt)?;
+            pos = after;
+        }
+        while let Some(at) = self.tv.sig(pos, name_tok) {
+            if !self.tv.punct(at, "@") {
+                break;
+            }
+            let (_, next) = skip_annotation(&self.tv, at, name_tok)?;
+            pos = next;
+        }
+        self.type_span(pos, name_tok, 0)
+    }
 
-        let mut visited_pkg_files: std::collections::HashSet<u16> =
-            std::collections::HashSet::new();
-        let mut package_path_ids: HashMap<String, u32> = HashMap::new();
-        let mut tok_idx = 0usize;
-        while tok_idx < tca.token_records.len() {
-            let rec = &tca.token_records[tok_idx];
-            let rec_fid = unpack_sort_key(rec.sort_key).0;
-            if rec.text_id == kw_package
-                && kw_package != u32::MAX
-                && visited_pkg_files.insert(rec_fid)
+    /// Closing brace of a constructor body, located from the tokens after its name (Phase 2
+    /// drops `constructor_body`).
+    fn constructor_body_close(&self, name_tok: u32) -> Option<u32> {
+        let limit = self.file_end();
+        let open = self.tv.next(name_tok, limit)?;
+        let close = self.tv.matching_close(open, limit)?;
+        let mut pos = close + 1;
+        loop {
+            let t = self.tv.sig(pos, limit)?;
+            if self.tv.punct(t, "{") {
+                return self.tv.matching_close(t, limit);
+            }
+            if self.tv.punct(t, ";") || self.tv.is_closer(t) {
+                return None;
+            }
+            pos = t + 1;
+        }
+    }
+
+    fn is_spread_parameter(&self, param: u32) -> bool {
+        if self
+            .ast
+            .first_child_of_type(self.bpa, param, ASTNodeType::NN_LOCAL_VAR_DECL)
+            .is_some()
+        {
+            return true;
+        }
+        let (ft, lt) = self.bpa.token_range(param);
+        if !self.tv.valid(ft) {
+            return false;
+        }
+        let end = lt.saturating_add(1).min(self.file_end());
+        (ft..end).any(|t| self.tv.punct(t, "..."))
+    }
+
+    // ── Variables and parameters ─────────────────────────────────────────────
+
+    fn declare_variable(
+        &self,
+        b: &mut SymbolTableBuilder,
+        declarator: u32,
+        declaration: Option<u32>,
+        kind: SymbolKind,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let name_tok = self.name_token_of(declarator);
+        let name_id = self.name_id_of(name_tok);
+        let decl = declaration.unwrap_or(declarator);
+        let first_name_tok = declaration
+            .and_then(|d| {
+                self.ast
+                    .first_child_of_type(self.bpa, d, ASTNodeType::NN_LOCAL_VAR_DECL)
+            })
+            .and_then(|first| self.name_token_of(first))
+            .or(name_tok);
+        let scan = self.scan_modifiers(decl, first_name_tok);
+        let encl_kind = enclosing_decl_kind(b, enclosing);
+        let visibility = if kind == SymbolKind::SK_FIELD {
+            scan.visibility
+                .unwrap_or_else(|| self.adapter.default_visibility(kind, encl_kind))
+        } else {
+            SymbolVisibility::Package
+        };
+        let modifiers = scan.modifiers
+            | self
+                .adapter
+                .implicit_modifiers(kind, encl_kind, scan.modifiers, scan.visibility, false);
+
+        let declarator_count = declaration
+            .map(|d| {
+                self.ast
+                    .children_of_type(self.bpa, d, ASTNodeType::NN_LOCAL_VAR_DECL)
+                    .count()
+            })
+            .unwrap_or(1);
+        let (ft, lt) = if declarator_count == 1 {
+            self.bpa.token_range(decl)
+        } else {
+            self.bpa.token_range(declarator)
+        };
+
+        let rec = new_record(
+            kind,
+            name_id,
+            declarator,
+            scope,
+            visibility,
+            modifiers,
+            self.tok(ft),
+            self.tok(lt),
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok.unwrap_or(0));
+
+        if let (Some(t), Some(first_t)) = (name_tok, first_name_tok) {
+            let (extra_dims, _, _) = parse_trailing_dims(&self.tv, t + 1, self.file_end());
+            if scan.end != u32::MAX {
+                if let Some(span) = self.type_span(scan.end, first_t, extra_dims) {
+                    b.type_spans.insert(sym, span);
+                }
+            }
+            define(b, t, declarator, sym);
+        }
+        (scope, sym)
+    }
+
+    fn declare_param(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        parent_ty: ASTNodeType,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let spread_declarator = self
+            .ast
+            .first_child_of_type(self.bpa, node, ASTNodeType::NN_LOCAL_VAR_DECL);
+        let name_tok = self
+            .name_token_of(node)
+            .or_else(|| spread_declarator.and_then(|d| self.name_token_of(d)));
+        let name_id = self.name_id_of(name_tok);
+        let scan = self.scan_modifiers(node, name_tok);
+        let mut modifiers = scan.modifiers;
+        if self.is_spread_parameter(node) {
+            modifiers |= SymbolModifiers::VARARGS;
+        }
+        let record_component = parent_ty == ASTNodeType::NN_RECORD_DECL;
+        if record_component {
+            modifiers |= SymbolModifiers::RECORD_COMPONENT;
+        }
+        let (ft, lt) = self.bpa.token_range(node);
+        let rec = new_record(
+            SymbolKind::SK_PARAM,
+            name_id,
+            node,
+            scope,
+            SymbolVisibility::Package,
+            modifiers,
+            self.tok(ft),
+            self.tok(lt),
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        // Record components are reached through the implicit fields synthesized for them.
+        if !record_component {
+            b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok.unwrap_or(0));
+        }
+        if let Some(t) = name_tok {
+            if scan.end != u32::MAX {
+                if let Some(span) = self.type_span(scan.end, t, 0) {
+                    b.type_spans.insert(sym, span);
+                }
+            }
+            define(b, t, node, sym);
+        }
+        (scope, sym)
+    }
+
+    /// One SK_TYPE_PARAM per parameter of the `type_parameters` list (Phase 2 keeps the list
+    /// node but drops its children; the parameters are parsed from the `<` token).
+    fn declare_type_params(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        scope: u32,
+        owner: u32,
+    ) {
+        let lt = self.bpa.token_range(node).0;
+        if !self.tv.valid(lt) {
+            return;
+        }
+        let mut parser = TypeParser::new(&self.tv, self.file_end(), Dialect::Java);
+        let params = match parser.parse_type_params(lt) {
+            Some((params, _, _)) => params,
+            None => {
+                b.add_diagnostic(
+                    DiagnosticCode::MalformedDeclaration,
+                    owner,
+                    lt,
+                    Vec::new(),
+                    "type parameter list could not be parsed".to_string(),
+                );
+                return;
+            }
+        };
+        for p in params {
+            let name_id = self.tv.text_id(p.name_tok);
+            let rec = new_record(
+                SymbolKind::SK_TYPE_PARAM,
+                name_id,
+                node,
+                scope,
+                SymbolVisibility::Package,
+                0,
+                self.tok(p.first),
+                self.tok(p.last),
+            );
+            let sym = b.create_symbol(rec);
+            b.set_parent(sym, owner);
+            b.bind_name(scope, Namespace::Type, name_id, sym, 0);
+            let bounds: Vec<(u32, u32)> = p.bounds.iter().map(|t| (t.first, t.last)).collect();
+            if !bounds.is_empty() {
+                b.type_param_bounds.insert(sym, bounds);
+            }
+            if let Some(o) = b.symbols.get_mut(owner as usize) {
+                o.type_param_count = o.type_param_count.saturating_add(1);
+            }
+            define(b, p.name_tok, node, sym);
+        }
+    }
+
+    fn declare_lambda(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let (ft, lt) = self.bpa.token_range(node);
+        let explicit = self
+            .ast
+            .children_of_type(self.bpa, node, ASTNodeType::NN_PARAM_DECL)
+            .count();
+        let rec = new_record(
+            SymbolKind::SK_LAMBDA,
+            u32::MAX,
+            node,
+            scope,
+            SymbolVisibility::Package,
+            0,
+            self.tok(ft),
+            self.tok(lt),
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        let own = b.create_scope(sym, scope, ScopeKind::Lambda);
+        b.set_owned_scope(sym, own);
+
+        let mut implicit: Vec<(u32, u32)> = Vec::new();
+        if explicit == 0 && self.tv.valid(ft) {
+            let first_child = self.ast.children(node).first().copied();
+            let single = first_child.filter(|&c| {
+                self.bpa.node_type(c) == ASTNodeType::NN_IDENTIFIER_EXPR && {
+                    let t = self.bpa.token_range(c).0;
+                    self.tv.valid(t)
+                        && self
+                            .tv
+                            .next(t, self.file_end())
+                            .is_some_and(|n| self.tv.punct(n, "->"))
+                }
+            });
+            if let Some(c) = single {
+                implicit.push((self.bpa.token_range(c).0, c));
+            } else if let Some(names) =
+                parse_inferred_lambda_params(&self.tv, ft, self.file_end())
             {
-                let mut lookahead = tok_idx + 1;
-                let mut pkg_parts: Vec<(u32, String)> = Vec::new();
-                let pkg_line = unpack_sort_key(rec.sort_key).1;
-                let mut expecting_ident = true;
+                implicit.extend(names.into_iter().map(|t| (t, u32::MAX)));
+            }
+        }
+        for &(tok, ident_node) in &implicit {
+            let name_id = self.tv.text_id(tok);
+            let mut prec = new_record(
+                SymbolKind::SK_PARAM,
+                name_id,
+                ident_node,
+                own,
+                SymbolVisibility::Package,
+                0,
+                tok,
+                tok,
+            );
+            if ident_node == u32::MAX {
+                prec.flags |= SymbolFlags::LEXICAL;
+            }
+            let p = b.create_symbol(prec);
+            b.set_parent(p, sym);
+            b.bind_name(own, Namespace::Variable, name_id, p, tok);
+            define(b, tok, ident_node, p);
+        }
+        if let Some(l) = b.symbols.get_mut(sym as usize) {
+            l.param_count = u16::try_from(explicit + implicit.len()).unwrap_or(u16::MAX);
+        }
+        (own, sym)
+    }
 
-                while lookahead < tca.token_records.len() && lookahead < tok_idx + 40 {
-                    let next_rec = &tca.token_records[lookahead];
-                    let (next_fid, next_line, _) = unpack_sort_key(next_rec.sort_key);
-                    if next_fid != rec_fid || next_line != pkg_line {
-                        break;
-                    }
-                    let next_bytes = tca.interner.lookup_text(next_rec.text_id);
-                    if let Ok(next_text) = std::str::from_utf8(next_bytes) {
-                        if next_text == ";" || next_text == "\n" {
-                            break;
-                        }
-                        if expecting_ident {
-                            let is_ident = !next_text.is_empty()
-                                && next_text.chars().all(|c| c.is_alphanumeric() || c == '_')
-                                && ![
-                                    "package",
-                                    "import",
-                                    "class",
-                                    "interface",
-                                    "fun",
-                                    "val",
-                                    "var",
-                                    "public",
-                                    "private",
-                                    "object",
-                                    "enum",
-                                    "data",
-                                    "sealed",
-                                    "open",
-                                    "abstract",
-                                ]
-                                .contains(&next_text);
-                            if is_ident {
-                                pkg_parts.push((next_rec.text_id, next_text.to_string()));
-                                expecting_ident = false;
-                            } else {
-                                break;
-                            }
-                        } else if next_text == "." {
-                            expecting_ident = true;
-                        } else {
-                            break;
-                        }
-                    }
-                    lookahead += 1;
-                }
+    /// `new` token and closing body brace of the anonymous class declared by the instance
+    /// creation expression `node`, if it declares one.
+    fn anonymous_body(&self, node: u32) -> Option<(u32, u32)> {
+        let (ft, lt) = self.bpa.token_range(node);
+        if !self.tv.valid(ft) {
+            return None;
+        }
+        let limit = self.file_end();
+        let scan_end = lt.saturating_add(1).min(limit);
+        let mut pos = ft;
+        let new_tok = loop {
+            let t = self.tv.sig(pos, scan_end)?;
+            if self.tv.word(t, "new") {
+                break t;
+            }
+            pos = if self.tv.is_opener(t) {
+                self.tv.matching_close(t, limit)? + 1
+            } else {
+                t + 1
+            };
+        };
+        let mut parser = TypeParser::new(&self.tv, limit, Dialect::Java);
+        let (_, after_type) = parser.parse(new_tok + 1, TypeOptions::default())?;
+        let open = self.tv.sig(after_type, limit)?;
+        if !self.tv.punct(open, "(") {
+            return None;
+        }
+        let close = self.tv.matching_close(open, limit)?;
+        let brace = self.tv.next(close, limit)?;
+        if !self.tv.punct(brace, "{") {
+            return None;
+        }
+        let brace_close = self.tv.matching_close(brace, limit)?;
+        Some((new_tok, brace_close))
+    }
 
-                if !pkg_parts.is_empty() {
-                    let mut current_pkg_sym = u32::MAX;
-                    let mut current_path = String::new();
-                    for (name_id, part) in pkg_parts {
-                        current_path = if current_path.is_empty() {
-                            part.clone()
-                        } else {
-                            format!("{}.{}", current_path, part)
-                        };
+    fn declare_anonymous(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        new_tok: u32,
+        close: u32,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let (ft, _) = self.bpa.token_range(node);
+        let rec = new_record(
+            SymbolKind::SK_ANON_CLASS,
+            u32::MAX,
+            node,
+            scope,
+            SymbolVisibility::Package,
+            SymbolModifiers::FINAL,
+            self.tok(ft),
+            close,
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        let own = b.create_scope(sym, scope, ScopeKind::Anon);
+        b.set_owned_scope(sym, own);
+        b.anonymous_classes.push((sym, node, new_tok));
+        (own, sym)
+    }
 
-                        let pkg_sym_id = if let Some(existing) = package_path_ids.get(&current_path)
-                        {
-                            *existing
-                        } else {
-                            let mut sym_rec = SymbolRecord::UNINIT;
-                            sym_rec.name_id = name_id;
-                            sym_rec.kind = crate::core::types::symbol::SymbolKind::SK_PACKAGE as u8;
-                            sym_rec.visibility =
-                                crate::core::types::symbol::SymbolVisibility::Public as u8;
-                            sym_rec.scope_id = root_scope;
-                            sym_rec.parent_sym = current_pkg_sym;
-                            let pkg_sym_id = builder.create_symbol(sym_rec);
-                            if current_pkg_sym != u32::MAX {
-                                builder.append_child(current_pkg_sym, pkg_sym_id);
-                            }
-                            builder
-                                .custom_package_names
-                                .insert(pkg_sym_id, current_path.clone());
-                            package_path_ids.insert(current_path.clone(), pkg_sym_id);
-                            pkg_sym_id
-                        };
+    fn declare_initializer(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        kind: SymbolKind,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let (ft, lt) = self.bpa.token_range(node);
+        let modifiers = if kind == SymbolKind::SK_STATIC_INIT {
+            SymbolModifiers::STATIC
+        } else {
+            0
+        };
+        let rec = new_record(
+            kind,
+            u32::MAX,
+            node,
+            scope,
+            SymbolVisibility::Package,
+            modifiers,
+            self.tok(ft),
+            self.tok(lt),
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        let own = b.create_scope(sym, scope, ScopeKind::Block);
+        b.scope_graph.add_flags(own, ScopeFlags::ORDERED);
+        b.set_owned_scope(sym, own);
+        (own, sym)
+    }
 
-                        current_pkg_sym = pkg_sym_id;
-                    }
+    /// `for (T x : expr)`: the loop variable is the first identifier child of the statement.
+    fn declare_for_each_variable(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        block: u32,
+        enclosing: u32,
+    ) {
+        let ident = match self
+            .ast
+            .first_child_of_type(self.bpa, node, ASTNodeType::NN_IDENTIFIER_EXPR)
+        {
+            Some(i) => i,
+            None => return,
+        };
+        let name_tok = self.bpa.token_range(ident).0;
+        if !self.tv.valid(name_tok) {
+            return;
+        }
+        let for_tok = self.bpa.token_range(node).0;
+        let open = match self.tv.next(for_tok, name_tok) {
+            Some(o) if self.tv.punct(o, "(") => o,
+            _ => return,
+        };
+        let scan = scan_java_modifiers(&self.tv, open + 1, name_tok);
+        let name_id = self.tv.text_id(name_tok);
+        let first = self.tv.sig(open + 1, name_tok).unwrap_or(name_tok);
+        let rec = new_record(
+            SymbolKind::SK_LOCAL_VAR,
+            name_id,
+            ident,
+            block,
+            SymbolVisibility::Package,
+            scan.modifiers,
+            first,
+            name_tok,
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(block, Namespace::Variable, name_id, sym, name_tok);
+        if let Some(span) = self.type_span(scan.end, name_tok, 0) {
+            b.type_spans.insert(sym, span);
+        }
+        define(b, name_tok, ident, sym);
+    }
 
-                    if current_pkg_sym != u32::MAX {
-                        file_pkg_map.insert(rec_fid, current_pkg_sym);
-                        builder
-                            .file_package_names
-                            .insert(rec_fid, current_path.clone());
-                    }
+    /// `catch (A | B e)`: Phase 2 drops `catch_formal_parameter`; the parameter is parsed from
+    /// the tokens after `catch`.
+    fn declare_catch_parameter(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        block: u32,
+        enclosing: u32,
+    ) {
+        let catch_tok = self.bpa.token_range(node).0;
+        if !self.tv.valid(catch_tok) {
+            return;
+        }
+        let param = match parse_catch_parameter(&self.tv, catch_tok, self.file_end()) {
+            Some(p) => p,
+            None => return,
+        };
+        let name_id = self.tv.text_id(param.name_tok);
+        let mut rec = new_record(
+            SymbolKind::SK_LOCAL_VAR,
+            name_id,
+            u32::MAX,
+            block,
+            SymbolVisibility::Package,
+            param.modifiers.modifiers,
+            param.type_first,
+            param.name_tok,
+        );
+        rec.flags |= SymbolFlags::LEXICAL;
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(block, Namespace::Variable, name_id, sym, param.name_tok);
+        let union_parts: Vec<(u32, u32)> = if param.alternatives.len() > 1 {
+            param.alternatives.iter().map(|a| (a.first, a.last)).collect()
+        } else {
+            Vec::new()
+        };
+        b.type_spans.insert(
+            sym,
+            TypeSpan {
+                first: param.type_first,
+                last: param.type_last,
+                dialect: Dialect::Java,
+                extra_dims: 0,
+                union_parts,
+            },
+        );
+        define(b, param.name_tok, u32::MAX, sym);
+    }
+
+    /// `x instanceof T name`: the pattern variable is the identifier after the type.
+    fn declare_pattern_variable(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        scope: u32,
+        enclosing: u32,
+    ) {
+        let children = self.ast.children(node);
+        if children.len() < 2 {
+            return;
+        }
+        let ident = children[children.len() - 1];
+        if self.bpa.node_type(ident) != ASTNodeType::NN_IDENTIFIER_EXPR {
+            return;
+        }
+        let name_tok = self.bpa.token_range(ident).0;
+        let (ft, _) = self.bpa.token_range(node);
+        if !self.tv.valid(name_tok) || !self.tv.valid(ft) {
+            return;
+        }
+        let kw = match (ft..name_tok)
+            .rev()
+            .find(|&t| self.tv.word(t, "instanceof"))
+        {
+            Some(k) => k,
+            None => return,
+        };
+        let mut type_start = kw + 1;
+        if let Some(t) = self.tv.sig(type_start, name_tok) {
+            if self.tv.word(t, "final") {
+                type_start = t + 1;
+            }
+        }
+        let name_id = self.tv.text_id(name_tok);
+        let rec = new_record(
+            SymbolKind::SK_LOCAL_VAR,
+            name_id,
+            ident,
+            scope,
+            SymbolVisibility::Package,
+            0,
+            self.tv.sig(type_start, name_tok).unwrap_or(name_tok),
+            name_tok,
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok);
+        if let Some(span) = self.type_span(type_start, name_tok, 0) {
+            b.type_spans.insert(sym, span);
+        }
+        define(b, name_tok, ident, sym);
+    }
+
+    // ── Post-processing of type bodies ───────────────────────────────────────
+
+    /// Members declared directly in a type node: (kind, name_id, param_count).
+    fn declared_members(&self, b: &SymbolTableBuilder, node: u32) -> Vec<(SymbolKind, u32, u16)> {
+        self.ast
+            .children(node)
+            .iter()
+            .filter_map(|&c| b.symbol_at_node(c))
+            .filter_map(|s| b.symbol(s))
+            .map(|s| (SymbolKind::from(s.kind), s.name_id, s.param_count))
+            .collect()
+    }
+
+    /// Enum constants (recovered from the body tokens), the implicit `final` (JLS 8.9) and the
+    /// implicit `values()`/`valueOf(String)` methods (JLS 8.9.3).
+    fn complete_enum(&self, b: &mut SymbolTableBuilder, t: &TypeBody) {
+        let open = match t.body_open {
+            Some(o) => o,
+            None => return,
+        };
+        let own = b.owned_scope(t.sym);
+        let constants = parse_enum_constants(&self.tv, open, self.file_end());
+        let mut any_body = false;
+        for c in &constants {
+            if self.tv.punct(c.last, "}") {
+                any_body = true;
+            }
+            let name_id = self.tv.text_id(c.name_tok);
+            let visibility = self
+                .adapter
+                .default_visibility(SymbolKind::SK_ENUM_CONSTANT, Some(SymbolKind::SK_ENUM));
+            let modifiers = self.adapter.implicit_modifiers(
+                SymbolKind::SK_ENUM_CONSTANT,
+                Some(SymbolKind::SK_ENUM),
+                0,
+                None,
+                false,
+            );
+            let mut rec = new_record(
+                SymbolKind::SK_ENUM_CONSTANT,
+                name_id,
+                u32::MAX,
+                own,
+                visibility,
+                modifiers,
+                c.first,
+                c.last,
+            );
+            rec.type_id = t.sym;
+            rec.flags |= SymbolFlags::LEXICAL;
+            let sym = b.create_symbol(rec);
+            b.set_parent(sym, t.sym);
+            b.bind_name(own, Namespace::Variable, name_id, sym, c.name_tok);
+            define(b, c.name_tok, u32::MAX, sym);
+        }
+        if !any_body {
+            if let Some(e) = b.symbols.get_mut(t.sym as usize) {
+                e.modifiers |= SymbolModifiers::FINAL;
+            }
+        }
+
+        // The implicit methods are named by corpus text ids; when no source token spells the
+        // name, nothing in the corpus can refer to the method and it is not synthesized.
+        let members = self.declared_members(b, t.node);
+        for (name, params, array) in [("values", 0u16, true), ("valueOf", 1u16, false)] {
+            let name_id = self.tv.find_text_id(name);
+            if name_id == u32::MAX {
+                continue;
+            }
+            if members
+                .iter()
+                .any(|&(k, n, p)| k == SymbolKind::SK_METHOD && n == name_id && p == params)
+            {
+                continue;
+            }
+            let mut rec = new_record(
+                SymbolKind::SK_METHOD,
+                name_id,
+                u32::MAX,
+                own,
+                SymbolVisibility::Public,
+                SymbolModifiers::STATIC | SymbolModifiers::SYNTHETIC,
+                u32::MAX,
+                u32::MAX,
+            );
+            rec.param_count = params;
+            rec.type_id = t.sym;
+            rec.flags |= SymbolFlags::IMPLICIT;
+            if array {
+                rec.flags |= SymbolFlags::ARRAY;
+            }
+            let sym = b.create_symbol(rec);
+            b.set_parent(sym, t.sym);
+            b.bind_name(own, Namespace::Method, name_id, sym, 0);
+        }
+    }
+
+    /// Interface constants: Phase 2 drops `constant_declaration`, so the token runs of the
+    /// interface body that no member node covers are parsed as field declarations.
+    fn recover_interface_constants(&self, b: &mut SymbolTableBuilder, t: &TypeBody) {
+        let (open, close) = match (t.body_open, t.body_close) {
+            (Some(o), Some(c)) => (o, c),
+            _ => return,
+        };
+        let mut covered: Vec<(u32, u32)> = Vec::new();
+        for &c in self.ast.children(t.node) {
+            let (ft, lt) = self.bpa.token_range(c);
+            if !self.tv.valid(ft) || ft <= open {
+                continue;
+            }
+            let last = b
+                .symbol_at_node(c)
+                .and_then(|s| b.symbol(s))
+                .map(|s| s.last_token_id)
+                .filter(|&l| l != u32::MAX)
+                .unwrap_or(lt)
+                .max(lt);
+            covered.push((ft, last));
+        }
+        covered.sort_unstable();
+
+        let mut gaps: Vec<(u32, u32)> = Vec::new();
+        let mut cursor = open + 1;
+        for &(s, e) in &covered {
+            if s > cursor {
+                gaps.push((cursor, s));
+            }
+            cursor = cursor.max(e.saturating_add(1));
+        }
+        if close > cursor {
+            gaps.push((cursor, close));
+        }
+
+        let own = b.owned_scope(t.sym);
+        for (start, end) in gaps {
+            for decl in parse_field_declarations(&self.tv, start, end) {
+                let visibility = decl.modifiers.visibility.unwrap_or_else(|| {
+                    self.adapter
+                        .default_visibility(SymbolKind::SK_FIELD, Some(SymbolKind::SK_INTERFACE))
+                });
+                let modifiers = decl.modifiers.modifiers
+                    | self.adapter.implicit_modifiers(
+                        SymbolKind::SK_FIELD,
+                        Some(SymbolKind::SK_INTERFACE),
+                        decl.modifiers.modifiers,
+                        decl.modifiers.visibility,
+                        false,
+                    );
+                let single = decl.declarators.len() == 1;
+                for d in &decl.declarators {
+                    let name_id = self.tv.text_id(d.name_tok);
+                    let (first, last) = if single {
+                        (decl.first, decl.last)
+                    } else {
+                        (d.first, d.last)
+                    };
+                    let mut rec = new_record(
+                        SymbolKind::SK_FIELD,
+                        name_id,
+                        u32::MAX,
+                        own,
+                        visibility,
+                        modifiers,
+                        first,
+                        last,
+                    );
+                    rec.flags |= SymbolFlags::LEXICAL;
+                    let sym = b.create_symbol(rec);
+                    b.set_parent(sym, t.sym);
+                    b.bind_name(own, Namespace::Variable, name_id, sym, d.name_tok);
+                    b.type_spans.insert(
+                        sym,
+                        TypeSpan {
+                            first: decl.type_first,
+                            last: decl.type_last,
+                            dialect: Dialect::Java,
+                            extra_dims: d.extra_dims,
+                            union_parts: Vec::new(),
+                        },
+                    );
+                    define(b, d.name_tok, u32::MAX, sym);
                 }
             }
-            tok_idx += 1;
         }
-        crate::core::logger::log_info(&format!(
-            "[PASS1] Package statement parse done in {:?}",
-            pass1_start.elapsed()
-        ));
+    }
 
-        for sym_idx in 0..builder.symbols.len() {
-            let kind = SymbolKind::from(builder.symbols[sym_idx].kind);
+    /// Implicit record members (JLS 8.10.3): a private final field and a public accessor per
+    /// component, and the canonical constructor unless one is declared explicitly.
+    fn complete_record(&self, b: &mut SymbolTableBuilder, t: &TypeBody) {
+        let own = b.owned_scope(t.sym);
+        let components: Vec<u32> = self
+            .ast
+            .children_of_type(self.bpa, t.node, ASTNodeType::NN_PARAM_DECL)
+            .filter_map(|p| b.symbol_at_node(p))
+            .collect();
+        let members = self.declared_members(b, t.node);
+        let record_visibility = b
+            .symbol(t.sym)
+            .map(|s| SymbolVisibility::from(s.visibility))
+            .unwrap_or(SymbolVisibility::Package);
+
+        for &comp in &components {
+            let (name_id, first, last) = match b.symbol(comp) {
+                Some(s) => (s.name_id, s.first_token_id, s.last_token_id),
+                None => continue,
+            };
+            let mut field = new_record(
+                SymbolKind::SK_FIELD,
+                name_id,
+                u32::MAX,
+                own,
+                SymbolVisibility::Private,
+                SymbolModifiers::FINAL | SymbolModifiers::SYNTHETIC,
+                first,
+                last,
+            );
+            field.flags |= SymbolFlags::IMPLICIT;
+            let f = b.create_symbol(field);
+            b.set_parent(f, t.sym);
+            b.bind_name(own, Namespace::Variable, name_id, f, 0);
+            b.implicit_type_sources.insert(f, comp);
+
+            let explicit_accessor = members
+                .iter()
+                .any(|&(k, n, p)| k == SymbolKind::SK_METHOD && n == name_id && p == 0);
+            if !explicit_accessor {
+                let mut acc = new_record(
+                    SymbolKind::SK_METHOD,
+                    name_id,
+                    u32::MAX,
+                    own,
+                    SymbolVisibility::Public,
+                    SymbolModifiers::SYNTHETIC,
+                    first,
+                    last,
+                );
+                acc.flags |= SymbolFlags::IMPLICIT;
+                let a = b.create_symbol(acc);
+                b.set_parent(a, t.sym);
+                b.bind_name(own, Namespace::Method, name_id, a, 0);
+                b.implicit_type_sources.insert(a, comp);
+            }
+        }
+
+        let arity = u16::try_from(components.len()).unwrap_or(u16::MAX);
+        let explicit_canonical = members
+            .iter()
+            .any(|&(k, _, p)| k == SymbolKind::SK_CONSTRUCTOR && p == arity);
+        if !explicit_canonical {
+            let name_id = b.symbol(t.sym).map(|s| s.name_id).unwrap_or(u32::MAX);
+            let mut ctor = new_record(
+                SymbolKind::SK_CONSTRUCTOR,
+                name_id,
+                u32::MAX,
+                own,
+                record_visibility,
+                SymbolModifiers::SYNTHETIC,
+                self.tok(t.name_tok),
+                self.tok(t.name_tok),
+            );
+            ctor.param_count = arity;
+            ctor.flags |= SymbolFlags::IMPLICIT;
+            let c = b.create_symbol(ctor);
+            b.set_parent(c, t.sym);
+            b.bind_name(own, Namespace::Method, name_id, c, 0);
+        }
+    }
+}
+
+// ── Heuristic front end for files with only a generic AST ────────────────────
+
+/// Language keywords never taken as declaration names by the heuristic namer.
+const HEURISTIC_KEYWORDS: &[&str] = &[
+    "class", "interface", "object", "enum", "fun", "val", "var", "public", "private", "protected",
+    "internal", "data", "sealed", "open", "abstract", "companion", "constructor", "package",
+    "import", "override", "struct", "trait", "impl", "let", "const", "def", "fn", "new", "this",
+    "super", "null", "true", "false", "void", "return", "if", "else", "for", "while", "do",
+    "switch", "case", "break", "continue", "try", "catch", "finally", "throw", "by", "as", "in",
+    "is", "default", "export", "declare", "async", "yield", "await", "function", "static",
+    "final", "readonly", "pub", "get", "set", "extends", "implements", "type", "record",
+];
+
+struct HeuristicWalk<'a, 'u> {
+    bpa: &'a BPASTArtifact,
+    ast: &'u AstIndex,
+    tv: TokenView<'a>,
+    adapter: &'u dyn SemanticAdapter,
+    unit: &'u UnitInfo,
+}
+
+impl<'a, 'u> HeuristicWalk<'a, 'u> {
+    fn run(&self, b: &mut SymbolTableBuilder) {
+        let root = self.unit.root_node;
+        let end = self.ast.subtree_end(root);
+        for node in (root + 1)..end {
+            let parent = self.ast.parent(node);
+            let (scope, enclosing) = if parent == u32::MAX {
+                (self.unit.cu_scope, self.unit.module_sym)
+            } else {
+                (b.scope_of_node(parent), b.enclosing_symbol_of_node(parent))
+            };
+            let ty = self.bpa.node_type(node);
+            if !self.adapter.is_declaration(ty) || ty == ASTNodeType::NN_MODULE {
+                b.set_node_context(node, scope, enclosing);
+                continue;
+            }
+            let kind = self.adapter.symbol_kind(ty);
+            let (ft, lt) = self.bpa.token_range(node);
+            let name_tok = self.heuristic_name(node, ty);
+            let name_id = name_tok.map(|t| self.tv.text_id(t)).unwrap_or(u32::MAX);
+            let mut rec = new_record(
+                kind,
+                name_id,
+                node,
+                scope,
+                SymbolVisibility::Public,
+                0,
+                if self.tv.valid(ft) { ft } else { u32::MAX },
+                if self.tv.valid(lt) { lt } else { u32::MAX },
+            );
+            rec.flags |= SymbolFlags::HEURISTIC_NAME;
             if matches!(
                 kind,
-                SymbolKind::SK_CLASS
-                    | SymbolKind::SK_INTERFACE
-                    | SymbolKind::SK_ENUM
-                    | SymbolKind::SK_RECORD
+                SymbolKind::SK_METHOD | SymbolKind::SK_CONSTRUCTOR | SymbolKind::SK_LAMBDA
             ) {
-                let decl_node = builder.symbols[sym_idx].decl_node;
-                let ft = if builder.symbols[sym_idx].first_token_id != u32::MAX {
-                    builder.symbols[sym_idx].first_token_id
-                } else if decl_node != u32::MAX {
-                    bpa.token_range(decl_node).0
-                } else {
-                    u32::MAX
-                };
-                let fid = if ft != u32::MAX && (ft as usize) < tca.token_records.len() {
-                    unpack_sort_key(tca.token_records[ft as usize].sort_key).0
-                } else {
-                    u16::MAX
-                };
-
-                if fid != u16::MAX {
-                    if let Some(&pkg_sym_id) = file_pkg_map.get(&fid) {
-                        let parent_is_module = builder.symbols[sym_idx].parent_sym == u32::MAX
-                            || builder.symbols[sym_idx].parent_sym == 0
-                            || builder.symbols[sym_idx].parent_sym == default_file_class
-                            || ((builder.symbols[sym_idx].parent_sym as usize)
-                                < builder.symbols.len()
-                                && SymbolKind::from(
-                                    builder.symbols[builder.symbols[sym_idx].parent_sym as usize]
-                                        .kind,
-                                ) == SymbolKind::SK_MODULE);
-                        if parent_is_module {
-                            builder.symbols[sym_idx].parent_sym = pkg_sym_id;
-                            builder.append_child(pkg_sym_id, sym_idx as u32);
-                        }
-                    }
+                rec.param_count = u16::try_from(
+                    self.ast
+                        .children_of_type(self.bpa, node, ASTNodeType::NN_PARAM_DECL)
+                        .count(),
+                )
+                .unwrap_or(u16::MAX);
+            }
+            let sym = b.create_symbol(rec);
+            let parent_sym = if b.symbol_kind(enclosing) == Some(SymbolKind::SK_MODULE)
+                && self.unit.package_sym != u32::MAX
+                && is_type_kind(kind)
+            {
+                self.unit.package_sym
+            } else {
+                enclosing
+            };
+            b.set_parent(sym, parent_sym);
+            let ns = match kind {
+                k if is_type_kind(k) => Some(Namespace::Type),
+                SymbolKind::SK_METHOD | SymbolKind::SK_CONSTRUCTOR => Some(Namespace::Method),
+                SymbolKind::SK_FIELD | SymbolKind::SK_PARAM | SymbolKind::SK_LOCAL_VAR => {
+                    Some(Namespace::Variable)
                 }
+                _ => None,
+            };
+            if let Some(ns) = ns {
+                b.bind_name(scope, ns, name_id, sym, name_tok.unwrap_or(0));
             }
-        }
-
-        // Universal parent safety sweep: Ensure Invariant 2 holds for all symbols across all languages
-        for i in 1..builder.symbols.len() {
-            if builder.symbols[i].parent_sym == u32::MAX {
-                builder.symbols[i].parent_sym = 0;
-                builder.append_child(0, i as u32);
+            if let Some(t) = name_tok {
+                define(b, t, node, sym);
             }
+            let own = b.create_scope(sym, scope, self.adapter.scope_kind(ty));
+            b.set_owned_scope(sym, own);
+            b.set_node_context(node, own, sym);
         }
-        crate::core::logger::log_info(&format!(
-            "[PASS1] Total Pass 1 done in {:?}",
-            pass1_start.elapsed()
-        ));
     }
 
-    fn extract_name_token(
-        pre_idx: u32,
-        bpa: &BPASTArtifact,
-        tca: &TokenCorpusArtifact,
-        _adapter: &dyn SemanticAdapter,
-        blocklist_ids: &std::collections::HashSet<u32>,
-    ) -> u32 {
-        let (ft, lt) = bpa.token_range(pre_idx);
-        if ft != u32::MAX && (ft as usize) < tca.token_records.len() {
-            let ntype = bpa.node_type(pre_idx);
-            let end_tok = lt.min(tca.token_records.len() as u32 - 1).min(ft + 15);
+    fn is_name_candidate(&self, tok: u32) -> bool {
+        let text = self.tv.text_str(tok);
+        let first = match text.as_bytes().first() {
+            Some(&c) => c,
+            None => return false,
+        };
+        (first.is_ascii_alphabetic() || first == b'_' || first == b'$')
+            && !matches!(
+                self.tv.kind(tok),
+                crate::core::types::token::TokenType::StringLiteral
+                    | crate::core::types::token::TokenType::CharLiteral
+                    | crate::core::types::token::TokenType::CommentLine
+                    | crate::core::types::token::TokenType::CommentBlock
+                    | crate::core::types::token::TokenType::CommentDoc
+            )
+            && !HEURISTIC_KEYWORDS.contains(&text)
+    }
 
-            // For class/interface/enum declarations, locate the keyword and pick the identifier immediately after it
-            if matches!(
-                ntype,
-                ASTNodeType::NN_CLASS_DECL
-                    | ASTNodeType::NN_INTERFACE_DECL
-                    | ASTNodeType::NN_ENUM_DECL
-                    | ASTNodeType::NN_RECORD_DECL
-            ) {
-                let mut kw_pos = u32::MAX;
-                for tok_idx in ft..=end_tok {
-                    let rec = &tca.token_records[tok_idx as usize];
-                    let tid = rec.text_id;
-                    let bytes = tca.interner.lookup_text(tid);
-                    if matches!(
-                        bytes,
+    /// Token-window name heuristic: identifier after the type keyword, last identifier before
+    /// `(` for functions, last identifier before `=`/`;`/`:` for variables, otherwise the first
+    /// identifier of the node.
+    fn heuristic_name(&self, node: u32, ty: ASTNodeType) -> Option<u32> {
+        let (ft, lt) = self.bpa.token_range(node);
+        if !self.tv.valid(ft) {
+            return None;
+        }
+        let end = lt
+            .min(self.tv.len().saturating_sub(1))
+            .min(ft.saturating_add(24));
+        let file = self.tv.file(ft);
+        let toks: Vec<u32> = (ft..=end)
+            .filter(|&t| !self.tv.is_trivia(t) && self.tv.file(t) == file)
+            .collect();
+        match ty {
+            ASTNodeType::NN_CLASS_DECL
+            | ASTNodeType::NN_INTERFACE_DECL
+            | ASTNodeType::NN_ENUM_DECL
+            | ASTNodeType::NN_RECORD_DECL => {
+                let kw = toks.iter().position(|&t| {
+                    matches!(
+                        self.tv.text(t),
                         b"class" | b"interface" | b"enum" | b"struct" | b"trait" | b"record"
-                    ) {
-                        kw_pos = tok_idx;
+                            | b"object"
+                    )
+                })?;
+                toks[kw + 1..]
+                    .iter()
+                    .copied()
+                    .find(|&t| self.is_name_candidate(t))
+            }
+            ASTNodeType::NN_METHOD_DECL | ASTNodeType::NN_CONSTRUCTOR_DECL => {
+                let mut candidate = None;
+                for &t in &toks {
+                    if self.tv.punct(t, "(") || self.tv.punct(t, "{") || self.tv.punct(t, ";") {
                         break;
                     }
-                }
-                if kw_pos != u32::MAX {
-                    for tok_idx in (kw_pos + 1)..=end_tok {
-                        let rec = &tca.token_records[tok_idx as usize];
-                        let tid = rec.text_id;
-                        let bytes = tca.interner.lookup_text(tid);
-                        if matches!(
-                            bytes,
-                            b"default"
-                                | b"export"
-                                | b"abstract"
-                                | b"public"
-                                | b"private"
-                                | b"protected"
-                                | b"internal"
-                        ) {
-                            continue;
-                        }
-                        if !blocklist_ids.contains(&tid)
-                            && !bytes.is_empty()
-                            && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
-                        {
-                            return tid;
-                        }
+                    if self.is_name_candidate(t) {
+                        candidate = Some(t);
                     }
                 }
+                candidate
             }
-
-            // For method and constructor declarations, the name is the identifier immediately preceding '('
-            if matches!(
-                ntype,
-                ASTNodeType::NN_METHOD_DECL | ASTNodeType::NN_CONSTRUCTOR_DECL
-            ) {
-                let mut candidate = u32::MAX;
-                for tok_idx in ft..=end_tok {
-                    let rec = &tca.token_records[tok_idx as usize];
-                    if rec.token_type == crate::core::types::token::TokenType::Annotation as u8 {
-                        continue;
-                    }
-                    let tid = rec.text_id;
-                    let bytes = tca.interner.lookup_text(tid);
-                    if bytes == b"(" || bytes == b"{" || bytes == b";" {
+            ASTNodeType::NN_FIELD_DECL | ASTNodeType::NN_LOCAL_VAR_DECL => {
+                let mut candidate = None;
+                for &t in &toks {
+                    if self.tv.punct(t, "=") || self.tv.punct(t, ";") || self.tv.punct(t, ":") {
                         break;
                     }
-                    if let Ok(text) = std::str::from_utf8(bytes) {
-                        let lower = text.to_lowercase();
-                        if !text.is_empty()
-                            && (text.as_bytes()[0].is_ascii_alphabetic()
-                                || text.as_bytes()[0] == b'_')
-                            && !matches!(
-                                lower.as_str(),
-                                "public"
-                                    | "private"
-                                    | "protected"
-                                    | "internal"
-                                    | "static"
-                                    | "final"
-                                    | "abstract"
-                                    | "synchronized"
-                                    | "native"
-                                    | "volatile"
-                                    | "transient"
-                                    | "default"
-                                    | "override"
-                                    | "fun"
-                                    | "fn"
-                                    | "def"
-                                    | "function"
-                                    | "void"
-                            )
-                        {
-                            candidate = tid;
-                        }
+                    if self.is_name_candidate(t) {
+                        candidate = Some(t);
                     }
                 }
-                if candidate != u32::MAX {
-                    return candidate;
-                }
+                candidate
             }
-
-            // For field declarations, pick the identifier immediately preceding = or ;
-            if matches!(
-                ntype,
-                ASTNodeType::NN_FIELD_DECL | ASTNodeType::NN_LOCAL_VAR_DECL
-            ) {
-                let mut candidate = u32::MAX;
-                for tok_idx in ft..=end_tok {
-                    let rec = &tca.token_records[tok_idx as usize];
-                    if rec.token_type == crate::core::types::token::TokenType::Annotation as u8 {
-                        continue;
-                    }
-                    let tid = rec.text_id;
-                    let bytes = tca.interner.lookup_text(tid);
-                    if bytes == b"=" || bytes == b";" {
-                        break;
-                    }
-                    if let Ok(text) = std::str::from_utf8(bytes) {
-                        let lower = text.to_lowercase();
-                        if !text.is_empty()
-                            && (text.as_bytes()[0].is_ascii_alphabetic()
-                                || text.as_bytes()[0] == b'_')
-                            && !matches!(
-                                lower.as_str(),
-                                "public"
-                                    | "private"
-                                    | "protected"
-                                    | "internal"
-                                    | "static"
-                                    | "final"
-                                    | "volatile"
-                                    | "transient"
-                                    | "val"
-                                    | "var"
-                                    | "let"
-                                    | "const"
-                            )
-                        {
-                            candidate = tid;
-                        }
-                    }
-                }
-                if candidate != u32::MAX {
-                    return candidate;
-                }
-            }
-
-            let fid_ft = unpack_sort_key(tca.token_records[ft as usize].sort_key).0;
-            for tok_idx in ft..=end_tok {
-                let rec = &tca.token_records[tok_idx as usize];
-                if unpack_sort_key(rec.sort_key).0 != fid_ft {
-                    break;
-                }
-                let tid = rec.text_id;
-                let bytes = tca.interner.lookup_text(tid);
-                if let Ok(text) = std::str::from_utf8(bytes) {
-                    if !text.is_empty()
-                        && (text.as_bytes()[0].is_ascii_alphabetic() || text.as_bytes()[0] == b'_')
-                        && !matches!(
-                            text,
-                            "class"
-                                | "interface"
-                                | "object"
-                                | "enum"
-                                | "fun"
-                                | "val"
-                                | "var"
-                                | "public"
-                                | "private"
-                                | "protected"
-                                | "internal"
-                                | "data"
-                                | "sealed"
-                                | "open"
-                                | "abstract"
-                                | "companion"
-                                | "constructor"
-                                | "package"
-                                | "import"
-                                | "override"
-                                | "struct"
-                                | "trait"
-                                | "impl"
-                                | "let"
-                                | "const"
-                                | "def"
-                                | "fn"
-                                | "new"
-                                | "this"
-                                | "super"
-                                | "null"
-                                | "true"
-                                | "false"
-                                | "void"
-                                | "return"
-                                | "if"
-                                | "else"
-                                | "for"
-                                | "while"
-                                | "do"
-                                | "switch"
-                                | "case"
-                                | "break"
-                                | "continue"
-                                | "try"
-                                | "catch"
-                                | "finally"
-                                | "throw"
-                                | "by"
-                                | "as"
-                                | "in"
-                                | "is"
-                                | "default"
-                                | "export"
-                                | "declare"
-                                | "async"
-                                | "yield"
-                                | "await"
-                                | "function"
-                                | "AllArgsConstructor"
-                                | "NoArgsConstructor"
-                                | "RequiredArgsConstructor"
-                                | "Autowired"
-                                | "EnableCaching"
-                                | "EnableJpaRepositories"
-                                | "SpringBootApplication"
-                                | "Service"
-                                | "Repository"
-                                | "Component"
-                                | "RestController"
-                                | "RequestMapping"
-                                | "Controller"
-                                | "Getter"
-                                | "Setter"
-                                | "Slf4j"
-                                | "Value"
-                                | "Builder"
-                                | "Data"
-                        )
-                    {
-                        return tid;
-                    }
-                }
-            }
-            return u32::MAX;
-        }
-        u32::MAX
-    }
-
-    fn extract_visibility(
-        pre_idx: u32,
-        bpa: &BPASTArtifact,
-        adapter: &dyn SemanticAdapter,
-    ) -> SymbolVisibility {
-        let attr = bpa.node_attr(pre_idx);
-        let raw_vis = NodeAttr::unpack_visibility(attr);
-        match raw_vis {
-            NodeAttr::VISIBILITY_PUBLIC => SymbolVisibility::Public,
-            NodeAttr::VISIBILITY_PRIVATE => SymbolVisibility::Private,
-            NodeAttr::VISIBILITY_PROTECTED => SymbolVisibility::Protected,
-            NodeAttr::VISIBILITY_PACKAGE_PRIVATE => SymbolVisibility::Package,
-            _ => {
-                let kind = adapter.symbol_kind(bpa.node_type(pre_idx));
-                adapter.default_visibility(kind)
-            }
+            _ => toks.iter().copied().find(|&t| self.is_name_candidate(t)),
         }
     }
+}
 
-    fn extract_modifiers(pre_idx: u32, bpa: &BPASTArtifact, _adapter: &dyn SemanticAdapter) -> u16 {
-        let mut mods = 0;
-        let attr = bpa.node_attr(pre_idx);
-        let unpacked = NodeAttr::unpack_modifiers(attr);
-        if (unpacked & NodeAttr::MOD_STATIC) != 0 {
-            mods |= SymbolModifiers::STATIC;
+/// Group declarations by owner (used by later passes to look up members by name).
+pub fn members_by_owner(b: &SymbolTableBuilder) -> HashMap<u32, Vec<u32>> {
+    let mut map: HashMap<u32, Vec<u32>> = HashMap::new();
+    for s in &b.symbols {
+        if s.parent_sym != u32::MAX {
+            map.entry(s.parent_sym).or_default().push(s.symbol_id);
         }
-        if (unpacked & NodeAttr::MOD_FINAL) != 0 {
-            mods |= SymbolModifiers::FINAL;
-        }
-        if (unpacked & NodeAttr::MOD_ABSTRACT) != 0 {
-            mods |= SymbolModifiers::ABSTRACT;
-        }
-        if (unpacked & NodeAttr::MOD_SYNCHRONIZED) != 0 {
-            mods |= SymbolModifiers::SYNCHRONIZED;
-        }
-        if (unpacked & NodeAttr::MOD_NATIVE) != 0 {
-            mods |= SymbolModifiers::NATIVE;
-        }
-        if (unpacked & NodeAttr::MOD_VOLATILE) != 0 {
-            mods |= SymbolModifiers::VOLATILE;
-        }
-        if (unpacked & NodeAttr::MOD_TRANSIENT) != 0 {
-            mods |= SymbolModifiers::TRANSIENT;
-        }
-        if (unpacked & NodeAttr::MOD_SEALED) != 0 {
-            mods |= SymbolModifiers::SEALED;
-        }
-        mods
     }
-
-    fn count_params(pre_idx: u32, bpa: &BPASTArtifact) -> u16 {
-        let mut count = 0;
-        let mut cur = bpa.first_child(pre_idx);
-        while let Some(c) = cur {
-            if bpa.node_type(c) == ASTNodeType::NN_PARAM_DECL {
-                count += 1;
-            }
-            cur = bpa.next_sibling(c);
-        }
-        count
-    }
+    map
 }

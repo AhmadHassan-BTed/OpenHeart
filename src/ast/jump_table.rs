@@ -1,4 +1,8 @@
 //! Jump Table Builder for O(1) matching parenthesis lookup.
+//!
+//! Standalone reference structure (32 bits per parenthesis). It is not part of
+//! `BPASTArtifact`, which answers `find_close` / `find_open` through the o(n)-bit range
+//! min-max tree; use it only to cross-check that structure on small inputs.
 
 use super::bp_encoder::BPEncoder;
 

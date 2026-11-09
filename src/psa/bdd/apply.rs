@@ -1,4 +1,4 @@
-//! `apply(op, f, g)` — Shannon-expansion recursive AND/OR/XOR (§8.2.2).
+//! `apply(op, f, g)` — Shannon-expansion AND/OR/XOR and `not(f)` (§8.2.2).
 //!
 //! Computes the ROBDD of `f op g` in O(|f| × |g|) time via memoized Shannon expansion.
 //!
@@ -7,139 +7,204 @@
 //! f op g = ITE(xᵢ, f|_{xᵢ=1} op g|_{xᵢ=1}, f|_{xᵢ=0} op g|_{xᵢ=0})
 //! ```
 //! where xᵢ is the smallest-index variable at the top of f or g.
+//!
+//! Both operations run on an explicit work stack, so their stack depth is O(1) regardless of
+//! the number of variables, and both read nodes by value before allocating, so no borrow of
+//! the node store is held across a push.
 
-use std::collections::HashMap;
-
-use crate::psa::bdd::node::{ROBDDNode, FALSE_ID, TRUE_ID};
-use crate::psa::bdd::unique_table::UniqueTable;
+use super::library::{BDDLibrary, BddLimit};
+use super::node::{FALSE_ID, TRUE_ID};
 use crate::psa::types::BoolOp;
 
-/// Compute `f op g` given ROBDDs `f` and `g` identified by root node IDs.
-///
-/// - `nodes`: read-only view of the current node array.
-/// - `unique_table`: enforces both reduction rules via `make_node`.
-/// - `all_nodes`: mutable node array for new node allocation.
-/// - `cache`: memoization map `(min(f,g), max(f,g)) → result`.
-pub fn apply(
-    op: BoolOp,
-    f: u32,
-    g: u32,
-    nodes: &[ROBDDNode],
-    unique_table: &mut UniqueTable,
-    all_nodes: &mut Vec<ROBDDNode>,
-    cache: &mut HashMap<(u32, u32), u32>,
-) -> u32 {
-    // ── Terminal short-circuit cases ──────────────────────────────────────────
+/// Stable computed-table code of each operation.
+#[inline]
+fn op_code(op: BoolOp) -> u8 {
     match op {
-        BoolOp::And => {
-            if f == FALSE_ID || g == FALSE_ID {
-                return FALSE_ID;
-            }
-            if f == TRUE_ID {
-                return g;
-            }
-            if g == TRUE_ID {
-                return f;
-            }
-        }
-        BoolOp::Or => {
-            if f == TRUE_ID || g == TRUE_ID {
-                return TRUE_ID;
-            }
-            if f == FALSE_ID {
-                return g;
-            }
-            if g == FALSE_ID {
-                return f;
-            }
-        }
-        BoolOp::Xor => {
-            if f == FALSE_ID {
-                return g;
-            }
-            if g == FALSE_ID {
-                return f;
-            }
-            if f == TRUE_ID {
-                return apply_not(g, nodes, unique_table, all_nodes, &mut HashMap::new());
-            }
-            if g == TRUE_ID {
-                return apply_not(f, nodes, unique_table, all_nodes, &mut HashMap::new());
-            }
-        }
+        BoolOp::And => 0,
+        BoolOp::Or => 1,
+        BoolOp::Xor => 2,
     }
-
-    // f == g trivial cases
-    if f == g {
-        return match op {
-            BoolOp::And | BoolOp::Or => f,
-            BoolOp::Xor => FALSE_ID,
-        };
-    }
-
-    // ── Memoization lookup (canonicalized key for commutativity) ──────────────
-    let key = (f.min(g), f.max(g));
-    if let Some(&cached) = cache.get(&key) {
-        return cached;
-    }
-
-    // ── Shannon expansion: split on the smallest-index variable ──────────────
-    if f as usize >= nodes.len() || g as usize >= nodes.len() {
-        // Defensive: node IDs out of range — return FALSE as safe fallback.
-        return FALSE_ID;
-    }
-    let fn_ = &nodes[f as usize];
-    let gn_ = &nodes[g as usize];
-
-    let (var, f_lo, f_hi, g_lo, g_hi) = if fn_.var == gn_.var {
-        (fn_.var, fn_.lo, fn_.hi, gn_.lo, gn_.hi)
-    } else if fn_.var < gn_.var {
-        (fn_.var, fn_.lo, fn_.hi, g, g)
-    } else {
-        (gn_.var, f, f, gn_.lo, gn_.hi)
-    };
-
-    // Recurse on both cofactors.
-    let lo = apply(op, f_lo, g_lo, nodes, unique_table, all_nodes, cache);
-    let hi = apply(op, f_hi, g_hi, nodes, unique_table, all_nodes, cache);
-
-    // Combine with make_node (enforces both reduction rules).
-    let res = unique_table.make_node(var, lo, hi, all_nodes);
-    cache.insert(key, res);
-    res
 }
 
-/// Compute `¬f` (NOT) via Shannon expansion.
-pub fn apply_not(
-    f: u32,
-    nodes: &[ROBDDNode],
-    unique_table: &mut UniqueTable,
-    all_nodes: &mut Vec<ROBDDNode>,
-    cache: &mut HashMap<(u32, u32), u32>,
-) -> u32 {
-    if f == FALSE_ID {
-        return TRUE_ID;
+/// Work items of the iterative Shannon expansion.
+enum ApplyFrame {
+    /// Compute `f op g` and push the result.
+    Expand(u32, u32),
+    /// Pop the hi and lo results, build `(var, lo, hi)`, memoize it under `key`, push it.
+    Combine { var: u16, key: (u8, u32, u32) },
+}
+
+/// Work items of the iterative negation.
+enum NotFrame {
+    Expand(u32),
+    Combine { source: u32, var: u16 },
+}
+
+#[inline]
+fn pop_result(results: &mut Vec<u32>) -> u32 {
+    match results.pop() {
+        Some(r) => r,
+        None => unreachable!("BDD work stack underflow: every Combine follows two results"),
     }
-    if f == TRUE_ID {
-        return FALSE_ID;
+}
+
+impl BDDLibrary {
+    /// Iterative `f op g`. With `enforce`, the library's limits apply.
+    pub(super) fn apply_core(
+        &mut self,
+        op: BoolOp,
+        f: u32,
+        g: u32,
+        enforce: bool,
+    ) -> Result<u32, BddLimit> {
+        self.assert_id(f);
+        self.assert_id(g);
+
+        let mut stack: Vec<ApplyFrame> = vec![ApplyFrame::Expand(f, g)];
+        let mut results: Vec<u32> = Vec::new();
+
+        while let Some(frame) = stack.pop() {
+            match frame {
+                ApplyFrame::Expand(f, g) => {
+                    if let Some(r) = self.apply_terminal_case(op, f, g, enforce)? {
+                        results.push(r);
+                        continue;
+                    }
+
+                    // All three operations are commutative: canonicalize the key.
+                    let key = (op_code(op), f.min(g), f.max(g));
+                    if let Some(&cached) = self.computed.get(&key) {
+                        results.push(cached);
+                        continue;
+                    }
+                    self.tick(enforce)?;
+
+                    // Copy both nodes out of the store before anything is allocated.
+                    let fnode = self.nodes[f as usize];
+                    let gnode = self.nodes[g as usize];
+                    let var = fnode.var.min(gnode.var);
+                    let (f_lo, f_hi) = if fnode.var == var {
+                        (fnode.lo, fnode.hi)
+                    } else {
+                        (f, f)
+                    };
+                    let (g_lo, g_hi) = if gnode.var == var {
+                        (gnode.lo, gnode.hi)
+                    } else {
+                        (g, g)
+                    };
+
+                    // Evaluation order: lo, then hi, then Combine.
+                    stack.push(ApplyFrame::Combine { var, key });
+                    stack.push(ApplyFrame::Expand(f_hi, g_hi));
+                    stack.push(ApplyFrame::Expand(f_lo, g_lo));
+                }
+                ApplyFrame::Combine { var, key } => {
+                    let hi = pop_result(&mut results);
+                    let lo = pop_result(&mut results);
+                    let res = self.mk(var, lo, hi, enforce)?;
+                    self.remember_computed(key, res);
+                    results.push(res);
+                }
+            }
+        }
+
+        Ok(pop_result(&mut results))
     }
 
-    let key = (f, u32::MAX);
-    if let Some(&cached) = cache.get(&key) {
-        return cached;
+    /// Terminal short-circuit cases of `f op g`; `None` when Shannon expansion is needed.
+    fn apply_terminal_case(
+        &mut self,
+        op: BoolOp,
+        f: u32,
+        g: u32,
+        enforce: bool,
+    ) -> Result<Option<u32>, BddLimit> {
+        let r = match op {
+            BoolOp::And => {
+                if f == FALSE_ID || g == FALSE_ID {
+                    Some(FALSE_ID)
+                } else if f == TRUE_ID {
+                    Some(g)
+                } else if g == TRUE_ID || f == g {
+                    Some(f)
+                } else {
+                    None
+                }
+            }
+            BoolOp::Or => {
+                if f == TRUE_ID || g == TRUE_ID {
+                    Some(TRUE_ID)
+                } else if f == FALSE_ID {
+                    Some(g)
+                } else if g == FALSE_ID || f == g {
+                    Some(f)
+                } else {
+                    None
+                }
+            }
+            BoolOp::Xor => {
+                if f == g {
+                    Some(FALSE_ID)
+                } else if f == FALSE_ID {
+                    Some(g)
+                } else if g == FALSE_ID {
+                    Some(f)
+                } else if f == TRUE_ID {
+                    Some(self.not_core(g, enforce)?)
+                } else if g == TRUE_ID {
+                    Some(self.not_core(f, enforce)?)
+                } else {
+                    None
+                }
+            }
+        };
+        Ok(r)
     }
 
-    if f as usize >= nodes.len() {
-        return FALSE_ID;
-    }
+    /// Iterative `¬f`. With `enforce`, the library's limits apply.
+    pub(super) fn not_core(&mut self, f: u32, enforce: bool) -> Result<u32, BddLimit> {
+        self.assert_id(f);
 
-    let fn_ = &nodes[f as usize];
-    let lo = apply_not(fn_.lo, nodes, unique_table, all_nodes, cache);
-    let hi = apply_not(fn_.hi, nodes, unique_table, all_nodes, cache);
-    let var = fn_.var;
-    let res = unique_table.make_node(var, lo, hi, all_nodes);
-    cache.insert(key, res);
-    res
+        let mut stack: Vec<NotFrame> = vec![NotFrame::Expand(f)];
+        let mut results: Vec<u32> = Vec::new();
+
+        while let Some(frame) = stack.pop() {
+            match frame {
+                NotFrame::Expand(n) => {
+                    if n == FALSE_ID {
+                        results.push(TRUE_ID);
+                        continue;
+                    }
+                    if n == TRUE_ID {
+                        results.push(FALSE_ID);
+                        continue;
+                    }
+                    if let Some(&cached) = self.not_cache.get(&n) {
+                        results.push(cached);
+                        continue;
+                    }
+                    self.tick(enforce)?;
+                    let node = self.nodes[n as usize];
+                    stack.push(NotFrame::Combine {
+                        source: n,
+                        var: node.var,
+                    });
+                    stack.push(NotFrame::Expand(node.hi));
+                    stack.push(NotFrame::Expand(node.lo));
+                }
+                NotFrame::Combine { source, var } => {
+                    let hi = pop_result(&mut results);
+                    let lo = pop_result(&mut results);
+                    let res = self.mk(var, lo, hi, enforce)?;
+                    self.remember_not(source, res);
+                    results.push(res);
+                }
+            }
+        }
+
+        Ok(pop_result(&mut results))
+    }
 }
 
 #[cfg(test)]

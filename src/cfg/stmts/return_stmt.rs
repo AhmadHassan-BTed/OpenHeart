@@ -1,26 +1,25 @@
 //! Return Statement CFG builder algorithm.
 
 use crate::ast::BPASTArtifact;
-use crate::cfg::builder::state::CFGBuilderState;
-use crate::core::types::cfg::CFGEdgeType;
+use crate::cfg::builder::state::{CFGBuilderState, Jump};
+use crate::cfg::stmts::expr::lower_embedded;
 use crate::symbol::SymbolTableArtifact;
 
 pub fn build_return(
     node: u32,
     state: &mut CFGBuilderState,
     bpa: &BPASTArtifact,
-    _sta: &SymbolTableArtifact,
+    sta: &SymbolTableArtifact,
 ) {
-    if let Some(expr) = bpa.first_child(node) {
-        state.add_stmt_to_current(expr, bpa);
-    }
-    state.add_stmt_to_current(node, bpa);
+    // The return statement node covers its operand, so it is added once; evaluating the
+    // operand may raise an exception before the method returns.
+    lower_embedded(node, state, bpa, sta);
+    state.add_stmt(node, bpa);
 
+    // Routed through every enclosing finally / synchronized release to EXIT.
     let from = state.current_block;
-    let exit = state.exit_block;
-    state.add_edge(from, exit, CFGEdgeType::Return);
+    state.route_jump(from, Jump::Return);
 
     // Unreachable code after return: open a fresh isolated block
-    let new_blk = state.new_block();
-    state.current_block = new_blk;
+    state.terminate();
 }

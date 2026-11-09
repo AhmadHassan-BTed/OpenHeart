@@ -1,24 +1,28 @@
 //! PathSummaryArtifactBuilder — accumulates FunctionROBDD records (§8.3, §8.5.1).
 //!
-//! After `Phase8Stage::run()` processes each function in SCC topological order,
-//! the resulting `FunctionROBDD` is added to this builder. When all functions are
-//! processed, `PathSummaryArtifactBuilder::finalize()` sorts the function directory
-//! by sym_id and assembles the complete `PathSummaryArtifact`.
+//! After `Phase8Stage::run()` processes each function in SCC order, the resulting
+//! `FunctionROBDD` is added to this builder. When all functions are processed,
+//! `PathSummaryArtifactBuilder::finalize()` sorts the function directory by sym_id and
+//! assembles the complete `PathSummaryArtifact`.
 //!
-//! **Invariant 1 check (§8.8):** Every function with a body must have sat_count ≥ 1.
-//! A sat_count == 0 after Phase 8 signals a provably unreachable function body.
-//! This is reported as a diagnostic (not a failure) during `finalize()`.
+//! **Invariant 1 check (§8.8):** Every function with a body must have at least one path.
+//! A zero path count after Phase 8 signals a provably unreachable function body (or, with
+//! feasibility filtering, contradictory branch predicates on every path). This is reported
+//! as a diagnostic (not a failure) during `finalize()`.
 
 use crate::core::logger::log_info;
 use crate::psa::metrics::PathMetrics;
-use crate::psa::types::{FunctionPSAHeader, FunctionROBDD, PathSummaryArtifact};
+use crate::psa::types::{
+    FunctionPSAHeader, FunctionROBDD, PathSummaryArtifact, PSA_FLAG_EMPTY_CFG,
+    PSA_FORMAT_VERSION,
+};
 
 /// Builder for the PathSummaryArtifact.
 ///
-/// Accumulates FunctionROBDD records as they are produced in topological order,
-/// then finalizes by sorting and assembling the complete artifact.
+/// Accumulates FunctionROBDD records as they are produced, then finalizes by sorting and
+/// assembling the complete artifact.
 pub struct PathSummaryArtifactBuilder {
-    /// Accumulated function ROBDDs (in SCC topological order).
+    /// Accumulated function ROBDDs (in processing order).
     functions: Vec<FunctionROBDD>,
 }
 
@@ -39,10 +43,10 @@ impl PathSummaryArtifactBuilder {
     /// and assemble the PathSummaryArtifact.
     ///
     /// # Invariant checks (§8.8)
-    /// - **Invariant 1 (Path Coverage):** sat_count ≥ 1 for every function with a body.
-    ///   Functions with sat_count == 0 are logged as diagnostics (not failures).
-    /// - **Invariant 2 (Cyclomatic Consistency):** cyclomatic == |E| - |B| + 2.
-    ///   Cross-verified against CFA metadata if provided (omitted here — verified during construction).
+    /// - **Invariant 1 (Path Coverage):** at least one path for every function with a body.
+    ///   Functions without paths are logged as diagnostics (not failures).
+    /// - **Invariant 2 (Cyclomatic Consistency):** cyclomatic == |E| - |B| + 2 — the value
+    ///   is copied from the CFA record during construction.
     pub fn finalize(mut self, cfa_hash: u64, ssa_hash: u64) -> PathSummaryArtifact {
         // Sort functions by sym_id for O(log n) binary search in Phase 9.
         self.functions.sort_unstable_by_key(|f| f.sym_id);
@@ -56,39 +60,37 @@ impl PathSummaryArtifactBuilder {
 
         for robdd in self.functions {
             // ── Invariant 1 check (§8.8) ────────────────────────────────────
-            if robdd.sat_count == 0 {
+            if robdd.path_count.is_zero() {
+                let reason = if robdd.flags & PSA_FLAG_EMPTY_CFG != 0 {
+                    "empty CFG"
+                } else {
+                    "no path reaches a terminating block"
+                };
                 log_info(&format!(
-                    "Phase 8 DIAGNOSTIC: sym_id={} has sat_count=0 — \
-                     provably unreachable function body (Invariant 1 check).",
-                    robdd.sym_id
+                    "Phase 8 DIAGNOSTIC: sym_id={} has no path ({}) — Invariant 1 check.",
+                    robdd.sym_id, reason
                 ));
-                // Not a failure — continue processing.
             }
 
             let header = FunctionPSAHeader::from_robdd(&robdd);
             total_nodes += robdd.nodes.len() as u64;
 
-            let edge_seq: Vec<u32> = robdd
-                .ordering
-                .as_edge_slice()
-                .iter()
-                .map(|&e| e as u32)
-                .collect();
             let m = PathMetrics::new(
                 robdd.cyclomatic,
                 robdd.max_path_len,
-                robdd.sat_count,
                 robdd.unwind_depth,
+                robdd.flags,
+                robdd.log2_paths,
             );
 
             function_dir.push(header);
-            ordering_tables.push(edge_seq);
+            ordering_tables.push(robdd.ordering.codes().to_vec());
             node_arrays.push(robdd.nodes);
             metrics.push(m);
         }
 
         PathSummaryArtifact {
-            format_version: 1,
+            format_version: PSA_FORMAT_VERSION,
             cfa_hash,
             ssa_hash,
             function_dir,

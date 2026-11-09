@@ -1,680 +1,1248 @@
-//! UMASerializer — binary I/O for UMLMetadataArtifact (.uma format) (§9.5).
+//! UMASerializer — binary I/O for UMLMetadataArtifact (.uma format v2) (§9.5).
+//!
+//! Layout (little-endian):
+//! ```text
+//! HEADER (64 bytes)
+//!   magic u64 | format_version u32 | tra_hash u64 | section_count u32 |
+//!   payload_len u64 | reserved [u8; 32]
+//! PAYLOAD: section_count sections, each
+//!   section_id u16 | reserved u16 | record_count u32 | byte_len u64 | records
+//! CHECKSUM: CRC-64/ECMA over header + payload (8 bytes)
+//! ```
+//! Every count is a u32 written through a checked conversion. The reader is
+//! bounds-checked end to end: it validates the checksum, the payload length, each
+//! section's byte length, caps every record count by the bytes that remain before
+//! allocating, requires each section to be consumed exactly, and requires the
+//! payload to end exactly at the checksum. Malformed input yields
+//! `io::ErrorKind::InvalidData`, never a panic. Unknown section ids are skipped
+//! by their byte length so newer writers stay readable.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Result as IoResult};
 use std::path::Path;
 
 use crate::ingestion::serializer::crc64_ecma;
+use crate::tra::types::UMLLinkRecord;
 use crate::uma::types::*;
+
+const SECTION_CLASSES: u16 = 1;
+const SECTION_OBJECTS: u16 = 2;
+const SECTION_OBJECT_LINKS: u16 = 3;
+const SECTION_ACTIVITIES: u16 = 4;
+const SECTION_STATE_MACHINES: u16 = 5;
+const SECTION_SEQUENCES: u16 = 6;
+const SECTION_COMMUNICATIONS: u16 = 7;
+const SECTION_INTERACTION_OVERVIEWS: u16 = 8;
+const SECTION_PACKAGES: u16 = 9;
+const SECTION_PACKAGE_DEPENDENCIES: u16 = 10;
+const SECTION_PACKAGE_METRICS: u16 = 11;
+const SECTION_COMPONENTS: u16 = 12;
+const SECTION_COMPOSITE_STRUCTURES: u16 = 13;
+const SECTION_DESIGN_PATTERNS: u16 = 14;
+const SECTION_PATTERN_INSTANCES: u16 = 15;
+const SECTION_LABELS: u16 = 16;
+
+const SECTION_HEADER_SIZE: usize = 16;
+const CHECKSUM_SIZE: usize = 8;
+
+fn invalid(msg: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, msg.into())
+}
+
+// ── Writer ────────────────────────────────────────────────────────────────────
+
+struct Writer {
+    buf: Vec<u8>,
+}
+
+impl Writer {
+    fn u8(&mut self, v: u8) {
+        self.buf.push(v);
+    }
+    fn u16(&mut self, v: u16) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
+    }
+    fn u32(&mut self, v: u32) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
+    }
+    fn u64(&mut self, v: u64) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
+    }
+    fn f32(&mut self, v: f32) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
+    }
+
+    /// Write a collection length as u32, failing instead of truncating.
+    fn count(&mut self, len: usize, what: &str) -> IoResult<()> {
+        let n = u32::try_from(len)
+            .map_err(|_| invalid(format!("UMA: too many {} records ({})", what, len)))?;
+        self.u32(n);
+        Ok(())
+    }
+
+    fn u32_list(&mut self, items: &[u32], what: &str) -> IoResult<()> {
+        self.count(items.len(), what)?;
+        for &v in items {
+            self.u32(v);
+        }
+        Ok(())
+    }
+
+    /// Start a section; returns the offset of its byte_len slot.
+    fn begin_section(&mut self, id: u16, count: usize, what: &str) -> IoResult<usize> {
+        self.u16(id);
+        self.u16(0);
+        self.count(count, what)?;
+        let slot = self.buf.len();
+        self.u64(0);
+        Ok(slot)
+    }
+
+    fn end_section(&mut self, slot: usize) {
+        let len = (self.buf.len() - slot - 8) as u64;
+        self.buf[slot..slot + 8].copy_from_slice(&len.to_le_bytes());
+    }
+}
+
+// ── Reader ────────────────────────────────────────────────────────────────────
+
+struct Cursor<'b> {
+    bytes: &'b [u8],
+    pos: usize,
+    end: usize,
+}
+
+impl<'b> Cursor<'b> {
+    fn new(bytes: &'b [u8], pos: usize, end: usize) -> Self {
+        Self { bytes, pos, end }
+    }
+
+    fn remaining(&self) -> usize {
+        self.end.saturating_sub(self.pos)
+    }
+
+    fn take(&mut self, n: usize) -> IoResult<&'b [u8]> {
+        if n > self.remaining() {
+            return Err(invalid(format!(
+                "UMA truncated: need {} bytes at offset {}, {} remain",
+                n,
+                self.pos,
+                self.remaining()
+            )));
+        }
+        let s = &self.bytes[self.pos..self.pos + n];
+        self.pos += n;
+        Ok(s)
+    }
+
+    fn u8(&mut self) -> IoResult<u8> {
+        Ok(self.take(1)?[0])
+    }
+    fn u16(&mut self) -> IoResult<u16> {
+        let s = self.take(2)?;
+        Ok(u16::from_le_bytes([s[0], s[1]]))
+    }
+    fn u32(&mut self) -> IoResult<u32> {
+        let s = self.take(4)?;
+        Ok(u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+    }
+    fn u64(&mut self) -> IoResult<u64> {
+        let s = self.take(8)?;
+        let mut a = [0u8; 8];
+        a.copy_from_slice(s);
+        Ok(u64::from_le_bytes(a))
+    }
+    fn f32(&mut self) -> IoResult<f32> {
+        Ok(f32::from_bits(self.u32()?))
+    }
+
+    /// Read a record count, rejecting counts the remaining bytes cannot hold.
+    fn count(&mut self, min_record_size: usize, what: &str) -> IoResult<usize> {
+        let n = self.u32()? as usize;
+        let need = n.checked_mul(min_record_size.max(1));
+        match need {
+            Some(need) if need <= self.remaining() => Ok(n),
+            _ => Err(invalid(format!(
+                "UMA: {} count {} exceeds the {} remaining bytes",
+                what,
+                n,
+                self.remaining()
+            ))),
+        }
+    }
+
+    fn u32_list(&mut self, what: &str) -> IoResult<Vec<u32>> {
+        let n = self.count(4, what)?;
+        let mut v = Vec::with_capacity(n);
+        for _ in 0..n {
+            v.push(self.u32()?);
+        }
+        Ok(v)
+    }
+
+    fn expect_end(&self, what: &str) -> IoResult<()> {
+        if self.pos != self.end {
+            return Err(invalid(format!(
+                "UMA: {} section has {} unread trailing bytes",
+                what,
+                self.end - self.pos
+            )));
+        }
+        Ok(())
+    }
+}
+
+fn saturating_u16(n: usize) -> u16 {
+    u16::try_from(n).unwrap_or(u16::MAX)
+}
+
+fn saturating_u32(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
 
 pub struct UMASerializer;
 
 impl UMASerializer {
     /// Serialize UMLMetadataArtifact to `.uma` file at `path`.
     pub fn write(artifact: &UMLMetadataArtifact, path: &Path) -> IoResult<()> {
-        let mut buf = Vec::new();
-
-        // ── 1. HEADER (64 bytes) ─────────────────────────────────────────────
-        buf.extend_from_slice(&UMA_MAGIC.to_le_bytes());
-        buf.extend_from_slice(&artifact.format_version.to_le_bytes());
-        buf.extend_from_slice(&artifact.tra_hash.to_le_bytes());
-        buf.extend_from_slice(&(artifact.classes.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&(artifact.activities.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&(artifact.state_machines.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&(artifact.sequences.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&(artifact.packages.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&(artifact.components.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&(artifact.design_patterns.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&[0u8; 16]); // _reserved (16 bytes)
-
-        debug_assert_eq!(buf.len(), UMA_HEADER_SIZE);
-
-        // ── 2. CLASS RECORDS ────────────────────────────────────────────────
-        for class_rec in &artifact.classes {
-            buf.extend_from_slice(&class_rec.sym_id.to_le_bytes());
-            buf.push(class_rec.stereotype);
-            buf.push(class_rec.visibility);
-            buf.extend_from_slice(&class_rec.modifiers.to_le_bytes());
-            buf.extend_from_slice(&class_rec.extends_sym.to_le_bytes());
-            buf.extend_from_slice(&(class_rec.fields.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(class_rec.methods.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(class_rec.inner_classes.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(class_rec.implements_syms.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(class_rec.association_syms.len() as u16).to_le_bytes());
-            buf.push(class_rec.design_pattern);
-            buf.push(class_rec._reserved);
-            buf.push(class_rec.type_param_count);
-            buf.push(class_rec._pad);
-
-            // UMLLink (24 bytes)
-            buf.extend_from_slice(&class_rec.uml_link.sym_id.to_le_bytes());
-            buf.extend_from_slice(&class_rec.uml_link.file_id.to_le_bytes());
-            let line_start_bytes = class_rec.uml_link.line_start.to_le_bytes();
-            buf.extend_from_slice(&line_start_bytes[0..3]);
-            buf.extend_from_slice(&class_rec.uml_link.col_start.to_le_bytes());
-            let line_end_bytes = class_rec.uml_link.line_end.to_le_bytes();
-            buf.extend_from_slice(&line_end_bytes[0..3]);
-            buf.extend_from_slice(&class_rec.uml_link.col_end.to_le_bytes());
-            buf.extend_from_slice(&class_rec.uml_link.scpg_hash.to_le_bytes());
-            buf.push(class_rec.uml_link.sym_kind);
-            buf.extend_from_slice(&class_rec.uml_link._reserved);
-
-            // FieldRecords
-            for field in &class_rec.fields {
-                buf.extend_from_slice(&field.field_sym_id.to_le_bytes());
-                buf.extend_from_slice(&field.type_sym_id.to_le_bytes());
-                buf.push(field.visibility);
-                buf.push(field.modifiers);
-                buf.push(field.is_collection);
-                buf.push(field._pad);
-                buf.extend_from_slice(&field.uml_link_node.to_le_bytes());
-                buf.extend_from_slice(&field._reserved.to_le_bytes());
-            }
-
-            // MethodRecords
-            for method in &class_rec.methods {
-                buf.extend_from_slice(&method.method_sym_id.to_le_bytes());
-                buf.extend_from_slice(&method.return_type_sym_id.to_le_bytes());
-                buf.push(method.visibility);
-                buf.push(method.modifiers);
-                buf.extend_from_slice(&method.param_count.to_le_bytes());
-                buf.extend_from_slice(&method.cyclomatic.to_le_bytes());
-                buf.extend_from_slice(&method.sat_count.to_le_bytes());
-            }
-
-            // Inner class sym_ids
-            for &inner_sym in &class_rec.inner_classes {
-                buf.extend_from_slice(&inner_sym.to_le_bytes());
-            }
-
-            // Implements sym_ids
-            for &imp_sym in &class_rec.implements_syms {
-                buf.extend_from_slice(&imp_sym.to_le_bytes());
-            }
-
-            // Association sym_ids
-            for &assoc_sym in &class_rec.association_syms {
-                buf.extend_from_slice(&assoc_sym.to_le_bytes());
-            }
-        }
-
-        // ── 3. ACTIVITY RECORDS ─────────────────────────────────────────────
-        for act in &artifact.activities {
-            buf.extend_from_slice(&act.function_sym_id.to_le_bytes());
-            buf.extend_from_slice(&(act.nodes.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(act.edges.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&act.start_node.to_le_bytes());
-            buf.push(act.end_node_count);
-            buf.push(act.swimlane_count);
-            buf.extend_from_slice(&act.cyclomatic.to_le_bytes());
-            buf.extend_from_slice(&act._reserved.to_le_bytes());
-
-            for node in &act.nodes {
-                buf.extend_from_slice(&node.node_id.to_le_bytes());
-                buf.extend_from_slice(&node.label_text_id.to_le_bytes());
-                buf.push(node.node_kind);
-                buf.push(node.loop_depth);
-                buf.extend_from_slice(&node.guard_text_id.to_le_bytes());
-                buf.extend_from_slice(&node._pad.to_le_bytes());
-            }
-
-            for edge in &act.edges {
-                buf.extend_from_slice(&edge.from_node.to_le_bytes());
-                buf.extend_from_slice(&edge.to_node.to_le_bytes());
-                buf.push(edge.edge_kind);
-                buf.push(edge.is_back_edge);
-                buf.extend_from_slice(&edge.guard_text_id.to_le_bytes());
-                buf.extend_from_slice(&edge._pad.to_le_bytes());
-            }
-        }
-
-        // ── 4. STATE MACHINE RECORDS ─────────────────────────────────────────
-        for sm in &artifact.state_machines {
-            buf.extend_from_slice(&sm.class_sym_id.to_le_bytes());
-            buf.extend_from_slice(&(sm.states.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(sm.transitions.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&sm.initial_state.to_le_bytes());
-            buf.push(sm.final_state_count);
-            buf.push(sm._reserved);
-            buf.extend_from_slice(&sm._pad.to_le_bytes());
-
-            for st in &sm.states {
-                buf.extend_from_slice(&st.state_id.to_le_bytes());
-                buf.extend_from_slice(&st.state_name_id.to_le_bytes());
-                buf.push(st.is_initial);
-                buf.push(st.is_final);
-                buf.extend_from_slice(&st._pad.to_le_bytes());
-            }
-
-            for tr in &sm.transitions {
-                buf.extend_from_slice(&tr.from_state.to_le_bytes());
-                buf.extend_from_slice(&tr.to_state.to_le_bytes());
-                buf.extend_from_slice(&tr.trigger_method_sym.to_le_bytes());
-                buf.extend_from_slice(&tr.guard_text_id.to_le_bytes());
-                buf.extend_from_slice(&tr.action_text_id.to_le_bytes());
-            }
-        }
-
-        // ── 5. SEQUENCE DIAGRAM RECORDS ─────────────────────────────────────
-        for seq in &artifact.sequences {
-            buf.extend_from_slice(&seq.scenario_name.to_le_bytes());
-            buf.extend_from_slice(&(seq.lifelines.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(seq.messages.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&(seq.combined_fragments.len() as u16).to_le_bytes());
-            buf.extend_from_slice(&seq._reserved.to_le_bytes());
-
-            for life in &seq.lifelines {
-                buf.extend_from_slice(&life.sym_id.to_le_bytes());
-                buf.extend_from_slice(&life.name_id.to_le_bytes());
-                buf.extend_from_slice(&life.type_sym_id.to_le_bytes());
-                buf.push(life.is_actor);
-                buf.extend_from_slice(&life._pad);
-            }
-
-            for msg in &seq.messages {
-                buf.extend_from_slice(&msg.from_lifeline.to_le_bytes());
-                buf.extend_from_slice(&msg.to_lifeline.to_le_bytes());
-                buf.extend_from_slice(&msg.call_site_id.to_le_bytes());
-                buf.extend_from_slice(&msg.method_sym_id.to_le_bytes());
-                buf.push(msg.message_kind);
-                buf.extend_from_slice(&msg.ordinal.to_le_bytes());
-                buf.extend_from_slice(&msg._pad.to_le_bytes());
-                buf.extend_from_slice(&msg.uml_link_token.to_le_bytes());
-            }
-
-            for frag in &seq.combined_fragments {
-                buf.push(frag.fragment_kind);
-                buf.extend_from_slice(&frag.guard_text_id.to_le_bytes());
-                buf.extend_from_slice(&frag.start_message_ordinal.to_le_bytes());
-                buf.extend_from_slice(&frag.end_message_ordinal.to_le_bytes());
-                buf.extend_from_slice(&frag._pad.to_le_bytes());
-            }
-        }
-
-        // ── 6. PACKAGE RECORDS ──────────────────────────────────────────────
-        for pkg in &artifact.packages {
-            buf.extend_from_slice(&pkg.package_sym_id.to_le_bytes());
-            buf.extend_from_slice(&pkg.name_id.to_le_bytes());
-            buf.extend_from_slice(&pkg.parent_package_sym.to_le_bytes());
-            buf.extend_from_slice(&pkg.class_count.to_le_bytes());
-            buf.extend_from_slice(&pkg.subpackage_count.to_le_bytes());
-        }
-
-        // ── 7. COMPONENT RECORDS ────────────────────────────────────────────
-        for comp in &artifact.components {
-            buf.extend_from_slice(&comp.component_sym_id.to_le_bytes());
-            buf.extend_from_slice(&comp.name_id.to_le_bytes());
-            buf.extend_from_slice(&comp.provided_interface_count.to_le_bytes());
-            buf.extend_from_slice(&comp.required_interface_count.to_le_bytes());
-            buf.extend_from_slice(&comp._pad.to_le_bytes());
-        }
-
-        // ── 8. DESIGN PATTERN TABLE ──────────────────────────────────────────
-        for pat in &artifact.design_patterns {
-            buf.extend_from_slice(&pat.class_sym.to_le_bytes());
-            buf.extend_from_slice(&(pat.pattern_kind as u32).to_le_bytes());
-            buf.extend_from_slice(&(pat.confidence as u32).to_le_bytes());
-            buf.extend_from_slice(&pat._reserved.to_le_bytes());
-        }
-
-        // ── 9. CHECKSUM (8 bytes) ────────────────────────────────────────────
-        let crc = crc64_ecma(&buf);
-        buf.extend_from_slice(&crc.to_le_bytes());
-
-        fs::write(path, &buf)?;
-        Ok(())
+        let bytes = Self::to_bytes(artifact)?;
+        fs::write(path, &bytes)
     }
 
     /// Read and deserialize a UMLMetadataArtifact from `.uma` file.
     pub fn read(path: &Path) -> IoResult<UMLMetadataArtifact> {
         let bytes = fs::read(path)?;
-        if bytes.len() < UMA_HEADER_SIZE + 8 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "UMA file too small",
-            ));
-        }
+        Self::from_bytes(&bytes)
+    }
 
-        let data_end = bytes.len() - 8;
-        let stored_crc = u64::from_le_bytes(bytes[data_end..].try_into().unwrap());
+    /// Encode an artifact to the `.uma` byte layout.
+    pub fn to_bytes(artifact: &UMLMetadataArtifact) -> IoResult<Vec<u8>> {
+        let mut w = Writer { buf: Vec::new() };
+
+        // ── HEADER (64 bytes) ──
+        w.u64(UMA_MAGIC);
+        w.u32(artifact.format_version);
+        w.u64(artifact.tra_hash);
+        w.u32(16); // section_count
+        let payload_slot = w.buf.len();
+        w.u64(0); // payload_len (patched below)
+        w.buf.extend_from_slice(&[0u8; 32]);
+        debug_assert_eq!(w.buf.len(), UMA_HEADER_SIZE);
+
+        Self::write_classes(&mut w, &artifact.classes)?;
+        Self::write_objects(&mut w, artifact)?;
+        Self::write_activities(&mut w, &artifact.activities)?;
+        Self::write_state_machines(&mut w, &artifact.state_machines)?;
+        Self::write_sequences(&mut w, &artifact.sequences)?;
+        Self::write_interactions(&mut w, artifact)?;
+        Self::write_packages(&mut w, artifact)?;
+        Self::write_components(&mut w, artifact)?;
+        Self::write_patterns(&mut w, artifact)?;
+        Self::write_labels(&mut w, &artifact.label_texts)?;
+
+        let payload_len = (w.buf.len() - UMA_HEADER_SIZE) as u64;
+        w.buf[payload_slot..payload_slot + 8].copy_from_slice(&payload_len.to_le_bytes());
+
+        let crc = crc64_ecma(&w.buf);
+        w.u64(crc);
+        Ok(w.buf)
+    }
+
+    fn write_uml_link(w: &mut Writer, link: &UMLLinkRecord) {
+        w.u32(link.sym_id);
+        w.u16(link.file_id);
+        w.u32(link.line_start);
+        w.u16(link.col_start);
+        w.u32(link.line_end);
+        w.u16(link.col_end);
+        w.u32(link.scpg_hash);
+        w.u8(link.sym_kind);
+        w.buf.extend_from_slice(&link._reserved);
+    }
+
+    fn write_classes(w: &mut Writer, classes: &[ClassRecord]) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_CLASSES, classes.len(), "class")?;
+        for c in classes {
+            w.u32(c.sym_id);
+            w.u8(c.stereotype);
+            w.u8(c.visibility);
+            w.u16(c.modifiers);
+            w.u32(c.extends_sym);
+            w.u8(c.design_pattern);
+            w.u8(c._reserved);
+            w.u8(c.type_param_count);
+            w.u8(c._pad);
+            w.u32(c.qualified_name_id);
+            Self::write_uml_link(w, &c.uml_link);
+
+            w.count(c.fields.len(), "field")?;
+            for f in &c.fields {
+                w.u32(f.field_sym_id);
+                w.u32(f.type_sym_id);
+                w.u8(f.visibility);
+                w.u16(f.modifiers);
+                w.u8(f.is_collection);
+                w.u8(f.field_kind);
+                w.u8(f.assoc_kind);
+                w.u16(f.mult_min);
+                w.u16(f.mult_max);
+                w.u32(f.element_type_sym_id);
+                w.u32(f.uml_link_node);
+            }
+
+            w.count(c.methods.len(), "method")?;
+            for m in &c.methods {
+                w.u32(m.method_sym_id);
+                w.u32(m.return_type_sym_id);
+                w.u8(m.visibility);
+                w.u16(m.modifiers);
+                w.u16(m.param_count);
+                w.u16(m.cyclomatic);
+                w.u64(m.sat_count);
+                w.u8(m.is_constructor);
+                w.u8(m.metrics_known);
+                w.u32_list(&m.param_syms, "parameter")?;
+                w.u32_list(&m.param_type_syms, "parameter type")?;
+            }
+
+            w.u32_list(&c.inner_classes, "inner class")?;
+            w.u32_list(&c.implements_syms, "realization")?;
+            w.u32_list(&c.association_syms, "association")?;
+            w.u32_list(&c.generalization_syms, "generalization")?;
+            w.u32_list(&c.dependency_syms, "dependency")?;
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_objects(w: &mut Writer, artifact: &UMLMetadataArtifact) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_OBJECTS, artifact.objects.len(), "object")?;
+        for o in &artifact.objects {
+            w.u32(o.alloc_token);
+            w.u32(o.type_sym_id);
+            w.u32(o.label_text_id);
+            w.u32(o.containing_method_sym);
+            w.u32(o.assigned_field_sym);
+        }
+        w.end_section(slot);
+
+        let slot = w.begin_section(
+            SECTION_OBJECT_LINKS,
+            artifact.object_links.len(),
+            "object link",
+        )?;
+        for l in &artifact.object_links {
+            w.u32(l.from_object);
+            w.u32(l.to_object);
+            w.u32(l.via_field_sym);
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_activities(w: &mut Writer, activities: &[ActivityRecord]) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_ACTIVITIES, activities.len(), "activity")?;
+        for a in activities {
+            w.u32(a.function_sym_id);
+            w.u32(a.start_node);
+            w.u16(a.end_node_count);
+            w.u16(a.swimlane_count);
+            w.u16(a.cyclomatic);
+            w.u8(a.max_loop_depth);
+            w.u8(a._reserved);
+            w.count(a.nodes.len(), "activity node")?;
+            for n in &a.nodes {
+                w.u32(n.node_id);
+                w.u32(n.label_text_id);
+                w.u8(n.node_kind);
+                w.u8(n.loop_depth);
+                w.u32(n.guard_text_id);
+                w.u32(n.first_token);
+            }
+            w.count(a.edges.len(), "activity edge")?;
+            for e in &a.edges {
+                w.u32(e.from_node);
+                w.u32(e.to_node);
+                w.u8(e.edge_kind);
+                w.u8(e.is_back_edge);
+                w.u32(e.guard_text_id);
+            }
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_state_machines(w: &mut Writer, machines: &[StateMachineRecord]) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_STATE_MACHINES, machines.len(), "state machine")?;
+        for sm in machines {
+            w.u32(sm.class_sym_id);
+            w.u32(sm.state_field_sym);
+            w.u16(sm.initial_state);
+            w.u8(sm.final_state_count);
+            w.u8(sm._reserved);
+            w.count(sm.states.len(), "state")?;
+            for s in &sm.states {
+                w.u32(s.state_id);
+                w.u32(s.state_name_id);
+                w.u8(s.is_initial);
+                w.u8(s.is_final);
+                w.u16(s._pad);
+            }
+            w.count(sm.transitions.len(), "transition")?;
+            for t in &sm.transitions {
+                w.u16(t.from_state);
+                w.u16(t.to_state);
+                w.u32(t.trigger_method_sym);
+                w.u32(t.guard_text_id);
+                w.u32(t.action_text_id);
+                w.u32(t.source_token);
+            }
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_sequences(w: &mut Writer, sequences: &[SequenceDiagramRecord]) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_SEQUENCES, sequences.len(), "sequence")?;
+        for s in sequences {
+            w.u32(s.scenario_name);
+            w.u32(s.entry_method_sym);
+            w.u8(s.truncated);
+            w.u8(s.entry_kind);
+            w.count(s.lifelines.len(), "lifeline")?;
+            for l in &s.lifelines {
+                w.u32(l.sym_id);
+                w.u32(l.name_id);
+                w.u32(l.type_sym_id);
+                w.u8(l.is_actor);
+                w.buf.extend_from_slice(&l._pad);
+            }
+            w.count(s.messages.len(), "message")?;
+            for m in &s.messages {
+                w.u32(m.from_lifeline);
+                w.u32(m.to_lifeline);
+                w.u32(m.call_site_id);
+                w.u32(m.method_sym_id);
+                w.u8(m.message_kind);
+                w.u8(m.call_edge_type);
+                w.u16(m.ordinal);
+                w.u16(m.nesting_depth);
+                w.u32(m.uml_link_token);
+            }
+            w.count(s.combined_fragments.len(), "combined fragment")?;
+            for f in &s.combined_fragments {
+                w.u8(f.fragment_kind);
+                w.u32(f.guard_text_id);
+                w.u16(f.start_message_ordinal);
+                w.u16(f.end_message_ordinal);
+                w.u16(f.nesting_depth);
+            }
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_interactions(w: &mut Writer, artifact: &UMLMetadataArtifact) -> IoResult<()> {
+        let slot = w.begin_section(
+            SECTION_COMMUNICATIONS,
+            artifact.communications.len(),
+            "communication diagram",
+        )?;
+        for c in &artifact.communications {
+            w.u32(c.sequence_index);
+            w.count(c.links.len(), "communication link")?;
+            for l in &c.links {
+                w.u32(l.from_lifeline);
+                w.u32(l.to_lifeline);
+                w.count(l.message_ordinals.len(), "link message")?;
+                for &o in &l.message_ordinals {
+                    w.u16(o);
+                }
+            }
+        }
+        w.end_section(slot);
+
+        let slot = w.begin_section(
+            SECTION_INTERACTION_OVERVIEWS,
+            artifact.interaction_overviews.len(),
+            "interaction overview",
+        )?;
+        for io in &artifact.interaction_overviews {
+            w.u32(io.entry_method_sym);
+            w.u32(io.activity_index);
+            w.count(io.references.len(), "interaction reference")?;
+            for r in &io.references {
+                w.u32(r.activity_node);
+                w.u32(r.sequence_index);
+                w.u32(r.call_site_id);
+            }
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_packages(w: &mut Writer, artifact: &UMLMetadataArtifact) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_PACKAGES, artifact.packages.len(), "package")?;
+        for p in &artifact.packages {
+            w.u32(p.package_sym_id);
+            w.u32(p.name_id);
+            w.u32(p.parent_package_sym);
+            w.u16(p.class_count);
+            w.u16(p.subpackage_count);
+        }
+        w.end_section(slot);
+
+        let slot = w.begin_section(
+            SECTION_PACKAGE_DEPENDENCIES,
+            artifact.package_dependencies.len(),
+            "package dependency",
+        )?;
+        for d in &artifact.package_dependencies {
+            w.u32(d.from_package_sym);
+            w.u32(d.to_package_sym);
+            w.u32(d.reference_count);
+            w.u8(d.in_cycle);
+        }
+        w.end_section(slot);
+
+        let slot = w.begin_section(
+            SECTION_PACKAGE_METRICS,
+            artifact.package_metrics.len(),
+            "package metrics",
+        )?;
+        for m in &artifact.package_metrics {
+            w.u32(m.package_sym_id);
+            w.u32(m.afferent);
+            w.u32(m.efferent);
+            w.f32(m.instability);
+            w.f32(m.abstractness);
+            w.f32(m.distance);
+            w.u32(m.cycle_id);
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_components(w: &mut Writer, artifact: &UMLMetadataArtifact) -> IoResult<()> {
+        let slot = w.begin_section(SECTION_COMPONENTS, artifact.components.len(), "component")?;
+        for c in &artifact.components {
+            w.u32(c.component_sym_id);
+            w.u32(c.name_id);
+            w.u8(c.component_kind);
+            w.u32_list(&c.provided_interfaces, "provided interface")?;
+            w.u32_list(&c.required_interfaces, "required interface")?;
+        }
+        w.end_section(slot);
+
+        let slot = w.begin_section(
+            SECTION_COMPOSITE_STRUCTURES,
+            artifact.composite_structures.len(),
+            "composite structure",
+        )?;
+        for cs in &artifact.composite_structures {
+            w.u32(cs.class_sym_id);
+            w.count(cs.parts.len(), "composite part")?;
+            for p in &cs.parts {
+                w.u32(p.part_sym);
+                w.u32(p.type_sym_id);
+                w.u16(p.mult_min);
+                w.u16(p.mult_max);
+                w.u8(p.is_nested_type);
+            }
+            w.count(cs.connectors.len(), "composite connector")?;
+            for c in &cs.connectors {
+                w.u32(c.from_part);
+                w.u32(c.to_part);
+                w.u32(c.via_method_sym);
+            }
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_patterns(w: &mut Writer, artifact: &UMLMetadataArtifact) -> IoResult<()> {
+        let slot = w.begin_section(
+            SECTION_DESIGN_PATTERNS,
+            artifact.design_patterns.len(),
+            "design pattern",
+        )?;
+        for p in &artifact.design_patterns {
+            w.u32(p.class_sym);
+            w.u16(p.pattern_kind);
+            w.u16(p.confidence);
+            w.u32(p.instance_id);
+            w.u8(p.role);
+            w.buf.extend_from_slice(&[0u8; 3]);
+        }
+        w.end_section(slot);
+
+        let slot = w.begin_section(
+            SECTION_PATTERN_INSTANCES,
+            artifact.pattern_instances.len(),
+            "pattern instance",
+        )?;
+        for inst in &artifact.pattern_instances {
+            w.u32(inst.instance_id);
+            w.u8(inst.pattern_kind);
+            w.u8(inst.score);
+            w.u16(0);
+            w.u32(inst.primary_sym);
+            w.u64(inst.evidence_mask);
+            w.count(inst.roles.len(), "role binding")?;
+            for r in &inst.roles {
+                w.u8(r.role);
+                w.u32(r.sym_id);
+            }
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    fn write_labels(w: &mut Writer, labels: &HashMap<u32, String>) -> IoResult<()> {
+        let mut ids: Vec<&u32> = labels.keys().collect();
+        ids.sort_unstable();
+        let slot = w.begin_section(SECTION_LABELS, ids.len(), "label")?;
+        for id in ids {
+            let text = labels[id].as_bytes();
+            w.u32(*id);
+            w.count(text.len(), "label byte")?;
+            w.buf.extend_from_slice(text);
+        }
+        w.end_section(slot);
+        Ok(())
+    }
+
+    // ── Decoding ──────────────────────────────────────────────────────────────
+
+    /// Decode an artifact from `.uma` bytes; malformed input is `InvalidData`.
+    pub fn from_bytes(bytes: &[u8]) -> IoResult<UMLMetadataArtifact> {
+        if bytes.len() < UMA_HEADER_SIZE + CHECKSUM_SIZE {
+            return Err(invalid("UMA file too small"));
+        }
+        let data_end = bytes.len() - CHECKSUM_SIZE;
+        let mut tail = Cursor::new(bytes, data_end, bytes.len());
+        let stored_crc = tail.u64()?;
         let computed_crc = crc64_ecma(&bytes[..data_end]);
         if stored_crc != computed_crc {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "UMA CRC mismatch: stored=0x{:016X}, computed=0x{:016X}",
-                    stored_crc, computed_crc
-                ),
-            ));
+            return Err(invalid(format!(
+                "UMA CRC mismatch: stored=0x{:016X}, computed=0x{:016X}",
+                stored_crc, computed_crc
+            )));
         }
 
-        let magic = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+        let mut hdr = Cursor::new(bytes, 0, UMA_HEADER_SIZE);
+        let magic = hdr.u64()?;
         if magic != UMA_MAGIC {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("UMA magic mismatch: got 0x{:016X}", magic),
-            ));
+            return Err(invalid(format!("UMA magic mismatch: got 0x{:016X}", magic)));
+        }
+        let format_version = hdr.u32()?;
+        if format_version != UMA_FORMAT_VERSION {
+            return Err(invalid(format!(
+                "Unsupported UMA format version {} (this reader handles {})",
+                format_version, UMA_FORMAT_VERSION
+            )));
+        }
+        let tra_hash = hdr.u64()?;
+        let section_count = hdr.u32()?;
+        let payload_len = hdr.u64()?;
+        if payload_len != (data_end - UMA_HEADER_SIZE) as u64 {
+            return Err(invalid(format!(
+                "UMA payload length mismatch: header says {}, file holds {}",
+                payload_len,
+                data_end - UMA_HEADER_SIZE
+            )));
         }
 
-        let format_version = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-        let tra_hash = u64::from_le_bytes(bytes[12..20].try_into().unwrap());
-        let class_count = u32::from_le_bytes(bytes[20..24].try_into().unwrap());
-        let act_count = u32::from_le_bytes(bytes[24..28].try_into().unwrap());
-        let sm_count = u32::from_le_bytes(bytes[28..32].try_into().unwrap());
-        let seq_count = u32::from_le_bytes(bytes[32..36].try_into().unwrap());
-        let pkg_count = u32::from_le_bytes(bytes[36..40].try_into().unwrap());
-        let comp_count = u32::from_le_bytes(bytes[40..44].try_into().unwrap());
-        let pat_count = u32::from_le_bytes(bytes[44..48].try_into().unwrap());
+        let mut artifact = UMLMetadataArtifact::new(tra_hash);
+        artifact.format_version = format_version;
 
-        let mut offset = UMA_HEADER_SIZE;
-
-        // 1. Classes
-        let mut classes = Vec::with_capacity(class_count as usize);
-        for _ in 0..class_count {
-            let sym_id = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let stereotype = bytes[offset + 4];
-            let visibility = bytes[offset + 5];
-            let modifiers = u16::from_le_bytes(bytes[offset + 6..offset + 8].try_into().unwrap());
-            let extends_sym =
-                u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap());
-            let field_count =
-                u16::from_le_bytes(bytes[offset + 12..offset + 14].try_into().unwrap());
-            let method_count =
-                u16::from_le_bytes(bytes[offset + 14..offset + 16].try_into().unwrap());
-            let inner_count =
-                u16::from_le_bytes(bytes[offset + 16..offset + 18].try_into().unwrap());
-            let implements_count =
-                u16::from_le_bytes(bytes[offset + 18..offset + 20].try_into().unwrap());
-            let association_count =
-                u16::from_le_bytes(bytes[offset + 20..offset + 22].try_into().unwrap());
-            let design_pattern = bytes[offset + 22];
-            let res = bytes[offset + 23];
-            let type_param_count = bytes[offset + 24];
-            let pad = bytes[offset + 25];
-            offset += 26;
-
-            // UMLLink (24 bytes)
-            let link_sym = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let link_fid = u16::from_le_bytes(bytes[offset + 4..offset + 6].try_into().unwrap());
-            let mut ls_bytes = [0u8; 4];
-            ls_bytes[0..3].copy_from_slice(&bytes[offset + 6..offset + 9]);
-            let link_ls = u32::from_le_bytes(ls_bytes);
-            let link_cs = u16::from_le_bytes(bytes[offset + 9..offset + 11].try_into().unwrap());
-            let mut le_bytes = [0u8; 4];
-            le_bytes[0..3].copy_from_slice(&bytes[offset + 11..offset + 14]);
-            let link_le = u32::from_le_bytes(le_bytes);
-            let link_ce = u16::from_le_bytes(bytes[offset + 14..offset + 16].try_into().unwrap());
-            let link_sh = u32::from_le_bytes(bytes[offset + 16..offset + 20].try_into().unwrap());
-            let link_sk = bytes[offset + 20];
-            let link_res = [bytes[offset + 21], bytes[offset + 22], bytes[offset + 23]];
-            offset += 24;
-
-            let uml_link = crate::tra::types::UMLLinkRecord {
-                sym_id: link_sym,
-                file_id: link_fid,
-                line_start: link_ls,
-                col_start: link_cs,
-                line_end: link_le,
-                col_end: link_ce,
-                scpg_hash: link_sh,
-                sym_kind: link_sk,
-                _reserved: link_res,
-            };
-
-            let mut fields = Vec::with_capacity(field_count as usize);
-            for _ in 0..field_count {
-                let fsid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                let tsid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let vis = bytes[offset + 8];
-                let mods = bytes[offset + 9];
-                let is_coll = bytes[offset + 10];
-                let fpad = bytes[offset + 11];
-                let uln = u32::from_le_bytes(bytes[offset + 12..offset + 16].try_into().unwrap());
-                let fres = u32::from_le_bytes(bytes[offset + 16..offset + 20].try_into().unwrap());
-                fields.push(FieldRecord {
-                    field_sym_id: fsid,
-                    type_sym_id: tsid,
-                    visibility: vis,
-                    modifiers: mods,
-                    is_collection: is_coll,
-                    _pad: fpad,
-                    uml_link_node: uln,
-                    _reserved: fres,
-                });
-                offset += 20;
+        let mut cur = Cursor::new(bytes, UMA_HEADER_SIZE, data_end);
+        for _ in 0..section_count {
+            if cur.remaining() < SECTION_HEADER_SIZE {
+                return Err(invalid("UMA truncated section header"));
             }
+            let id = cur.u16()?;
+            let _reserved = cur.u16()?;
+            let count = cur.u32()? as usize;
+            let byte_len = cur.u64()?;
+            let byte_len = usize::try_from(byte_len)
+                .ok()
+                .filter(|&l| l <= cur.remaining())
+                .ok_or_else(|| invalid(format!("UMA section {} overruns the payload", id)))?;
+            let start = cur.pos;
+            let mut sec = Cursor::new(bytes, start, start + byte_len);
+            Self::read_section(id, count, &mut sec, &mut artifact)?;
+            cur.pos = start + byte_len;
+        }
+        cur.expect_end("payload")?;
+        Ok(artifact)
+    }
 
-            let mut methods = Vec::with_capacity(method_count as usize);
-            for _ in 0..method_count {
-                let msid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                let rtsid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let vis = bytes[offset + 8];
-                let mods = bytes[offset + 9];
-                let pc = u16::from_le_bytes(bytes[offset + 10..offset + 12].try_into().unwrap());
-                let cyc = u16::from_le_bytes(bytes[offset + 12..offset + 14].try_into().unwrap());
-                let sat = u64::from_le_bytes(bytes[offset + 14..offset + 22].try_into().unwrap());
-                methods.push(MethodRecord {
-                    method_sym_id: msid,
-                    return_type_sym_id: rtsid,
-                    visibility: vis,
-                    modifiers: mods,
-                    param_count: pc,
-                    cyclomatic: cyc,
-                    sat_count: sat,
-                });
-                offset += 22;
+    fn read_section(
+        id: u16,
+        count: usize,
+        sec: &mut Cursor<'_>,
+        a: &mut UMLMetadataArtifact,
+    ) -> IoResult<()> {
+        // Cap every declared count by the section bytes before allocating.
+        let check = |min: usize, what: &str, remaining: usize| -> IoResult<()> {
+            match count.checked_mul(min) {
+                Some(need) if need <= remaining => Ok(()),
+                _ => Err(invalid(format!(
+                    "UMA: {} count {} exceeds section length {}",
+                    what, count, remaining
+                ))),
             }
-
-            let mut inner_classes = Vec::with_capacity(inner_count as usize);
-            for _ in 0..inner_count {
-                let isid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                inner_classes.push(isid);
-                offset += 4;
+        };
+        match id {
+            SECTION_CLASSES => {
+                check(40, "class", sec.remaining())?;
+                a.classes = (0..count)
+                    .map(|_| Self::read_class(sec))
+                    .collect::<IoResult<_>>()?;
+                sec.expect_end("class")
             }
-
-            let mut implements_syms = Vec::with_capacity(implements_count as usize);
-            for _ in 0..implements_count {
-                let imp_id = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                implements_syms.push(imp_id);
-                offset += 4;
+            SECTION_OBJECTS => {
+                check(20, "object", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    v.push(ObjectRecord {
+                        alloc_token: sec.u32()?,
+                        type_sym_id: sec.u32()?,
+                        label_text_id: sec.u32()?,
+                        containing_method_sym: sec.u32()?,
+                        assigned_field_sym: sec.u32()?,
+                    });
+                }
+                a.objects = v;
+                sec.expect_end("object")
             }
-
-            let mut association_syms = Vec::with_capacity(association_count as usize);
-            for _ in 0..association_count {
-                let assoc_id = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                association_syms.push(assoc_id);
-                offset += 4;
+            SECTION_OBJECT_LINKS => {
+                check(12, "object link", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    v.push(ObjectLinkRecord {
+                        from_object: sec.u32()?,
+                        to_object: sec.u32()?,
+                        via_field_sym: sec.u32()?,
+                    });
+                }
+                a.object_links = v;
+                sec.expect_end("object link")
             }
+            SECTION_ACTIVITIES => {
+                check(20, "activity", sec.remaining())?;
+                a.activities = (0..count)
+                    .map(|_| Self::read_activity(sec))
+                    .collect::<IoResult<_>>()?;
+                sec.expect_end("activity")
+            }
+            SECTION_STATE_MACHINES => {
+                check(16, "state machine", sec.remaining())?;
+                a.state_machines = (0..count)
+                    .map(|_| Self::read_state_machine(sec))
+                    .collect::<IoResult<_>>()?;
+                sec.expect_end("state machine")
+            }
+            SECTION_SEQUENCES => {
+                check(22, "sequence", sec.remaining())?;
+                a.sequences = (0..count)
+                    .map(|_| Self::read_sequence(sec))
+                    .collect::<IoResult<_>>()?;
+                sec.expect_end("sequence")
+            }
+            SECTION_COMMUNICATIONS => {
+                check(8, "communication diagram", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let sequence_index = sec.u32()?;
+                    let n = sec.count(12, "communication link")?;
+                    let mut links = Vec::with_capacity(n);
+                    for _ in 0..n {
+                        let from_lifeline = sec.u32()?;
+                        let to_lifeline = sec.u32()?;
+                        let k = sec.count(2, "link message")?;
+                        let mut message_ordinals = Vec::with_capacity(k);
+                        for _ in 0..k {
+                            message_ordinals.push(sec.u16()?);
+                        }
+                        links.push(CommunicationLinkRecord {
+                            from_lifeline,
+                            to_lifeline,
+                            message_ordinals,
+                        });
+                    }
+                    v.push(CommunicationDiagramRecord {
+                        sequence_index,
+                        links,
+                    });
+                }
+                a.communications = v;
+                sec.expect_end("communication diagram")
+            }
+            SECTION_INTERACTION_OVERVIEWS => {
+                check(12, "interaction overview", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let entry_method_sym = sec.u32()?;
+                    let activity_index = sec.u32()?;
+                    let n = sec.count(12, "interaction reference")?;
+                    let mut references = Vec::with_capacity(n);
+                    for _ in 0..n {
+                        references.push(InteractionReferenceRecord {
+                            activity_node: sec.u32()?,
+                            sequence_index: sec.u32()?,
+                            call_site_id: sec.u32()?,
+                        });
+                    }
+                    v.push(InteractionOverviewRecord {
+                        entry_method_sym,
+                        activity_index,
+                        references,
+                    });
+                }
+                a.interaction_overviews = v;
+                sec.expect_end("interaction overview")
+            }
+            SECTION_PACKAGES => {
+                check(16, "package", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    v.push(PackageRecord {
+                        package_sym_id: sec.u32()?,
+                        name_id: sec.u32()?,
+                        parent_package_sym: sec.u32()?,
+                        class_count: sec.u16()?,
+                        subpackage_count: sec.u16()?,
+                    });
+                }
+                a.packages = v;
+                sec.expect_end("package")
+            }
+            SECTION_PACKAGE_DEPENDENCIES => {
+                check(13, "package dependency", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    v.push(PackageDependencyRecord {
+                        from_package_sym: sec.u32()?,
+                        to_package_sym: sec.u32()?,
+                        reference_count: sec.u32()?,
+                        in_cycle: sec.u8()?,
+                    });
+                }
+                a.package_dependencies = v;
+                sec.expect_end("package dependency")
+            }
+            SECTION_PACKAGE_METRICS => {
+                check(28, "package metrics", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    v.push(PackageMetricsRecord {
+                        package_sym_id: sec.u32()?,
+                        afferent: sec.u32()?,
+                        efferent: sec.u32()?,
+                        instability: sec.f32()?,
+                        abstractness: sec.f32()?,
+                        distance: sec.f32()?,
+                        cycle_id: sec.u32()?,
+                    });
+                }
+                a.package_metrics = v;
+                sec.expect_end("package metrics")
+            }
+            SECTION_COMPONENTS => {
+                check(17, "component", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let component_sym_id = sec.u32()?;
+                    let name_id = sec.u32()?;
+                    let component_kind = sec.u8()?;
+                    let provided_interfaces = sec.u32_list("provided interface")?;
+                    let required_interfaces = sec.u32_list("required interface")?;
+                    v.push(ComponentRecord {
+                        component_sym_id,
+                        name_id,
+                        provided_interface_count: saturating_u16(provided_interfaces.len()),
+                        required_interface_count: saturating_u16(required_interfaces.len()),
+                        component_kind,
+                        provided_interfaces,
+                        required_interfaces,
+                    });
+                }
+                a.components = v;
+                sec.expect_end("component")
+            }
+            SECTION_COMPOSITE_STRUCTURES => {
+                check(12, "composite structure", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let class_sym_id = sec.u32()?;
+                    let n = sec.count(13, "composite part")?;
+                    let mut parts = Vec::with_capacity(n);
+                    for _ in 0..n {
+                        parts.push(CompositePartRecord {
+                            part_sym: sec.u32()?,
+                            type_sym_id: sec.u32()?,
+                            mult_min: sec.u16()?,
+                            mult_max: sec.u16()?,
+                            is_nested_type: sec.u8()?,
+                        });
+                    }
+                    let n = sec.count(12, "composite connector")?;
+                    let mut connectors = Vec::with_capacity(n);
+                    for _ in 0..n {
+                        connectors.push(CompositeConnectorRecord {
+                            from_part: sec.u32()?,
+                            to_part: sec.u32()?,
+                            via_method_sym: sec.u32()?,
+                        });
+                    }
+                    v.push(CompositeStructureRecord {
+                        class_sym_id,
+                        parts,
+                        connectors,
+                    });
+                }
+                a.composite_structures = v;
+                sec.expect_end("composite structure")
+            }
+            SECTION_DESIGN_PATTERNS => {
+                check(16, "design pattern", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let class_sym = sec.u32()?;
+                    let pattern_kind = sec.u16()?;
+                    let confidence = sec.u16()?;
+                    let instance_id = sec.u32()?;
+                    let role = sec.u8()?;
+                    sec.take(3)?;
+                    v.push(DesignPatternRecord {
+                        class_sym,
+                        pattern_kind,
+                        confidence,
+                        instance_id,
+                        role,
+                    });
+                }
+                a.design_patterns = v;
+                sec.expect_end("design pattern")
+            }
+            SECTION_PATTERN_INSTANCES => {
+                check(24, "pattern instance", sec.remaining())?;
+                let mut v = Vec::with_capacity(count);
+                for _ in 0..count {
+                    let instance_id = sec.u32()?;
+                    let pattern_kind = sec.u8()?;
+                    let score = sec.u8()?;
+                    let _pad = sec.u16()?;
+                    let primary_sym = sec.u32()?;
+                    let evidence_mask = sec.u64()?;
+                    let n = sec.count(5, "role binding")?;
+                    let mut roles = Vec::with_capacity(n);
+                    for _ in 0..n {
+                        roles.push(PatternRoleBinding {
+                            role: sec.u8()?,
+                            sym_id: sec.u32()?,
+                        });
+                    }
+                    v.push(PatternInstanceRecord {
+                        instance_id,
+                        pattern_kind,
+                        score,
+                        primary_sym,
+                        evidence_mask,
+                        roles,
+                    });
+                }
+                a.pattern_instances = v;
+                sec.expect_end("pattern instance")
+            }
+            SECTION_LABELS => {
+                check(8, "label", sec.remaining())?;
+                let mut map = HashMap::with_capacity(count);
+                for _ in 0..count {
+                    let id = sec.u32()?;
+                    let len = sec.count(1, "label byte")?;
+                    let raw = sec.take(len)?;
+                    let text = std::str::from_utf8(raw)
+                        .map_err(|_| invalid(format!("UMA label {} is not UTF-8", id)))?;
+                    if id == NO_LABEL {
+                        return Err(invalid("UMA label id 0 is reserved"));
+                    }
+                    map.insert(id, text.to_string());
+                }
+                a.label_texts = map;
+                sec.expect_end("label")
+            }
+            _ => {
+                // Unknown section from a newer writer: skip by byte length.
+                sec.pos = sec.end;
+                Ok(())
+            }
+        }
+    }
 
-            classes.push(ClassRecord {
-                sym_id,
-                stereotype,
+    fn read_uml_link(c: &mut Cursor<'_>) -> IoResult<UMLLinkRecord> {
+        let sym_id = c.u32()?;
+        let file_id = c.u16()?;
+        let line_start = c.u32()?;
+        let col_start = c.u16()?;
+        let line_end = c.u32()?;
+        let col_end = c.u16()?;
+        let scpg_hash = c.u32()?;
+        let sym_kind = c.u8()?;
+        let r = c.take(3)?;
+        Ok(UMLLinkRecord {
+            sym_id,
+            file_id,
+            line_start,
+            col_start,
+            line_end,
+            col_end,
+            scpg_hash,
+            sym_kind,
+            _reserved: [r[0], r[1], r[2]],
+        })
+    }
+
+    fn read_class(c: &mut Cursor<'_>) -> IoResult<ClassRecord> {
+        let sym_id = c.u32()?;
+        let stereotype = c.u8()?;
+        let visibility = c.u8()?;
+        let modifiers = c.u16()?;
+        let extends_sym = c.u32()?;
+        let design_pattern = c.u8()?;
+        let reserved = c.u8()?;
+        let type_param_count = c.u8()?;
+        let pad = c.u8()?;
+        let qualified_name_id = c.u32()?;
+        let uml_link = Self::read_uml_link(c)?;
+
+        let n = c.count(26, "field")?;
+        let mut fields = Vec::with_capacity(n);
+        for _ in 0..n {
+            fields.push(FieldRecord {
+                field_sym_id: c.u32()?,
+                type_sym_id: c.u32()?,
+                visibility: c.u8()?,
+                modifiers: c.u16()?,
+                is_collection: c.u8()?,
+                field_kind: c.u8()?,
+                assoc_kind: c.u8()?,
+                mult_min: c.u16()?,
+                mult_max: c.u16()?,
+                element_type_sym_id: c.u32()?,
+                uml_link_node: c.u32()?,
+            });
+        }
+
+        let n = c.count(32, "method")?;
+        let mut methods = Vec::with_capacity(n);
+        for _ in 0..n {
+            let method_sym_id = c.u32()?;
+            let return_type_sym_id = c.u32()?;
+            let visibility = c.u8()?;
+            let modifiers = c.u16()?;
+            let param_count = c.u16()?;
+            let cyclomatic = c.u16()?;
+            let sat_count = c.u64()?;
+            let is_constructor = c.u8()?;
+            let metrics_known = c.u8()?;
+            let param_syms = c.u32_list("parameter")?;
+            let param_type_syms = c.u32_list("parameter type")?;
+            methods.push(MethodRecord {
+                method_sym_id,
+                return_type_sym_id,
                 visibility,
                 modifiers,
-                extends_sym,
-                field_count,
-                method_count,
-                inner_count,
-                design_pattern,
-                _reserved: res,
-                type_param_count,
-                _pad: pad,
-                uml_link,
-                fields,
-                methods,
-                inner_classes,
-                implements_syms,
-                association_syms,
+                param_count,
+                cyclomatic,
+                sat_count,
+                is_constructor,
+                metrics_known,
+                param_syms,
+                param_type_syms,
             });
         }
 
-        // 2. Activities
-        let mut activities = Vec::with_capacity(act_count as usize);
-        for _ in 0..act_count {
-            let fsid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let nc = u16::from_le_bytes(bytes[offset + 4..offset + 6].try_into().unwrap());
-            let ec = u16::from_le_bytes(bytes[offset + 6..offset + 8].try_into().unwrap());
-            let sn = u16::from_le_bytes(bytes[offset + 8..offset + 10].try_into().unwrap());
-            let enc = bytes[offset + 10];
-            let sc = bytes[offset + 11];
-            let cyc = u16::from_le_bytes(bytes[offset + 12..offset + 14].try_into().unwrap());
-            let res = u16::from_le_bytes(bytes[offset + 14..offset + 16].try_into().unwrap());
-            offset += 16;
+        let inner_classes = c.u32_list("inner class")?;
+        let implements_syms = c.u32_list("realization")?;
+        let association_syms = c.u32_list("association")?;
+        let generalization_syms = c.u32_list("generalization")?;
+        let dependency_syms = c.u32_list("dependency")?;
 
-            let mut nodes = Vec::with_capacity(nc as usize);
-            for _ in 0..nc {
-                let nid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                let ltid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let nk = bytes[offset + 8];
-                let ld = bytes[offset + 9];
-                let gtid = u16::from_le_bytes(bytes[offset + 10..offset + 12].try_into().unwrap());
-                let pad = u32::from_le_bytes(bytes[offset + 12..offset + 16].try_into().unwrap());
-                nodes.push(ActivityNode {
-                    node_id: nid,
-                    label_text_id: ltid,
-                    node_kind: nk,
-                    loop_depth: ld,
-                    guard_text_id: gtid,
-                    _pad: pad,
-                });
-                offset += 16;
-            }
+        Ok(ClassRecord {
+            sym_id,
+            stereotype,
+            visibility,
+            modifiers,
+            extends_sym,
+            field_count: saturating_u16(fields.len()),
+            method_count: saturating_u16(methods.len()),
+            inner_count: saturating_u16(inner_classes.len()),
+            design_pattern,
+            _reserved: reserved,
+            type_param_count,
+            _pad: pad,
+            uml_link,
+            fields,
+            methods,
+            inner_classes,
+            implements_syms,
+            association_syms,
+            generalization_syms,
+            dependency_syms,
+            qualified_name_id,
+        })
+    }
 
-            let mut edges = Vec::with_capacity(ec as usize);
-            for _ in 0..ec {
-                let fn_ = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-                let tn = u16::from_le_bytes(bytes[offset + 2..offset + 4].try_into().unwrap());
-                let ek = bytes[offset + 4];
-                let ibe = bytes[offset + 5];
-                let gtid = u32::from_le_bytes(bytes[offset + 6..offset + 10].try_into().unwrap());
-                let pad = u16::from_le_bytes(bytes[offset + 10..offset + 12].try_into().unwrap());
-                edges.push(ActivityEdge {
-                    from_node: fn_,
-                    to_node: tn,
-                    edge_kind: ek,
-                    is_back_edge: ibe,
-                    guard_text_id: gtid,
-                    _pad: pad,
-                });
-                offset += 12;
-            }
-
-            activities.push(ActivityRecord {
-                function_sym_id: fsid,
-                node_count: nc,
-                edge_count: ec,
-                start_node: sn,
-                end_node_count: enc,
-                swimlane_count: sc,
-                cyclomatic: cyc,
-                _reserved: res,
-                nodes,
-                edges,
+    fn read_activity(c: &mut Cursor<'_>) -> IoResult<ActivityRecord> {
+        let function_sym_id = c.u32()?;
+        let start_node = c.u32()?;
+        let end_node_count = c.u16()?;
+        let swimlane_count = c.u16()?;
+        let cyclomatic = c.u16()?;
+        let max_loop_depth = c.u8()?;
+        let reserved = c.u8()?;
+        let n = c.count(18, "activity node")?;
+        let mut nodes = Vec::with_capacity(n);
+        for _ in 0..n {
+            nodes.push(ActivityNode {
+                node_id: c.u32()?,
+                label_text_id: c.u32()?,
+                node_kind: c.u8()?,
+                loop_depth: c.u8()?,
+                guard_text_id: c.u32()?,
+                first_token: c.u32()?,
             });
         }
-
-        // 3. State Machines
-        let mut state_machines = Vec::with_capacity(sm_count as usize);
-        for _ in 0..sm_count {
-            let csid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let sc = u16::from_le_bytes(bytes[offset + 4..offset + 6].try_into().unwrap());
-            let tc = u16::from_le_bytes(bytes[offset + 6..offset + 8].try_into().unwrap());
-            let is = u16::from_le_bytes(bytes[offset + 8..offset + 10].try_into().unwrap());
-            let fsc = bytes[offset + 10];
-            let res = bytes[offset + 11];
-            let pad = u32::from_le_bytes(bytes[offset + 12..offset + 16].try_into().unwrap());
-            offset += 16;
-
-            let mut states = Vec::with_capacity(sc as usize);
-            for _ in 0..sc {
-                let stid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                let snid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let ii = bytes[offset + 8];
-                let if_ = bytes[offset + 9];
-                let spad = u16::from_le_bytes(bytes[offset + 10..offset + 12].try_into().unwrap());
-                states.push(StateRecord {
-                    state_id: stid,
-                    state_name_id: snid,
-                    is_initial: ii,
-                    is_final: if_,
-                    _pad: spad,
-                });
-                offset += 12;
-            }
-
-            let mut transitions = Vec::with_capacity(tc as usize);
-            for _ in 0..tc {
-                let fs = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-                let ts = u16::from_le_bytes(bytes[offset + 2..offset + 4].try_into().unwrap());
-                let tms = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let gtid = u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap());
-                let atid = u32::from_le_bytes(bytes[offset + 12..offset + 16].try_into().unwrap());
-                transitions.push(TransitionRecord {
-                    from_state: fs,
-                    to_state: ts,
-                    trigger_method_sym: tms,
-                    guard_text_id: gtid,
-                    action_text_id: atid,
-                });
-                offset += 16;
-            }
-
-            state_machines.push(StateMachineRecord {
-                class_sym_id: csid,
-                state_count: sc,
-                transition_count: tc,
-                initial_state: is,
-                final_state_count: fsc,
-                _reserved: res,
-                _pad: pad,
-                states,
-                transitions,
+        let n = c.count(14, "activity edge")?;
+        let mut edges = Vec::with_capacity(n);
+        for _ in 0..n {
+            edges.push(ActivityEdge {
+                from_node: c.u32()?,
+                to_node: c.u32()?,
+                edge_kind: c.u8()?,
+                is_back_edge: c.u8()?,
+                guard_text_id: c.u32()?,
             });
         }
+        Ok(ActivityRecord {
+            function_sym_id,
+            node_count: saturating_u32(nodes.len()),
+            edge_count: saturating_u32(edges.len()),
+            start_node,
+            end_node_count,
+            swimlane_count,
+            cyclomatic,
+            max_loop_depth,
+            _reserved: reserved,
+            nodes,
+            edges,
+        })
+    }
 
-        // 4. Sequences
-        let mut sequences = Vec::with_capacity(seq_count as usize);
-        for _ in 0..seq_count {
-            let sn = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let lc = u16::from_le_bytes(bytes[offset + 4..offset + 6].try_into().unwrap());
-            let mc = u16::from_le_bytes(bytes[offset + 6..offset + 8].try_into().unwrap());
-            let fc = u16::from_le_bytes(bytes[offset + 8..offset + 10].try_into().unwrap());
-            let res = u16::from_le_bytes(bytes[offset + 10..offset + 12].try_into().unwrap());
-            offset += 12;
-
-            let mut lifelines = Vec::with_capacity(lc as usize);
-            for _ in 0..lc {
-                let sid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                let nid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let tsid = u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap());
-                let ia = bytes[offset + 12];
-                let lpad = [bytes[offset + 13], bytes[offset + 14], bytes[offset + 15]];
-                lifelines.push(LifelineRecord {
-                    sym_id: sid,
-                    name_id: nid,
-                    type_sym_id: tsid,
-                    is_actor: ia,
-                    _pad: lpad,
-                });
-                offset += 16;
-            }
-
-            let mut messages = Vec::with_capacity(mc as usize);
-            for _ in 0..mc {
-                let fl = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-                let tl = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-                let csid = u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap());
-                let msid = u32::from_le_bytes(bytes[offset + 12..offset + 16].try_into().unwrap());
-                let mk = bytes[offset + 16];
-                let ord = u16::from_le_bytes(bytes[offset + 17..offset + 19].try_into().unwrap());
-                let mpad = u16::from_le_bytes(bytes[offset + 19..offset + 21].try_into().unwrap());
-                let ult = u32::from_le_bytes(bytes[offset + 21..offset + 25].try_into().unwrap());
-                messages.push(MessageRecord {
-                    from_lifeline: fl,
-                    to_lifeline: tl,
-                    call_site_id: csid,
-                    method_sym_id: msid,
-                    message_kind: mk,
-                    ordinal: ord,
-                    _pad: mpad,
-                    uml_link_token: ult,
-                });
-                offset += 25;
-            }
-
-            let mut combined_fragments = Vec::with_capacity(fc as usize);
-            for _ in 0..fc {
-                let fk = bytes[offset];
-                let gtid = u32::from_le_bytes(bytes[offset + 1..offset + 5].try_into().unwrap());
-                let smo = u16::from_le_bytes(bytes[offset + 5..offset + 7].try_into().unwrap());
-                let emo = u16::from_le_bytes(bytes[offset + 7..offset + 9].try_into().unwrap());
-                let fpad = u16::from_le_bytes(bytes[offset + 9..offset + 11].try_into().unwrap());
-                combined_fragments.push(CombinedFragment {
-                    fragment_kind: fk,
-                    guard_text_id: gtid,
-                    start_message_ordinal: smo,
-                    end_message_ordinal: emo,
-                    _pad: fpad,
-                });
-                offset += 11;
-            }
-
-            sequences.push(SequenceDiagramRecord {
-                scenario_name: sn,
-                lifeline_count: lc,
-                message_count: mc,
-                fragment_count: fc,
-                _reserved: res,
-                lifelines,
-                messages,
-                combined_fragments,
+    fn read_state_machine(c: &mut Cursor<'_>) -> IoResult<StateMachineRecord> {
+        let class_sym_id = c.u32()?;
+        let state_field_sym = c.u32()?;
+        let initial_state = c.u16()?;
+        let final_state_count = c.u8()?;
+        let reserved = c.u8()?;
+        let n = c.count(12, "state")?;
+        let mut states = Vec::with_capacity(n);
+        for _ in 0..n {
+            states.push(StateRecord {
+                state_id: c.u32()?,
+                state_name_id: c.u32()?,
+                is_initial: c.u8()?,
+                is_final: c.u8()?,
+                _pad: c.u16()?,
             });
         }
-
-        // 5. Packages
-        let mut packages = Vec::with_capacity(pkg_count as usize);
-        for _ in 0..pkg_count {
-            let psid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let nid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-            let pps = u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap());
-            let cc = u16::from_le_bytes(bytes[offset + 12..offset + 14].try_into().unwrap());
-            let sc = u16::from_le_bytes(bytes[offset + 14..offset + 16].try_into().unwrap());
-            packages.push(PackageRecord {
-                package_sym_id: psid,
-                name_id: nid,
-                parent_package_sym: pps,
-                class_count: cc,
-                subpackage_count: sc,
+        let n = c.count(20, "transition")?;
+        let mut transitions = Vec::with_capacity(n);
+        for _ in 0..n {
+            transitions.push(TransitionRecord {
+                from_state: c.u16()?,
+                to_state: c.u16()?,
+                trigger_method_sym: c.u32()?,
+                guard_text_id: c.u32()?,
+                action_text_id: c.u32()?,
+                source_token: c.u32()?,
             });
-            offset += 16;
         }
+        Ok(StateMachineRecord {
+            class_sym_id,
+            state_field_sym,
+            state_count: saturating_u16(states.len()),
+            transition_count: saturating_u16(transitions.len()),
+            initial_state,
+            final_state_count,
+            _reserved: reserved,
+            states,
+            transitions,
+        })
+    }
 
-        // 6. Components
-        let mut components = Vec::with_capacity(comp_count as usize);
-        for _ in 0..comp_count {
-            let csid = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let nid = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
-            let pic = u16::from_le_bytes(bytes[offset + 8..offset + 10].try_into().unwrap());
-            let ric = u16::from_le_bytes(bytes[offset + 10..offset + 12].try_into().unwrap());
-            let cpad = u32::from_le_bytes(bytes[offset + 12..offset + 16].try_into().unwrap());
-            components.push(ComponentRecord {
-                component_sym_id: csid,
-                name_id: nid,
-                provided_interface_count: pic,
-                required_interface_count: ric,
-                _pad: cpad,
+    fn read_sequence(c: &mut Cursor<'_>) -> IoResult<SequenceDiagramRecord> {
+        let scenario_name = c.u32()?;
+        let entry_method_sym = c.u32()?;
+        let truncated = c.u8()?;
+        let entry_kind = c.u8()?;
+        let n = c.count(16, "lifeline")?;
+        let mut lifelines = Vec::with_capacity(n);
+        for _ in 0..n {
+            let sym_id = c.u32()?;
+            let name_id = c.u32()?;
+            let type_sym_id = c.u32()?;
+            let is_actor = c.u8()?;
+            let p = c.take(3)?;
+            lifelines.push(LifelineRecord {
+                sym_id,
+                name_id,
+                type_sym_id,
+                is_actor,
+                _pad: [p[0], p[1], p[2]],
             });
-            offset += 16;
         }
-
-        // 7. Design Patterns
-        let mut design_patterns = Vec::with_capacity(pat_count as usize);
-        for _ in 0..pat_count {
-            let cs = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let pk = u16::from_le_bytes(bytes[offset + 4..offset + 6].try_into().unwrap());
-            let conf = u16::from_le_bytes(bytes[offset + 6..offset + 8].try_into().unwrap());
-            let pres = u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap());
-            design_patterns.push(DesignPatternRecord {
-                class_sym: cs,
-                pattern_kind: pk,
-                confidence: conf,
-                _reserved: pres,
+        let n = c.count(24, "message")?;
+        let mut messages = Vec::with_capacity(n);
+        for _ in 0..n {
+            messages.push(MessageRecord {
+                from_lifeline: c.u32()?,
+                to_lifeline: c.u32()?,
+                call_site_id: c.u32()?,
+                method_sym_id: c.u32()?,
+                message_kind: c.u8()?,
+                call_edge_type: c.u8()?,
+                ordinal: c.u16()?,
+                nesting_depth: c.u16()?,
+                uml_link_token: c.u32()?,
             });
-            offset += 12;
         }
-
-        Ok(UMLMetadataArtifact {
-            format_version,
-            tra_hash,
-            classes,
-            objects: Vec::new(),
-            activities,
-            state_machines,
-            sequences,
-            packages,
-            components,
-            design_patterns,
-            label_texts: std::collections::HashMap::new(),
+        let n = c.count(11, "combined fragment")?;
+        let mut combined_fragments = Vec::with_capacity(n);
+        for _ in 0..n {
+            combined_fragments.push(CombinedFragment {
+                fragment_kind: c.u8()?,
+                guard_text_id: c.u32()?,
+                start_message_ordinal: c.u16()?,
+                end_message_ordinal: c.u16()?,
+                nesting_depth: c.u16()?,
+            });
+        }
+        Ok(SequenceDiagramRecord {
+            scenario_name,
+            entry_method_sym,
+            lifeline_count: saturating_u16(lifelines.len()),
+            message_count: saturating_u16(messages.len()),
+            fragment_count: saturating_u16(combined_fragments.len()),
+            truncated,
+            entry_kind,
+            lifelines,
+            messages,
+            combined_fragments,
         })
     }
 }

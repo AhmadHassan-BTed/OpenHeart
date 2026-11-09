@@ -1,4 +1,5 @@
-//! Qualified Name Table for interning fully qualified names (e.g. "java.util.List").
+//! Qualified Name Table for interning fully qualified names (e.g. "java.util.List") and stable
+//! symbol descriptors.
 
 use std::collections::HashMap;
 
@@ -24,6 +25,16 @@ impl QualifiedNameTable {
         }
     }
 
+    /// Rebuilds a table from names in id order (used when reading a serialized artifact).
+    pub fn from_names(names: Vec<String>) -> Self {
+        let lookup = names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.clone(), Self::BASE_QUAL_NAME_ID + i as u32))
+            .collect();
+        Self { names, lookup }
+    }
+
     /// Intern a qualified name, returning its `qual_name_id` (>= 0x80000000).
     pub fn get_or_intern(&mut self, name: &str) -> u32 {
         if let Some(&id) = self.lookup.get(name) {
@@ -37,13 +48,18 @@ impl QualifiedNameTable {
         id
     }
 
+    pub fn find(&self, name: &str) -> Option<u32> {
+        self.lookup.get(name).copied()
+    }
+
+    /// Name of a qualified-name id. Ids below `BASE_QUAL_NAME_ID` are not qualified-name ids
+    /// (they are token-corpus text ids or sentinels) and are rejected.
     pub fn get_name(&self, qual_name_id: u32) -> Option<&str> {
-        if qual_name_id >= Self::BASE_QUAL_NAME_ID {
-            let index = (qual_name_id - Self::BASE_QUAL_NAME_ID) as usize;
-            self.names.get(index).map(|s| s.as_str())
-        } else {
-            self.names.get(qual_name_id as usize).map(|s| s.as_str())
+        if qual_name_id < Self::BASE_QUAL_NAME_ID {
+            return None;
         }
+        let index = (qual_name_id - Self::BASE_QUAL_NAME_ID) as usize;
+        self.names.get(index).map(|s| s.as_str())
     }
 
     pub fn lookup_by_id(&self, qual_name_id: u32) -> Option<&str> {
