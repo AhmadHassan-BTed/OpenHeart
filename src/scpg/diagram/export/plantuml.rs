@@ -797,6 +797,12 @@ skinparam UsecaseFontColor #ffffff\n\n"
                             None => out.push_str(&format!("{}\n", kind.as_str())),
                         }
                     }
+                    // PlantUML separates the operands of every group kind (`alt`, `par`,
+                    // `critical`, ...) with `else`.
+                    InteractionEvent::FragmentElse { guard } => match guard {
+                        Some(g) => out.push_str(&format!("else {}\n", U::plantuml_label(g))),
+                        None => out.push_str("else\n"),
+                    },
                     InteractionEvent::FragmentEnd => out.push_str("end\n"),
                     InteractionEvent::Note { over, text } => {
                         out.push_str(&format!(

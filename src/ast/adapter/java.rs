@@ -368,7 +368,7 @@ fn wildcard_bound(node: &Node) -> u8 {
 
 impl ASTReductionAdapter for JavaASTReductionAdapter {
     fn ts_language(&self) -> tree_sitter::Language {
-        tree_sitter_java::language()
+        tree_sitter_java::LANGUAGE.into()
     }
 
     fn classify(&self, kind: &str, node: &Node, ctx: &ReductionContext) -> ReductionDecision {

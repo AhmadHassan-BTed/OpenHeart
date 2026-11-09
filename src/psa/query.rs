@@ -10,6 +10,10 @@
 //! - a witness: the variables set on one such path (its edges and, for a segment that starts
 //!   after a back edge, its loop entry).
 //!
+//! Edge ids are the ids of the CFG the summary was built from: Phase 4 CFA edge ids, or —
+//! for records flagged `PSA_FLAG_NEUTRAL_CFG` — positions in the edge list of the neutral
+//! CFG supplied to Phase 8 ([`FunctionPathView::is_neutral_cfg`]).
+//!
 //! Each query is O(|ROBDD|) big-integer additions: the required/forbidden edges are *fixed
 //! variables* of the model count (see `bdd::sat_count`). Functions stored without an ROBDD
 //! (`PSA_FLAG_BDD_UNAVAILABLE`) report [`PathQueryError::SummaryUnavailable`] instead of a
@@ -21,7 +25,7 @@ use crate::psa::bdd::node::ROBDDNode;
 use crate::psa::bdd::{count_models, find_model};
 use crate::psa::count::PathCount;
 use crate::psa::ordering::{VarKey, VariableOrdering};
-use crate::psa::types::{FunctionPSAHeader, PathSummaryArtifact};
+use crate::psa::types::{FunctionPSAHeader, PathSummaryArtifact, PSA_FLAG_NEUTRAL_CFG};
 
 /// Why a path query could not be answered.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -113,6 +117,11 @@ impl<'a> FunctionPathView<'a> {
     /// The function's variable ordering.
     pub fn ordering(&self) -> &VariableOrdering {
         &self.ordering
+    }
+
+    /// True iff edge ids index a neutral CFG's edge list rather than the CFA's.
+    pub fn is_neutral_cfg(&self) -> bool {
+        self.header.has_flag(PSA_FLAG_NEUTRAL_CFG)
     }
 
     /// Fixed-variable table for `required` (= taken) and `forbidden` (= not taken) edges.

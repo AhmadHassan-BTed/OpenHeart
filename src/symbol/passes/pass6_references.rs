@@ -110,15 +110,17 @@ impl Pass6References {
             params,
             expr_types: HashMap::new(),
             selections: HashMap::new(),
+            header_end: 0,
         };
 
-        let ranges: Vec<(u32, u32)> = builder
+        let ranges: Vec<((u32, u32), u32)> = builder
             .units
             .iter()
             .filter(|u| u.front_end == FrontEnd::Structural && u.node_range.0 != u32::MAX)
-            .map(|u| u.node_range)
+            .map(|u| (u.node_range, u.header_end))
             .collect();
-        for (start, end) in ranges {
+        for ((start, end), header_end) in ranges {
+            ctx.header_end = header_end;
             for node in start..end.min(bpa.node_count) {
                 ctx.visit(builder, node);
             }
@@ -137,6 +139,9 @@ struct Ctx<'a, 'u, 'v> {
     expr_types: HashMap<u32, ExprType>,
     /// Memoized selections of call/new/field-access nodes: (symbol or MAX, status, candidates).
     selections: HashMap<u32, (u32, ResolutionStatus, Vec<u32>)>,
+    /// First token after the package/import header of the unit being visited; names in the
+    /// header are package and import paths, bound by Pass 2.
+    header_end: u32,
 }
 
 const MAX_DEPTH: u32 = 64;
@@ -178,6 +183,9 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
                     let sel = self.resolve_call(b, node, 0);
                     let t = self.tok(name_node);
                     self.occurrence(b, t, node, OccurrenceRole::Call, sel);
+                } else if let Some((keyword, sel)) = self.resolve_explicit_constructor_call(b, node)
+                {
+                    self.occurrence(b, keyword, node, OccurrenceRole::Call, sel);
                 }
             }
             ASTNodeType::NN_NEW_EXPR => {
@@ -292,6 +300,9 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
         if b.symbol_at_node(node).is_some() {
             return false; // declared here (lambda parameter, for-each or pattern variable)
         }
+        if self.tok(node) < self.header_end {
+            return false; // package or import path
+        }
         let parent = self.ast.parent(node);
         let siblings = self.ast.children(parent);
         let first_ident = siblings
@@ -309,6 +320,7 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
             | ASTNodeType::NN_PARAM_DECL
             | ASTNodeType::NN_LOCAL_VAR_DECL
             | ASTNodeType::NN_FIELD_DECL
+            | ASTNodeType::NN_ENUM_CONSTANT
             | ASTNodeType::NN_ENHANCED_FOR => first_ident != Some(node),
             ASTNodeType::NN_ANNOTATION_USE
             | ASTNodeType::NN_BREAK_STMT
@@ -568,6 +580,59 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
                 self.tv.valid(t) && self.tv.next(t, limit).is_some_and(|n| self.tv.punct(n, "("))
             }
         })
+    }
+
+    /// `this(..)` / `super(..)` as the first statement of a constructor (JLS 8.8.7.1): selects
+    /// a constructor of the enclosing class or of its superclass by arity.
+    fn resolve_explicit_constructor_call(
+        &mut self,
+        b: &mut SymbolTableBuilder,
+        call: u32,
+    ) -> Option<(u32, (u32, ResolutionStatus, Vec<u32>))> {
+        let target_node = self.ast.children(call).iter().copied().find(|&c| {
+            matches!(
+                self.bpa.node_type(c),
+                ASTNodeType::NN_THIS_EXPR | ASTNodeType::NN_SUPER_EXPR
+            )
+        })?;
+        let keyword = self.tok(target_node);
+        let (arity, _) = self.arity_after(keyword)?;
+        let class = *self.enclosing_types(b, call).first()?;
+        let target_type = if self.bpa.node_type(target_node) == ASTNodeType::NN_SUPER_EXPR {
+            self.superclass(b, class)?
+        } else {
+            class
+        };
+        if !b.is_project_type(target_type) {
+            return Some((keyword, (u32::MAX, ResolutionStatus::Library, Vec::new())));
+        }
+        let name_id = b.symbol(target_type).map(|s| s.name_id).unwrap_or(u32::MAX);
+        let ctors: Vec<u32> = self
+            .members
+            .get(&(target_type, MemberKind::Constructor, name_id))
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|&c| Self::arity_matches(b, c, arity))
+            .collect();
+        let args: Vec<u32> = self
+            .ast
+            .children(call)
+            .iter()
+            .copied()
+            .filter(|&c| c != target_node)
+            .collect();
+        let sel = match self.select(b, ctors, &args, arity, 0) {
+            Selection::Resolved(c) => (c, ResolutionStatus::Project, Vec::new()),
+            Selection::Ambiguous(c) => (u32::MAX, ResolutionStatus::Ambiguous, c),
+            // No explicit constructor: the implicit default constructor of the class.
+            Selection::Unresolved if arity == 0 => {
+                (target_type, ResolutionStatus::Project, Vec::new())
+            }
+            Selection::Unresolved => (u32::MAX, ResolutionStatus::Unresolved, Vec::new()),
+        };
+        self.selections.insert(call, sel.clone());
+        Some((keyword, sel))
     }
 
     fn arity_after(&self, name_tok: u32) -> Option<(u16, u32)> {

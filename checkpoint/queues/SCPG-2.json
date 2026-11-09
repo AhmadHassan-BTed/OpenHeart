@@ -1,0 +1,1140 @@
+[
+ {
+  "id": "MANDATE-CORE-ARCH-SCPG",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "critical",
+  "title": "Language-neutral, compiler-grade rewiring of your paths (no hard-coding, no templates)",
+  "files": [
+   "src/scpg/"
+  ],
+  "evidence": "OpenHeart must support every language with language-agnostic algorithms, and must never hard-code, template or guess: it works the way compilers do, statically. New code is being written now (read what exists): src/lang (neutral.rs universal vocabulary, frontend.rs LanguageFrontend trait, registry.rs single list of languages, profile.rs, build/ for compile_commands, CMake and MSBuild, preprocess.rs, project_model.rs, uml_semantics.rs, idioms.rs, frontends java, kotlin, c, cpp, csharp); src/ir (typed three-address SSA IR with explicit memory operations, lowering from the AST, dominators); src/memory (abstract heap, field-sensitive points-to with on-the-fly call graph, escape, ownership, mod/ref); src/analysis (lattices, worklist solvers, SCCP, intervals, nullness, typestate, control dependence, IFDS/IDE, contexts, canonical branch conditions); src/derive (every diagram derived from those facts with provenance and a Derivation tag, NotDerivable instead of invention); src/symex (bounded static symbolic execution with a stack, heap and path-condition model producing execution traces); src/abi (C/C++ Itanium and MSVC, JVM and CLR memory layouts, lifetimes, calling conventions); src/arch (architecture recovery: dependency graph, DSM, layers, clustering, metrics, boundaries); src/memview (lifetime, ownership, heap-shape and stack-frame views plus memory-safety and data-race facts). Everything from the architectural flow down to memory-level execution must come from these facts, for every language, with semantics exactly per each language specification. Contract names: LangId::C, LangId::Cpp, LangId::CSharp; ASTNodeType additions NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_TEMPLATE_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_INCLUDE_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT, NN_YIELD_STMT.",
+  "impact": "Without this, OpenHeart stays Java-specific and heuristic instead of a universal, compiler-grade engine.",
+  "recommendation": "Make the unified graph, queries, slicing (on IR def-use and control dependence) and impact analysis neutral over all frontends, keyed by stable language-independent ids, and store the real facts, not counts.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the mat",
+  "files": [
+   "src/tra/mod.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs"
+  ],
+  "evidence": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "impact": "The runner currently contains their panic-on-write behavior via catch_unwind; a signature change will break the build at those call sites",
+  "recommendation": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: Once the .scpg loader verifies its checksum, change ArtifactKind::Scpg in src/main.rs integrity_line",
+  "files": [
+   "src/scpg/mmap/mod.rs (OpenHeartEngine::open)"
+  ],
+  "evidence": "Once the .scpg loader verifies its checksum, change ArtifactKind::Scpg in src/main.rs integrity_line() to the 'CRC verified' wording",
+  "impact": "SCPG-07: inspect currently reports the .scpg checksum as NOT VERIFIED, which is accurate today",
+  "recommendation": "Once the .scpg loader verifies its checksum, change ArtifactKind::Scpg in src/main.rs integrity_line() to the 'CRC verified' wording",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Lines 83-85: `export_xmi(&self, classes: &[ClassRecord])` can only emit unnamed classifiers. Add (or",
+  "files": [
+   "src/scpg/api/mod.rs"
+  ],
+  "evidence": "Lines 83-85: `export_xmi(&self, classes: &[ClassRecord])` can only emit unnamed classifiers. Add (or switch callers to) `pub fn export_xmi_model(&self, uma: &UMLMetadataArtifact, sta: &SymbolTableArtifact, tca: &TokenCorpusArtifact) -> String { XMIExporter::export_model(&crate::scpg::diagram::DiagramContext::new(uma, sta, tca)) }`.",
+  "impact": "SCPG-11: the legacy record-only entry point is kept for compatibility, but it has no symbol table, so it cannot name elements.",
+  "recommendation": "Lines 83-85: `export_xmi(&self, classes: &[ClassRecord])` can only emit unnamed classifiers. Add (or switch callers to) `pub fn export_xmi_model(&self, uma: &UMLMetadataArtifact, sta: &SymbolTableArtifact, tca: &TokenCorpusArtifact) -> String { XMIExporter::export_model(&crate::scpg::diagram::DiagramContext::new(uma, sta, tca)) }`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Lines 8-27: resolve symbol-to-source in O(1) through `TraceabilityArtifact::uml_link` / `source_rang",
+  "files": [
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "Lines 8-27: resolve symbol-to-source in O(1) through `TraceabilityArtifact::uml_link` / `source_range` (uml_slots) instead of linear scans.",
+  "impact": "COMP-10: the traceability claim depends on this lookup, which lies outside the diagram paths.",
+  "recommendation": "Lines 8-27: resolve symbol-to-source in O(1) through `TraceabilityArtifact::uml_link` / `source_range` (uml_slots) instead of linear scans.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Replace the local restriction, count and witness code with psa.path_view(sym_id)? then count_paths, ",
+  "files": [
+   "src/scpg/query/robdd.rs"
+  ],
+  "evidence": "Replace the local restriction, count and witness code with psa.path_view(sym_id)? then count_paths, paths_through_edge, is_feasible and witness (exact PathCount, validated arrays, loop-entry aware). Return an Option or error for unknown sym_ids and for PSA_FLAG_BDD_UNAVAILABLE instead of default metrics. Update the doc that says ordering[var] is always an edge id.",
+  "impact": "The local engine assumes one variable per edge and u64 counts. psa::query is the validated implementation (BDD-12, SCPG-15).",
+  "recommendation": "Replace the local restriction, count and witness code with psa.path_view(sym_id)? then count_paths, paths_through_edge, is_feasible and witness (exact PathCount, validated arrays, loop-entry aware). Return an Option or error for unknown sym_ids and for PSA_FLAG_BDD_UNAVAILABLE instead of default metrics. Update the doc that says ordering[var] is always an edge id.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: to_source becomes tra.source_range(sym_id) (O(1) via uml_slots). from_source becomes tra.innermost_s",
+  "files": [
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "to_source becomes tra.source_range(sym_id) (O(1) via uml_slots). from_source becomes tra.innermost_symbol_at(file_id, token_id) or tra.symbols_at(file_id, token_id) (O(log N + depth)). Treat links with file_id == UML_LINK_NO_FILE (link.has_source() == false) as having no source.",
+  "impact": "Removes the O(n) scans; missing links now carry sentinels instead of (0,0,0,0,0) (BDD-10, SCPG-15, BDD-09).",
+  "recommendation": "to_source becomes tra.source_range(sym_id) (O(1) via uml_slots). from_source becomes tra.innermost_symbol_at(file_id, token_id) or tra.symbols_at(file_id, token_id) (O(log N + depth)). Treat links with file_id == UML_LINK_NO_FILE (link.has_source() == false) as having no source.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Replace apply_delta's `current_hash ^ 0x0101_0101` with tra::DeltaApplicator::compute_delta(&old_tra",
+  "files": [
+   "src/scpg/incremental/mod.rs"
+  ],
+  "evidence": "Replace apply_delta's `current_hash ^ 0x0101_0101` with tra::DeltaApplicator::compute_delta(&old_tra, &new_tra), then DeltaApplicator::propagate(&mut delta, &new_sta, &new_cga). Key snapshots on tra.hashes.chain_digest.",
+  "impact": "Per-entity staleness (stable keys plus content digests) now exists in the TRA (BDD-08, COMP-07).",
+  "recommendation": "Replace apply_delta's `current_hash ^ 0x0101_0101` with tra::DeltaApplicator::compute_delta(&old_tra, &new_tra), then DeltaApplicator::propagate(&mut delta, &new_sta, &new_cga). Key snapshots on tra.hashes.chain_digest.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Key the query cache and the SCPG header source hash by tra.hashes.chain_digest (256-bit SHA-256 chai",
+  "files": [
+   "src/scpg/query/cache.rs",
+   "src/scpg/serializer/mod.rs"
+  ],
+  "evidence": "Key the query cache and the SCPG header source hash by tra.hashes.chain_digest (256-bit SHA-256 chain) instead of the 32-bit XOR fold. tra::uml_link::digest::{digest_tca, …, digest_cga} are the shared per-artifact definitions.",
+  "impact": "One hash definition shared with TRA; removes the XOR cancellation and 32-bit collisions (SCPG-14).",
+  "recommendation": "Key the query cache and the SCPG header source hash by tra.hashes.chain_digest (256-bit SHA-256 chain) instead of the 32-bit XOR fold. tra::uml_link::digest::{digest_tca, …, digest_cga} are the shared per-artifact definitions.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Build slices from FunctionSSAData.def_use (statements using each SSA id), FunctionSSAData.operands (",
+  "files": [
+   "src/scpg/query/slice.rs"
+  ],
+  "evidence": "Build slices from FunctionSSAData.def_use (statements using each SSA id), FunctionSSAData.operands (use-def edges) and the corrected cdg.",
+  "impact": "SCPG-08: those structures are now populated and correct.",
+  "recommendation": "Build slices from FunctionSSAData.def_use (statements using each SSA id), FunctionSSAData.operands (use-def edges) and the corrected cdg.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "No incremental or persistent reuse: .scpg is a stub, the delta engine is a no-op, and global ids renumber on every edit",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/mod.rs",
+   "src/main.rs",
+   "ROADMAP.md"
+  ],
+  "evidence": "scpg/serializer/mod.rs:56-108 writes 4-byte counts for 10 of 11 sections (e.g. line 59); only StringTable (62) carries data. MemoryMappedSCPG::open (scpg/mmap/mod.rs:18) uses fs::read rather than mmap, and no query can be served from the file. scpg/incremental/mod.rs:28 'applies' a delta by XOR-ing the hash. Token, preorder and symbol ids are corpus-global, so tra/delta/mod.rs:28-39 invalidates every symbol after the first changed token. main.rs keeps nine artifacts plus six raw byte copies alive until exit.",
+  "impact": "Every run and every server request is a cold full rebuild, and peak RSS is the sum of all phases (several GB at 1M LOC). The 'O(1) incremental delta update' marked done in ROADMAP.md:116 does not exist.",
+  "recommendation": "Use stable file-local ids such as (file_id, local_idx) or rust-analyzer-style AstIds. Cache per-file Phase 1–5 outputs keyed by BLAKE3(content + config), as ruff's cache does, and express cross-file phases as Salsa queries. Persist real CSR sections with zero-copy views (rkyv, zerocopy or bytemuck over memmap2) so open() can answer queries. Drop each phase's inputs once they are consumed.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Traceability stops at Phase 9: exporters ignore UMLLink spans and fabricate file names and line numbers",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs",
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "Phase 7 computes exact (file_id, line, col) UMLLinkRecords, and Phase 9 copies them into ClassRecord.uml_link (class_diagram.rs:304-319). No exporter under src/scpg reads uml_link, uml_link_node or uml_link_token. The JSON IR the studio loads sets file to '<Name>.java' and lines to [1, 5, 10] (json.rs:267-268; also 580-581, 671-672, 733-734) and hard-codes 'OpenHeartEngine.java' (json.rs:1447). The editor requests /api/source by that guessed name (editor.js:160-161). The server then matches it by file stem across fixed example folders (server.rs:109-224). NavigationEngine::to_source and from_source are linear scans (navigation.rs:9-27).",
+  "impact": "Click-to-source is wrong for Kotlin files, files with several classes, nested classes and duplicate names, and it always highlights lines 1, 5 and 10. The O(1) source-to-diagram traceability claim therefore fails at the UI.",
+  "recommendation": "Attach a source anchor to every diagram node and edge: root-relative path, start/end line and column, and token range, taken from ClassRecord.uml_link and MessageRecord.uml_link_token. Serve sources by (session, file_id), never by name. Make to_source an O(1) index (uml_links is already sorted by sym_id) and from_source an interval-tree lookup. Done = for each fixture class, the JSON anchor equals the declaration position reported by JavaParser or javac.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "No two runs produce identical artifacts or diagrams: timestamps, mtimes, HashMap order and raw path strings leak into outputs",
+  "files": [
+   "src/ingestion/serializer.rs",
+   "src/ingestion/mod.rs",
+   "src/ast/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/scpg/serializer/mod.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/ssa/placement.rs"
+  ],
+  "evidence": ".tca embeds SystemTime::now() and per-file mtimes (ingestion/serializer.rs:80-84,115; ingestion/mod.rs:62-67). .bpa embeds the .tca CRC (ast/serializer.rs:31), so every later link hash changes on each run. .sta serializes two HashMaps in iteration order (symbol/serializer.rs:169,180). .scpg embeds a timestamp (scpg/serializer/mod.rs:136-140). The TRA hash is taken over Debug output that includes mtimes (hash_chain.rs:36). Iteration order also leaks: HashSet-to-Vec relations (class_diagram.rs:300-301), lifelines via into_values (sequence_diagram.rs:153), JSON packages, edges and edge ids (json.rs:148,445,518), call-graph edges in HashSet order (plantuml.rs:1432; mermaid.rs:1605), and phi order (placement.rs:37). Invocation path strings are stored verbatim (ingestion/mod.rs:137-138).",
+  "impact": "Results cannot be reproduced or diffed, golden tests are impossible, the committed web/diagrams change on every run, and all UMLLinks look stale after a rebuild. README's 'deterministically derives' claim is false.",
+  "recommendation": "Use BTreeMap or IndexMap, or sort, before every serialization and export. Drop wall-clock timestamps from artifacts (or honour SOURCE_DATE_EPOCH) and keep mtimes out of hashes. Store root-relative POSIX paths (camino, path-slash). Add a CI job that runs analyze twice, once from another working directory and with shuffled discovery order, and requires byte-identical outputs (cmp or diffoscope, as reproducible-builds.org recommends).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-09",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Most computed IR is never consumed, and the persisted artifacts cannot be reloaded: .scpg stores counts and .ssa reads back empty",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/api/mod.rs",
+   "src/ssa/serializer.rs",
+   "src/uma/behavioral/activity_diagram.rs",
+   "src/uma/types.rs",
+   "src/main.rs"
+  ],
+  "evidence": "SCPGSerializer writes a 4- or 8-byte count for 10 of 11 sections and real bytes only for strings (scpg/serializer/mod.rs:56-108). OpenHeartEngine holds a hash and an empty cache (scpg/api/mod.rs:29-45). SSASerializer::read returns no functions (ssa/serializer.rs:167-205). The CDG, def-use CSR, dominators, dominance frontiers, loop info, points_to_table and the TRA bi_ast/bi_blk/bi_ssa/bi_cs/cs_span indexes have no consumer outside their own modules except inspect printing their lengths (main.rs:397,435-439). Phase 9 computes activity labels and discards them (activity_diagram.rs:82-93), and label_texts is never filled (uma/types.rs:282). Artifact files are re-read only to compute CRCs (main.rs:154-226).",
+  "impact": "Nothing can be queried, resumed or diffed from disk. The 'unified memory-mapped SCPG' and its compression figures describe a file with no data, and most Phase 4-8 work cannot change any output.",
+  "recommendation": "Make .scpg the real database: store each section as a schema-versioned, zero-copy encoding of its artifact (rkyv, FlatBuffers or Cap'n Proto), memory-mapped, with section CRCs verified on open. OpenHeartEngine::open must answer queries with no in-memory artifacts, as a CodeQL database or Joern's persisted flatgraph CPG does. Add a test that fails when an artifact field has no consumer, plus an e2e test that analyzes, reopens the .scpg and runs a slice and a reachability query.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-10",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "Error handling is inconsistent across phases: global aborts on local faults, silent skips, panics, and invariants met by editing data",
+  "files": [
+   "src/ingestion/mod.rs",
+   "src/ast/mod.rs",
+   "src/cfg/mod.rs",
+   "src/ssa/mod.rs",
+   "src/tra/mod.rs",
+   "src/tra/builder.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs",
+   "src/adapters/server.rs",
+   "src/tra/backward/blk_bi.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/symbol/passes/pass5_hierarchy.rs",
+   "src/main.rs"
+  ],
+  "evidence": "One unreadable file or a None parse aborts Phase 1 (ingestion/mod.rs:51-54,111,117), and one odd function aborts Phases 4 and 5 (cfg/mod.rs:84; ssa/mod.rs:81). Yet Phase 2 silently skips files it cannot read or parse (ast/mod.rs:141-154). Phases 7-10 return no Result and panic or assert instead (tra/mod.rs:42-44; tra/builder.rs:67-130; psa/mod.rs:153-155; uma/mod.rs:97-99; scpg/mod.rs:53-55). The single-threaded server has no catch_unwind (server.rs:40-42). Invariants are met by editing data: empty blocks map to token 0 (blk_bi.rs:17-21), orphans are moved under symbol 0 (pass1_discovery.rs:622-627), and hierarchy cycles are deleted (pass5_hierarchy.rs:218). thiserror is a dependency but is never used, and error JSON interpolates Debug paths (server.rs:530-533).",
+  "impact": "Large repositories fail completely on one bad unit, or degrade silently. One panic stops the server for every user, and real resolution bugs stay hidden. The CLI prints 'SYSTEM PRODUCTION READY' even when diagram writes fail (main.rs:289-341).",
+  "recommendation": "Define a StageError enum with thiserror. Make every stage return Result and record per-file Diagnostics (file, phase, kind, message) in a diagnostics table, as CodeQL extractors do, continuing past local faults. Turn invariant checks into reported errors, never data patches. Run each server request under catch_unwind or in a worker pool, and build every response with serde_json. When a run is degraded, exit non-zero and report the skipped files and failed functions.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-06",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Artifacts are non-deterministic (wall-clock time, file mtimes, raw paths), so the hash chain changes on every run",
+  "files": [
+   "src/ingestion/serializer.rs:80-84",
+   "src/ingestion/mod.rs:62-67",
+   "src/ingestion/serializer.rs:115",
+   "src/ast/mod.rs:48",
+   "src/scpg/serializer/mod.rs:136-146",
+   "src/adapters/server.rs:637"
+  ],
+  "evidence": "The .tca header embeds SystemTime::now() (ingestion/serializer.rs:80-84), each file's mtime_ns (ingestion/mod.rs:62-67, written at serializer.rs:115) and paths exactly as passed in. Phase 2 hashes the whole .tca (ast/mod.rs:48) and each later phase chains on upstream bytes. As a result, identical source yields different hashes in all ten artifacts on every run, and so does a git checkout that only touches mtimes. The .scpg header adds now_ns and writes source_hash as zeros (scpg/serializer/mod.rs:136-146). The published demo diagrams are whatever the last local server run wrote into web/diagrams (server.rs:637).",
+  "impact": "Staleness and incremental detection (the paper's Eq. 8, 'O(1) invalidation') can never report 'unchanged'. Byte-level golden tests, build caching and cross-machine reproduction of benchmark artifacts are all impossible.",
+  "recommendation": "Make serialization a pure function of content. Drop wall-clock time and mtimes from hashed bytes; if needed, keep them in an unhashed sidecar that honours SOURCE_DATE_EPOCH. Store project-relative paths normalized to '/', and chain on content digests (BLAKE3 or SHA-256 over canonical sections) rather than whole-file CRCs. Generate demo diagrams in CI from a pinned input. Add a CI job that runs the pipeline twice, on two OSes, and byte-compares every artifact, as reproducible-builds.org recommends.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Headline performance claims (128x, O(1), zero-copy) are unmeasured or contradicted, and no benchmark infrastructure exists",
+  "files": [
+   "README.md:48",
+   "README.md:54-55",
+   "README.md:59",
+   "docs/openheart_research_paper.tex:292-296",
+   "docs/openheart_research_paper.tex:217-220",
+   "docs/openheart_research_paper.tex:582",
+   "docs/overview.md:119",
+   "src/scpg/query/navigation.rs:9-27",
+   "src/scpg/mmap/mod.rs:17-18",
+   "examples/README.md:14",
+   "web/js/github-engine.js:164",
+   "web/js/github-engine.js:256"
+  ],
+  "evidence": "'128x compression' is the paper's theoretical gap between 32-byte pointer nodes and a 2n-bit encoding (tex:292-296), not a measurement; docs/overview.md:119 itself claims 6.9x. For 'O(1) traceability', NavigationEngine::to_source is a linear find, and from_source, documented as O(log n), is a linear filter (navigation.rs:9-27). For 'zero-copy mmap', MemoryMappedSCPG::open calls fs::read (mmap/mod.rs:18). The paper defers empirical evaluation to future work (tex:217-220) yet tabulates sizes for a '500K-LOC' project (tex:582). The repo has no benchmarks, its 'enterprise-scale benchmark' is 255 LOC (examples/README.md:14), and the web studio displays hardcoded execution_time_ms values (github-engine.js:164,256).",
+  "impact": "No performance statement can be verified. Regressions and quadratic cliffs, such as the linear external-symbol scan per type reference, stay hidden until users hit them on real repositories.",
+  "recommendation": "Add criterion or divan micro-benchmarks for rank/select, BP navigation, CRC, the interner, BDD apply and traceability queries. Add macro-benchmarks on pinned corpora measuring LOC/s, peak RSS (dhat-rs or /usr/bin/time), artifact bytes per LOC and query-latency percentiles. Track them on every PR with CodSpeed or Bencher, as ruff and Biome do. Generate BENCHMARKS.md from the harness, recording hardware and commit, and remove or footnote every README number the harness does not produce.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'All 10 phases COMPLETED' and the Phase 10 readiness checklist mark stubs and missing features as done",
+  "files": [
+   "README.md:98-106",
+   "ROADMAP.md:71",
+   "ROADMAP.md:115-116",
+   "docs/plans/phase10.md:532-566",
+   "src/scpg/incremental/mod.rs:27-33",
+   "src/ssa/ifds.rs:12-37",
+   "src/scpg/query/cfl.rs:21-31",
+   "src/scpg/diagram/export/xmi.rs:8-19",
+   "src/scpg/serializer/mod.rs:146",
+   "docs/plans/phase4.md"
+  ],
+  "evidence": "IncrementalEngine::apply_delta only XORs the hash with 0x01010101 and returns stale_link_count 0 (incremental/mod.rs:27-33), so two edits restore the old hash. The ROADMAP's 'Reps-Horwitz-Sagiv IFDS' (ROADMAP.md:71) is per-statement pattern marking with no propagation (ifds.rs:12-37). 'CFL-reachability' is a plain BFS that rescans every call edge (cfl.rs:21-31). The XMI exporter emits only 'Class_{id}' names (xmi.rs:13). The checklist ticks mmap, LZ4, per-section CRC verification, SHA-256 staleness detection, an LSP bridge and a FileWatcher (phase10.md:532-566); none exist in code. source_hash is written as zeros (scpg/serializer/mod.rs:146), and docs/plans/phase4.md is empty.",
+  "impact": "Status markers cannot be trusted. Integrators who rely on incremental updates, IFDS taint, CFL queries or XMI interchange get stubs that return plausible-looking wrong answers.",
+  "recommendation": "Adopt a status rule: each roadmap or spec item links to the module and the test that prove it, and anything lacking either is marked 'planned'. Mark incremental, IFDS, CFL, XMI and LSP experimental now. Then implement them against reference designs: Salsa for incremental recomputation (as in rust-analyzer), a real IFDS/IDE tabulation solver modelled on Heros or PhASAR, Reps-style CFL-reachability with call/return matching, and XMI 2.5.1 validated by loading it into Eclipse UML2 or Papyrus.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-16",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Write real section payloads; populate source_hash with SHA-256 of sorted (path, content_sha256) pair",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/scpg/types.rs"
+  ],
+  "evidence": "Write real section payloads; populate source_hash with SHA-256 of sorted (path, content_sha256) pairs; keep creation_ts_ns out of hashed bytes and honour SOURCE_DATE_EPOCH; validate magic, version, counts, offsets and checksums before allocating; print the magic as bytes in errors",
+  "impact": "SCPG-02, SCPG-07, SCPG2-06, SCPG2-31, SCPG-13, matching docs/plans/phase10.md §10.2",
+  "recommendation": "Write real section payloads; populate source_hash with SHA-256 of sorted (path, content_sha256) pairs; keep creation_ts_ns out of hashed bytes and honour SOURCE_DATE_EPOCH; validate magic, version, counts, offsets and checksums before allocating; print the magic as bytes in errors",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Add RebuildScope::PositionsOnly for comment/whitespace edits, keep None only for offset-free edits w",
+  "files": [
+   "src/scpg/incremental/mod.rs"
+  ],
+  "evidence": "Add RebuildScope::PositionsOnly for comment/whitespace edits, keep None only for offset-free edits with an unchanged hash, and stop XORing the hash with a constant",
+  "impact": "SCPG-10, SCPG2-07, matching phase10 §10.6.2",
+  "recommendation": "Add RebuildScope::PositionsOnly for comment/whitespace edits, keep None only for offset-free edits with an unchanged hash, and stop XORing the hash with a constant",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-18",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Keep one table-driven CRC implementation in core and reuse it",
+  "files": [
+   "src/tra/uml_link/hash_chain.rs",
+   "src/scpg/serializer/integrity.rs"
+  ],
+  "evidence": "Keep one table-driven CRC implementation in core and reuse it",
+  "impact": "SCPG2-29",
+  "recommendation": "Keep one table-driven CRC implementation in core and reuse it",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "TST-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact loaders and the request parser are unfuzzed; malformed files with a valid CRC panic or abort",
+  "files": [
+   "src/ast/serializer.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/uma/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "The BPA reader trusts on-disk lengths. `Vec::with_capacity(words_len)` with values up to 2^32 aborts on allocation, and `buf[offset..offset+8]` panics on a short payload. bit_count is never checked against words.len(), so get_bit indexes out of bounds inside RankSelectIndex::build (ast/serializer.rs:109-127, 183). MemoryMappedSCPG::open size-checks for 11 sections but then loops over the file's own section_count (mmap/mod.rs:19-72). get_section adds offset and length without overflow checks (81-93). The serializers contain about 270 unwrap/expect calls, and there is no fuzz/ directory.",
+  "impact": "Truncated, hostile or version-skewed artifacts crash the CLI and engine instead of returning errors, and loader panics stay invisible until a user hits them.",
+  "recommendation": "Add a cargo-fuzz target per loader (tca, bpa, sta, cfa, ssa, cga, tra, psa, uma, scpg), with a harness that recomputes the trailing CRC so mutated inputs pass the checksum gate. Add structured `arbitrary` round-trip targets asserting read(write(x)) == x, a target that feeds raw source bytes through the whole pipeline, and an HTTP-parser target. Seed corpora from test outputs, run 10 minutes nightly, and apply to OSS-Fuzz. Use a bounds-checked BinaryReader that returns Err.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "SCPGPipelineBuilder::execute returns Result, but phases 7 to 10 panic on I/O errors",
+  "files": [
+   "src/core/pipeline.rs:209-225",
+   "src/tra/mod.rs:41-43",
+   "src/psa/mod.rs:154",
+   "src/uma/mod.rs:98",
+   "src/scpg/mod.rs:55"
+  ],
+  "evidence": "Phase7Stage::run through Phase10Stage::run return their artifacts directly and call panic! or expect when writing .tra, .psa, .uma or .scpg fails. execute() calls them without catch_unwind, so a full disk or a read-only output directory aborts the caller instead of yielding Err.",
+  "impact": "Library and server callers crash on ordinary write failures. The builder's error contract is false.",
+  "recommendation": "Change the four run() signatures to return Result, propagate with `?` in execute(), main.rs and server.rs, and add a test that uses a read-only output directory.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-01",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Phase10Stage::run panics on I/O failure instead of returning Result",
+  "files": [
+   "src/scpg/mod.rs",
+   "src/core/pipeline.rs",
+   "src/main.rs"
+  ],
+  "evidence": "src/scpg/mod.rs:53-55 wraps SCPGSerializer::write in .expect(\"Phase 10: Failed to write unified .scpg binary file\"). Its callers return Result and use ?/map_err for every other phase: SCPGPipelineBuilder::execute (src/core/pipeline.rs:151, 223) and cmd_analyze (src/main.rs:101, 243). The spec declares -> Result<OpenHeartEngine> (docs/plans/phase10.md:302). The written file is never re-opened to validate it.",
+  "impact": "A read-only output dir, full disk or locked file aborts the CLI or a library caller instead of returning an error.",
+  "recommendation": "Return io::Result<OpenHeartEngine> (or a typed error) and propagate it with ? in pipeline.rs and main.rs. Optionally re-open the file with OpenHeartEngine::open to validate it, and pass a PipelineArtifacts-style struct instead of 10 positional parameters.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "scpg_hash changes on every run, so it is not a content fingerprint",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/ast/mod.rs",
+   "src/ingestion/serializer.rs",
+   "src/tra/uml_link/hash_chain.rs"
+  ],
+  "evidence": "bpa.tca_hash is crc64 of the whole .tca file (src/ast/mod.rs:48). The .tca header embeds SystemTime::now() (src/ingestion/serializer.rs:80-84), file mtimes (:115) and paths as given (:93-101). That hash, the link hashes derived from it, and tra.hashes.tca_hash (crc of Debug(file_records), which includes mtime_ns, hash_chain.rs:36) all feed compose_scpg_hash (serializer/mod.rs:124-134).",
+  "impact": "Identical sources get a new scpg_hash on every run, so cross-run caching, staleness checks and 'hash unchanged' incremental semantics cannot work.",
+  "recommendation": "Hash content only: keep timestamps, mtimes and absolute paths out of link hashes (for example, use sorted content_sha256 plus relative paths), or give each artifact a deterministic content hash. Add a test that builds the same sources twice and asserts equal scpg_hash. This is distinct from SCPG-13's header timestamp field.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Two incompatible scpg_hash definitions (Phase 7 links vs Phase 10 header)",
+  "files": [
+   "src/scpg/serializer/integrity.rs",
+   "src/scpg/types.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "src/tra/builder.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Every UMLLinkRecord and ClassRecord stores tra.hashes.scpg_hash, which is crc32_ieee of the XOR of 6 Phase-7 hashes (src/tra/uml_link/hash_chain.rs:43-44, src/tra/builder.rs:41, src/uma/structural/class_diagram.rs:316). The .scpg header and OpenHeartEngine::scpg_hash use an XOR-fold of 9 different inputs (src/scpg/serializer/integrity.rs:29-38). StaleDetector::is_stale tests record.scpg_hash != current (src/tra/delta/invalidation.rs:10-11).",
+  "impact": "Checking links against the engine or .scpg hash, which is the documented staleness protocol, flags every link as stale.",
+  "recommendation": "Define one canonical scpg_hash function, compute it once, and stamp it into links, class records and the header, or rename one value (for example tra_chain_hash). Add a test asserting header.scpg_hash == tra.uml_links[0].scpg_hash on a fresh build.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Phase 10 never verifies that the nine input artifacts come from the same build",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/mod.rs"
+  ],
+  "evidence": "src/scpg/serializer/mod.rs:124-134 only XORs hashes. Checkable link invariants are ignored: bpa.tca_hash == sta.tca_hash (src/ast/mod.rs:48, src/symbol/serializer.rs:43), sta.bpa_hash == cfa.bpa_hash (src/cfg/mod.rs:31), cfa.sta_hash == cga.sta_hash (src/cfg/mod.rs:30, src/cg/mod.rs:46) and ssa.cfa_hash == psa.cfa_hash. docs/plans/phase10.md:526 claims 'Strict hash-chain integrity across all 9 artifacts'.",
+  "impact": "A stale .cga or .psa combined with fresh upstream artifacts produces a .scpg and an engine that silently mix inconsistent graphs.",
+  "recommendation": "Before writing, compare each artifact's recorded upstream hashes with its siblings (or recompute them from bytes) and return InvalidData naming the broken link. Add a test that passes a CGA built from other sources and expects an error.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Query cache key ignores the artifacts passed with each call",
+  "files": [
+   "src/scpg/query/mod.rs",
+   "src/scpg/api/mod.rs"
+  ],
+  "evidence": "OpenHeartEngine::is_reachable and backward_slice take cga, sta and ssa on every call (src/scpg/api/mod.rs:51-72), but QueryKey holds only query_type, the ids and self.scpg_hash (src/scpg/query/mod.rs:46-50, 70-74). The engine stores no artifacts and never checks that the supplied ones match its hash. This differs from SCPG-10 (hash toggle) and SCPG-14 (key strength).",
+  "impact": "Querying with a rebuilt or different CGA returns answers cached from the earlier graph, and mismatched artifacts are accepted silently.",
+  "recommendation": "Let the engine own or borrow its artifacts and drop the per-call parameters, or add an artifact fingerprint to QueryKey and reject artifacts whose link hashes disagree with the engine or header.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Header source_hash is always zero, so a stale .scpg cannot be detected",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/ingestion/mod.rs",
+   "docs/plans/phase10.md"
+  ],
+  "evidence": "src/scpg/serializer/mod.rs:146 writes [0u8; 32] as source_hash. The spec defines it as SHA-256 of sorted per-file SHA-256s (docs/plans/phase10.md:24) and claims it 'detects out-of-date SCPG' (:549). Ingestion already computes per-file content_sha256 (src/ingestion/mod.rs:55-58) and a source_tree_hash (:93-97) that it writes into the .tca. Nothing reads the field.",
+  "impact": "Consumers cannot tell whether a .scpg matches the current sources, so they may serve a stale graph.",
+  "recommendation": "Compute SHA-256 over the sorted (relative path, content_sha256) pairs from tca.file_records, write it at offset 16, and add an is_up_to_date(sources) check that OpenHeartEngine::open and the CLI can use.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Comment and whitespace edits are classified as needing no rebuild, which leaves positions stale",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "docs/plans/phase10.md"
+  ],
+  "evidence": "RebuildPlanner::classify returns RebuildScope::None when is_comment_or_ws_only is set (src/scpg/incremental/mod.rs:11-12), following docs/plans/phase10.md:384 'token positions unchanged'. Adding a blank line or a comment shifts the line/col of every later token (TCA sort keys) and of the TRA spans. apply_delta still changes the hash for None (:28), contradicting phase10.md:400.",
+  "impact": "Once this is wired up, navigation and click-to-source point at wrong lines after any comment edit, and no-op edits flush the caches.",
+  "recommendation": "Add a PositionsOnly scope that re-lexes the file and re-indexes TCA/TRA spans without rerunning the semantic phases. Keep None only for edits that move no offsets, and leave the hash unchanged for None. Fix the spec as well.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-30",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "inspect reports 'CRC-64 VERIFIED VALID' without verifying",
+  "files": [
+   "src/main.rs",
+   "src/scpg/mmap/mod.rs"
+  ],
+  "evidence": "For .tca and .bpa, cmd_inspect only compares the magic, then prints the verified line (main.rs:373-389) without calling the readers that check the CRC (ingestion/serializer.rs:175-193, ast/serializer.rs:72-86). It prints the compiled-in TCA_VERSION and a hard-coded '1' instead of the file's version. .scpg section CRC32s are never checked (scpg/mmap/mod.rs:17-79), and deserializer errors are discarded (main.rs:481-484).",
+  "impact": "Corrupted artifacts are certified as valid, which misleads integrity checks and bug triage.",
+  "recommendation": "Call TokenCorpusSerializer::read and BPASTSerializer::read, verify .scpg section CRCs, print the file's version, and surface the underlying error. Test with a byte-flipped .tca.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-15",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Bitwise CRC-64 recomputed 19 times over re-read artifacts, whole-file buffers, and duplicate token tables",
+  "files": [
+   "src/ingestion/serializer.rs",
+   "src/scpg/serializer/integrity.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "src/main.rs",
+   "src/ast/mod.rs",
+   "src/symbol/serializer.rs",
+   "src/cfg/mod.rs",
+   "src/ssa/mod.rs",
+   "src/cg/mod.rs",
+   "src/psa/mod.rs",
+   "src/ingestion/builder.rs"
+  ],
+  "evidence": "ingestion/serializer.rs:16-29 computes CRC-64 bit by bit (8 iterations per byte), and integrity.rs and hash_chain.rs compute CRC-32 the same way. main.rs re-reads .tca, .bpa, .cfa, .ssa and .tra (154, 163, 180, 192, 226) only so later phases can re-hash them: TCA, BPA, STA and CFA are hashed three times each (ast/mod.rs:48; symbol/serializer.rs:42-43; cfg/mod.rs:30-31; ssa/mod.rs:41; cg/mod.rs:45-46; psa/mod.rs:77). Serializers build the whole file in a Vec first, and SymbolTableArtifact::build clones every builder table (symbol/serializer.rs:64-71). TCA stores token_records and token_entries as identical copies (builder.rs:30-31).",
+  "impact": "At 1M LOC this means gigabytes of bitwise CRC (seconds to tens of seconds) plus redundant I/O, a 2× memory spike per phase, and a TCA of 32 B/token instead of 16.",
+  "recommendation": "Hash once while streaming through a BufWriter with an incremental hasher, and pass the digest forward in memory. Use a SIMD CRC (crc64fast-nvme or crc-fast), or xxh3 (xxhash-rust) for integrity and BLAKE3 for content addressing. Move builder tables instead of cloning them. Drop the duplicate backward table, since token_id order already equals sort order.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-16",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Query engine scans every call edge per worklist pop instead of using the CSR it already has",
+  "files": [
+   "src/scpg/query/cfl.rs",
+   "src/scpg/query/impact.rs",
+   "src/scpg/query/slice.rs",
+   "src/scpg/query/cache.rs",
+   "src/tra/forward/sym_span.rs",
+   "src/cg/mod.rs"
+  ],
+  "evidence": "scpg/query/cfl.rs:27 iterates the whole cga.site_to_edge_map for each dequeued node, and impact.rs:24 and slice.rs:28,64 do the same. Each query is therefore O(V·E), although Phase 6 already builds callee_csr and caller_csr (cg/mod.rs:149-176). The 'CFL' query is plain reachability. cache.rs:32 clears the entire 'LRU' cache when it fills. tra/forward/sym_span.rs:60 walks back over every record in the file, so forward_sym_query is O(symbols in file), not the documented O(log N + k).",
+  "impact": "On a multi-million-edge call graph, interactive reachability, impact and slice queries cost up to ~10^11 steps, which defeats the real-time traceability pitch.",
+  "recommendation": "Traverse callee_csr/caller_csr with a bitset visited set, O(V+E). Use Reps–Horwitz–Sagiv tabulation for genuine CFL or IFDS queries. Replace the cache with the lru crate (or a CLOCK cache). For span stabbing queries, use parent-chain or nested-interval lookups or an interval tree, O(log N + depth).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "The provenance hash chain is inconsistent and partly decorative; each run has two different scpg_hash values",
+  "files": [
+   "src/tra/uml_link/hash_chain.rs",
+   "src/tra/builder.rs",
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/serializer/integrity.rs",
+   "src/psa/mod.rs",
+   "src/ssa/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/main.rs"
+  ],
+  "evidence": "Phase 7 hashes Debug-formatted file records as tca_hash. It uses crc(file count) as bpa_hash, sta.bpa_hash ^ sta.tca_hash as cfa_hash and crc(call_site_count) as cga_hash (hash_chain.rs:36-41), then re-checks the same XOR (tra/builder.rs:97-109). Phase 10 uses a different XOR whose first input is the token count (scpg/serializer/mod.rs:124-134; integrity.rs:29-38). In it, ssa.cfa_hash and psa.cfa_hash cancel, because both are CRCs of the same .cfa bytes (ssa/mod.rs:41; psa/mod.rs:77). PSA stores the STA hash as ssa_hash (psa/mod.rs:78), and the .scpg source_hash is zeroed (scpg/serializer/mod.rs:146). inspect reports 'VERIFIED VALID' for .tca and .bpa without checking either (main.rs:373-388).",
+  "impact": "UMLLinks carry a different hash from the .scpg header, so StaleDetector (invalidation.rs:10-12) would flag everything. CFG changes cannot alter the composite hash, and stale or mixed artifacts go undetected.",
+  "recommendation": "Define provenance once. Every artifact header stores a BLAKE3 or SHA-256 digest of its canonical payload, the digests of its declared inputs and the engine version, like Bazel action keys, Nix derivations or SLSA/in-toto provenance. Loaders verify the input digests. Compute scpg_hash as a Merkle root over sorted (artifact, digest) pairs, never by XOR, and make inspect verify every checksum it reports.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ROB-11",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact readers trust header counts and offsets, and inspect reports integrity it never checks",
+  "files": [
+   "src/tra/serializer.rs",
+   "src/psa/serializer.rs",
+   "src/uma/serializer.rs",
+   "src/ast/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/cg/serializer.rs",
+   "src/ingestion/serializer.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/main.rs"
+  ],
+  "evidence": "The readers check a CRC-64, which any attacker can recompute. After that they index `buf[offset..offset+4]` without checking how many bytes remain: TRA (tra/serializer.rs:174-280), PSA (psa/serializer.rs:201-245, including `pos = metrics_offset` taken from the file), UMA (uma/serializer.rs:272 onward) and BPA (ast/serializer.rs:118-171). Short files therefore panic. Counts from u32 headers go straight into Vec::with_capacity (symbol/serializer.rs:240, cg/serializer.rs:158, ingestion/serializer.rs:254,296), so large counts abort on a multi-GiB allocation. scpg/mmap/mod.rs:52-62 reads section_count entries unchecked, and get_section computes `start + byte_length` (86-90), which can wrap. inspect prints 'CRC-64 Check : VERIFIED VALID' for .tca and .bpa files without checking anything (main.rs:373-389).",
+  "impact": "`openheart inspect`, the documented validation tool, panics or aborts on small crafted files and claims integrity it never verified. Library users who load artifacts inherit the same crashes.",
+  "recommendation": "Parse through one bounds-checked cursor: a Reader that returns Err on short reads, or zerocopy, binrw or scroll. Check `count <= remaining / record_size` before allocating, and use try_reserve and checked_add for offsets. Make inspect verify the CRC for every artifact type and report the real error. Add cargo-fuzz targets for each format, seeded with real artifacts. Done when 24 hours of libFuzzer finds no crash.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ROB-14",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Error model is panic or abort-the-run: I/O panics, release-mode asserts, and per-unit failures that fail everything",
+  "files": [
+   "src/tra/mod.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs",
+   "src/tra/builder.rs",
+   "src/ast/builder.rs",
+   "src/ast/jump_table.rs",
+   "src/cfg/mod.rs",
+   "src/ssa/mod.rs",
+   "src/core/logger.rs"
+  ],
+  "evidence": "Phases 7-10 return artifacts rather than Result, and they panic on I/O failure (tra/mod.rs:42-43, psa/mod.rs:153-154, uma/mod.rs:97-98, and an expect at scpg/mod.rs:53-55). Invariants are enforced with release-mode assert!/assert_eq! (tra/builder.rs:66-131, ast/builder.rs:180-207, jump_table.rs:23-29). In the other direction, one function that fails a CFG or SSA invariant aborts the whole run through `?` (cfg/mod.rs:84, ssa/mod.rs:81), and so does one unreadable file (ingestion/mod.rs:51-54). Locks are taken with lock().unwrap() (logger.rs:82,145; ingestion/mod.rs:136,174).",
+  "impact": "A full disk or a read-only output directory crashes the CLI with a backtrace and kills the server. One unusual function or file throws away the results for the entire repository.",
+  "recommendation": "Thread one thiserror enum (already a dependency) through every Phase*Stage::run. Turn per-function and per-file invariant failures into a diagnostic plus a skipped unit, optionally wrapped in catch_unwind per unit, and keep the partial artifacts. Reserve assert! for genuinely impossible states. Enforce clippy deny(unwrap_used, expect_used, panic, indexing_slicing) on non-test code in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD2-09",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Most TRA content is write-only: no tau/tau^-1 API and no per-layer forward indexes",
+  "files": [
+   "src/tra/types.rs:5-20",
+   "src/tra/builder.rs:33-41",
+   "src/tra/forward/sym_span.rs:50-54",
+   "src/scpg/serializer/mod.rs:63-67",
+   "docs/plans/phase7.md:53-65"
+  ],
+  "evidence": "Nothing outside src/tra reads bi_ast, bi_blk, bi_ssa, bi_cs or cs_span (main.rs only prints their lengths). LayerKind and EntityRef are never used. Only symbol and call-site spans exist, although §7.2.2 specifies one span index per layer. Queries need a token_id plus a redundant file_id (a mismatch silently returns nothing), and there is no (file, line, col) entry point. The SCPG Traceability section stores only a count.",
+  "impact": "The six-layer bidirectional traceability cannot be queried; the .tra file mostly costs build time and disk space.",
+  "recommendation": "Add a TraceabilityIndex API with to_source(EntityRef) and from_source(file, line, col) -> Vec<EntityRef>, backed by per-layer interval indexes. Embed it in the SCPG, or drop the unused sections.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-08",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Engine exposes only 2 of the specified queries; the other query modules have no callers",
+  "files": [
+   "src/scpg/api/mod.rs",
+   "src/scpg/query/mod.rs",
+   "src/scpg/query/impact.rs",
+   "src/scpg/query/robdd.rs",
+   "src/scpg/query/navigation.rs",
+   "src/scpg/query/slice.rs"
+  ],
+  "evidence": "OpenHeartEngine and QueryEngine route only is_reachable and backward_slice (src/scpg/api/mod.rs:51-72, src/scpg/query/mod.rs:39-83). SliceEngine::forward_slice, ImpactAnalyzer::impact_set, NavigationEngine::from_source and ROBDDQueryEngine::path_count/cyclomatic have no caller anywhere (grep). Spec section 10.7 (docs/plans/phase10.md:444-516) lists callers_of, callees_of, subtypes_of, find_symbol, stats, to/from_source and more.",
+  "impact": "Most query code cannot be reached through the public API, is uncached, and is untested. This is the in-process gap, separate from SCPG-19's interop point.",
+  "recommendation": "Add engine methods for forward_slice, impact_set, to_source/from_source, path_count/cyclomatic, callers_of/callees_of (via CGCSR), subtypes_of/supertypes_of (STA th_edges) and find_symbol(qualified name), routed through QueryEngine with typed keys. Add one test per method.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-37",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "SCPG query engine and XMI exporter are unreachable from CLI and API",
+  "files": [
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "src/scpg/api/mod.rs"
+  ],
+  "evidence": "OpenHeartEngine exposes is_reachable, backward_slice and export_xmi (scpg/api/mod.rs:51-83). main.rs uses the engine only for scpg_hash (main.rs:243-337) and has no query subcommand. The server never builds the engine and has no query routes. Neither entry point exports XMI (main.rs:281-309, server.rs:663-691).",
+  "impact": "The advertised query engine and XMI output cannot be used without writing Rust code.",
+  "recommendation": "Add 'openheart query <scpg> reachable|slice ...' and a --format xmi option, plus /api/query/* endpoints backed by one engine per session. Test each command.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-17",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "No incremental recomputation: ids are positions in the whole corpus and the incremental engine is a stub",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/symbol/builder.rs",
+   "src/ingestion/mod.rs"
+  ],
+  "evidence": "IncrementalEngine::apply_delta rebuilds nothing and returns `current_hash ^ 0x0101_0101` (scpg/incremental/mod.rs:26-34). RebuildPlanner relies on booleans supplied by the caller, and StaleDetector is never called (tra/delta/invalidation.rs:10-12). Every id is a position in the whole corpus: token indices are global sort positions, AST ids are preorder positions in one forest, and symbol ids follow discovery order (symbol/builder.rs:68). Editing file k therefore renumbers every id after it. Per-file SHA-256 is computed (ingestion/mod.rs:56-59) but never used as a cache key.",
+  "impact": "Every edit forces a full 10-phase rebuild, which rules out IDE and incremental-CI use, and no result can be reused or diffed across versions.",
+  "recommendation": "Make the file the unit. Ids become (FileId, local), with FileId interned from the root-relative path, and Phases 1-3 are cached per file, keyed by content SHA-256 plus engine version. Model cross-file phases as Salsa queries (the salsa crate, as in rust-analyzer) with revision-based invalidation and early cutoff. Use stable item ids like rust-analyzer's AstId or CodeQL TRAP keys. Done = editing one method body re-runs Phases 1-5 for that file only, shown with a benchmark.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-44",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "Docs claim CRC-64 on all ten artifacts, but .scpg uses CRC-32 and inspect skips verification",
+  "files": [
+   "README.md",
+   "docs/plans/10_phase_pipeline_overview.md",
+   "src/main.rs",
+   "src/scpg/serializer/mod.rs"
+  ],
+  "evidence": "README.md:59 says all 10 phases produce CRC-64 verified artifacts, and 10_phase_pipeline_overview.md:85 says Phase 10 verifies CRC-64. The .scpg writer uses per-section CRC-32 (serializer/mod.rs:22, 111). 'inspect' on a .scpg prints 'SYSTEM PRODUCTION READY' without checking any checksum (main.rs:469-474). The help text (main.rs:56) lists 6 inspectable types, although inspect handles 10.",
+  "impact": "Integrity guarantees are overstated, and the inspect output is misleading.",
+  "recommendation": "Verify the section CRCs in inspect, print a factual status, and correct the docs and help text.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-57",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "The phase plans are the only file-format specs, and they have drifted from the code with no versioning",
+  "files": [
+   "docs/plans/phase10.md",
+   "docs/plans/10_phase_pipeline_overview.md",
+   "docs/plans/phase6.md",
+   "docs/overview.md",
+   "src/scpg/types.rs"
+  ],
+  "evidence": "phase10.md:17-36 specifies format_version 1, magic 0x5343504700010000 and 24-byte directory entries. The code uses SCPG_FORMAT_VERSION 2 and 40-byte entries (types.rs:20, 33). 10_phase_pipeline_overview.md:49 adds CFG_EXCEPT and CFG_RETURN, which architecture.md:62 omits. The Phase 6 inputs in phase6.md:11 disagree with overview.md:91. docs/README.md:33 calls the plans 'historical', yet nothing newer exists.",
+  "impact": "There is no authoritative format reference for third-party readers or for compatibility.",
+  "recommendation": "Add docs/format/ generated from the constants, with a format-version changelog, and mark the plans as superseded.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-13",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Composite hash arguments are shifted one phase upstream and omit CGA, PSA and UMA content",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/serializer/integrity.rs"
+  ],
+  "evidence": "compose_scpg_hash names its parameters tca_hash..psa_hash (src/scpg/serializer/integrity.rs:18-28). src/scpg/serializer/mod.rs:124-134 passes a token count as tca_hash, bpa.tca_hash as bpa_hash, sta.bpa_hash as sta_hash, ..., uma.tra_hash as uma_hash and psa.cfa_hash as psa_hash. No argument covers the .cga, .psa or .uma bytes, and the header has no generator-version field.",
+  "impact": "A changed analyzer that produces a different call graph, ROBDDs or UML from the same inputs keeps the same scpg_hash.",
+  "recommendation": "Give each artifact its own content hash, pass the nine values to the matching parameters, mix in a generator/format version, and derive the 32-bit key with a real hash. This is distinct from SCPG-14's point that XOR is weak.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPG2-14",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "A poisoned query mutex silently turns into 'unreachable' and empty slices",
+  "files": [
+   "src/scpg/api/mod.rs"
+  ],
+  "evidence": "src/scpg/api/mod.rs:52-56 returns false when self.query.lock() fails, and :67-71 returns Vec::new(). After any panic inside a query that holds the lock, every later reachability query answers false and every slice is empty, with no error or log. This differs from SCPG-14's lock-contention point.",
+  "impact": "After one panic, every later answer is plausible but wrong.",
+  "recommendation": "Recover with lock().unwrap_or_else(|e| e.into_inner()) and clear the cache, or return Result<_, QueryError>. Log the poison event.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "language_count header field is hardcoded to 1",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/core/types/token.rs"
+  ],
+  "evidence": "src/scpg/serializer/mod.rs:149 writes 1u32 as language_count whatever the input. tca.file_records carry a language_id per file, and LangId defines Java, Kotlin and eight more (src/core/types/token.rs:6-18). docs/plans/phase10.md:27 specifies 'number of distinct source languages ingested'.",
+  "impact": "Mixed Java and Kotlin projects are recorded as single-language, so the header metadata cannot be trusted.",
+  "recommendation": "Count the distinct non-Unknown language_id values in tca.file_records and write that number. Add a test with one .java and one .kt file that expects 2.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "The .scpg write is non-atomic, unsynced and fully buffered in memory",
+  "files": [
+   "src/scpg/serializer/mod.rs"
+  ],
+  "evidence": "src/scpg/serializer/mod.rs:40-165 assembles the whole file in one Vec; the string table is copied by to_vec() at :62 and again into file_buf. Then :167 calls fs::write, which truncates in place with no temp file, rename or fsync. docs/plans/phase10.md:296-345 describes a streamed BufWriter. This is the writer side, unlike SCPG-07's loader checks.",
+  "impact": "A crash or a concurrent reader mid-write sees a truncated .scpg, and peak memory doubles once sections carry real data.",
+  "recommendation": "Stream sections through a BufWriter into a temp file, seek back to patch the header and directory, call sync_all, then rename over out_path. Drop the intermediate to_vec copies.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-17",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "classify() trusts three independent booleans and resolves conflicts to the cheapest scope",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/scpg/incremental/delta.rs"
+  ],
+  "evidence": "SourceDelta has three independent flags: is_comment_or_ws_only, is_method_body_only and is_type_decl_changed (src/scpg/incremental/delta.rs:12-17). classify (src/scpg/incremental/mod.rs:10-20) checks them in order. So method_body_only plus type_decl_changed gives Behavioral instead of Structural, and comment_only plus anything gives None. Nothing validates the combination.",
+  "impact": "A caller that sets several flags gets an under-scoped rebuild and stale structural data.",
+  "recommendation": "Replace the bools with a ChangeKind enum, or a bitset resolved to the widest scope. Add a table test (classify_resolves_conflicts_to_widest_scope) covering all 8 combinations.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-18",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Query-type codes are magic numbers that contradict the spec; params_crc is not a CRC",
+  "files": [
+   "src/scpg/query/mod.rs",
+   "src/scpg/types.rs"
+  ],
+  "evidence": "src/scpg/query/mod.rs:47 uses query_type 0 for CFL, and :71 uses 2 with the comment '// SLICE_BWD'. The spec assigns SLICE_FWD=2 and SLICE_BWD=3 (docs/plans/phase10.md:241). Both slices pack params as root<<32|depth, so a forward-slice cache numbered per the spec would collide with backward-slice entries. src/scpg/types.rs:47 calls the packed value params_crc.",
+  "impact": "Adding a forward-slice cache per the spec would return backward-slice results, and the field name misleads readers.",
+  "recommendation": "Add a #[repr(u8)] enum QueryType that matches the spec and use it in QueryKey. Rename params_crc to params_key, or hash serialized parameters as documented.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-19",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "low",
+  "title": "EngineBuilder cannot build anything and duplicates SCPGPipelineBuilder",
+  "files": [
+   "src/scpg/api/builder.rs",
+   "src/scpg/mod.rs",
+   "src/core/pipeline.rs"
+  ],
+  "evidence": "src/scpg/api/builder.rs:5-35 holds output_dir, cache_capacity and enable_mmap with two setters. It has no build() or open(), no setter for enable_mmap, and no code reads any field. It is public API (src/scpg/mod.rs:16). SCPGPipelineBuilder (src/core/pipeline.rs:97-114) does the real work and defaults to temp_dir instead of ./scpg_out. This is broader than SCPG-14's cache-capacity point.",
+  "impact": "A public configuration path does nothing, and the two builders have conflicting defaults.",
+  "recommendation": "Implement EngineBuilder::build() and open(path) honoring cache_capacity and enable_mmap (adding with_mmap), or remove it and keep a single builder with a documented default output directory.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-20",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "low",
+  "title": "Engine export methods ignore engine state, expose only class diagrams, and hide errors",
+  "files": [
+   "src/scpg/api/mod.rs"
+  ],
+  "evidence": "export_mermaid, export_plantuml, export_json, export_xmi and summary (src/scpg/api/mod.rs:74-117) never use self; callers pass uma/sta/tca. Only class diagrams are exposed, while main.rs and the server call UniversalDiagramEngine::export_diagram directly. export_xmi takes &[ClassRecord], unlike the others. export_json turns a serde error into \"{}\" (:112). The scpg_hash, query and mmap fields are pub.",
+  "impact": "There are two parallel export APIs, failures produce silent '{}' output, and callers can desynchronize scpg_hash from the file.",
+  "recommendation": "Expose export(format, diagram_type) that delegates to UniversalDiagramEngine using engine-held artifacts, return Result<String, ExportError>, and make the fields private behind accessors.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-21",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Dead code and a capacity-0 edge case in the query layer",
+  "files": [
+   "src/scpg/types.rs",
+   "src/scpg/query/cache.rs"
+  ],
+  "evidence": "QueryResult::Count, StringList, SymbolList and Json (src/scpg/types.rs:54-58) are never constructed. LRUQueryCache::invalidate (src/scpg/query/cache.rs:38-41) has no caller. LRUQueryCache::new(0) still caches one entry, because put clears and then inserts (cache.rs:31-35). QueryResult does not derive PartialEq, which makes tests clumsy.",
+  "impact": "Unused API suggests features that do not exist, and capacity 0 cannot disable caching.",
+  "recommendation": "Remove the unused variants or wire them to real queries, call invalidate from the incremental path, treat capacity 0 as disabled, and derive PartialEq on QueryResult.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-22",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "CFL search keeps a redundant pair state and an unreachable final check",
+  "files": [
+   "src/scpg/query/cfl.rs"
+  ],
+  "evidence": "The first tuple element is always source (src/scpg/query/cfl.rs:18-19, 28-29), so the HashSet<(u32,u32)> is just a visited set. Every inserted pair is queued and the loop returns when u == target (:22-24), so summary.contains(&(source, target)) at :34 is always false. source == target returns true for any id, even one absent from the graph (:11-13).",
+  "impact": "Readers are misled into thinking summary edges exist, and any id, even an unknown one, reaches itself.",
+  "recommendation": "Use a HashSet<u32> or bitset visited set, return false after the loop, and validate ids or document reflexivity. This is separate from SCPG-09's algorithm point.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-23",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Slice traversals scan the whole site_to_edge_map for every visited symbol",
+  "files": [
+   "src/scpg/query/slice.rs",
+   "src/core/types/cg.rs"
+  ],
+  "evidence": "backward_slice scans every cga.site_to_edge_map entry for each popped symbol to find callers (src/scpg/query/slice.rs:28-32), and forward_slice does the same for callees (:64-68). That is O(V·E). The CGA already has caller_csr/callee_csr indexed by symbol id, with edges_of() (src/core/types/cg.rs:127-137; src/cg/mod.rs:110). SCPG-09 and SCPG-15 cover only CFL and impact.",
+  "impact": "Slices on large call graphs become quadratic and hold the engine's global mutex the whole time.",
+  "recommendation": "Use cga.caller_csr.edges_of(sym) and cga.callee_csr.edges_of(sym) for O(degree) neighbor lookup, or build a reverse adjacency once per CGA. Note that the CSR omits out-of-range external callees.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-24",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "from_source ignores columns and ordering; to_source returns only the first link",
+  "files": [
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "from_source filters on line_start <= line <= line_end (src/scpg/query/navigation.rs:24) and ignores columns. It returns matches in uml_links order (outer class before inner method), not innermost first. to_source returns the first link with the given sym_id (:10). Callers must supply an internal u16 file_id; there is no lookup by path. This goes beyond SCPG-15's complexity point.",
+  "impact": "Navigating from an editor position to the diagram cannot find the innermost entity, and entities on the same line cannot be told apart.",
+  "recommendation": "Take (file, line, col), test full (line, col) containment, sort by span size ascending, and add a path-to-file_id lookup. Test: a method nested in a class on one line returns the method first.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-25",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "ROBDD lookups return a fabricated 1 for unknown or non-function symbols",
+  "files": [
+   "src/scpg/query/robdd.rs"
+  ],
+  "evidence": "path_count and cyclomatic end in .unwrap_or(1) (src/scpg/query/robdd.rs:10-12, 17-19). A class id, an unknown id, or a function missing from the PSA therefore reports 1 path and complexity 1, the same as a real straight-line method. max_path_len, unwind_depth and PathMetrics are not exposed. This is separate from SCPG-15's O(1) claim.",
+  "impact": "Metrics and rankings silently treat missing data as the simplest possible code.",
+  "recommendation": "Return Option<u64>/Option<u16> (or Result) and let callers decide. Add accessors for max_path_len, unwind_depth and path_metrics.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-27",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "StringTable section omits the interner's offset index",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/ingestion/interner.rs"
+  ],
+  "evidence": "src/scpg/serializer/mod.rs:62 writes only tca.interner.get_storage_bytes(), that is, u16-length-prefixed strings (src/ingestion/interner.rs:95-102). The offsets array (interner.rs:23, get_offsets at :123) and the string count are not written, so resolving a text_id needs an O(n) scan from the start.",
+  "impact": "The only section with real content cannot support the O(1) name lookups that diagrams and navigation need.",
+  "recommendation": "Write the count and a u32 offsets array before the storage blob (or as their own section) and document the layout. Test: round-trip the interner and compare lookup_text for every id.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-28",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Header and directory layout is duplicated as magic offsets, with no codec or checksum",
+  "files": [
+   "src/scpg/types.rs",
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/scpg/serializer/layout.rs"
+  ],
+  "evidence": "The writer appends fields in order (src/scpg/serializer/mod.rs:142-163); the reader hardcodes byte ranges 0..8 through 60..64 (src/scpg/mmap/mod.rs:26-62). SCPGHeader and SectionDirectoryEntry have no to_bytes/from_bytes, and SCPGSectionType has no TryFrom<u32>. SCPG_SECTION_COUNT (types.rs:6) is not tied to ordered_sections(), and a mismatch panics at copy_from_slice (:165). Header and directory have no checksum.",
+  "impact": "A layout change on one side silently breaks the other, and corruption in the header or directory goes undetected.",
+  "recommendation": "Add to_bytes/from_bytes for SCPGHeader and SectionDirectoryEntry using named offset constants. Derive the section count from the layout array with a const assert, add TryFrom<u32> for SCPGSectionType, and store a header+directory CRC in the reserved bytes.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-29",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Bitwise CRC-32 is duplicated and slow, and breaks the CRC-64 convention",
+  "files": [
+   "src/scpg/serializer/integrity.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "README.md"
+  ],
+  "evidence": "src/scpg/serializer/integrity.rs:3-16 and src/tra/uml_link/hash_chain.rs:12-25 are identical bit-at-a-time CRC-32 loops (8 iterations per byte). The output is correct (0xCBF43926 for '123456789'). Every other artifact uses crc64_ecma, and README.md:59 says all phases produce 'CRC-64 verified binary artifacts'.",
+  "impact": "There are two copies to maintain, and both run about 8x slower than a table-driven CRC on full-size sections.",
+  "recommendation": "Keep one table-driven (or slicing-by-8) CRC in core and reuse it in TRA and SCPG. Either switch the .scpg sections to CRC-64 or correct the README.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-30",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Debug output of MemoryMappedSCPG prints the entire file",
+  "files": [
+   "src/scpg/mmap/mod.rs"
+  ],
+  "evidence": "#[derive(Debug)] on MemoryMappedSCPG (src/scpg/mmap/mod.rs:9-14) includes the private bytes: Vec<u8>. So {:?}, for example in an expect or unwrap message or a log line, prints every byte of the .scpg as a decimal list.",
+  "impact": "Logs and panic messages grow to megabytes once sections hold real data.",
+  "recommendation": "Implement Debug by hand so that it prints only the header, the directory and bytes.len().",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-31",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Documented SCPG magic number disagrees with the constant, and the magic embeds a version",
+  "files": [
+   "src/scpg/types.rs",
+   "src/scpg/mmap/mod.rs",
+   "docs/plans/phase10.md"
+  ],
+  "evidence": "SCPG_MAGIC = u64::from_le_bytes(*b\"SCPG\\x00\\x01\\x00\\x00\") = 0x0000010047504353 (src/scpg/types.rs:3), but docs/plans/phase10.md:21 documents 0x5343504700010000. The mismatch error prints the little-endian value (src/scpg/mmap/mod.rs:30). The 0x01 byte in the magic duplicates format_version.",
+  "impact": "Readers implemented from the spec reject valid files, and any version bump forces a change to the magic.",
+  "recommendation": "Document the on-disk bytes ('SCPG\\0\\x01\\0\\0') rather than a u64 literal, print the magic as bytes in the error, and keep versioning in format_version only.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-32",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Cache hits deep-clone results",
+  "files": [
+   "src/scpg/query/cache.rs",
+   "src/scpg/query/mod.rs"
+  ],
+  "evidence": "LRUQueryCache::get returns self.entries.get(key).cloned() (src/scpg/query/cache.rs:27), and QueryEngine::backward_slice stores res.clone() (src/scpg/query/mod.rs:81). Every Slice hit therefore copies the whole Vec<u32>. docs/plans/phase10.md:275-289 claims O(1) cached complexity.",
+  "impact": "Large cached slices cost an O(n) allocation per hit, made while the global lock is held.",
+  "recommendation": "Store results as Arc<[u32]> or Arc<QueryResult> and hand out clones of the Arc.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-38",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Phase 10 log lines and module docs describe behavior that does not exist",
+  "files": [
+   "src/scpg/mod.rs",
+   "src/scpg/serializer/integrity.rs",
+   "src/scpg/api/builder.rs"
+  ],
+  "evidence": "src/scpg/mod.rs:57-60 logs 'Merged all 9 artifacts into unified .scpg file', and :64 logs 'production engine bootstrapped & ready', although the engine holds no mmap and no artifacts. src/scpg/serializer/integrity.rs:1 names an 'IntegrityVerifier' that verifies nothing. src/scpg/api/builder.rs:1 promises a fluent builder that builds nothing. SCPG-02 covers the missing content itself.",
+  "impact": "Users and maintainers are told that features exist, and the logs mislead debugging.",
+  "recommendation": "Reword the logs and docs to describe what is actually written (counts and the string table) until the features land, then update them together.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-26",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "low",
+  "title": "Sections are unaligned, and count widths vary without type metadata",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/types.rs"
+  ],
+  "evidence": "Sections are appended back to back with no padding (src/scpg/serializer/mod.rs:53-121), so everything after the variable-length StringTable starts at an arbitrary offset. PathSummaries writes psa.total_nodes as u64 (8 bytes, :103-107), while the other count sections write u32. Directory entries have no element size, count, flags or compression field (src/scpg/types.rs:36-42).",
+  "impact": "Zero-copy typed views and the claimed hot/warm/cold page grouping are impossible.",
+  "recommendation": "Align each section to 8 bytes and the hot/warm/cold boundaries to pages, add elem_size, elem_count and flags to directory entries, and bump SCPG_FORMAT_VERSION.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-33",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "Query answers lack witness paths, distances and edge-kind filters",
+  "files": [
+   "src/scpg/query/cfl.rs",
+   "src/scpg/query/impact.rs",
+   "src/scpg/query/slice.rs",
+   "src/core/types/cg.rs"
+  ],
+  "evidence": "is_reachable returns only a bool (src/scpg/query/cfl.rs:10); impact_set and the slices return flat sorted Vec<u32> (src/scpg/query/impact.rs:31-33, src/scpg/query/slice.rs:42-44). The site_to_edge_map tuples carry no edge kind, although callee_csr.edge_types exists (src/core/types/cg.rs:120-124). So no query can exclude REFLECTION or DYNAMIC edges or report the call chain.",
+  "impact": "Users cannot see why A reaches B, cannot verify results, and cannot tune precision.",
+  "recommendation": "Return an optional witness path (from a BFS parent map), per-node distance for slices and impact, and accept a CG_EDGE_* mask on all graph queries.",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

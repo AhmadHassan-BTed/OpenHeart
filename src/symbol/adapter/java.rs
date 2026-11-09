@@ -127,7 +127,29 @@ impl SemanticAdapter for JavaSemanticAdapter {
         }
     }
 
-    fn default_visibility(&self, kind: SymbolKind, enclosing: Option<SymbolKind>) -> SymbolVisibility {
+    fn is_collection_type(&self, type_name: &str) -> bool {
+        // Library collections outside the built-in catalog, by package convention: every
+        // non-map type of java.util and java.util.concurrent whose simple name ends in a
+        // collection noun. Map types are handled by the catalog's Map category.
+        let simple = type_name.rsplit('.').next().unwrap_or(type_name);
+        let in_collection_package = type_name.starts_with("java.util.")
+            && !type_name.starts_with("java.util.function.")
+            && !type_name.starts_with("java.util.stream.");
+        in_collection_package
+            && ["List", "Set", "Queue", "Deque", "Collection"]
+                .iter()
+                .any(|noun| simple.ends_with(noun))
+    }
+
+    fn default_visibility(&self, kind: SymbolKind) -> SymbolVisibility {
+        self.default_visibility_in(kind, None)
+    }
+
+    fn default_visibility_in(
+        &self,
+        kind: SymbolKind,
+        enclosing: Option<SymbolKind>,
+    ) -> SymbolVisibility {
         // JLS 9.3, 9.4, 9.5: interface and annotation members are implicitly public.
         if is_interface_like(enclosing) && kind != SymbolKind::SK_PARAM {
             return SymbolVisibility::Public;
@@ -211,6 +233,8 @@ impl SemanticAdapter for JavaSemanticAdapter {
     }
 
     fn opens_block_scope(&self, node_type: ASTNodeType) -> bool {
+        // JLS 6.3: blocks, for statements, catch clauses, switch blocks and
+        // try-with-resources (the resources are in scope in the protected block).
         matches!(
             node_type,
             ASTNodeType::NN_BLOCK
@@ -219,6 +243,7 @@ impl SemanticAdapter for JavaSemanticAdapter {
                 | ASTNodeType::NN_CATCH_CLAUSE
                 | ASTNodeType::NN_SWITCH_STMT
                 | ASTNodeType::NN_SWITCH_EXPR
+                | ASTNodeType::NN_TRY_STMT
         )
     }
 

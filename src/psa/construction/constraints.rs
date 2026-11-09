@@ -6,9 +6,9 @@
 //! acyclic path segment (see `construction::graph`), so `#SAT(f_paths)` *is* the path count:
 //!
 //! ```text
-//! starts:     s₀ = ¬(∨ₕ yₕ)                          the segment starts at ENTRY …
+//! starts:     s₀ = ¬(∨ₕ yₕ)                          the segment starts at the entry …
 //!             AtMostOne{yₕ}                           … or at exactly one loop header
-//! block b:    In_b  = {s₀ if b = ENTRY} ∪ {y_b if b is a header}
+//! block b:    In_b  = {s₀ if b = entry} ∪ {y_b if b is a header}
 //!                   ∪ {xₑ : e = (p → b) active, not a back edge}
 //!             Out_b = {xₑ : e = (b → s)}              (back edges end the segment)
 //!             AtMostOne(In_b)
@@ -24,11 +24,18 @@
 //! exponentially (one if/else counted 8 paths instead of 2).
 //!
 //! Each `AtMostOne`/`∨` is built with O(k) operations by the two-accumulator construction
-//! (`none`, `exactly_one`) instead of O(k²) pairwise clauses, and blocks are conjoined in
-//! topological order, matching the locality-preserving variable order.
+//! (`none`, `exactly_one`) instead of O(k²) pairwise clauses.
+//!
+//! **Conjunction schedule.** All conjuncts are built first and then conjoined in order of
+//! their top variable's level (ties by node id). Every conjunct mentions only variables near
+//! its top level, so this sweep closes the constraints of each region of the order before
+//! the next one is opened — the accumulated BDD only has to remember the path's position at
+//! the current frontier. It is robust to FORCE moving variables away from the topological
+//! seed, unlike conjoining in block order.
 
+use crate::psa::bdd::node::is_terminal_id;
 use crate::psa::bdd::{BDDLibrary, BddLimit};
-use crate::psa::construction::graph::{PathGraph, ENTRY_BLOCK};
+use crate::psa::construction::graph::PathGraph;
 use crate::psa::construction::levels::BuildLevels;
 use crate::psa::types::BoolOp;
 
@@ -92,24 +99,51 @@ pub fn build_path_formula(
     }
     let starts = cardinality(bdd, &loop_entries)?;
     let function_start = bdd.try_not(starts.any)?;
-    let mut f_paths = starts.at_most_one;
 
-    // ── Flow conservation, block by block in topological order ────────────────
+    let mut conjuncts: Vec<u32> = Vec::with_capacity(graph.topo_order().len() + 1);
+    conjuncts.push(starts.at_most_one);
+
+    // ── Flow conservation of every reachable block ────────────────────────────
     for &b in graph.topo_order() {
-        let phi_b = build_block_constraint(b, graph, levels, function_start, bdd)?;
-        f_paths = bdd.try_apply(BoolOp::And, f_paths, phi_b)?;
+        conjuncts.push(build_block_constraint(b, graph, levels, function_start, bdd)?);
     }
 
     // ── Edges that can lie on no path ─────────────────────────────────────────
     for e in 0..graph.n_edges() as u32 {
         if graph.is_inactive(e) {
             let x = literal(bdd, edge_level(levels, e))?;
-            let not_x = bdd.try_not(x)?;
-            f_paths = bdd.try_apply(BoolOp::And, f_paths, not_x)?;
+            conjuncts.push(bdd.try_not(x)?);
         }
     }
 
-    Ok(f_paths)
+    conjoin_by_top_level(bdd, conjuncts)
+}
+
+/// Conjoin `conjuncts` in order of their top variable's level (see the module docs).
+pub fn conjoin_by_top_level(bdd: &mut BDDLibrary, conjuncts: Vec<u32>) -> Result<u32, BddLimit> {
+    let false_id = bdd.false_id();
+    let true_id = bdd.true_id();
+    if conjuncts.contains(&false_id) {
+        return Ok(false_id);
+    }
+    let mut keyed: Vec<(u16, u32)> = conjuncts
+        .into_iter()
+        .filter(|&c| c != true_id)
+        .map(|c| {
+            debug_assert!(!is_terminal_id(c));
+            (bdd.node(c).var, c)
+        })
+        .collect();
+    keyed.sort_unstable();
+    keyed.dedup();
+    let mut acc = true_id;
+    for (_, c) in keyed {
+        acc = bdd.try_apply(BoolOp::And, acc, c)?;
+        if acc == false_id {
+            break;
+        }
+    }
+    Ok(acc)
 }
 
 /// The flow constraint Φ_b of one reachable block.
@@ -121,7 +155,7 @@ fn build_block_constraint(
     bdd: &mut BDDLibrary,
 ) -> Result<u32, BddLimit> {
     let mut ins: Vec<u32> = Vec::new();
-    if block == ENTRY_BLOCK {
+    if block == graph.entry() {
         ins.push(function_start);
     }
     if graph.is_header(block) {

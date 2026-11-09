@@ -280,293 +280,6 @@
   "reason": "SRV2-72 / ENG2-40: I may not run git commands that change state."
  },
  {
-  "id": "HO-fix_BDD_1-1",
-  "from": "fix:BDD:1",
-  "file": "src/core/types/ssa.rs",
-  "change": "Widen SSARecord.def_block from u8 to u32 and drop the `& 0xFF` in SSARecord::new; update src/ssa/serializer.rs to write and read it as u32.",
-  "reason": "Until then Phase 7 (src/tra/backward/ssa_bi.rs) cannot resolve the def block of a non-phi definition in functions with more than 256 blocks and falls back to the function span (BDD-09, CORE-05, FLOW-18)."
- },
- {
-  "id": "HO-fix_BDD_1-2",
-  "from": "fix:BDD:1",
-  "file": "src/ssa (Phase 5)",
-  "change": "Emit canonical branch predicates: for every two-way branch block, crate::psa::BranchPredicate { block_id, predicate_id, true_edge_when }. predicate_id is a value number of the side-effect-free condition over SSA operand versions; normalize !e, != as not-==, a>b as b<a; exclude calls, field and array reads, assignments and ++/--. Collect them into crate::psa::BranchPredicateTable keyed by function sym_id.",
-  "reason": "Phase 8's feasibility filter is now sound and allocates predicate variables on their own levels, but Phase 8's inputs carry no condition expressions to canonicalize (BDD-05)."
- },
- {
-  "id": "HO-fix_BDD_1-3",
-  "from": "fix:BDD:1",
-  "file": "src/core/pipeline.rs, src/adapters/runner.rs, src/main.rs, src/adapters/server.rs",
-  "change": "Call Phase8Stage::run_with(&cfa, &ssa, &cga, &cfa_bytes, Some(&predicate_table), &config, &out) once Phase 5 provides the table. In the server, pass a Phase8Config with tighter max_bdd_nodes, bdd_time_budget, sift_time_budget and worker_threads per request.",
-  "reason": "Enables feasibility filtering (BDD-05) and lets /api/analyze bound Phase 8 per request (BDD-03). The plain run() signature is unchanged."
- },
- {
-  "id": "HO-fix_BDD_1-4",
-  "from": "fix:BDD:1",
-  "file": "src/uma/visitor.rs:214",
-  "change": "Replace `self.total_sat_path_count += method.sat_count` with saturating_add, and mark the total as a lower bound when any contributing FunctionPSAHeader has PSA_FLAG_COUNT_SATURATED (header.sat_count_is_exact()).",
-  "reason": "overflow-checks are off, so the plain add wraps. PSA sat_count is now clamped to u64::MAX with an explicit flag (BDD-16)."
- },
- {
-  "id": "HO-fix_BDD_1-5",
-  "from": "fix:BDD:1",
-  "file": "src/scpg/diagram/views/analysis.rs (variable_label, robdd_view)",
-  "change": "Decode ordering-table entries with crate::psa::ordering::VarKey::from_code(code): codes with LOOP_ENTRY_FLAG are loop-entry variables of header block `code & !LOOP_ENTRY_FLAG`, not CFA edge ids. Label functions with PSA_FLAG_BDD_UNAVAILABLE (root_node == PSA_NO_ROOT) as 'summary unavailable'.",
-  "reason": "PSA v2 ordering tables hold Ball-Larus loop-entry variables next to edge ids, and over-budget functions store no ROBDD (BDD-02, BDD-03)."
- },
- {
-  "id": "HO-fix_BDD_1-6",
-  "from": "fix:BDD:1",
-  "file": "src/scpg/query/robdd.rs",
-  "change": "Replace the local restriction, count and witness code with psa.path_view(sym_id)? then count_paths, paths_through_edge, is_feasible and witness (exact PathCount, validated arrays, loop-entry aware). Return an Option or error for unknown sym_ids and for PSA_FLAG_BDD_UNAVAILABLE instead of default metrics. Update the doc that says ordering[var] is always an edge id.",
-  "reason": "The local engine assumes one variable per edge and u64 counts. psa::query is the validated implementation (BDD-12, SCPG-15)."
- },
- {
-  "id": "HO-fix_BDD_1-7",
-  "from": "fix:BDD:1",
-  "file": "src/scpg/query/navigation.rs",
-  "change": "to_source becomes tra.source_range(sym_id) (O(1) via uml_slots). from_source becomes tra.innermost_symbol_at(file_id, token_id) or tra.symbols_at(file_id, token_id) (O(log N + depth)). Treat links with file_id == UML_LINK_NO_FILE (link.has_source() == false) as having no source.",
-  "reason": "Removes the O(n) scans; missing links now carry sentinels instead of (0,0,0,0,0) (BDD-10, SCPG-15, BDD-09)."
- },
- {
-  "id": "HO-fix_BDD_1-8",
-  "from": "fix:BDD:1",
-  "file": "src/uma/structural/class_diagram.rs:304-308",
-  "change": "Replace tra.uml_links.iter().find(|l| l.sym_id == id) with tra.uml_link(id).copied().",
-  "reason": "O(1) dense-slot lookup instead of O(C*U) (BDD-10)."
- },
- {
-  "id": "HO-fix_BDD_1-9",
-  "from": "fix:BDD:1",
-  "file": "src/scpg/incremental/mod.rs",
-  "change": "Replace apply_delta's `current_hash ^ 0x0101_0101` with tra::DeltaApplicator::compute_delta(&old_tra, &new_tra), then DeltaApplicator::propagate(&mut delta, &new_sta, &new_cga). Key snapshots on tra.hashes.chain_digest.",
-  "reason": "Per-entity staleness (stable keys plus content digests) now exists in the TRA (BDD-08, COMP-07)."
- },
- {
-  "id": "HO-fix_BDD_1-10",
-  "from": "fix:BDD:1",
-  "file": "src/scpg/query/cache.rs, src/scpg/serializer/mod.rs",
-  "change": "Key the query cache and the SCPG header source hash by tra.hashes.chain_digest (256-bit SHA-256 chain) instead of the 32-bit XOR fold. tra::uml_link::digest::{digest_tca, …, digest_cga} are the shared per-artifact definitions.",
-  "reason": "One hash definition shared with TRA; removes the XOR cancellation and 32-bit collisions (SCPG-14)."
- },
- {
-  "id": "HO-fix_BDD_1-11",
-  "from": "fix:BDD:1",
-  "file": "src/cfg/builder/mod.rs, src/cfg/builder/state.rs",
-  "change": "Emit succ_edge_id[] and pred_edge_id[] arrays parallel to succ_adj and pred_adj in FunctionCFGData.",
-  "reason": "Phase 8 currently rebuilds the edge-id CSR itself in PathGraph; emitting it in Phase 4 would let every consumer use O(1) edge ids (BDD-13)."
- },
- {
-  "id": "HO-fix_BDD_1-12",
-  "from": "fix:BDD:1",
-  "file": "src/core/io/mmap.rs:15",
-  "change": "Add a SAFETY comment on the unsafe Mmap::map stating the invariant (the file is not truncated or modified while mapped), or copy the file into memory instead.",
-  "reason": "AUTO-03 flags the undocumented unsafe block; src/psa and src/tra are now forbid(unsafe_code)."
- },
- {
-  "id": "HO-fix_BDD_1-13",
-  "from": "fix:BDD:1",
-  "file": "src/ingestion/serializer.rs (crc64_ecma)",
-  "change": "Make crc64_ecma table-driven (slice-by-8) while keeping the exact algorithm and output (poly 0x42F0E1EBA9EA3693, init 0, no reflection, no xorout).",
-  "reason": "PSA and TRA now share this CRC, and the bit-serial loop is slow on large artifacts (BDD-17)."
- },
- {
-  "id": "HO-fix_BDD_1-14",
-  "from": "fix:BDD:1",
-  "file": "src/uma/serializer.rs, src/symbol/serializer.rs, src/ast/serializer.rs, src/main.rs (inspect)",
-  "change": "Parse through a bounds-checked cursor that validates every declared count against the remaining bytes before Vec::with_capacity, replacing the bytes[a..b].try_into().unwrap() calls. Mirror the Cursor in src/psa/serializer.rs and src/tra/serializer.rs.",
-  "reason": "Malformed or crafted artifacts must yield InvalidData, not a panic or a huge allocation (AUTO-09, SRV-09)."
- },
- {
-  "id": "HO-fix_BDD_1-15",
-  "from": "fix:BDD:1",
-  "file": "src/cg/call_sites.rs, src/cg/mod.rs, src/cg/scc.rs",
-  "change": "Record the call name token, the explicit argument count and the containing CFG block. Restrict CG nodes to callables. Document and test that Tarjan's output is callee-first.",
-  "reason": "Phase 8 now consumes cga.sccs in emitted order as callee-first without .rev() (FLOW-19, BDD-12)."
- },
- {
-  "id": "HO-fix_BDD_1-16",
-  "from": "fix:BDD:1",
-  "file": "src/symbol (Phase 3 name resolution)",
-  "change": "Record use-site occurrences (file_id, token range, sym_id, role: definition/reference/read/write/import) so Phase 7 can add an occurrence table next to the new stable keys.",
-  "reason": "TRA has stable symbol identity now, but find-references needs use sites that only Phase 3 knows (BDD-14)."
- },
- {
-  "id": "HO-fix_BDD_1-17",
-  "from": "fix:BDD:1",
-  "file": "src/ingestion/mod.rs, src/core/types/token.rs, src/core/types/cg.rs",
-  "change": "Widen file ids, columns and SCC member_count, and replace narrowing `as` casts with try_from returning errors.",
-  "reason": "Remaining CORE-05 limits outside psa and tra."
- },
- {
-  "id": "HO-fix_BDD_1-18",
-  "from": "fix:BDD:1",
-  "file": "tests/research_paper_theorems_tests.rs, tests/psa_tests.rs",
-  "change": "Path-count tests should compare header.sat_count with brute-force ENTRY→EXIT path enumeration on structured CFGs, not with model counts of hand-built formulas. .psa and .tra are now format version 2 and v1 files are rejected.",
-  "reason": "BDD-02 changed what sat_count means (exact acyclic path count). Test-only, so not done here."
- },
- {
-  "id": "HO-fix_BDD_1-19",
-  "from": "fix:BDD:1",
-  "file": "docs/openheart_research_paper.tex, docs/plans/phase8.md, docs/traceability_and_incremental.md, README.md",
-  "change": "Update the claims to match the code: exact Ball-Larus counting with loops flagged, sifting on the final ROBDD, budgets and degradation, SHA-256 hash chain plus per-entity digests, O(log N + depth) forward queries and O(1) uml_link, PSA/TRA format v2, no interprocedural composition or recursion unwinding.",
-  "reason": "Several published claims (BDD-06, BDD-07, BDD-10, BDD-12) were false before this change; docs are outside my paths."
- },
- {
-  "id": "HO-fix_CORE_1-1",
-  "from": "fix:CORE:1",
-  "file": "tests/ast_tests.rs",
-  "change": "Lines 128-131: replace the jump_table.match_pos invariant with a per-node check, e.g. for n in 0..artifact.node_count { let o = artifact.open_position(n).unwrap(); let c = artifact.close_position(n).unwrap(); assert_eq!(artifact.rmq.find_open(&artifact.bp_encoder, &artifact.rank_select, c), Some(o)); }",
-  "reason": "BPASTArtifact no longer carries the 32-bit-per-bit jump table (CORE-04/BENCH-03); field access no longer compiles."
- },
- {
-  "id": "HO-fix_CORE_1-2",
-  "from": "fix:CORE:1",
-  "file": "tests/pipeline_accuracy_tests.rs",
-  "change": "Line 96: expect openheart::ingestion::serializer::TCA_VERSION (now 2) instead of 1; line ~142: function_count expectation should count constructor bodies (now an NN_BLOCK child of NN_CONSTRUCTOR_DECL).",
-  "reason": ".tca format v2 (u32 string/path lengths, DIAG section) and FLOW-02 constructor-body fix."
- },
- {
-  "id": "HO-fix_CORE_1-3",
-  "from": "fix:CORE:1",
-  "file": "src/cg/serializer.rs",
-  "change": "Line 89: write_u16(scc.member_count) -> write_u32(scc.member_count); line 237: r.read_u16()? -> r.read_u32()? for member_count (bump .cga version).",
-  "reason": "SCCRecord.member_count is now u32 (FLOW-18/CORE-05); current line 89 no longer compiles."
- },
- {
-  "id": "HO-fix_CORE_1-4",
-  "from": "fix:CORE:1",
-  "file": "src/cg/scc.rs",
-  "change": "Line 38: replace `raw_members.len() as u16` with u32::try_from(raw_members.len()) and an explicit error, pass the u32 to SCCRecord::new.",
-  "reason": "Remove the silent 65,535-member truncation (CORE-05)."
- },
- {
-  "id": "HO-fix_CORE_1-5",
-  "from": "fix:CORE:1",
-  "file": "src/tra/uml_link/digest.rs",
-  "change": "Line 344: h.u8(r.def_block) -> h.u32(r.def_block); line 416: h.u16(s.member_count) -> h.u32(s.member_count).",
-  "reason": "SSARecord.def_block and SCCRecord.member_count are now u32; these lines no longer compile."
- },
- {
-  "id": "HO-fix_CORE_1-6",
-  "from": "fix:CORE:1",
-  "file": "src/ssa/serializer.rs, src/ssa/renaming.rs, src/tra/backward/ssa_bi.rs",
-  "change": "Update comments that say SSARecord::def_block keeps 8 bits; the def_blocks side vectors and the 256-block limit constant in ssa_bi.rs:26 can use rec.def_block directly.",
-  "reason": "def_block widened to u32 (BDD-05/BDD-09/FLOW-18)."
- },
- {
-  "id": "HO-fix_CORE_1-7",
-  "from": "fix:CORE:1",
-  "file": "src/lang/kotlin/reduce.rs",
-  "change": "Line 324: fn classify(&self, kind: &str, node: &Node, ctx: &crate::ast::adapter::ReductionContext) -> ReductionDecision; line 566: fn encode_attrs(&self, kind: &str, node: &Node, source: &[u8], ctx: &ReductionContext) -> u32; optionally implement name_node and use ReductionDecision::Wrap.",
-  "reason": "ASTReductionAdapter now passes ancestor kinds and the field name (needed for context-dependent classification); the old signatures no longer match the trait."
- },
- {
-  "id": "HO-fix_CORE_1-8",
-  "from": "fix:CORE:1",
-  "file": "src/lib.rs, Cargo.toml, src/main.rs, src/adapters/server.rs",
-  "change": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
-  "reason": "CORE-01/COMP-01/FLOW-20: registering a grammar adapter replaces the Kotlin lexical frontend; the grammar crate and lang module are outside my paths."
- },
- {
-  "id": "HO-fix_CORE_1-9",
-  "from": "fix:CORE:1",
-  "file": "src/symbol/passes/pass2_imports.rs",
-  "change": "Consume NN_IMPORT_DECL children of NN_MODULE: read AUX_IMPORT_STATIC / AUX_IMPORT_ON_DEMAND via NodeAttr::unpack_aux_flags, take the qualified name from the single NN_IDENTIFIER_EXPR child's token range concatenated WITHOUT separators; use NN_PACKAGE_DECL for the package scope.",
-  "reason": "SYM-01: Phase 2 now emits import/package nodes; the current pass still looks for EXPR_STMT/TYPE_REF and joins tokens with spaces."
- },
- {
-  "id": "HO-fix_CORE_1-10",
-  "from": "fix:CORE:1",
-  "file": "src/symbol/passes/pass1_discovery.rs",
-  "change": "Prefer bpa.name_token(pre) (token id -> tca.token_records[t].text_id) over token heuristics; for NN_FIELD_DECL / NN_LOCAL_VAR_DECL statements whose children are NN_LOCAL_VAR_DECL declarators, create one symbol per declarator named by its name token; skip the secondary token sweep for files where tca.file_records[f].has_syntax_tree(); map NodeAttr::LANG_JAVA_DEFAULT/VARARGS/NON_SEALED/STRICTFP and LANG_DEPRECATED to SymbolModifiers; delete the hardcoded Spring/Lombok name list.",
-  "reason": "SYM-02/SYM-04/SYM-15."
- },
- {
-  "id": "HO-fix_CORE_1-11",
-  "from": "fix:CORE:1",
-  "file": "src/symbol/adapter/java.rs",
-  "change": "Treat NN_ENUM_CONSTANT as a declaration (SK_ENUM_CONSTANT), NN_ANON_CLASS_BODY as SK_ANON_CLASS (ScopeKind::Anon), NN_PACKAGE_DECL as SK_PACKAGE; synthesize private final field + accessor for NN_PARAM_DECL with AUX_PARAM_RECORD_COMPONENT.",
-  "reason": "SYM-12: these nodes now exist in the AST."
- },
- {
-  "id": "HO-fix_CORE_1-12",
-  "from": "fix:CORE:1",
-  "file": "src/symbol/passes/pass3_types.rs, src/symbol/passes/pass4_members.rs",
-  "change": "Use NN_TYPE_REF aux flags: AUX_TYPE_GENERIC (first child = head, remaining NN_TYPE_REF children = type args), AUX_TYPE_ARRAY (lang byte = dimensions), AUX_TYPE_QUALIFIED (concatenate token range), AUX_TYPE_WILDCARD (lang byte = bound kind); one NN_TYPE_PARAM per type parameter named by name_token.",
-  "reason": "SYM-07/UML-08: generic, array, qualified and wildcard types are no longer dropped."
- },
- {
-  "id": "HO-fix_CORE_1-13",
-  "from": "fix:CORE:1",
-  "file": "src/cfg/stmts/switch_stmt.rs, src/cfg/mod.rs, src/cg/call_sites.rs",
-  "change": "Read AUX_CASE_ARROW / AUX_CASE_DEFAULT on NN_SWITCH_CASE (CaseInfo.arrow no longer needs token text); NN_JAVA_INSTANCE_INIT now wraps an NN_BLOCK; explicit this()/super() are NN_CALL_EXPR with AUX_CALL_EXPLICIT_CTOR / AUX_CALL_SUPER_TARGET; call_sites.rs:153 find_method_name_token should prefer bpa.name_token(call_node).",
-  "reason": "FLOW-02/FLOW-12: Phase 2 now records these facts structurally."
- },
- {
-  "id": "HO-fix_CORE_1-14",
-  "from": "fix:CORE:1",
-  "file": "src/main.rs, src/adapters/server.rs",
-  "change": "main.rs:151-161 and server.rs:527-560: use IngestionStage::run_with_report, then ASTStage::run_in_memory(&tca, report.tca_hash(), &bpa_path), pass &report.tca_bytes to Phase3Stage::run (server.rs:536 currently passes fs::read(..).unwrap_or_default()); or call SCPGPipelineBuilder.",
-  "reason": "CORE-08/CORE-10/CORE-14: avoid the .tca read-back/mapping and empty-byte fallbacks."
- },
- {
-  "id": "HO-fix_CORE_1-15",
-  "from": "fix:CORE:1",
-  "file": "src/main.rs",
-  "change": "cmd_inspect (lines ~373-388): call TokenCorpusSerializer::decode(&bytes) and BPASTSerializer::verify_bytes(&bytes), print the real version/counts, and print 'VERIFIED VALID' only on Ok.",
-  "reason": "CORE-07: inspect currently claims validity after matching only the magic."
- },
- {
-  "id": "HO-fix_CORE_1-16",
-  "from": "fix:CORE:1",
-  "file": "src/uma/serializer.rs, src/symbol/serializer.rs, src/tra/serializer.rs, src/psa/serializer.rs",
-  "change": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
-  "reason": "AUTO-09: these readers still panic or over-allocate on malformed input."
- },
- {
-  "id": "HO-fix_CORE_1-17",
-  "from": "fix:CORE:1",
-  "file": "README.md, docs/succinct_structures.md, docs/overview.md, src/adapters/server.rs",
-  "change": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
-  "reason": "CORE-01/AUTO-05/BENCH-02/BENCH-03/CORE-04."
- },
- {
-  "id": "HO-fix_CORE_1-18",
-  "from": "fix:CORE:1",
-  "file": ".env.example",
-  "change": "Document OPENHEART_FILE_LOG (file-sink level), OPENHEART_LOG_MAX_BYTES (persistent log rotation), OPENHEART_NUM_THREADS (Phase 1/2 workers, 0 = per core), RUST_LOG as fallback for OPENHEART_LOG, and that SCPGPipelineBuilder also honors OPENHEART_ARTIFACT_DIR.",
-  "reason": "SRV-14/AUTO-21: these are now read by the code."
- },
- {
-  "id": "HO-fix_CORE_1-19",
-  "from": "fix:CORE:1",
-  "file": "src/cg/call_sites.rs and other log_trace/log_debug(&format!(..)) call sites",
-  "change": "Replace log_trace(&format!(..)) / log_debug(&format!(..)) with crate::oh_trace!(..) / crate::oh_debug!(..).",
-  "reason": "CORE-13: the macros skip formatting when the level is disabled."
- },
- {
-  "id": "HO-fix_CORE_1-20",
-  "from": "fix:CORE:1",
-  "file": "src/main.rs, src/adapters/server.rs",
-  "change": "collect_source_files: walk without following symlinks (ignore::WalkBuilder is now a dependency), log and skip unreadable entries, honor .gitignore and build/generated directories.",
-  "reason": "CORE-16: Phase 1 now dedups canonical paths and caps file size, but discovery is outside my paths."
- },
- {
-  "id": "HO-fix_CORE_1-21",
-  "from": "fix:CORE:1",
-  "file": "src/uma/structural/class_diagram.rs",
-  "change": "Line ~132: normalize the path (replace('\\\\', \"/\")) before matching \"/src/test/\".",
-  "reason": "UML-05: Windows paths keep test classes."
- },
- {
-  "id": "HO-fix_CORE_1-22",
-  "from": "fix:CORE:1",
-  "file": "src/uma/label_extraction.rs",
-  "change": "Lines 22-35: node_attr is a packed attribute word, not a token index; use bpa.token_range(node) / bpa.name_token(node) for label text.",
-  "reason": "UML-12."
- },
- {
   "id": "HO-fix_DOCS_1-1",
   "from": "fix:DOCS:1",
   "file": ".github/workflows/ci.yml",
@@ -1083,5 +796,621 @@
   "file": "src/tra/delta/mod.rs",
   "change": "DeltaApplicator::compute_delta / StaleDetector compare positional ids. Remove them or delegate to scpg::incremental::SnapshotDiff and IncrementalEngine::commit, which key entities by stable id and position-independent fingerprints.",
   "reason": "BDD-08: dead and unsound positional invalidation."
+ },
+ {
+  "id": "HO-cfam_MEM-1",
+  "from": "cfam:MEM",
+  "file": "src/lib.rs",
+  "change": "Add `pub mod memory;` (alphabetically after `pub mod ingestion;`), next to the `pub mod ir;` line the IR engineer adds.",
+  "reason": "Exposes the new memory module. Nothing else in the crate depends on it until the rewiring below is done."
+ },
+ {
+  "id": "HO-cfam_MEM-2",
+  "from": "cfam:MEM",
+  "file": "src/ir/mod.rs",
+  "change": "Must exist and declare at least `pub mod types; pub mod value; pub mod inst; pub mod func; pub mod module;`. The memory module imports from these exact paths: `crate::ir::types::{AllocSiteId, BlockId, CallSiteId, FieldId, FuncId, GlobalId, IrType, RefKind, Span, TypeId, ValueId}`, `crate::ir::value::{ConstVal, Operand, Place}`, `crate::ir::inst::{Callee, Inst, IntrinsicKind, Region, Terminator}`, `crate::ir::func::{BlockIr, FuncIr, FuncKind}`, `crate::ir::module::{FieldIr, ModuleIr}`.",
+  "reason": "src/ir/mod.rs did not exist when this module was written, so the imports go to the submodules the contract lists instead of relying on re-exports."
+ },
+ {
+  "id": "HO-cfam_MEM-3",
+  "from": "cfam:MEM",
+  "file": "src/ir/lower.rs (and src/ir/lower/*)",
+  "change": "Keep these lowering conventions: (1) `Inst::Alloc.ty` is the type of the allocated object; `TypeTable::symbol_of(ty)` gives the class used for dispatch. (2) The type of a `MakeClosure` dst value is the closure's functional interface or function type. (3) `Callee::Indirect` args bind the target's params after its `capture_count` captures. (4) Instance calls pass the receiver as args[0]. (5) Static and module initializers are `FuncKind::StaticInit` / `FuncKind::ModuleInit`. (6) Landing blocks get the exception through the `eh.exception` intrinsic, and `BlockIr.unwind` / `Call.unwind` are set for protected regions. (7) Static fields are accessed only through `Place::Static`. (8) `Place::Local(v)` is only used where `v` is the dst of a `Region::Stack` Alloc.",
+  "reason": "The points-to constraints, the closure and receiver binding, the exception flow and the object types used for dispatch all depend on these documented IR conventions."
+ },
+ {
+  "id": "HO-cfam_MEM-4",
+  "from": "cfam:MEM",
+  "file": "src/symbol (new function, e.g. src/symbol/hierarchy.rs, declared in src/symbol/mod.rs)",
+  "change": "Add `pub fn type_hierarchy(sta: &SymbolTableArtifact) -> crate::memory::TypeHierarchy`. It should: call `add_type(sym, is_abstract)` for every type symbol (interfaces and abstract classes pass true); call `add_supertype(from_sym, to_sym)` for every th_edge with TH_EXTENDS or TH_IMPLEMENTS; call `add_method(m, MethodFacts { declaring_type: parent_sym, is_abstract: ABSTRACT modifier or interface method without a body, is_instance: not STATIC, is_external: symbol comes from std_library models or from no analyzed file })` for every method and constructor; call `add_override(m, n)` for every override or implementation pair, including inherited implementations (for `class C extends B implements I` where B.m implements I.m, call `add_override(B.m, I.m)`). The result goes into `MemoryConfig.hierarchy`.",
+  "reason": "Dispatch through receiver objects, the class-hierarchy fallback and callbacks from external code all come from these facts. Without them every virtual call is reported as MethodFactsMissing and treated as an external call."
+ },
+ {
+  "id": "HO-cfam_MEM-5",
+  "from": "cfam:MEM",
+  "file": "src/lang/project_model.rs and the src/lang frontends (c, cpp, csharp, JVM)",
+  "change": "Supply the language-specific inputs. (1) Entry points as `memory::EntryPoints::Explicit(Vec<FuncId>)`: main / WinMain / Main, framework handlers, test methods. (2) `MemoryConfig.string_type` = the string class symbol. (3) `filter_checked_casts = true` for JVM and CLR, false for C and C++. (4) `MemoryConfig.intrinsics` entries keyed by interned name, e.g. memcpy-like → `CopiesContents`, va_arg → `VarArg`, spawn intrinsics → `Invokes`. (5) `escape::EscapeConfig.spawn_symbols` / `spawn_names` (Thread.start, Executor.execute/submit, Task.Run, ThreadPool.QueueUserWorkItem, the std::thread constructor, pthread_create). (6) An `ownership::OwnershipHooks` implementation: `field_storage` returns `Embedded` for C/C++ by-value members and C# struct fields; `container_elements` maps element type arguments for library collections (Collection<E>, Map<K,V> values, List<T>, std::vector<T>).",
+  "reason": "This is the only channel for language knowledge into the memory module, which stays language-neutral."
+ },
+ {
+  "id": "HO-cfam_MEM-6",
+  "from": "cfam:MEM",
+  "file": "src/cg/mod.rs (Phase6Stage::run), src/cg/points_to.rs, src/cg/resolution.rs",
+  "change": "On the IR path, replace `AndersonPointsTo::run` and `DispatchResolver` with `crate::memory::points_to::solve(&module_ir, &config)`. Build the CallGraphArtifact from `result.call_graph.edge_info`: map FuncId to `FuncIr.symbol` for caller and callee symbol ids; map CallKind to edge type (Static/Symbol → CG_EDGE_DIRECT, Virtual → CG_EDGE_VIRTUAL, Interface → CG_EDGE_INTERFACE, Indirect/Unresolved → CG_EDGE_DYNAMIC); add `call_graph.callbacks` as CG_EDGE_DYNAMIC; set CALL_SITE_FLAG_IS_POLYMORPHIC when `SiteResolution.targets.len() > 1`. Fill `points_to_table` from `PointsToResult::points_to` with `ObjectInfo.dynamic_type`. Take SCCs from `CallGraph::bottom_up_sccs()`. Report `unresolved_sites()` and `external_sites()` explicitly.",
+  "reason": "Replaces the separate CHA/RTA resolution and points-to pass (no cycle collapsing, no on-the-fly refinement) with one solver that builds the call graph while it solves."
+ },
+ {
+  "id": "HO-cfam_MEM-7",
+  "from": "cfam:MEM",
+  "file": "src/psa/mod.rs",
+  "change": "When the IR pipeline runs, schedule functions in `CallGraph::bottom_up_sccs()` order and flag recursion from `CallGraph::recursive_functions()`.",
+  "reason": "Gives the callee-first SCC order from the on-the-fly call graph instead of the CHA graph."
+ },
+ {
+  "id": "HO-cfam_MEM-8",
+  "from": "cfam:MEM",
+  "file": "src/uma/structural/class_diagram.rs",
+  "change": "Replace `is_owned_part` (which scans tokens for `new`) and the rule that makes collection attributes aggregations with `crate::memory::ownership::analyze(&module, &pts, &escape, &config, &hooks)`. Map `FieldOwnership.kind` to AssocKind (Composition → Composition, Aggregation → Aggregation, Association → Association, NotDerivable → an association marked as not derivable). Use `many` for mult_max, `part_types` for target symbols, the `basis` and `precision` fields for notes, and `OwnershipResult::creations()` for TH_CREATES / «create» dependencies.",
+  "reason": "The owner's no-hard-coding rule: relationships come from who allocates, holds, exposes and releases each part, not from token patterns."
+ },
+ {
+  "id": "HO-cfam_MEM-9",
+  "from": "cfam:MEM",
+  "file": "src/scpg/diagram/model.rs, src/scpg/diagram/context.rs, src/derive/*",
+  "change": "Sequence and communication diagrams: lifelines are abstract objects (`LocationTable`, and `PointsToResult::points_to_in` for receivers per instance); messages come from `CallGraph::context_edges`, `SiteResolution` with its spans, and `callbacks`. Object diagrams come from `slot_points_to`. Map Derivation tags: `EdgePrecision::Exact` → Exact; `OverApproximate(reason)` → OverApproximate; `SolveStatus::Truncated`, `EscapeResult.partial` and `OwnershipPrecision::Partial` → Partial { reason }; `UnresolvedReason::*` and `OwnershipKind::NotDerivable` → NotDerivable { reason }. Spans come from `ObjectInfo.span`, `SiteResolution.span`, `StoreFact.span`, `ReleaseFact.span` and `EscapeReason` spans.",
+  "reason": "Lets diagrams carry Span provenance and explicit Derivation tags taken from the memory facts."
+ },
+ {
+  "id": "HO-cfam_MEM-10",
+  "from": "cfam:MEM",
+  "file": "src/analysis (reaching, nullness, typestate, ifds, ide, context)",
+  "change": "Use `memory::modref::ModRefSummaries::compute(&module, &pts, &config, Some(&escape))` for the memory effects of calls (`mod_ref_of_call`, `mod_ref_of_inst`, `visible_mods` / `visible_refs`). Use `memory::modref::AliasOracle` (`may_alias`, `may_alias_in`, `places_may_alias`, `points_to_of`) to decide strong versus weak updates.",
+  "reason": "The alias query API and mod/ref summaries that the other analyses need are defined in the memory module."
+ },
+ {
+  "id": "HO-cfam_MEM-11",
+  "from": "cfam:MEM",
+  "file": "src/ssa, src/cfg",
+  "change": "No change needed. The memory module reads ModuleIr directly, which is already in SSA form with explicit memory places.",
+  "reason": "These phases do not need to be rewired for the memory module."
+ },
+ {
+  "id": "HO-fix_BDD_1-1",
+  "from": "fix:BDD:1",
+  "file": "src/core/types/ssa.rs",
+  "change": "Widen SSARecord.def_block from u8 to u32 and drop the `& 0xFF` in SSARecord::new; update src/ssa/serializer.rs to write and read it as u32.",
+  "reason": "Until then Phase 7 (src/tra/backward/ssa_bi.rs) cannot resolve the def block of a non-phi definition in functions with more than 256 blocks and falls back to the function span (BDD-09, CORE-05, FLOW-18)."
+ },
+ {
+  "id": "HO-fix_BDD_1-2",
+  "from": "fix:BDD:1",
+  "file": "src/ssa (Phase 5)",
+  "change": "Emit canonical branch predicates: for every two-way branch block, crate::psa::BranchPredicate { block_id, predicate_id, true_edge_when }. predicate_id is a value number of the side-effect-free condition over SSA operand versions; normalize !e, != as not-==, a>b as b<a; exclude calls, field and array reads, assignments and ++/--. Collect them into crate::psa::BranchPredicateTable keyed by function sym_id.",
+  "reason": "Phase 8's feasibility filter is now sound and allocates predicate variables on their own levels, but Phase 8's inputs carry no condition expressions to canonicalize (BDD-05)."
+ },
+ {
+  "id": "HO-fix_BDD_1-3",
+  "from": "fix:BDD:1",
+  "file": "src/core/pipeline.rs, src/adapters/runner.rs, src/main.rs, src/adapters/server.rs",
+  "change": "Call Phase8Stage::run_with(&cfa, &ssa, &cga, &cfa_bytes, Some(&predicate_table), &config, &out) once Phase 5 provides the table. In the server, pass a Phase8Config with tighter max_bdd_nodes, bdd_time_budget, sift_time_budget and worker_threads per request.",
+  "reason": "Enables feasibility filtering (BDD-05) and lets /api/analyze bound Phase 8 per request (BDD-03). The plain run() signature is unchanged."
+ },
+ {
+  "id": "HO-fix_BDD_1-4",
+  "from": "fix:BDD:1",
+  "file": "src/uma/visitor.rs:214",
+  "change": "Replace `self.total_sat_path_count += method.sat_count` with saturating_add, and mark the total as a lower bound when any contributing FunctionPSAHeader has PSA_FLAG_COUNT_SATURATED (header.sat_count_is_exact()).",
+  "reason": "overflow-checks are off, so the plain add wraps. PSA sat_count is now clamped to u64::MAX with an explicit flag (BDD-16)."
+ },
+ {
+  "id": "HO-fix_BDD_1-5",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/diagram/views/analysis.rs (variable_label, robdd_view)",
+  "change": "Decode ordering-table entries with crate::psa::ordering::VarKey::from_code(code): codes with LOOP_ENTRY_FLAG are loop-entry variables of header block `code & !LOOP_ENTRY_FLAG`, not CFA edge ids. Label functions with PSA_FLAG_BDD_UNAVAILABLE (root_node == PSA_NO_ROOT) as 'summary unavailable'.",
+  "reason": "PSA v2 ordering tables hold Ball-Larus loop-entry variables next to edge ids, and over-budget functions store no ROBDD (BDD-02, BDD-03)."
+ },
+ {
+  "id": "HO-fix_BDD_1-6",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/query/robdd.rs",
+  "change": "Replace the local restriction, count and witness code with psa.path_view(sym_id)? then count_paths, paths_through_edge, is_feasible and witness (exact PathCount, validated arrays, loop-entry aware). Return an Option or error for unknown sym_ids and for PSA_FLAG_BDD_UNAVAILABLE instead of default metrics. Update the doc that says ordering[var] is always an edge id.",
+  "reason": "The local engine assumes one variable per edge and u64 counts. psa::query is the validated implementation (BDD-12, SCPG-15)."
+ },
+ {
+  "id": "HO-fix_BDD_1-7",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/query/navigation.rs",
+  "change": "to_source becomes tra.source_range(sym_id) (O(1) via uml_slots). from_source becomes tra.innermost_symbol_at(file_id, token_id) or tra.symbols_at(file_id, token_id) (O(log N + depth)). Treat links with file_id == UML_LINK_NO_FILE (link.has_source() == false) as having no source.",
+  "reason": "Removes the O(n) scans; missing links now carry sentinels instead of (0,0,0,0,0) (BDD-10, SCPG-15, BDD-09)."
+ },
+ {
+  "id": "HO-fix_BDD_1-8",
+  "from": "fix:BDD:1",
+  "file": "src/uma/structural/class_diagram.rs:304-308",
+  "change": "Replace tra.uml_links.iter().find(|l| l.sym_id == id) with tra.uml_link(id).copied().",
+  "reason": "O(1) dense-slot lookup instead of O(C*U) (BDD-10)."
+ },
+ {
+  "id": "HO-fix_BDD_1-9",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/incremental/mod.rs",
+  "change": "Replace apply_delta's `current_hash ^ 0x0101_0101` with tra::DeltaApplicator::compute_delta(&old_tra, &new_tra), then DeltaApplicator::propagate(&mut delta, &new_sta, &new_cga). Key snapshots on tra.hashes.chain_digest.",
+  "reason": "Per-entity staleness (stable keys plus content digests) now exists in the TRA (BDD-08, COMP-07)."
+ },
+ {
+  "id": "HO-fix_BDD_1-10",
+  "from": "fix:BDD:1",
+  "file": "src/scpg/query/cache.rs, src/scpg/serializer/mod.rs",
+  "change": "Key the query cache and the SCPG header source hash by tra.hashes.chain_digest (256-bit SHA-256 chain) instead of the 32-bit XOR fold. tra::uml_link::digest::{digest_tca, …, digest_cga} are the shared per-artifact definitions.",
+  "reason": "One hash definition shared with TRA; removes the XOR cancellation and 32-bit collisions (SCPG-14)."
+ },
+ {
+  "id": "HO-fix_BDD_1-11",
+  "from": "fix:BDD:1",
+  "file": "src/cfg/builder/mod.rs, src/cfg/builder/state.rs",
+  "change": "Emit succ_edge_id[] and pred_edge_id[] arrays parallel to succ_adj and pred_adj in FunctionCFGData.",
+  "reason": "Phase 8 currently rebuilds the edge-id CSR itself in PathGraph; emitting it in Phase 4 would let every consumer use O(1) edge ids (BDD-13)."
+ },
+ {
+  "id": "HO-fix_BDD_1-12",
+  "from": "fix:BDD:1",
+  "file": "src/core/io/mmap.rs:15",
+  "change": "Add a SAFETY comment on the unsafe Mmap::map stating the invariant (the file is not truncated or modified while mapped), or copy the file into memory instead.",
+  "reason": "AUTO-03 flags the undocumented unsafe block; src/psa and src/tra are now forbid(unsafe_code)."
+ },
+ {
+  "id": "HO-fix_BDD_1-13",
+  "from": "fix:BDD:1",
+  "file": "src/ingestion/serializer.rs (crc64_ecma)",
+  "change": "Make crc64_ecma table-driven (slice-by-8) while keeping the exact algorithm and output (poly 0x42F0E1EBA9EA3693, init 0, no reflection, no xorout).",
+  "reason": "PSA and TRA now share this CRC, and the bit-serial loop is slow on large artifacts (BDD-17)."
+ },
+ {
+  "id": "HO-fix_BDD_1-14",
+  "from": "fix:BDD:1",
+  "file": "src/uma/serializer.rs, src/symbol/serializer.rs, src/ast/serializer.rs, src/main.rs (inspect)",
+  "change": "Parse through a bounds-checked cursor that validates every declared count against the remaining bytes before Vec::with_capacity, replacing the bytes[a..b].try_into().unwrap() calls. Mirror the Cursor in src/psa/serializer.rs and src/tra/serializer.rs.",
+  "reason": "Malformed or crafted artifacts must yield InvalidData, not a panic or a huge allocation (AUTO-09, SRV-09)."
+ },
+ {
+  "id": "HO-fix_BDD_1-15",
+  "from": "fix:BDD:1",
+  "file": "src/cg/call_sites.rs, src/cg/mod.rs, src/cg/scc.rs",
+  "change": "Record the call name token, the explicit argument count and the containing CFG block. Restrict CG nodes to callables. Document and test that Tarjan's output is callee-first.",
+  "reason": "Phase 8 now consumes cga.sccs in emitted order as callee-first without .rev() (FLOW-19, BDD-12)."
+ },
+ {
+  "id": "HO-fix_BDD_1-16",
+  "from": "fix:BDD:1",
+  "file": "src/symbol (Phase 3 name resolution)",
+  "change": "Record use-site occurrences (file_id, token range, sym_id, role: definition/reference/read/write/import) so Phase 7 can add an occurrence table next to the new stable keys.",
+  "reason": "TRA has stable symbol identity now, but find-references needs use sites that only Phase 3 knows (BDD-14)."
+ },
+ {
+  "id": "HO-fix_BDD_1-17",
+  "from": "fix:BDD:1",
+  "file": "src/ingestion/mod.rs, src/core/types/token.rs, src/core/types/cg.rs",
+  "change": "Widen file ids, columns and SCC member_count, and replace narrowing `as` casts with try_from returning errors.",
+  "reason": "Remaining CORE-05 limits outside psa and tra."
+ },
+ {
+  "id": "HO-fix_BDD_1-18",
+  "from": "fix:BDD:1",
+  "file": "tests/research_paper_theorems_tests.rs, tests/psa_tests.rs",
+  "change": "Path-count tests should compare header.sat_count with brute-force ENTRY→EXIT path enumeration on structured CFGs, not with model counts of hand-built formulas. .psa and .tra are now format version 2 and v1 files are rejected.",
+  "reason": "BDD-02 changed what sat_count means (exact acyclic path count). Test-only, so not done here."
+ },
+ {
+  "id": "HO-fix_BDD_1-19",
+  "from": "fix:BDD:1",
+  "file": "docs/openheart_research_paper.tex, docs/plans/phase8.md, docs/traceability_and_incremental.md, README.md",
+  "change": "Update the claims to match the code: exact Ball-Larus counting with loops flagged, sifting on the final ROBDD, budgets and degradation, SHA-256 hash chain plus per-entity digests, O(log N + depth) forward queries and O(1) uml_link, PSA/TRA format v2, no interprocedural composition or recursion unwinding.",
+  "reason": "Several published claims (BDD-06, BDD-07, BDD-10, BDD-12) were false before this change; docs are outside my paths."
+ },
+ {
+  "id": "HO-fix_CORE_1-1",
+  "from": "fix:CORE:1",
+  "file": "tests/ast_tests.rs",
+  "change": "Lines 128-131: replace the jump_table.match_pos invariant with a per-node check, e.g. for n in 0..artifact.node_count { let o = artifact.open_position(n).unwrap(); let c = artifact.close_position(n).unwrap(); assert_eq!(artifact.rmq.find_open(&artifact.bp_encoder, &artifact.rank_select, c), Some(o)); }",
+  "reason": "BPASTArtifact no longer carries the 32-bit-per-bit jump table (CORE-04/BENCH-03); field access no longer compiles."
+ },
+ {
+  "id": "HO-fix_CORE_1-2",
+  "from": "fix:CORE:1",
+  "file": "tests/pipeline_accuracy_tests.rs",
+  "change": "Line 96: expect openheart::ingestion::serializer::TCA_VERSION (now 2) instead of 1; line ~142: function_count expectation should count constructor bodies (now an NN_BLOCK child of NN_CONSTRUCTOR_DECL).",
+  "reason": ".tca format v2 (u32 string/path lengths, DIAG section) and FLOW-02 constructor-body fix."
+ },
+ {
+  "id": "HO-fix_CORE_1-3",
+  "from": "fix:CORE:1",
+  "file": "src/cg/serializer.rs",
+  "change": "Line 89: write_u16(scc.member_count) -> write_u32(scc.member_count); line 237: r.read_u16()? -> r.read_u32()? for member_count (bump .cga version).",
+  "reason": "SCCRecord.member_count is now u32 (FLOW-18/CORE-05); current line 89 no longer compiles."
+ },
+ {
+  "id": "HO-fix_CORE_1-4",
+  "from": "fix:CORE:1",
+  "file": "src/cg/scc.rs",
+  "change": "Line 38: replace `raw_members.len() as u16` with u32::try_from(raw_members.len()) and an explicit error, pass the u32 to SCCRecord::new.",
+  "reason": "Remove the silent 65,535-member truncation (CORE-05)."
+ },
+ {
+  "id": "HO-fix_CORE_1-5",
+  "from": "fix:CORE:1",
+  "file": "src/tra/uml_link/digest.rs",
+  "change": "Line 344: h.u8(r.def_block) -> h.u32(r.def_block); line 416: h.u16(s.member_count) -> h.u32(s.member_count).",
+  "reason": "SSARecord.def_block and SCCRecord.member_count are now u32; these lines no longer compile."
+ },
+ {
+  "id": "HO-fix_CORE_1-6",
+  "from": "fix:CORE:1",
+  "file": "src/ssa/serializer.rs, src/ssa/renaming.rs, src/tra/backward/ssa_bi.rs",
+  "change": "Update comments that say SSARecord::def_block keeps 8 bits; the def_blocks side vectors and the 256-block limit constant in ssa_bi.rs:26 can use rec.def_block directly.",
+  "reason": "def_block widened to u32 (BDD-05/BDD-09/FLOW-18)."
+ },
+ {
+  "id": "HO-fix_CORE_1-7",
+  "from": "fix:CORE:1",
+  "file": "src/lang/kotlin/reduce.rs",
+  "change": "Line 324: fn classify(&self, kind: &str, node: &Node, ctx: &crate::ast::adapter::ReductionContext) -> ReductionDecision; line 566: fn encode_attrs(&self, kind: &str, node: &Node, source: &[u8], ctx: &ReductionContext) -> u32; optionally implement name_node and use ReductionDecision::Wrap.",
+  "reason": "ASTReductionAdapter now passes ancestor kinds and the field name (needed for context-dependent classification); the old signatures no longer match the trait."
+ },
+ {
+  "id": "HO-fix_CORE_1-8",
+  "from": "fix:CORE:1",
+  "file": "src/lib.rs, Cargo.toml, src/main.rs, src/adapters/server.rs",
+  "change": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
+  "reason": "CORE-01/COMP-01/FLOW-20: registering a grammar adapter replaces the Kotlin lexical frontend; the grammar crate and lang module are outside my paths."
+ },
+ {
+  "id": "HO-fix_CORE_1-9",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/passes/pass2_imports.rs",
+  "change": "Consume NN_IMPORT_DECL children of NN_MODULE: read AUX_IMPORT_STATIC / AUX_IMPORT_ON_DEMAND via NodeAttr::unpack_aux_flags, take the qualified name from the single NN_IDENTIFIER_EXPR child's token range concatenated WITHOUT separators; use NN_PACKAGE_DECL for the package scope.",
+  "reason": "SYM-01: Phase 2 now emits import/package nodes; the current pass still looks for EXPR_STMT/TYPE_REF and joins tokens with spaces."
+ },
+ {
+  "id": "HO-fix_CORE_1-10",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/passes/pass1_discovery.rs",
+  "change": "Prefer bpa.name_token(pre) (token id -> tca.token_records[t].text_id) over token heuristics; for NN_FIELD_DECL / NN_LOCAL_VAR_DECL statements whose children are NN_LOCAL_VAR_DECL declarators, create one symbol per declarator named by its name token; skip the secondary token sweep for files where tca.file_records[f].has_syntax_tree(); map NodeAttr::LANG_JAVA_DEFAULT/VARARGS/NON_SEALED/STRICTFP and LANG_DEPRECATED to SymbolModifiers; delete the hardcoded Spring/Lombok name list.",
+  "reason": "SYM-02/SYM-04/SYM-15."
+ },
+ {
+  "id": "HO-fix_CORE_1-11",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/adapter/java.rs",
+  "change": "Treat NN_ENUM_CONSTANT as a declaration (SK_ENUM_CONSTANT), NN_ANON_CLASS_BODY as SK_ANON_CLASS (ScopeKind::Anon), NN_PACKAGE_DECL as SK_PACKAGE; synthesize private final field + accessor for NN_PARAM_DECL with AUX_PARAM_RECORD_COMPONENT.",
+  "reason": "SYM-12: these nodes now exist in the AST."
+ },
+ {
+  "id": "HO-fix_CORE_1-12",
+  "from": "fix:CORE:1",
+  "file": "src/symbol/passes/pass3_types.rs, src/symbol/passes/pass4_members.rs",
+  "change": "Use NN_TYPE_REF aux flags: AUX_TYPE_GENERIC (first child = head, remaining NN_TYPE_REF children = type args), AUX_TYPE_ARRAY (lang byte = dimensions), AUX_TYPE_QUALIFIED (concatenate token range), AUX_TYPE_WILDCARD (lang byte = bound kind); one NN_TYPE_PARAM per type parameter named by name_token.",
+  "reason": "SYM-07/UML-08: generic, array, qualified and wildcard types are no longer dropped."
+ },
+ {
+  "id": "HO-fix_CORE_1-13",
+  "from": "fix:CORE:1",
+  "file": "src/cfg/stmts/switch_stmt.rs, src/cfg/mod.rs, src/cg/call_sites.rs",
+  "change": "Read AUX_CASE_ARROW / AUX_CASE_DEFAULT on NN_SWITCH_CASE (CaseInfo.arrow no longer needs token text); NN_JAVA_INSTANCE_INIT now wraps an NN_BLOCK; explicit this()/super() are NN_CALL_EXPR with AUX_CALL_EXPLICIT_CTOR / AUX_CALL_SUPER_TARGET; call_sites.rs:153 find_method_name_token should prefer bpa.name_token(call_node).",
+  "reason": "FLOW-02/FLOW-12: Phase 2 now records these facts structurally."
+ },
+ {
+  "id": "HO-fix_CORE_1-14",
+  "from": "fix:CORE:1",
+  "file": "src/main.rs, src/adapters/server.rs",
+  "change": "main.rs:151-161 and server.rs:527-560: use IngestionStage::run_with_report, then ASTStage::run_in_memory(&tca, report.tca_hash(), &bpa_path), pass &report.tca_bytes to Phase3Stage::run (server.rs:536 currently passes fs::read(..).unwrap_or_default()); or call SCPGPipelineBuilder.",
+  "reason": "CORE-08/CORE-10/CORE-14: avoid the .tca read-back/mapping and empty-byte fallbacks."
+ },
+ {
+  "id": "HO-fix_CORE_1-15",
+  "from": "fix:CORE:1",
+  "file": "src/main.rs",
+  "change": "cmd_inspect (lines ~373-388): call TokenCorpusSerializer::decode(&bytes) and BPASTSerializer::verify_bytes(&bytes), print the real version/counts, and print 'VERIFIED VALID' only on Ok.",
+  "reason": "CORE-07: inspect currently claims validity after matching only the magic."
+ },
+ {
+  "id": "HO-fix_CORE_1-16",
+  "from": "fix:CORE:1",
+  "file": "src/uma/serializer.rs, src/symbol/serializer.rs, src/tra/serializer.rs, src/psa/serializer.rs",
+  "change": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
+  "reason": "AUTO-09: these readers still panic or over-allocate on malformed input."
+ },
+ {
+  "id": "HO-fix_CORE_1-17",
+  "from": "fix:CORE:1",
+  "file": "README.md, docs/succinct_structures.md, docs/overview.md, src/adapters/server.rs",
+  "change": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
+  "reason": "CORE-01/AUTO-05/BENCH-02/BENCH-03/CORE-04."
+ },
+ {
+  "id": "HO-fix_CORE_1-18",
+  "from": "fix:CORE:1",
+  "file": ".env.example",
+  "change": "Document OPENHEART_FILE_LOG (file-sink level), OPENHEART_LOG_MAX_BYTES (persistent log rotation), OPENHEART_NUM_THREADS (Phase 1/2 workers, 0 = per core), RUST_LOG as fallback for OPENHEART_LOG, and that SCPGPipelineBuilder also honors OPENHEART_ARTIFACT_DIR.",
+  "reason": "SRV-14/AUTO-21: these are now read by the code."
+ },
+ {
+  "id": "HO-fix_CORE_1-19",
+  "from": "fix:CORE:1",
+  "file": "src/cg/call_sites.rs and other log_trace/log_debug(&format!(..)) call sites",
+  "change": "Replace log_trace(&format!(..)) / log_debug(&format!(..)) with crate::oh_trace!(..) / crate::oh_debug!(..).",
+  "reason": "CORE-13: the macros skip formatting when the level is disabled."
+ },
+ {
+  "id": "HO-fix_CORE_1-20",
+  "from": "fix:CORE:1",
+  "file": "src/main.rs, src/adapters/server.rs",
+  "change": "collect_source_files: walk without following symlinks (ignore::WalkBuilder is now a dependency), log and skip unreadable entries, honor .gitignore and build/generated directories.",
+  "reason": "CORE-16: Phase 1 now dedups canonical paths and caps file size, but discovery is outside my paths."
+ },
+ {
+  "id": "HO-fix_CORE_1-21",
+  "from": "fix:CORE:1",
+  "file": "src/uma/structural/class_diagram.rs",
+  "change": "Line ~132: normalize the path (replace('\\\\', \"/\")) before matching \"/src/test/\".",
+  "reason": "UML-05: Windows paths keep test classes."
+ },
+ {
+  "id": "HO-fix_CORE_1-22",
+  "from": "fix:CORE:1",
+  "file": "src/uma/label_extraction.rs",
+  "change": "Lines 22-35: node_attr is a packed attribute word, not a token index; use bpa.token_range(node) / bpa.name_token(node) for label text.",
+  "reason": "UML-12."
+ },
+ {
+  "id": "HO-fix_FLOW_1-1",
+  "from": "fix:FLOW:1",
+  "file": "src/ast/adapter/java.rs",
+  "change": "In classify(): make Eliminate the default instead of Drop. Map constructor_body→Keep(NN_BLOCK), explicit_constructor_invocation→Keep(NN_CALL_EXPR), switch_block→Eliminate, switch_block_statement_group and switch_rule→Keep(NN_SWITCH_CASE), switch_label→Eliminate, yield_statement→Keep(NN_YIELD_STMT), try_with_resources_statement→Keep(NN_TRY_STMT), resource_specification→Eliminate, resource→Keep(NN_LOCAL_VAR_DECL), catch_formal_parameter→Keep(NN_PARAM_DECL), catch_type→Eliminate, inferred_parameters→Eliminate, generic_type/scoped_type_identifier/array_type→Eliminate, ERROR→Eliminate. In encode_attrs, encode every assignment, unary, update and relational operator.",
+  "reason": "Phase 4-6 now expect exactly these shapes (cases as NN_SWITCH_CASE with labels first, resources before the try body, constructor body as NN_BLOCK). Today the bodies are dropped before the CFG ever sees them (CORE-02, FLOW-02)."
+ },
+ {
+  "id": "HO-fix_FLOW_1-2",
+  "from": "fix:FLOW:1",
+  "file": "src/core/pipeline.rs",
+  "change": "Line 434: Phase5Stage::run_with_source(&bpa, &sta, Some(&tca), &cfa, &cfa_bytes, &ssa_path). Line 440: Phase6Stage::run_with_source(&bpa, &sta, Some(&tca), &cfa, &ssa, &ssa_bytes, &sta_bytes, &cga_path).",
+  "reason": "Without token text, SSA cannot resolve variable uses and Phase 6 cannot recover call names, so only lambda edges are built."
+ },
+ {
+  "id": "HO-fix_FLOW_1-3",
+  "from": "fix:FLOW:1",
+  "file": "src/adapters/runner.rs",
+  "change": "Lines 1267, 1273 and 1279: switch to Phase4Stage::run_with_source / Phase5Stage::run_with_source / Phase6Stage::run_with_source, passing Some(&tca) in the argument position shown for pipeline.rs.",
+  "reason": "Same reason: the run() entry points fall back to structural approximations and record diagnostics."
+ },
+ {
+  "id": "HO-fix_FLOW_1-4",
+  "from": "fix:FLOW:1",
+  "file": "src/core/types/ssa.rs",
+  "change": "Widen SSARecord.def_block from u8 to u32 and drop the `& 0xFF` in SSARecord::new.",
+  "reason": "Blocks above 255 alias. Until this lands, FunctionSSAData.def_blocks holds the full u32 block id (CORE-05, FLOW-18)."
+ },
+ {
+  "id": "HO-fix_FLOW_1-5",
+  "from": "fix:FLOW:1",
+  "file": "src/core/types/cg.rs",
+  "change": "Widen SCCRecord.member_count to u32 and update the u16 read/write in src/cg/serializer.rs.",
+  "reason": "SCCs with more than 65,535 members now raise an explicit error instead of truncating."
+ },
+ {
+  "id": "HO-fix_FLOW_1-6",
+  "from": "fix:FLOW:1",
+  "file": "src/core/types/ast.rs",
+  "change": "Fix NodeAttr::unpack_operator_id: it returns Assign for every non-zero value; decode the actual OperatorId instead.",
+  "reason": "Consumers misread operators; the CFG and SSA decode bits 12..19 themselves to avoid this bug."
+ },
+ {
+  "id": "HO-fix_FLOW_1-7",
+  "from": "fix:FLOW:1",
+  "file": "src/psa/construction/feasibility.rs",
+  "change": "Stop reading IFDSResults.taint_sparse.1 as a block id: it is the taint source id (k+1). Use FunctionSSAData.def_blocks (u32) instead of def_block (u8). Take the edge index from cfg.succ_edge_range(b) or cfg.pred_edge_ids(b) instead of edge_index_of.",
+  "reason": "BDD-05 and BDD-13: edges are now stored in canonical CSR order, so edge index k is succ_adj position k."
+ },
+ {
+  "id": "HO-fix_FLOW_1-8",
+  "from": "fix:FLOW:1",
+  "file": "src/psa/ordering/rpo.rs",
+  "change": "Replace edge_index_of (a linear position() search) with FunctionCFGData::succ_edge_range / pred_edge_ids.",
+  "reason": "O(1) edge ids; parallel edges keep distinct ids (BDD-13)."
+ },
+ {
+  "id": "HO-fix_FLOW_1-9",
+  "from": "fix:FLOW:1",
+  "file": "src/psa/mod.rs",
+  "change": "Lines 100-102: iterate cga.sccs without .rev() to process callees first.",
+  "reason": "Tarjan already emits callees first (documented in src/cg/scc.rs); .rev() inverts the intended order (BDD-12)."
+ },
+ {
+  "id": "HO-fix_FLOW_1-10",
+  "from": "fix:FLOW:1",
+  "file": "src/uma/structural/object_diagram.rs",
+  "change": "Treat SSARecord.orig_sym_id as an STA symbol id, or as ORIG_NODE_TAG | ast_node for locals Phase 3 did not register (skip those). Look up CallGraphArtifact.points_to_table and CallSite.receiver_ssa by global SSA id = SSAArtifact::global_ssa_base()[f] + local id.",
+  "reason": "Both semantics changed (UML-03, FLOW-11)."
+ },
+ {
+  "id": "HO-fix_FLOW_1-11",
+  "from": "fix:FLOW:1",
+  "file": "src/tra/backward/ssa_bi.rs",
+  "change": "Use func.def_blocks[i] instead of var.def_block when computing global block ids.",
+  "reason": "def_block is truncated to 8 bits."
+ },
+ {
+  "id": "HO-fix_FLOW_1-12",
+  "from": "fix:FLOW:1",
+  "file": "src/scpg/query/slice.rs",
+  "change": "Build slices from FunctionSSAData.def_use (statements using each SSA id), FunctionSSAData.operands (use-def edges) and the corrected cdg.",
+  "reason": "SCPG-08: those structures are now populated and correct."
+ },
+ {
+  "id": "HO-fix_FLOW_1-13",
+  "from": "fix:FLOW:1",
+  "file": "README.md",
+  "change": "Line 100 and the related claims in docs/architecture.md and the paper: replace 'IFDS Solver' with 'sparse intraprocedural SSA data-flow (taint, may-be-null, resource state)'. Describe points-to as 'Andersen, CHA/RTA-seeded, field-sensitive, no cycle collapsing'.",
+  "reason": "BENCH-08 / FLOW-10: claims should match what the code computes."
+ },
+ {
+  "id": "HO-fix_FLOW_1-14",
+  "from": "fix:FLOW:1",
+  "file": "Cargo.toml",
+  "change": "Remove `overflow-checks = false` from [profile.dev].",
+  "reason": "AUTO-16; this is a profile change, which my paths may not make."
+ },
+ {
+  "id": "HO-fix_FLOW_1-15",
+  "from": "fix:FLOW:1",
+  "file": "tests/pipeline_accuracy_tests.rs",
+  "change": "Call Phase4/5/6 run_with_source with Some(&tca_artifact), as should the other tests/*.rs that drive Phases 4-6. Update function_count and SCC expectations: constructors gain CFGs once constructor_body is reduced, and the call graph is no longer mostly self-loops.",
+  "reason": "The tests currently exercise only the degraded no-text mode and assert the old, wrong results."
+ },
+ {
+  "id": "HO-fix_WEB_1-1",
+  "from": "fix:WEB:1",
+  "file": "src/adapters/server.rs",
+  "change": "/api/source: canonicalize the requested path and require it to lie under the analyzed repo root of the current session. Remove the raw decoded_path and walkdir candidates. Bind 127.0.0.1 by default, replace ACAO * with no CORS (same-origin) or an allowlist, and validate the Host header.",
+  "reason": "COMP-R3-1. The studio now only requests /api/source?file=<repo-relative path> during engine sessions."
+ },
+ {
+  "id": "HO-fix_WEB_1-2",
+  "from": "fix:WEB:1",
+  "file": "src/adapters/server.rs",
+  "change": "Add X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin and a Content-Security-Policy header equal to web/index.html's meta policy plus frame-ancestors 'none', on static and JSON responses.",
+  "reason": "SRV-12 and WSEC-06. frame-ancestors is ignored in meta CSP."
+ },
+ {
+  "id": "HO-fix_WEB_1-3",
+  "from": "fix:WEB:1",
+  "file": "src/adapters/server.rs",
+  "change": "Make /api/analyze asynchronous. POST returns {status:'queued'|'running', job_id}. GET /api/analyze/{job_id} returns {status, progress:0-100, phase} while running and the final payload when done. Add artifact_base_url (same-origin path such as /sessions/{id}/diagrams) serving per-session <type>.json Graph IR. Stop writing into web/diagrams.",
+  "reason": "WEB-03, COMP-R3-2 and E2E-08. web/js/main.js already polls job_id and fetches ${artifact_base_url}/${type}.json when present, otherwise it uses response.diagrams PUML."
+ },
+ {
+  "id": "HO-fix_WEB_1-4",
+  "from": "fix:WEB:1",
+  "file": "src/scpg/diagram/export/json.rs",
+  "change": "On every node emit anchor {path (root-relative from tca.file_records), start_line, start_col, end_line, end_col} from ClassRecord.uml_link, plus qualified_name, and ids = FQN. Emit file:null and lines:[] when unknown instead of '<Name>.java' and [1,5,10]. Replace constant compiler_hash/verified with a real digest or remove them. Add schema:'openheart.graph-ir', schema_version:1.",
+  "reason": "E2E-06, SCPG-05, SCPG-04, COMP-10 and AUTO-04. The studio loader reads anchor, qualified_name, file, lines, raw_url, sat_count, idom_rank, cyclomatic and predicate."
+ },
+ {
+  "id": "HO-fix_WEB_1-5",
+  "from": "fix:WEB:1",
+  "file": "web/diagrams/*",
+  "change": "Regenerate every sample from a pinned input with the CLI in CI and fail on drift. Give communication its own IR. Write one canonical file per type (drop state.json and use_case.json aliases). Ensure unique ids.",
+  "reason": "AUTO-08, AUTO-04 and E2E-02. These are generated files and are not hand-edited."
+ },
+ {
+  "id": "HO-fix_WEB_1-6",
+  "from": "fix:WEB:1",
+  "file": ".github/workflows/deploy_pages.yml",
+  "change": "Before upload, compute sha384 SRI for the three CDN scripts in web/index.html and inject integrity= attributes, or vendor them into web/vendor and switch script-src to 'self'. Fail if the CSP meta is missing. Generate web/docs from docs/.",
+  "reason": "WSEC-02, AUTO-18, WEB-09 and AUTO-19. The hashes could not be computed without downloading the files."
+ },
+ {
+  "id": "HO-fix_WEB_1-7",
+  "from": "fix:WEB:1",
+  "file": "scripts/test_full_suite.py",
+  "change": "In static_routes (lines 68-74), remove /app.js, /js/api.js, /js/ui.js, /js/viewer.js, /js/orb.js, /js/logger.js and /js/state.js. Add /js/main.js and /js/dom.js.",
+  "reason": "AUTO-14 and WSEC-05. Those modules were deleted."
+ },
+ {
+  "id": "HO-fix_WEB_1-8",
+  "from": "fix:WEB:1",
+  "file": ".github/workflows/ci.yml",
+  "change": "Add ESLint with eslint-plugin-no-unsanitized and import/no-unused-modules over web/js.",
+  "reason": "WEB-01 and AUTO-14 regression guards."
+ },
+ {
+  "id": "HO-fix_WEB_1-9",
+  "from": "fix:WEB:1",
+  "file": "README.md",
+  "change": "Describe the browser mode as approximate declaration extraction over a bounded sample (class and package views only; other views need the Rust engine). Remove the 'client-side AST parsing', 19-in-browser-projections and Kroki rendering claims.",
+  "reason": "BENCH-15, SCALE-18 and WEB-02."
+ },
+ {
+  "id": "HO-fix_WEB_1-10",
+  "from": "fix:WEB:1",
+  "file": "web/js/lang/c-family.js",
+  "change": "GitHubEngine.parseSourceFile and buildGraphIr no longer exist. Plug frontends into web/js/analysis/source-parser.js parseSource(path, code), which returns {language, packageDecl, fileNamespace, imports, wildcardImports, classes[{name, kind, stereotype, modifiers, visibility, outer, namespace, line, col, endLine, endCol, superTypes[{name, isCall, role}], fields, methods, constants}], extensions}. That output is consumed by analysis/model-builder.js buildClassModel. The worker (analysis/parser-worker.js) imports source-parser.js, so frontends must be imported there too.",
+  "reason": "Another owner's in-progress module targets the removed API."
+ },
+ {
+  "id": "HO-fix_WEB_1-11",
+  "from": "fix:WEB:1",
+  "file": "Dockerfile",
+  "change": "CMD must use the subcommand main.rs accepts ('server', not 'serve').",
+  "reason": "E2E-08: the image exits at startup."
+ },
+ {
+  "id": "HO-cfam_CSFE-1",
+  "from": "cfam:CSFE",
+  "file": "src/core/types/token.rs",
+  "change": "Add a `CSharp` variant to `LangId` (next free code, e.g. `CSharp = 0x0C` if `C = 0x0B`) and the matching arm in `impl From<u8> for LangId`.",
+  "reason": "`CSharpLanguageAdapter::language_id()` returns `LangId::CSharp`, and src/lang/profile.rs already uses that variant."
+ },
+ {
+  "id": "HO-cfam_CSFE-2",
+  "from": "cfam:CSFE",
+  "file": "src/core/types/ast.rs",
+  "change": "Add these `ASTNodeType` variants, each with its `From<u8>` arm: NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT. NN_YIELD_STMT already exists and is reused. Of the contract names, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_TEMPLATE_DECL and NN_INCLUDE_DIRECTIVE are not used by C#.",
+  "reason": "src/lang/csharp/reduce.rs emits these node kinds."
+ },
+ {
+  "id": "HO-cfam_CSFE-3",
+  "from": "cfam:CSFE",
+  "file": "src/core/types/ast.rs",
+  "change": "In `impl NodeAttr` add `pub const VISIBILITY_PROTECTED_INTERNAL: u8 = 0x05; pub const VISIBILITY_PRIVATE_PROTECTED: u8 = 0x06; pub const VISIBILITY_FILE_PRIVATE: u8 = 0x07;`. These are the values src/lang/neutral.rs proposes. C# `internal` stays `VISIBILITY_PACKAGE_PRIVATE` (0x04).",
+  "reason": "`CSharpAttr` defines the same codes locally. Symbol and UML phases need them as shared constants to decode C# accessibility. Note: `KotlinAttr::VISIBILITY_INTERNAL = 0x05` in src/lang/kotlin/reduce.rs collides with neutral.rs, where 0x05 means `protected internal`; Kotlin `internal` should be 0x04."
+ },
+ {
+  "id": "HO-cfam_CSFE-4",
+  "from": "cfam:CSFE",
+  "file": "src/lib.rs",
+  "change": "Add `pub mod lang;`.",
+  "reason": "Nothing under src/lang, including src/lang/csharp, is compiled without it."
+ },
+ {
+  "id": "HO-cfam_CSFE-5",
+  "from": "cfam:CSFE",
+  "file": "src/ingestion/adapter/registry.rs",
+  "change": "In `AdapterRegistry::new()` add `reg.register(Arc::new(crate::lang::csharp::CSharpLanguageAdapter::new()));`. In `detect()` replace `\"cs\" => return LangId::Generic,` with `\"cs\" | \"csx\" => return LangId::CSharp,`.",
+  "reason": "Registers the Phase 1 C# frontend and routes .cs/.csx files to it; today .cs maps to Generic."
+ },
+ {
+  "id": "HO-cfam_CSFE-6",
+  "from": "cfam:CSFE",
+  "file": "src/ast/adapter/registry.rs",
+  "change": "In `ASTAdapterRegistry::new()` add `registry.register(LangId::CSharp, Arc::new(crate::lang::csharp::CSharpASTReductionAdapter::new()));`.",
+  "reason": "Registers the Phase 2 C# reduction adapter."
+ },
+ {
+  "id": "HO-cfam_CSFE-7",
+  "from": "cfam:CSFE",
+  "file": "src/cfg/stmts/yield_stmt.rs",
+  "change": "When the language's yield semantics are Generator (C#), give NN_YIELD_STMT iterator meaning. `yield return e` (no aux flag) evaluates e and falls through to the next statement. `yield break` (aux bit 0, `CSharpAttr::AUX_YIELD_BREAK`, the same as neutral `AUX_YIELD_GENERATOR_END`) jumps to the function exit. Do not route it to an enclosing switch expression.",
+  "reason": "`build_yield` currently treats every NN_YIELD_STMT as a Java switch-expression yield, so it would report YieldOutsideSwitchExpression for every C# iterator."
+ },
+ {
+  "id": "HO-cfam_CSFE-8",
+  "from": "cfam:CSFE",
+  "file": "src/cfg/stmts/mod.rs",
+  "change": "Dispatch the new statement kinds: NN_FOREACH_STMT like NN_ENHANCED_FOR; NN_LOCK_STMT like NN_JAVA_SYNCHRONIZED; NN_USING_STMT as resource, then body, then dispose on exit; NN_LABELED_STMT / NN_GOTO_STMT as goto targets and jumps, where `CSharpAttr::AUX_GOTO_CASE` / `AUX_GOTO_DEFAULT` target the matching switch section. NN_RETURN_STMT with aux bit 1 (`CSharpAttr::AUX_STMT_DISCARDS_VALUE`) means: evaluate the child, then return with no value. Treat NN_FUNCTION_DECL as a nested body.",
+  "reason": "The C# reducer emits these kinds and flags. Expression-bodied members (`=> e`) become NN_RETURN_STMT."
+ },
+ {
+  "id": "HO-cfam_CSFE-9",
+  "from": "cfam:CSFE",
+  "file": "src/ast/adapter/mod.rs",
+  "change": "Optional. Add to `ASTReductionAdapter` a default method `fn name_node<'t>(&self, _kind: &str, _node: &tree_sitter::Node<'t>) -> Option<tree_sitter::Node<'t>> { None }`. In src/ast/reducer.rs, call `builder.set_name_token(preorder, tok_table_lookup(<sort key of name_node start>))` for every kept node.",
+  "reason": "ast.rs says declarators carry their name in the name-token side array, but the reducer never fills it. `CSharpASTReductionAdapter::name_node` already returns the name node for every C# declaration kind."
+ },
+ {
+  "id": "HO-cfam_CSFE-10",
+  "from": "cfam:CSFE",
+  "file": "src/ast/mod.rs",
+  "change": "Optional. Log per-run ERROR/MISSING/unclassified counts by exposing adapter stats through the trait, for example a default `fn reduction_stats(&self) -> Option<(u64, u64, u64)> { None }` that C# implements from `CSharpASTReductionAdapter::stats()`.",
+  "reason": "The C# reducer counts ERROR and MISSING nodes and unknown named kinds explicitly. Today only the concrete type can read the counts."
  }
 ]

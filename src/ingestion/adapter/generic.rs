@@ -81,7 +81,7 @@ impl LanguageAdapter for GenericLanguageAdapter {
     }
 
     fn ts_language(&self) -> Language {
-        self.ts_lang
+        self.ts_lang.clone()
     }
 
     /// Kind-only classification (named-leaf rules); the walker uses `classify_leaf`, which

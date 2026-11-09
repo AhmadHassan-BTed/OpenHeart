@@ -43,10 +43,16 @@ impl TraceabilityArtifactBuilder {
         let (bi_ssa, ssa_ranges) =
             SSABackwardIndex::build(ssa, bpa, &bi_blk, &block_ranges, &bi_sym);
         let function_index = Self::function_index(&block_ranges, &ssa_ranges);
-        let bi_cs = CallSiteBackwardIndex::build(cga);
+        let (bi_cs, cs_report) = CallSiteBackwardIndex::build(cga);
+        if !cs_report.is_clean() {
+            log_warn(&format!(
+                "Phase 7 DIAGNOSTIC: BI_cs: {} call sites with out-of-range ids, {} with duplicate ids, {} unclaimed slots",
+                cs_report.out_of_range, cs_report.duplicates, cs_report.unclaimed
+            ));
+        }
 
         let sym_span = SymbolSpanIndex::build(&bi_sym, tca, sta);
-        let cs_span = CallSiteSpanIndex::build(&bi_cs, tca, cga);
+        let cs_span = CallSiteSpanIndex::build(cga, tca);
         let uml_links = UMLLinkRegistry::build(&bi_sym, tca, sta, hashes.scpg_hash);
         let uml_slots = UMLLinkRegistry::slots(&uml_links, sta.symbol_records.len());
         let entities = EntityIndex::build(sta, tca, &bi_sym);

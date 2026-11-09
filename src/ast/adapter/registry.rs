@@ -26,7 +26,7 @@ impl ASTAdapterRegistry {
         registry.register(
             LangId::JavaScript,
             Arc::new(GenericASTReductionAdapter::new(
-                tree_sitter_javascript::language(),
+                tree_sitter_javascript::LANGUAGE.into(),
             )),
         );
         registry

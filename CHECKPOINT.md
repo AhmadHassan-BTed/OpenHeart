@@ -34,23 +34,23 @@ An exhaustive raw audit of the whole repository, not verified (by instruction):
 
 **858 unique findings**, all in [`checkpoint/findings.json`](checkpoint/findings.json), browsable in [`checkpoint/FINDINGS.md`](checkpoint/FINDINGS.md). Line numbers in findings refer to `fc218cd`; many lines have since moved.
 
-### 2.2 Fixing on `main` (pass 1 complete for all owners; pass 2 complete or running for four)
+### 2.2 Fixing on `main`
 
-Fix engineers each own a disjoint set of paths (ownership map in section 5).
+Fix engineers each own a disjoint set of paths (ownership map in section 5). Overall finding status at this checkpoint: **53 fixed, 172 partial, 16 skipped, 530 queued for the next passes, 86 deferred to the test phase, 1 unrouted.**
 
-| Owner | Paths | Pass 1 | Pass 2 |
+| Owner | Paths | Pass 1 (fixed / partial / skipped) | Pass 2 |
 |---|---|---|---|
-| ENG | Cargo.toml, Makefile, dotfiles | 0 fixed, 14 partial, 27 skipped | 10 fixed, 9 partial, 25 skipped |
-| BDD | src/psa, src/tra | 9 fixed, 16 partial, 1 skipped | running at checkpoint |
-| CORE | src/core, src/ingestion, src/ast | 6 fixed, 34 partial, 6 skipped | not started |
-| SYM | src/symbol | running at checkpoint | not started |
-| FLOW | src/cfg, src/ssa, src/cg | running at checkpoint | not started |
-| UML | src/uma | 8 fixed, 21 partial, 0 skipped | not started |
-| SCPGX | src/scpg/diagram | 6 fixed, 20 partial, 1 skipped | running at checkpoint |
-| SCPG | src/scpg (rest) | 4 fixed, 13 partial, 0 skipped | not started |
-| SRV | src/adapters, src/main.rs, src/lib.rs, Docker, run scripts | 20 fixed, 28 partial, 6 skipped | running at checkpoint |
-| WEB | web/ | running at checkpoint | not started |
-| DOCS | README, ROADMAP, CHANGELOG, SECURITY, docs/ | 7 fixed, 64 partial, 0 skipped | not started |
+| ENG | Cargo.toml, Makefile, dotfiles | 0 / 14 / 27 | 10 / 9 / 25 |
+| BDD | src/psa, src/tra | 9 / 16 / 1 | stopped mid-way (edits on disk, no report) |
+| CORE | src/core, src/ingestion, src/ast | 6 / 34 / 6 | queued: `CORE-2.json` (190) |
+| SYM | src/symbol | stopped mid-way (edits on disk, no report) | queued: `SYM-2.json` (88) |
+| FLOW | src/cfg, src/ssa, src/cg | 11 / 20 / 5 | queued: `FLOW-2.json` (106) |
+| UML | src/uma | 8 / 21 / 0 | queued: `UML-2.json` (97) |
+| SCPGX | src/scpg/diagram | 6 / 20 / 1 | stopped mid-way (edits on disk, no report) |
+| SCPG | src/scpg (rest) | 4 / 13 / 0 | queued: `SCPG-2.json` (64) |
+| SRV | src/adapters, src/main.rs, src/lib.rs, Docker, run scripts | 20 / 28 / 6 | stopped mid-way (edits on disk, no report) |
+| WEB | web/ | 17 / 25 / 4 | queued: `WEB-2.json` (90) |
+| DOCS | README, ROADMAP, CHANGELOG, SECURITY, docs/ | 7 / 64 / 0 | queued: `DOCS-2.json` (57) |
 
 Per-finding status (fixed / partial / skipped / in-queue / not-yet-dispatched / deferred-testing-phase) is the `status` field in `checkpoint/findings.json`. Raw engineer results are in [`checkpoint/fix-results.json`](checkpoint/fix-results.json).
 
@@ -76,19 +76,31 @@ Notable changes already on `main`: tree-sitter moved to 0.25 with Java/JavaScrip
 
 The shared contracts these modules follow (exact type and module names) are in [`checkpoint/tooling/workflows/compiler-core.js`](checkpoint/tooling/workflows/compiler-core.js) (`CONTRACT`) and [`checkpoint/tooling/workflows/new-frontends.js`](checkpoint/tooling/workflows/new-frontends.js) (`CONTRACT`). Files created by each engineer are listed in [`checkpoint/new-modules.json`](checkpoint/new-modules.json).
 
-## 3. In flight at this checkpoint
+## 3. Stopped at this checkpoint (continue exactly from here)
 
-These were running when this file was written. The final checkpoint commit records their results; if a later commit says "final checkpoint", they are done.
+To close the session, these engineers were stopped before they reported. Everything they had written is committed; their per-finding results and handoffs were not produced. Progress of every sub-agent (status, tool calls, files edited, last message) is in [`checkpoint/session/agents-index.json`](checkpoint/session/agents-index.json) when present.
 
-- Fix pass 1: SYM, FLOW, WEB.
-- Fix pass 2: BDD, SRV, SCPGX.
-- New modules: all engineers in section 2.3 (C/C++ and C# frontends and semantics, build systems, UML semantics, web C-family parser, language-neutral core, Kotlin, IR, memory, analysis, derive, symex, abi, arch, memview).
+- Fix pass 1: SYM. Rerun `checkpoint/queues/SYM-1.json`, then `SYM-2.json`.
+- Fix pass 2: BDD, SRV, SCPGX. Rerun `BDD-2.json`, `SRV-2.json`, `SCPGX-2.json`, then the `-3` queues.
+- New modules, files on disk at stop time: `src/lang` 29 files (C/C++ and C# frontends and semantics, build systems, UML semantics, language-neutral core, Kotlin), `src/ir` 16, `src/analysis` 14, `src/derive` 12, `src/arch` 7, `src/memview` 6, `src/symex` 3, `src/abi` 3, `web/js/lang/c-family.js`. Only the memory model (`src/memory`, 7 files) and the C# frontend (`src/lang/csharp`) finished and reported. Complete the rest against their contracts in `checkpoint/tooling/workflows/compiler-core.js` and `new-frontends.js`. These modules are not yet declared in `src/lib.rs`, so they are not compiled into the current build.
+
+### Build status at this checkpoint
+
+- `cargo build` succeeds (Rust 1.99.1, MSVC, Windows) with `Cargo.lock` regenerated. 31 integration compile errors from the parallel edits were fixed (tree-sitter 0.25 API, missing modules and constants, signature and field-type mismatches, new enum variants, borrow errors).
+- `openheart --help` runs, and `openheart analyze examples/test_patterns_codebase <out>` completes all 10 phases on 35 files in about 0.74 s, writing every phase artifact plus 57 diagram files and `run.json`.
+- Visible gap in that run: **0 call edges resolved** (68 call sites, 0 edges). Call resolution is still being rebuilt (FLOW queue, `MANDATE-CORE-ARCH-FLOW`, finding E2E-01).
+- The new modules in section 3 are not declared in `src/lib.rs`, so they are excluded from this build until they are wired in (section 4, step 2).
+- Nothing beyond building and that one run was checked, by the owner's instruction.
 
 ## 4. Not started yet, in order
 
-1. **Fix pass 2** for CORE, SYM, FLOW, UML, SCPG, WEB, DOCS, and **pass 3** for ENG, BDD, SRV, SCPGX. Ready-made queues are in [`checkpoint/queues/`](checkpoint/queues/) as `<OWNER>-<pass>.json` (round-2 findings, cross-cutting findings, handoffs from other engineers, and a `MANDATE-CORE-ARCH-<OWNER>` item that says how that owner rewires its phase onto the new language-neutral, compiler-grade core).
+1. **Remaining fix passes.** Ready-made queues are in [`checkpoint/queues/`](checkpoint/queues/) as `<OWNER>-<pass>.json` (round-2 findings, cross-cutting findings, handoffs from other engineers, and a `MANDATE-CORE-ARCH-<OWNER>` item that says how that owner rewires its phase onto the new language-neutral, compiler-grade core):
+   - Pass 2: `CORE-2` (190), `SYM-2` (88), `FLOW-2` (106), `UML-2` (97), `SCPG-2` (64), `WEB-2` (90), `DOCS-2` (57).
+   - Reruns of the stopped work: `SYM-1`, `BDD-2`, `SRV-2`, `SCPGX-2`.
+   - Pass 3 (handoffs addressed to owners that already ran pass 2): `ENG-3` (25), `BDD-3` (17), `SRV-3` (26), `SCPGX-3` (5).
+   - Finish the stopped new modules (section 3).
 2. **Integration wiring**: module declarations (`src/lib.rs`: `pub mod lang; ir; memory; analysis; derive; symex; abi; arch; memview;`, `src/lang/mod.rs` entries for neutral/frontend/registry/java/kotlin), new `LangId` and `ASTNodeType` variants, registry registration, call-site updates. Every required change is a handoff in [`checkpoint/handoffs.json`](checkpoint/handoffs.json).
-3. **Regenerate `Cargo.lock`** (`cargo update`) against the new Cargo.toml (tree-sitter 0.25 plus the 0.23 grammars). Needs a Rust toolchain (1.88 or newer; rust-version in Cargo.toml).
+3. **`Cargo.lock`** was regenerated at this checkpoint against tree-sitter 0.25 and the 0.23 grammars (Rust 1.99.1 was installed on the original machine; rust-version in Cargo.toml is 1.88).
 4. **Build phase** (only when the owner says): `cargo check`, fix compile errors across the parallel edits, then clippy.
 5. **Test phase** (only when the owner says): 86 findings are deferred as `deferred-testing-phase` in findings.json, plus the test architecture from the TST lens and the proposed OpenHeart Bench in `checkpoint/research.json` (`context:BENCH`).
 6. **CI, release, Pages and Dependabot changes**: handoffs that target `.github/` (kept out of the coding phase because they configure checks).
@@ -131,7 +143,11 @@ These were running when this file was written. The final checkpoint commit recor
 | `queues/` | Fix batches per owner and pass (`<OWNER>-<pass>.json`) |
 | `tooling/` | dispatch, export, watcher scripts, report template and builder, workflow scripts |
 
-## 7. Known caveats
+## 7. Commit identity
+
+Commit only as **Ahmad Hassan (B-Ted) <ahmadhassan.bted@gmail.com>**. On the original machine the shell environment sets `GIT_AUTHOR_*` / `GIT_COMMITTER_*` to a work identity that overrides git config, so set the four variables explicitly on every commit and check `git log -1 --format='%an <%ae> / %cn <%ce>'` before pushing.
+
+## 8. Known caveats
 
 - The code is uncompiled. Many engineers edited in parallel; expect mismatches at API boundaries, which the integration step resolves.
 - Some findings may already be fixed by another owner's change; check before re-fixing.

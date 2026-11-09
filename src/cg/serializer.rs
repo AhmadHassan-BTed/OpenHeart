@@ -11,7 +11,8 @@ use std::path::Path;
 pub const CGA_MAGIC: u64 = 0x4347410001000000; // "CGA\0\x01\0\0\0"
 /// Version 2: `receiver_ssa` and points-to `ssa_id` are global SSA ids, `call_block` is
 /// `u32::MAX` for calls outside any CFG block, and SCCs cover only call-graph nodes.
-pub const CGA_FORMAT_VERSION: u32 = 2;
+/// Version 3: SCC records are the full 16-byte `SCCRecord` (`member_count` is a u32).
+pub const CGA_FORMAT_VERSION: u32 = 3;
 
 pub struct CGASerializer;
 
@@ -91,9 +92,9 @@ impl CGASerializer {
             for scc in &artifact.sccs {
                 w.write_u32(scc.scc_id)?;
                 w.write_u32(scc.member_offset)?;
-                w.write_u16(scc.member_count)?;
+                w.write_u32(scc.member_count)?;
                 w.write_u8(scc.scc_class)?;
-                w.write_u8(0)?;
+                w.write_bytes(&[0u8; 3])?;
             }
             w.write_u32(artifact.scc_members.len() as u32)?;
             for &m in &artifact.scc_members {
@@ -253,8 +254,10 @@ impl CGASerializer {
         let scc_len = r.read_u32()? as usize;
         let mut sccs = Vec::with_capacity(scc_len);
         for _ in 0..scc_len {
-            let scc = SCCRecord::new(r.read_u32()?, r.read_u32()?, r.read_u16()?, r.read_u8()?);
-            r.read_u8()?;
+            let scc = SCCRecord::new(r.read_u32()?, r.read_u32()?, r.read_u32()?, r.read_u8()?);
+            for _ in 0..3 {
+                r.read_u8()?;
+            }
             sccs.push(scc);
         }
 

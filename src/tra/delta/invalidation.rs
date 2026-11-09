@@ -46,9 +46,9 @@ impl StaleDetector {
         }
     }
 
-    /// The baseline sym_ids of every record in `records` that is stale in `current`, in
-    /// O(|records| + |entities|).
-    pub fn filter_stale(
+    /// The baseline sym_ids of the records in `records` that are stale in `current` (the
+    /// records to regenerate), in record order, in O(|records| + |entities|).
+    pub fn stale_ids(
         records: &[UMLLinkRecord],
         baseline: &TraceabilityArtifact,
         current: &TraceabilityArtifact,

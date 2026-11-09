@@ -1,0 +1,401 @@
+[
+ {
+  "id": "HO-fix_SRV_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: Replace repo_url 'https://github.com/local/<name>' with {\"local_repo\": \"<name>\"} and start the serve",
+  "files": [
+   "ruthless_verify.py"
+  ],
+  "evidence": "Replace repo_url 'https://github.com/local/<name>' with {\"local_repo\": \"<name>\"} and start the server with OPENHEART_LOCAL_REPOS=<dataset root> (or 'openheart server --local-repos <dir>'). Do the same in any script that pre-stages directories under ./target_repos/<name>",
+  "impact": "SRV-02 and SRV-07. Fake GitHub URLs now fail clone instead of silently analyzing ./target_repos/<name>. The clone cache is <workspace>/repos/<owner>/<repo>/<ref-key> with origin verification",
+  "recommendation": "Replace repo_url 'https://github.com/local/<name>' with {\"local_repo\": \"<name>\"} and start the server with OPENHEART_LOCAL_REPOS=<dataset root> (or 'openheart server --local-repos <dir>'). Do the same in any script that pre-stages directories under ./target_repos/<name>",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-4",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: OPTIONS /api/analyze without Origin now returns 204 with an 'Allow' header and no ACAO, and a foreig",
+  "files": [
+   "scripts/test_full_suite.py"
+  ],
+  "evidence": "OPTIONS /api/analyze without Origin now returns 204 with an 'Allow' header and no ACAO, and a foreign Origin returns 403, so do not expect ACAO '*'. The malformed-body test must send Content-Type: application/json (other content types get 415), after which it receives 400",
+  "impact": "SRV-05: CORS * removed, and POST /api/analyze requires a JSON content type as CSRF defense in depth",
+  "recommendation": "OPTIONS /api/analyze without Origin now returns 204 with an 'Allow' header and no ACAO, and a foreign Origin returns 403, so do not expect ACAO '*'. The malformed-body test must send Content-Type: application/json (other content types get 415), after which it receives 400",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: Add a job that runs 'make docker-smoke' (Docker build plus /api/health probe) and an MSRV 1.88 job",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "Add a job that runs 'make docker-smoke' (Docker build plus /api/health probe) and an MSRV 1.88 job",
+  "impact": "AUTO-07, SRV-03 and SRV-11: keep the container and the MSRV from regressing",
+  "recommendation": "Add a job that runs 'make docker-smoke' (Docker build plus /api/health probe) and an MSRV 1.88 job",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_UML_1-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: Remove overflow-checks = false from [profile.dev].",
+  "files": [
+   "Cargo.toml"
+  ],
+  "evidence": "Remove overflow-checks = false from [profile.dev].",
+  "impact": "AUTO-16: I am only allowed to change dependency lines in Cargo.toml.",
+  "recommendation": "Remove overflow-checks = false from [profile.dev].",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, bui",
+  "files": [
+   "src/lib.rs",
+   "Cargo.toml",
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
+  "impact": "CORE-01/COMP-01/FLOW-20: registering a grammar adapter replaces the Kotlin lexical frontend; the grammar crate and lang module are outside my paths.",
+  "recommendation": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Remove `overflow-checks = false` from [profile.dev].",
+  "files": [
+   "Cargo.toml"
+  ],
+  "evidence": "Remove `overflow-checks = false` from [profile.dev].",
+  "impact": "AUTO-16; this is a profile change, which my paths may not make.",
+  "recommendation": "Remove `overflow-checks = false` from [profile.dev].",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Regenerate the lockfile against the new Cargo.toml with `cargo update --workspace` (`make lock`) and",
+  "files": [
+   "Cargo.lock"
+  ],
+  "evidence": "Regenerate the lockfile against the new Cargo.toml with `cargo update --workspace` (`make lock`) and commit it. It must then resolve tree-sitter 0.25.x plus tree-sitter-java 0.23.x, tree-sitter-javascript 0.23.x, tree-sitter-kotlin-ng 1.x, tree-sitter-c 0.23.x, tree-sitter-cpp 0.23.x and tree-sitter-c-sharp 0.23.x, all through tree-sitter-language 0.1.",
+  "impact": "HO-fix_ENG_1-1 / MANDATE: the lock still pins tree-sitter 0.20. The Makefile now passes --locked by default (ENG2-35), so every cargo target fails until the lock matches Cargo.toml.",
+  "recommendation": "Regenerate the lockfile against the new Cargo.toml with `cargo update --workspace` (`make lock`) and commit it. It must then resolve tree-sitter 0.25.x plus tree-sitter-java 0.23.x, tree-sitter-javascript 0.23.x, tree-sitter-kotlin-ng 1.x, tree-sitter-c 0.23.x, tree-sitter-cpp 0.23.x and tree-sitter-c-sharp 0.23.x, all through tree-sitter-language 0.1.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Add top-level `permissions: contents: read`, `concurrency: {group: ci-${{ github.ref }}, cancel-in-p",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "Add top-level `permissions: contents: read`, `concurrency: {group: ci-${{ github.ref }}, cancel-in-progress: true}` and `workflow_dispatch`. Matrix job over os [ubuntu-latest, windows-latest, macos-latest] x rust [stable, beta] with `fail-fast: false`, `continue-on-error: ${{ matrix.rust == 'beta' }}` and timeout-minutes: 45. Install the toolchain with rustfmt and clippy, use Swatinem/rust-cache instead of actions/cache (it keys on rustc -vV and prunes target/), then run `make ci CARGO_FLAGS=--locked`. Separate jobs: `make msrv`, `make deny`, `make machete`, `make coverage`, `make docker-smoke` and `make studio-smoke`, plus a scripts job that installs ruff and node and runs `make ci-scripts`. Nightly (schedule) jobs: `make miri` and `make asan`. Pin every action by commit SHA with a version comment.",
+  "impact": "HO-fix_ENG_1-6, ENG2-13, ENG2-33, ENG2-34, ENG2-35, SRV2-08: keeps CI identical to the local Makefile gates; ci-scripts and studio-smoke are new targets.",
+  "recommendation": "Add top-level `permissions: contents: read`, `concurrency: {group: ci-${{ github.ref }}, cancel-in-progress: true}` and `workflow_dispatch`. Matrix job over os [ubuntu-latest, windows-latest, macos-latest] x rust [stable, beta] with `fail-fast: false`, `continue-on-error: ${{ matrix.rust == 'beta' }}` and timeout-minutes: 45. Install the toolchain with rustfmt and clippy, use Swatinem/rust-cache instead of actions/cache (it keys on rustc -vV and prunes target/), then run `make ci CARGO_FLAGS=--locked`. Separate jobs: `make msrv`, `make deny`, `make machete`, `make coverage`, `make docker-smoke` and `make studio-smoke`, plus a scripts job that installs ruff and node and runs `make ci-scripts`. Nightly (schedule) jobs: `make miri` and `make asan`. Pin every action by commit SHA with a version comment.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Replace the three inline cargo commands with `cd \"$(dirname \"$0\")/..\" && exec make ci \"$@\"`.",
+  "files": [
+   "scripts/ci_check.sh"
+  ],
+  "evidence": "Replace the three inline cargo commands with `cd \"$(dirname \"$0\")/..\" && exec make ci \"$@\"`.",
+  "impact": "HO-fix_ENG_1-7 / ENG2-35: `make ci` runs fmt-check, check (including --no-default-features), lint, test with doctests and doc, all with --locked by default.",
+  "recommendation": "Replace the three inline cargo commands with `cd \"$(dirname \"$0\")/..\" && exec make ci \"$@\"`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Add job-level `permissions: contents: write`. Require a passing CI run, via a `needs` job that runs ",
+  "files": [
+   ".github/workflows/release.yml"
+  ],
+  "evidence": "Add job-level `permissions: contents: write`. Require a passing CI run, via a `needs` job that runs `make ci CARGO_FLAGS=--locked` or a `workflow_run` gate. Assert that `${GITHUB_REF_NAME#v}` equals the version in Cargo.toml. Run an OS matrix (ubuntu, macos, windows) of `make dist`. Upload dist/openheart-<version>-<triple>.tar.gz and its .sha256 file with softprops/action-gh-release v2, pinned by SHA. Stop uploading target/release/libopenheart.rlib.",
+  "impact": "HO-fix_ENG_1-9, ENG2-15, ENG2-35: `make dist` already builds with --locked and writes the archive plus checksum.",
+  "recommendation": "Add job-level `permissions: contents: write`. Require a passing CI run, via a `needs` job that runs `make ci CARGO_FLAGS=--locked` or a `workflow_run` gate. Assert that `${GITHUB_REF_NAME#v}` equals the version in Cargo.toml. Run an OS matrix (ubuntu, macos, windows) of `make dist`. Upload dist/openheart-<version>-<triple>.tar.gz and its .sha256 file with softprops/action-gh-release v2, pinned by SHA. Stop uploading target/release/libopenheart.rlib.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Trigger on `workflow_run` of 'Continuous Integration' with `if: github.event.workflow_run.conclusion",
+  "files": [
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "Trigger on `workflow_run` of 'Continuous Integration' with `if: github.event.workflow_run.conclusion == 'success'` (keep workflow_dispatch), and filter paths to ['web/**', '.github/workflows/deploy_pages.yml']. Pin checkout, configure-pages, upload-pages-artifact and deploy-pages by SHA, and set `persist-credentials: false` on checkout. Run `make js-check` before upload. Exclude unreferenced files (web/diagrams/*.mmd, state.json, use_case.json, web/docs unless linked) from the uploaded artifact. Add a post-deploy curl check of the page URL.",
+  "impact": "ENG2-14, WEB2-52, WEB2-55.",
+  "recommendation": "Trigger on `workflow_run` of 'Continuous Integration' with `if: github.event.workflow_run.conclusion == 'success'` (keep workflow_dispatch), and filter paths to ['web/**', '.github/workflows/deploy_pages.yml']. Pin checkout, configure-pages, upload-pages-artifact and deploy-pages by SHA, and set `persist-credentials: false` on checkout. Run `make js-check` before upload. Exclude unreferenced files (web/diagrams/*.mmd, state.json, use_case.json, web/docs unless linked) from the uploaded artifact. Add a post-deploy curl check of the page URL.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: In the cargo entry, add `groups: {tree-sitter: {patterns: [\"tree-sitter\", \"tree-sitter-*\"]}}` and `l",
+  "files": [
+   ".github/dependabot.yml"
+  ],
+  "evidence": "In the cargo entry, add `groups: {tree-sitter: {patterns: [\"tree-sitter\", \"tree-sitter-*\"]}}` and `labels: [dependencies]`. Add an ignore/allow policy or label so semver-major updates are reviewed by hand. Add a `package-ecosystem: docker` entry for directory \"/\".",
+  "impact": "ENG2-36: the runtime and the six grammars are ABI-coupled and must move in one PR, as the Cargo.toml comment now says. The Dockerfile base image is not watched.",
+  "recommendation": "In the cargo entry, add `groups: {tree-sitter: {patterns: [\"tree-sitter\", \"tree-sitter-*\"]}}` and `labels: [dependencies]`. Add an ignore/allow policy or label so semver-major updates are reviewed by hand. Add a `package-ecosystem: docker` entry for directory \"/\".",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-15",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Move post_analyze, run_cmd, log_test and server bootstrap into one scripts/harness module. That modu",
+  "files": [
+   "scripts/*.py (benchmark_all_java_design_patterns",
+   "test_ruthless_popular_datasets",
+   "test_authored_design_patterns",
+   "test_diagrams_outputs_refresh",
+   "test_full_suite",
+   "verify_all_14_uml_diagrams)",
+   "new scripts/harness/"
+  ],
+  "evidence": "Move post_analyze, run_cmd, log_test and server bootstrap into one scripts/harness module. That module resolves the repo root from Path(__file__).resolve(), takes the binary from OPENHEART_BIN (default: run `cargo build --release --locked` and use target/release/openheart[.exe]), starts the server on a free port obtained via socket.bind(('127.0.0.1', 0)), tracks the Popen PID, polls /api/health with a deadline, writes server output to a tempfile log and prints it on failure, and stops with terminate(), wait(10) and then kill(). Remove every `fuser -k`. Read port and timeouts from env. Pass argument lists to subprocess.run (no shell=True), use sys.executable instead of 'python3', call sys.stdout.reconfigure(encoding='utf-8'), and stop the server before running cargo test. Print only computed counts and ratios, guard divisions by zero, and make docstrings match the checks actually done (all 10 artifacts; inheritance precision and recall). Read 'errors', not 'error'.",
+  "impact": "ENG2-08, ENG2-10, ENG2-11, ENG2-12, ENG2-26, ENG2-28, ENG2-29. `make py-lint` now enforces F401, BLE001, S602 and S108 on these files.",
+  "recommendation": "Move post_analyze, run_cmd, log_test and server bootstrap into one scripts/harness module. That module resolves the repo root from Path(__file__).resolve(), takes the binary from OPENHEART_BIN (default: run `cargo build --release --locked` and use target/release/openheart[.exe]), starts the server on a free port obtained via socket.bind(('127.0.0.1', 0)), tracks the Popen PID, polls /api/health with a deadline, writes server output to a tempfile log and prints it on failure, and stops with terminate(), wait(10) and then kill(). Remove every `fuser -k`. Read port and timeouts from env. Pass argument lists to subprocess.run (no shell=True), use sys.executable instead of 'python3', call sys.stdout.reconfigure(encoding='utf-8'), and stop the server before running cargo test. Print only computed counts and ratios, guard divisions by zero, and make docstrings match the checks actually done (all 10 artifacts; inheritance precision and recall). Read 'errors', not 'error'.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-16",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Resolve the config as Path(__file__).resolve().parents[1] / 'ruthless_config.json' and exit non-zero",
+  "files": [
+   "scripts/generate_diagrams.py"
+  ],
+  "evidence": "Resolve the config as Path(__file__).resolve().parents[1] / 'ruthless_config.json' and exit non-zero when it is missing or when zero diagrams are saved. Fix the hint to scripts/restart_server.sh. Derive repo_name with `name[:-4] if name.endswith('.git') else name`, and reject names that are empty, '.', '..' or contain path separators.",
+  "impact": "ENG2-02, ENG2-32.",
+  "recommendation": "Resolve the config as Path(__file__).resolve().parents[1] / 'ruthless_config.json' and exit non-zero when it is missing or when zero diagrams are saved. Fix the hint to scripts/restart_server.sh. Derive repo_name with `name[:-4] if name.endswith('.git') else name`, and reject names that are empty, '.', '..' or contain path separators.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Use IGNORE_DIRS and PKG_STMT_PATTERNS from the config, through one walk_sources() helper. Delete the",
+  "files": [
+   "ruthless_verify.py"
+  ],
+  "evidence": "Use IGNORE_DIRS and PKG_STMT_PATTERNS from the config, through one walk_sources() helper. Delete the hard-coded dict and the unused defaultdict import. Precompute newline offsets once per file and bisect into them. Tokenize template literals in one pass. Share one extension set that includes .mts and .cts. Key the oracle by FQN (package plus enclosing types), not simple name. Replace `except (URLError, Exception)` with specific exceptions logged in detail.",
+  "impact": "ENG2-21, ENG2-22, ENG2-29, FIT-10.",
+  "recommendation": "Use IGNORE_DIRS and PKG_STMT_PATTERNS from the config, through one walk_sources() helper. Delete the hard-coded dict and the unused defaultdict import. Precompute newline offsets once per file and bisect into them. Tokenize template literals in one pass. Share one extension set that includes .mts and .cts. Key the oracle by FQN (package plus enclosing types), not simple name. Replace `except (URLError, Exception)` with specific exceptions logged in detail.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-21",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and t",
+  "files": [
+   "README.md",
+   "docs/succinct_structures.md",
+   "docs/overview.md",
+   "benches/ (new)",
+   "Makefile follow-up"
+  ],
+  "evidence": "Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and the integration-test count. Publish a benchmark manifest (URL, commit SHA, licence) and committed results JSON. Add criterion benches. Once benches/ exists, a `make bench` target can be added in the Makefile.",
+  "impact": "FIT-15: no benchmark harness exists yet to back a bench target; .gitignore does not block committing the manifest or results.",
+  "recommendation": "Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and the integration-test count. Publish a benchmark manifest (URL, commit SHA, licence) and committed results JSON. Add criterion benches. Once benches/ exists, a `make bench` target can be added in the Makefile.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-22",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (",
+  "files": [
+   "README.md",
+   "CHANGELOG.md",
+   "docs/architecture.md",
+   "docs/codebase-guide.md",
+   "ruthless_config.json",
+   "docs/assets/scpg_overview.svg"
+  ],
+  "evidence": "Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (02 and 05 currently disagree). Regenerate the hero SVG figures (CSR ratio, diagram count) from the same data.",
+  "impact": "ENG2-52.",
+  "recommendation": "Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (02 and 05 currently disagree). Regenerate the hero SVG figures (CSR ratio, diagram count) from the same data.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-23",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: List phases 1-10. Add language, CLI-vs-server mode and artifact fields to the bug report. Add a conf",
+  "files": [
+   ".github/ISSUE_TEMPLATE/feature_request.md",
+   ".github/ISSUE_TEMPLATE/bug_report.md",
+   ".github/ISSUE_TEMPLATE/config.yml (new)",
+   ".github/PULL_REQUEST_TEMPLATE.md"
+  ],
+  "evidence": "List phases 1-10. Add language, CLI-vs-server mode and artifact fields to the bug report. Add a config.yml whose contact_links point security reports to SECURITY.md. Add `make lint` and `make ci-scripts` to the PR checklist.",
+  "impact": "ENG2-56.",
+  "recommendation": "List phases 1-10. Add language, CLI-vs-server mode and artifact fields to the bug report. Add a config.yml whose contact_links point security reports to SECURITY.md. Add `make lint` and `make ci-scripts` to the PR checklist.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: Before upload, compute sha384 SRI for the three CDN scripts in web/index.html and inject integrity= ",
+  "files": [
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "Before upload, compute sha384 SRI for the three CDN scripts in web/index.html and inject integrity= attributes, or vendor them into web/vendor and switch script-src to 'self'. Fail if the CSP meta is missing. Generate web/docs from docs/.",
+  "impact": "WSEC-02, AUTO-18, WEB-09 and AUTO-19. The hashes could not be computed without downloading the files.",
+  "recommendation": "Before upload, compute sha384 SRI for the three CDN scripts in web/index.html and inject integrity= attributes, or vendor them into web/vendor and switch script-src to 'self'. Fail if the CSP meta is missing. Generate web/docs from docs/.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: In static_routes (lines 68-74), remove /app.js, /js/api.js, /js/ui.js, /js/viewer.js, /js/orb.js, /j",
+  "files": [
+   "scripts/test_full_suite.py"
+  ],
+  "evidence": "In static_routes (lines 68-74), remove /app.js, /js/api.js, /js/ui.js, /js/viewer.js, /js/orb.js, /js/logger.js and /js/state.js. Add /js/main.js and /js/dom.js.",
+  "impact": "AUTO-14 and WSEC-05. Those modules were deleted.",
+  "recommendation": "In static_routes (lines 68-74), remove /app.js, /js/api.js, /js/ui.js, /js/viewer.js, /js/orb.js, /js/logger.js and /js/state.js. Add /js/main.js and /js/dom.js.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: Add ESLint with eslint-plugin-no-unsanitized and import/no-unused-modules over web/js.",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "Add ESLint with eslint-plugin-no-unsanitized and import/no-unused-modules over web/js.",
+  "impact": "WEB-01 and AUTO-14 regression guards.",
+  "recommendation": "Add ESLint with eslint-plugin-no-unsanitized and import/no-unused-modules over web/js.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Add jobs: clippy --all-targets -D warnings (make lint), RUSTDOCFLAGS=-D warnings cargo doc (make doc",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "Add jobs: clippy --all-targets -D warnings (make lint), RUSTDOCFLAGS=-D warnings cargo doc (make doc), doctests (make test), MSRV check on 1.88 (make msrv), nightly Miri on psa (make miri), cargo-deny and cargo-machete, a Windows/macOS matrix, Docker build plus smoke run (make docker-smoke), a lychee link check over *.md and docs/, and a nightly accuracy tier per docs/status.md §7",
+  "impact": "ENG-10, BENCH-14, TST-09, AUTO-19, ENG-03. The README now shows the real workflow badge and documents these gates",
+  "recommendation": "Add jobs: clippy --all-targets -D warnings (make lint), RUSTDOCFLAGS=-D warnings cargo doc (make doc), doctests (make test), MSRV check on 1.88 (make msrv), nightly Miri on psa (make miri), cargo-deny and cargo-machete, a Windows/macOS matrix, Docker build plus smoke run (make docker-smoke), a lychee link check over *.md and docs/, and a nightly accuracy tier per docs/status.md §7",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Stop uploading target/release/libopenheart.rlib; build per-platform binaries with SHA-256 files (mak",
+  "files": [
+   ".github/workflows/release.yml"
+  ],
+  "evidence": "Stop uploading target/release/libopenheart.rlib; build per-platform binaries with SHA-256 files (make dist), add permissions: contents: write, and tag 0.1.0 so tag, Cargo.toml and CHANGELOG agree",
+  "impact": "ENG-13. CHANGELOG now says no release has been tagged",
+  "recommendation": "Stop uploading target/release/libopenheart.rlib; build per-platform binaries with SHA-256 files (make dist), add permissions: contents: write, and tag 0.1.0 so tag, Cargo.toml and CHANGELOG agree",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Generate web/docs/ from docs/ during the Pages deploy instead of committing copies. The docs/ HTML p",
+  "files": [
+   ".github/workflows/deploy_pages.yml and web/docs/*.html"
+  ],
+  "evidence": "Generate web/docs/ from docs/ during the Pages deploy instead of committing copies. The docs/ HTML pages now carry a design-status banner linking to the absolute GitHub URL of docs/status.md, so the copies have diverged further",
+  "impact": "AUTO-19, ENG-17",
+  "recommendation": "Generate web/docs/ from docs/ during the Pages deploy instead of committing copies. The docs/ HTML pages now carry a design-status banner linking to the absolute GitHub URL of docs/status.md, so the copies have diverged further",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Remove the shared 'keywords' exclusion list and the renaming/unconditional-pass hacks; make the benc",
+  "files": [
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/benchmark_all_java_design_patterns.py"
+  ],
+  "evidence": "Remove the shared 'keywords' exclusion list and the renaming/unconditional-pass hacks; make the benchmark exit non-zero on failure; replace the oracle with an independent FQN-based one (javac SemanticDB / JavaParser / JDT) per docs/status.md §7, or label the script non-benchmark",
+  "impact": "BENCH-01, TST-09, E2E-11, UML-06",
+  "recommendation": "Remove the shared 'keywords' exclusion list and the renaming/unconditional-pass hacks; make the benchmark exit non-zero on failure; replace the oracle with an independent FQN-based one (javac SemanticDB / JavaParser / JDT) per docs/status.md §7, or label the script non-benchmark",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

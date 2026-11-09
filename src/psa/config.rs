@@ -9,6 +9,8 @@
 
 use std::time::Duration;
 
+use crate::psa::construction::graph::ExceptionalEdges;
+
 /// Phase 8 configuration.
 #[derive(Clone, Debug)]
 pub struct Phase8Config {
@@ -30,6 +32,9 @@ pub struct Phase8Config {
     pub min_sift_nodes: usize,
     /// Worker threads for per-function construction; 0 = available parallelism (max 8).
     pub worker_threads: usize,
+    /// Whether exceptional edges are path alternatives (default) or excluded, so that the
+    /// counts cover normal paths only (recorded as `PSA_FLAG_EXCEPTIONAL_EXCLUDED`).
+    pub exceptional_edges: ExceptionalEdges,
 }
 
 impl Default for Phase8Config {
@@ -44,6 +49,7 @@ impl Default for Phase8Config {
             max_sift_vars: 1000,
             min_sift_nodes: 32,
             worker_threads: 0,
+            exceptional_edges: ExceptionalEdges::Include,
         }
     }
 }

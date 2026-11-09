@@ -15,9 +15,9 @@
 //! of scanning every earlier span of the file. Files whose spans overlap without nesting are
 //! marked [`PARENT_NOT_NESTED`] and answered by a scan of that file, which stays correct.
 
-use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
+use crate::tra::position::{clamp_span, token_end, token_start};
 use crate::tra::types::{BISymEntry, SymbolSpanRecord, NO_PARENT, PARENT_NOT_NESTED};
 
 pub struct SymbolSpanIndex;
@@ -29,25 +29,21 @@ impl SymbolSpanIndex {
         sta: &SymbolTableArtifact,
     ) -> Vec<SymbolSpanRecord> {
         let mut records = Vec::with_capacity(sta.symbol_records.len());
-        let n_tokens = tca.token_records.len();
 
         for sym_id in 0..sta.symbol_records.len().min(bi_sym.len()) {
             let entry = &bi_sym[sym_id];
-            if entry.decl_first_tok == u32::MAX || (entry.decl_first_tok as usize) >= n_tokens {
-                continue;
-            }
-            let last = entry.decl_last_tok.min(n_tokens as u32 - 1);
-            if last < entry.decl_first_tok {
-                continue; // empty span: nothing to locate
-            }
+            // Empty, out-of-corpus or file-crossing ranges are clamped to the declaring file;
+            // nothing to locate when nothing remains.
+            let (first, last) = match clamp_span(tca, entry.decl_first_tok, entry.decl_last_tok) {
+                Some(r) => r,
+                None => continue,
+            };
 
-            let start_tok = &tca.token_records[entry.decl_first_tok as usize];
-            let end_tok = &tca.token_records[last as usize];
-            let (file_id, line_start, col_start) = unpack_sort_key(start_tok.sort_key);
-            let (_, line_end, _) = unpack_sort_key(end_tok.sort_key);
+            let (file_id, line_start, col_start) = token_start(tca, first);
+            let (line_end, _) = token_end(tca, last);
 
             records.push(SymbolSpanRecord {
-                first_token_id: entry.decl_first_tok,
+                first_token_id: first,
                 last_token_id: last,
                 sym_id: sym_id as u32,
                 file_id,

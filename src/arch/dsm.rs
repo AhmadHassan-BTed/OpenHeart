@@ -22,7 +22,7 @@
 use crate::arch::graph::{
     span_key, Certainty, DependencyGraph, KindSet, Level, NodeId, WeightedDigraph,
 };
-use crate::ir::Span;
+use crate::ir::types::Span;
 
 // ── Strongly connected components ────────────────────────────────────────────
 

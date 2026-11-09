@@ -346,6 +346,22 @@ export class InteractiveGraphCanvas {
       });
     }
 
+    if (typeof cytoscape === 'undefined') {
+      this.lastRenderMeta = {
+        graphType,
+        origin: resolved.origin,
+        warnings: resolved.warnings || [],
+        emptyReason: 'The diagram renderer (Cytoscape.js) is not loaded, so nothing can be drawn.',
+        metadata: null,
+        ir: null,
+        pumlText: null,
+        elementCount: 0,
+        largeGraph: false
+      };
+      if (this.onRenderCompleteCallback) this.onRenderCompleteCallback([], this.lastRenderMeta);
+      return false;
+    }
+
     const large = safeElements.length > LARGE_GRAPH_ELEMENTS;
     this.cy = cytoscape({
       container,

@@ -1,0 +1,402 @@
+[
+ {
+  "id": "HO-fix_SCPGX_1-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: In cmd_analyze's auto-export loop (~lines 256-309): build `let diag_ctx = openheart::scpg::diagram::",
+  "files": [
+   "src/main.rs"
+  ],
+  "evidence": "In cmd_analyze's auto-export loop (~lines 256-309): build `let diag_ctx = openheart::scpg::diagram::DiagramContext::new(&uma_artifact, &sta_artifact, &tca_artifact).with_bpa(&bpa_artifact).with_cfa(&cfa_artifact).with_ssa(&ssa_artifact).with_cga(&cga_artifact).with_psa(&psa_artifact).with_tra(&tra_artifact);`, iterate `openheart::scpg::diagram::ViewKind::ALL` (use `kind.key()` as the file stem) and call `diag_engine.export_diagram_with_context(format, kind.key(), &diag_ctx)` for PlantUML, Mermaid and JSON; also write `model.xmi` from `export_diagram_with_context(DiagramFormat::XMI, \"model\", &diag_ctx)` and `patterns.sarif` from `openheart::scpg::diagram::SarifExporter::export_patterns(&diag_ctx)`.",
+  "impact": "SCPG-01/FLOW-06/SCPG-11: the CFG, DFG, CDG, call graph and ROBDD views now render from the analysis artifacts and come out as explicit 'not available' notices when only uma/sta/tca are passed; XMI and SARIF were unreachable from the CLI.",
+  "recommendation": "In cmd_analyze's auto-export loop (~lines 256-309): build `let diag_ctx = openheart::scpg::diagram::DiagramContext::new(&uma_artifact, &sta_artifact, &tca_artifact).with_bpa(&bpa_artifact).with_cfa(&cfa_artifact).with_ssa(&ssa_artifact).with_cga(&cga_artifact).with_psa(&psa_artifact).with_tra(&tra_artifact);`, iterate `openheart::scpg::diagram::ViewKind::ALL` (use `kind.key()` as the file stem) and call `diag_engine.export_diagram_with_context(format, kind.key(), &diag_ctx)` for PlantUML, Mermaid and JSON; also write `model.xmi` from `export_diagram_with_context(DiagramFormat::XMI, \"model\", &diag_ctx)` and `patterns.sarif` from `openheart::scpg::diagram::SarifExporter::export_patterns(&diag_ctx)`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-2",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Around lines 619-688: build the same DiagramContext (bpa, cfa, ssa, cga, psa and tra are all in scop",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Around lines 619-688: build the same DiagramContext (bpa, cfa, ssa, cga, psa and tra are all in scope) and use `diag_engine.export_diagram_with_context(...)`. Replace the 21-entry list with `ViewKind::ALL` keys so each type is written once (drop the 'use_case' and 'state' aliases that produced duplicate files). Remove the unused `puml_*` locals at 620-634 or render them through the context. Also write `model.xmi`.",
+  "impact": "AUTO-08 duplicate files, SCPG-01/FLOW-06 real compiler-IR views, SCPG-11 XMI reachability.",
+  "recommendation": "Around lines 619-688: build the same DiagramContext (bpa, cfa, ssa, cga, psa and tra are all in scope) and use `diag_engine.export_diagram_with_context(...)`. Replace the 21-entry list with `ViewKind::ALL` keys so each type is written once (drop the 'use_case' and 'state' aliases that produced duplicate files). Remove the unused `puml_*` locals at 620-634 or render them through the context. Also write `model.xmi`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_UML_1-2",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: Add an --include-tests CLI flag or request option and call Phase9Stage::run_with_options(..., &openh",
+  "files": [
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "src/core/pipeline.rs"
+  ],
+  "evidence": "Add an --include-tests CLI flag or request option and call Phase9Stage::run_with_options(..., &openheart::uma::Phase9Options { include_tests, ..Default::default() }).",
+  "impact": "UML-05: test inclusion must be a flag; the option is now provided by UMA.",
+  "recommendation": "Add an --include-tests CLI flag or request option and call Phase9Stage::run_with_options(..., &openheart::uma::Phase9Options { include_tests, ..Default::default() }).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_UML_1-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: inspect (lines 459-466): also print the counts of the new v2 sections (pattern_instances, objects, l",
+  "files": [
+   "src/main.rs"
+  ],
+  "evidence": "inspect (lines 459-466): also print the counts of the new v2 sections (pattern_instances, objects, label_texts).",
+  "impact": "UML-10: UMASerializer::read now really validates the CRC and section structure, so the inspect report can show the new sections.",
+  "recommendation": "inspect (lines 459-466): also print the counts of the new v2 sections (pattern_instances, objects, label_texts).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-2",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: In the Scpg inspect branch (~line 937), after OpenHeartEngine::open: print engine.digest_hex() and e",
+  "files": [
+   "src/main.rs"
+  ],
+  "evidence": "In the Scpg inspect branch (~line 937), after OpenHeartEngine::open: print engine.digest_hex() and engine.stats(), and run engine.verify() (via EngineBuilder::new().with_verification(VerifyPolicy::Full).open(path), or engine.verify()). Print the VerificationReport sections/checksums and fail on Some(Err). Add subcommands `query <file.scpg> <program|@file>` -> engine.run_query_json(program), `query --list` -> openheart::scpg::query::{RELATIONS, STARTER_QUERIES}, and `export --format ohb-json <file.scpg>` -> serde_json::to_string_pretty(&engine.export_ohb_json(&ExportInputs::default())).",
+  "impact": "SCPG-07/15, COMP-05, BENCH-09: the library APIs exist but the CLI routes are outside my paths.",
+  "recommendation": "In the Scpg inspect branch (~line 937), after OpenHeartEngine::open: print engine.digest_hex() and engine.stats(), and run engine.verify() (via EngineBuilder::new().with_verification(VerifyPolicy::Full).open(path), or engine.verify()). Print the VerificationReport sections/checksums and fail on Some(Err). Add subcommands `query <file.scpg> <program|@file>` -> engine.run_query_json(program), `query --list` -> openheart::scpg::query::{RELATIONS, STARTER_QUERIES}, and `export --format ohb-json <file.scpg>` -> serde_json::to_string_pretty(&engine.export_ohb_json(&ExportInputs::default())).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: Add POST /api/query (bounded body = Datalog program, response = engine.run_query_json), GET /api/nav",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Add POST /api/query (bounded body = Datalog program, response = engine.run_query_json), GET /api/navigate?sym= (engine.to_source), GET /api/entities?file=&line=&col= (engine.entities_at), GET /api/export/ohb-json (engine.export_ohb_json). Share engine.queries() (Arc<QueryEngine>, Sync, no global lock) across worker threads.",
+  "impact": "COMP-05/SCPG-15/COMP-10: expose the queries over HTTP.",
+  "recommendation": "Add POST /api/query (bounded body = Datalog program, response = engine.run_query_json), GET /api/navigate?sym= (engine.to_source), GET /api/entities?file=&line=&col= (engine.entities_at), GET /api/export/ohb-json (engine.export_ohb_json). Share engine.queries() (Arc<QueryEngine>, Sync, no global lock) across worker threads.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-4",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: When building ohb-json, pass phase timings into scpg::api::ExportInputs { phase_timings_ms: Some(&[(",
+  "files": [
+   "src/adapters/runner.rs"
+  ],
+  "evidence": "When building ohb-json, pass phase timings into scpg::api::ExportInputs { phase_timings_ms: Some(&[(name, ms)]) , cfg: Some(&cfa), ssa: Some(&ssa), .. }. For incremental runs: build SourceDelta::from_texts(file_id, old, new); plan = engine.plan_update(&delta); rerun plan.phases for plan.dirty_methods + plan.affected; then engine.commit_snapshot(ScpgSnapshot::from_artifacts(...)). Add --baseline <commit> using scpg::incremental::SnapshotDiff::compute(old, new).",
+  "impact": "BENCH-09 timings and COMP-07/BDD-08 partial rebuilds belong to the orchestrator.",
+  "recommendation": "When building ohb-json, pass phase timings into scpg::api::ExportInputs { phase_timings_ms: Some(&[(name, ms)]) , cfg: Some(&cfa), ssa: Some(&ssa), .. }. For incremental runs: build SourceDelta::from_texts(file_id, old, new); plan = engine.plan_update(&delta); rerun plan.phases for plan.dirty_methods + plan.affected; then engine.commit_snapshot(ScpgSnapshot::from_artifacts(...)). Add --baseline <commit> using scpg::incremental::SnapshotDiff::compute(old, new).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, bui",
+  "files": [
+   "src/lib.rs",
+   "Cargo.toml",
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
+  "impact": "CORE-01/COMP-01/FLOW-20: registering a grammar adapter replaces the Kotlin lexical frontend; the grammar crate and lang module are outside my paths.",
+  "recommendation": "Once `pub mod lang;` and a tree-sitter-kotlin dependency compatible with tree-sitter 0.20 exist, build an AdapterRegistry with register(Arc::new(lang::kotlin::ingest::KotlinLanguageAdapter::new())) and an ASTAdapterRegistry with register(LangId::Kotlin, ...KotlinASTReductionAdapter...), and call IngestionStage::run_with_registry / ASTStage::run_with_registry.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: main.rs:151-161 and server.rs:527-560: use IngestionStage::run_with_report, then ASTStage::run_in_me",
+  "files": [
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "main.rs:151-161 and server.rs:527-560: use IngestionStage::run_with_report, then ASTStage::run_in_memory(&tca, report.tca_hash(), &bpa_path), pass &report.tca_bytes to Phase3Stage::run (server.rs:536 currently passes fs::read(..).unwrap_or_default()); or call SCPGPipelineBuilder.",
+  "impact": "CORE-08/CORE-10/CORE-14: avoid the .tca read-back/mapping and empty-byte fallbacks.",
+  "recommendation": "main.rs:151-161 and server.rs:527-560: use IngestionStage::run_with_report, then ASTStage::run_in_memory(&tca, report.tca_hash(), &bpa_path), pass &report.tca_bytes to Phase3Stage::run (server.rs:536 currently passes fs::read(..).unwrap_or_default()); or call SCPGPipelineBuilder.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-15",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: cmd_inspect (lines ~373-388): call TokenCorpusSerializer::decode(&bytes) and BPASTSerializer::verify",
+  "files": [
+   "src/main.rs"
+  ],
+  "evidence": "cmd_inspect (lines ~373-388): call TokenCorpusSerializer::decode(&bytes) and BPASTSerializer::verify_bytes(&bytes), print the real version/counts, and print 'VERIFIED VALID' only on Ok.",
+  "impact": "CORE-07: inspect currently claims validity after matching only the magic.",
+  "recommendation": "cmd_inspect (lines ~373-388): call TokenCorpusSerializer::decode(&bytes) and BPASTSerializer::verify_bytes(&bytes), print the real version/counts, and print 'VERIFIED VALID' only on Ok.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (P",
+  "files": [
+   "README.md",
+   "docs/succinct_structures.md",
+   "docs/overview.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
+  "impact": "CORE-01/AUTO-05/BENCH-02/BENCH-03/CORE-04.",
+  "recommendation": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-18",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Document OPENHEART_FILE_LOG (file-sink level), OPENHEART_LOG_MAX_BYTES (persistent log rotation), OP",
+  "files": [
+   ".env.example"
+  ],
+  "evidence": "Document OPENHEART_FILE_LOG (file-sink level), OPENHEART_LOG_MAX_BYTES (persistent log rotation), OPENHEART_NUM_THREADS (Phase 1/2 workers, 0 = per core), RUST_LOG as fallback for OPENHEART_LOG, and that SCPGPipelineBuilder also honors OPENHEART_ARTIFACT_DIR.",
+  "impact": "SRV-14/AUTO-21: these are now read by the code.",
+  "recommendation": "Document OPENHEART_FILE_LOG (file-sink level), OPENHEART_LOG_MAX_BYTES (persistent log rotation), OPENHEART_NUM_THREADS (Phase 1/2 workers, 0 = per core), RUST_LOG as fallback for OPENHEART_LOG, and that SCPGPipelineBuilder also honors OPENHEART_ARTIFACT_DIR.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-20",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: collect_source_files: walk without following symlinks (ignore::WalkBuilder is now a dependency), log",
+  "files": [
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "collect_source_files: walk without following symlinks (ignore::WalkBuilder is now a dependency), log and skip unreadable entries, honor .gitignore and build/generated directories.",
+  "impact": "CORE-16: Phase 1 now dedups canonical paths and caps file size, but discovery is outside my paths.",
+  "recommendation": "collect_source_files: walk without following symlinks (ignore::WalkBuilder is now a dependency), log and skip unreadable entries, honor .gitignore and build/generated directories.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Lines 1267, 1273 and 1279: switch to Phase4Stage::run_with_source / Phase5Stage::run_with_source / P",
+  "files": [
+   "src/adapters/runner.rs"
+  ],
+  "evidence": "Lines 1267, 1273 and 1279: switch to Phase4Stage::run_with_source / Phase5Stage::run_with_source / Phase6Stage::run_with_source, passing Some(&tca) in the argument position shown for pipeline.rs.",
+  "impact": "Same reason: the run() entry points fall back to structural approximations and record diagnostics.",
+  "recommendation": "Lines 1267, 1273 and 1279: switch to Phase4Stage::run_with_source / Phase5Stage::run_with_source / Phase6Stage::run_with_source, passing Some(&tca) in the argument position shown for pipeline.rs.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-cfam_MEM-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from cfam:MEM: Add `pub mod memory;` (alphabetically after `pub mod ingestion;`), next to the `pub mod ir;` line th",
+  "files": [
+   "src/lib.rs"
+  ],
+  "evidence": "Add `pub mod memory;` (alphabetically after `pub mod ingestion;`), next to the `pub mod ir;` line the IR engineer adds.",
+  "impact": "Exposes the new memory module. Nothing else in the crate depends on it until the rewiring below is done.",
+  "recommendation": "Add `pub mod memory;` (alphabetically after `pub mod ingestion;`), next to the `pub mod ir;` line the IR engineer adds.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: /api/source: canonicalize the requested path and require it to lie under the analyzed repo root of t",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "/api/source: canonicalize the requested path and require it to lie under the analyzed repo root of the current session. Remove the raw decoded_path and walkdir candidates. Bind 127.0.0.1 by default, replace ACAO * with no CORS (same-origin) or an allowlist, and validate the Host header.",
+  "impact": "COMP-R3-1. The studio now only requests /api/source?file=<repo-relative path> during engine sessions.",
+  "recommendation": "/api/source: canonicalize the requested path and require it to lie under the analyzed repo root of the current session. Remove the raw decoded_path and walkdir candidates. Bind 127.0.0.1 by default, replace ACAO * with no CORS (same-origin) or an allowlist, and validate the Host header.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-2",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: Add X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin and a Content-",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Add X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin and a Content-Security-Policy header equal to web/index.html's meta policy plus frame-ancestors 'none', on static and JSON responses.",
+  "impact": "SRV-12 and WSEC-06. frame-ancestors is ignored in meta CSP.",
+  "recommendation": "Add X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin and a Content-Security-Policy header equal to web/index.html's meta policy plus frame-ancestors 'none', on static and JSON responses.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: Make /api/analyze asynchronous. POST returns {status:'queued'|'running', job_id}. GET /api/analyze/{",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Make /api/analyze asynchronous. POST returns {status:'queued'|'running', job_id}. GET /api/analyze/{job_id} returns {status, progress:0-100, phase} while running and the final payload when done. Add artifact_base_url (same-origin path such as /sessions/{id}/diagrams) serving per-session <type>.json Graph IR. Stop writing into web/diagrams.",
+  "impact": "WEB-03, COMP-R3-2 and E2E-08. web/js/main.js already polls job_id and fetches ${artifact_base_url}/${type}.json when present, otherwise it uses response.diagrams PUML.",
+  "recommendation": "Make /api/analyze asynchronous. POST returns {status:'queued'|'running', job_id}. GET /api/analyze/{job_id} returns {status, progress:0-100, phase} while running and the final payload when done. Add artifact_base_url (same-origin path such as /sessions/{id}/diagrams) serving per-session <type>.json Graph IR. Stop writing into web/diagrams.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: CMD must use the subcommand main.rs accepts ('server', not 'serve').",
+  "files": [
+   "Dockerfile"
+  ],
+  "evidence": "CMD must use the subcommand main.rs accepts ('server', not 'serve').",
+  "impact": "E2E-08: the image exits at startup.",
+  "recommendation": "CMD must use the subcommand main.rs accepts ('server', not 'serve').",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-2",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Base image rust:1.88-slim or newer (>= Cargo.toml rust-version); exec-form CMD [\"openheart\",\"server\"",
+  "files": [
+   "Dockerfile"
+  ],
+  "evidence": "Base image rust:1.88-slim or newer (>= Cargo.toml rust-version); exec-form CMD [\"openheart\",\"server\",\"8080\"]; non-root USER; HEALTHCHECK on /api/health",
+  "impact": "AUTO-07, ENG-13. The CLI has no 'serve' subcommand or --port flag",
+  "recommendation": "Base image rust:1.88-slim or newer (>= Cargo.toml rust-version); exec-form CMD [\"openheart\",\"server\",\"8080\"]; non-root USER; HEALTHCHECK on /api/health",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-4",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: List exactly the variables code reads (docs/status.md §8: OPENHEART_LOG, RUST_LOG, OPENHEART_FILE_LO",
+  "files": [
+   ".env.example"
+  ],
+  "evidence": "List exactly the variables code reads (docs/status.md §8: OPENHEART_LOG, RUST_LOG, OPENHEART_FILE_LOG, OPENHEART_LOG_MAX_BYTES, OPENHEART_NUM_THREADS, plus OPENHEART_MAX_FILES, OPENHEART_MAX_FILE_KB, OPENHEART_MAX_SOURCE_MB, OPENHEART_STACK_MB, OPENHEART_ALLOWED_HOSTS and OPENHEART_CORS_ORIGINS once the adapters/runner.rs and adapters/security.rs readers are wired). Remove OPENHEART_ARTIFACT_DIR, OPENHEART_MAX_MEMORY_MB and OPENHEART_STRICT_INVARIANTS",
+  "impact": "SRV-14, ENG-17. No code reads the removed knobs",
+  "recommendation": "List exactly the variables code reads (docs/status.md §8: OPENHEART_LOG, RUST_LOG, OPENHEART_FILE_LOG, OPENHEART_LOG_MAX_BYTES, OPENHEART_NUM_THREADS, plus OPENHEART_MAX_FILES, OPENHEART_MAX_FILE_KB, OPENHEART_MAX_SOURCE_MB, OPENHEART_STACK_MB, OPENHEART_ALLOWED_HOSTS and OPENHEART_CORS_ORIGINS once the adapters/runner.rs and adapters/security.rs readers are wired). Remove OPENHEART_ARTIFACT_DIR, OPENHEART_MAX_MEMORY_MB and OPENHEART_STRICT_INVARIANTS",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Replace `cargo run -- server --port \"${PORT}\"` with `cargo run --release -- server \"${PORT}\"` (run.b",
+  "files": [
+   "run.sh"
+  ],
+  "evidence": "Replace `cargo run -- server --port \"${PORT}\"` with `cargo run --release -- server \"${PORT}\"` (run.bat likewise if it passes --port)",
+  "impact": "The CLI takes `server [PORT]`. '--port' fails to parse and silently falls back to 8080, which contradicts getting_started",
+  "recommendation": "Replace `cargo run -- server --port \"${PORT}\"` with `cargo run --release -- server \"${PORT}\"` (run.bat likewise if it passes --port)",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Generate /api/supported-languages from the adapter registry: list only languages with Phase 1-3 adap",
+  "files": [
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Generate /api/supported-languages from the adapter registry: list only languages with Phase 1-3 adapters (Java), not a hard-coded java/python/typescript/javascript/cpp/rust/go list",
+  "impact": "LANG-08, COMP-01, AUTO-05",
+  "recommendation": "Generate /api/supported-languages from the adapter registry: list only languages with Phase 1-3 adapters (Java), not a hard-coded java/python/typescript/javascript/cpp/rust/go list",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: The help text says '.java source files' but the CLI collects .kt/.kts, so align it. cmd_inspect must",
+  "files": [
+   "src/main.rs"
+  ],
+  "evidence": "The help text says '.java source files' but the CLI collects .kt/.kts, so align it. cmd_inspect must validate magic, version, lengths and CRC before printing 'VERIFIED VALID', and drop 'SYSTEM PRODUCTION READY'",
+  "impact": "LANG-08, SCPG-07, CORE-07",
+  "recommendation": "The help text says '.java source files' but the CLI collects .kt/.kts, so align it. cmd_inspect must validate magic, version, lengths and CRC before printing 'VERIFIED VALID', and drop 'SYSTEM PRODUCTION READY'",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-19",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Optionally add #![doc = include_str!(\"../README.md\")] so the README is the crate root doc",
+  "files": [
+   "src/lib.rs"
+  ],
+  "evidence": "Optionally add #![doc = include_str!(\"../README.md\")] so the README is the crate root doc",
+  "impact": "ENG-17 recommendation",
+  "recommendation": "Optionally add #![doc = include_str!(\"../README.md\")] so the README is the crate root doc",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-cfam_CSFE-4",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from cfam:CSFE: Add `pub mod lang;`.",
+  "files": [
+   "src/lib.rs"
+  ],
+  "evidence": "Add `pub mod lang;`.",
+  "impact": "Nothing under src/lang, including src/lang/csharp, is compiled without it.",
+  "recommendation": "Add `pub mod lang;`.",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

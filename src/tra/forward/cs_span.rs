@@ -1,39 +1,36 @@
 //! Call Site Span Index for Forward Queries (§7.2.2, §7.3).
+//!
+//! One record per call site with a valid call token, carrying the site's own
+//! `call_site_id` (never its position in the CGA vector), sorted by
+//! `(file_id, first_token_id, call_site_id)`.
 
 use crate::core::types::cg::CallGraphArtifact;
-use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
-use crate::tra::types::{BICsEntry, CallSiteSpanRecord};
+use crate::tra::position::token_start;
+use crate::tra::types::CallSiteSpanRecord;
 
 pub struct CallSiteSpanIndex;
 
 impl CallSiteSpanIndex {
-    pub fn build(
-        bi_cs: &[BICsEntry],
-        tca: &TokenCorpusArtifact,
-        cga: &CallGraphArtifact,
-    ) -> Vec<CallSiteSpanRecord> {
-        let mut records = Vec::with_capacity(cga.call_site_count as usize);
+    pub fn build(cga: &CallGraphArtifact, tca: &TokenCorpusArtifact) -> Vec<CallSiteSpanRecord> {
+        let n_tokens = tca.token_records.len();
+        let mut records = Vec::with_capacity(cga.call_sites.len());
 
-        for (cs_idx, entry) in bi_cs.iter().enumerate() {
-            if entry.call_token == u32::MAX
-                || (entry.call_token as usize) >= tca.token_records.len()
-            {
+        for cs in &cga.call_sites {
+            if cs.call_token == u32::MAX || (cs.call_token as usize) >= n_tokens {
                 continue;
             }
-
-            let start_tok = &tca.token_records[entry.call_token as usize];
-            let (file_id, line_start, _) = unpack_sort_key(start_tok.sort_key);
-
+            let (file_id, line_start, _) = token_start(tca, cs.call_token);
             records.push(CallSiteSpanRecord {
-                first_token_id: entry.call_token,
-                call_site_id: cs_idx as u32,
+                first_token_id: cs.call_token,
+                call_site_id: cs.call_site_id,
                 file_id,
                 line_start,
             });
         }
 
         records.sort_unstable_by_key(|r| (r.file_id, r.first_token_id, r.call_site_id));
+        records.dedup();
         records
     }
 

@@ -426,6 +426,9 @@ const NESTED_DECLARATION_WORDS = new Set([
   'typedef', 'friend', 'static_assert', 'mod', 'macro_rules', 'deinit', 'subscript'
 ]);
 
+// Languages whose members are written `name: Type`.
+const COLON_TYPED_LANGS = new Set(['typescript', 'javascript', 'python', 'kotlin', 'scala', 'swift', 'rust']);
+
 const DECL_KEYWORDS = new Set(['val', 'var', 'let']);
 const FUN_KEYWORDS = new Set(['fun', 'fn', 'def', 'func', 'function']);
 
@@ -547,7 +550,10 @@ class ParseContext {
     return m >= 0 ? m : this.tokens.length;
   }
 
-  /** Skips a generic parameter list starting at '<'; returns the index after the closing '>'. */
+  /**
+   * Skips a generic parameter list starting at '<'; returns the index after the closing '>'.
+   * When no matching '>' exists (a less-than operator), returns i + 1 so callers always advance.
+   */
   skipAngles(i, limit) {
     if (!this.isP(i, '<')) return i;
     let depth = 0;
@@ -564,10 +570,10 @@ class ParseContext {
       } else if ((t.v === '(' || t.v === '[') && this.match[k] > k) {
         k = this.match[k];
       } else if (t.v === '{' || t.v === '}' || t.v === ';') {
-        return i;
+        return i + 1;
       }
     }
-    return i;
+    return i + 1;
   }
 
   text(s, e) {
@@ -1503,7 +1509,9 @@ function analyzeMember(ctx, rec, a, b, terminator) {
     if ((t.v === '(' || t.v === '[' || t.v === '{') && ctx.match[k] > k) k = ctx.match[k];
   }
 
-  const isMethodShape = parenIdx !== -1 && (equalsIdx === -1 || parenIdx < equalsIdx);
+  // `name: (A) -> B` / `handler: (e) => void` is a function-typed property, not a method.
+  const typedBeforeParen = colonIdx !== -1 && COLON_TYPED_LANGS.has(lang) && (parenIdx === -1 || colonIdx < parenIdx);
+  const isMethodShape = parenIdx !== -1 && !typedBeforeParen && (equalsIdx === -1 || parenIdx < equalsIdx);
 
   if (funKeyword || accessor || isMethodShape) {
     if (parenIdx === -1) return;
@@ -1646,7 +1654,7 @@ function analyzeMember(ctx, rec, a, b, terminator) {
     return;
   }
 
-  if (declKeyword || colonIdx !== -1 || lang === 'rust' || lang === 'swift' || lang === 'scala' || lang === 'kotlin') {
+  if (declKeyword || (colonIdx !== -1 && COLON_TYPED_LANGS.has(lang)) || lang === 'rust' || lang === 'swift' || lang === 'scala' || lang === 'kotlin') {
     // name [: Type] [= init]
     if (!ctx.isId(s)) return;
     if (!declKeyword && lang === 'kotlin') return; // Kotlin members always use val/var/fun
@@ -1706,12 +1714,17 @@ function analyzeMember(ctx, rec, a, b, terminator) {
     const tk = ctx.tokens[k];
     if (tk.t === 'p' && (tk.v === '=' || tk.v === '=>')) { firstEnd = k; break; }
     if (tk.t === 'p' && tk.v === '<') { k = ctx.skipAngles(k, fe) - 1; continue; }
-    if (tk.t === 'p' && (tk.v === '(' || tk.v === '[') && ctx.match[k] > k) {
-      // C/C++ array declarators `int buf[16];` keep the name; function-pointer fields are skipped.
-      if (tk.v === '(') return;
+    if (tk.t === 'p' && tk.v === '[' && ctx.match[k] > k) {
+      // `int[] a` / `int[,] g` (Java, C#): brackets belong to the type.
+      // `int buf[16]` (C/C++): the declarator ends the name.
+      if (lang !== 'cpp' || ctx.match[k] === k + 1 && !ctx.isId(k - 1)) {
+        k = ctx.match[k];
+        continue;
+      }
       firstEnd = k;
       break;
     }
+    if (tk.t === 'p' && tk.v === '(') return; // function-pointer and macro-like declarations are skipped
   }
   let nameIdx = firstEnd - 1;
   while (nameIdx >= fs && ctx.tokens[nameIdx].t === 'nl') nameIdx--;
@@ -1792,7 +1805,8 @@ function scanBody(ctx, rec, open, close, classAtOpen, extensionAtOpen) {
   let stmtStart = i;
   let sawEquals = false;
   let angle = 0;
-  const commaTerminates = (lang === 'rust' || (lang === 'swift' && false));
+  // Rust struct fields are comma-separated (`a: T, b: U`).
+  const commaTerminates = lang === 'rust';
 
   const finish = (end, terminator) => {
     if (end > stmtStart) analyzeMember(ctx, rec, stmtStart, end, terminator);
@@ -1824,8 +1838,11 @@ function scanBody(ctx, rec, open, close, classAtOpen, extensionAtOpen) {
         i = ctx.match[i] + 1;
         continue;
       }
-      if (t.v === '<') angle++;
-      else if (t.v === '>' && angle > 0) angle--;
+      // Angle brackets are generics only in the declaration part; after '=' they are comparisons.
+      if (!sawEquals) {
+        if (t.v === '<') angle++;
+        else if (t.v === '>' && angle > 0) angle--;
+      }
       if (t.v === ';' || (t.v === ',' && commaTerminates && angle === 0)) {
         finish(i, ';');
         i++;
@@ -1834,7 +1851,10 @@ function scanBody(ctx, rec, open, close, classAtOpen, extensionAtOpen) {
         angle = 0;
         continue;
       }
-      if (t.v === '=' || t.v === '=>') sawEquals = true;
+      if (t.v === '=' || t.v === '=>') {
+        sawEquals = true;
+        angle = 0;
+      }
       i++;
       continue;
     }
@@ -1961,6 +1981,12 @@ function parseBraceLanguage(ctx) {
     // Rust impl blocks and Swift extensions attach members to an existing type.
     if ((lang === 'rust' && t.v === 'impl') || (lang === 'swift' && t.v === 'extension')) {
       if (scope.kind !== 'file' && scope.kind !== 'namespace') continue;
+      // Only at the start of an item: `-> impl Trait` in a signature is not an impl block.
+      const before = ctx.tok(ctx.prevSig(i));
+      const atItemStart = !before ||
+        (before.t === 'p' && (before.v === ';' || before.v === '}' || before.v === '{' || before.v === ']')) ||
+        (before.t === 'id' && MODIFIERS.has(before.v));
+      if (!atItemStart) continue;
       let k = ctx.nextSig(i);
       if (ctx.isP(k, '<')) k = ctx.skipAngles(k, N);
       if (ctx.isId(k, 'unsafe')) k = ctx.nextSig(k);

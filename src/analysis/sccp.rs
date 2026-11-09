@@ -25,10 +25,11 @@ use crate::analysis::conditions::fold_const_compare;
 use crate::analysis::lattice::{BitSet, Flat, Lattice};
 use crate::analysis::reaching::{UseSite, ValueDefUse};
 use crate::analysis::solver::{
-    phi_operands_from, value_count, ArithOp, CmpOp, ConstKey, EdgeKind, IrCfg, OperandView,
-    ScalarKind, TypeFacts, UnaryOp,
+    phi_operands_from, value_count, ConstKey, EdgeKind, IrCfg, OperandView, ScalarKind, TypeFacts,
 };
-use crate::ir::{FuncIr, Inst, Terminator, TypeId, ValueId};
+use crate::ir::func::FuncIr;
+use crate::ir::inst::{BinaryOp, ComparePred, Inst, Terminator, UnaryOp};
+use crate::ir::types::{TypeId, ValueId};
 
 /// Outcome of folding one operation on constants.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,18 +153,13 @@ impl ConstantFolder<'_> {
         }
     }
 
-    /// The width bounding shift distances for the type of `dst`, when known.
-    fn shift_limit(&self, dst: ValueId) -> Option<u16> {
-        self.types.value_kind(self.func, dst).int_width().map(|(b, _)| b)
-    }
-
-    pub fn binary(&self, dst: ValueId, op: ArithOp, a: ConstKey, b: ConstKey) -> Fold {
+    pub fn binary(&self, dst: ValueId, op: BinaryOp, a: ConstKey, b: ConstKey) -> Fold {
         match (a, b) {
             (ConstKey::Int(x), ConstKey::Int(y)) => self.int_binary(dst, op, x, y),
             (ConstKey::Bool(x), ConstKey::Bool(y)) => match op {
-                ArithOp::And => Fold::Const(ConstKey::Bool(x & y)),
-                ArithOp::Or => Fold::Const(ConstKey::Bool(x | y)),
-                ArithOp::Xor => Fold::Const(ConstKey::Bool(x ^ y)),
+                BinaryOp::BitAnd => Fold::Const(ConstKey::Bool(x & y)),
+                BinaryOp::BitOr => Fold::Const(ConstKey::Bool(x | y)),
+                BinaryOp::BitXor => Fold::Const(ConstKey::Bool(x ^ y)),
                 _ => Fold::Unknown,
             },
             (ConstKey::Float(x), ConstKey::Float(y)) => self.float_binary(dst, op, x, y),
@@ -171,17 +167,17 @@ impl ConstantFolder<'_> {
         }
     }
 
-    fn int_binary(&self, dst: ValueId, op: ArithOp, x: i128, y: i128) -> Fold {
+    fn int_binary(&self, dst: ValueId, op: BinaryOp, x: i128, y: i128) -> Fold {
         let both = [x, y];
         match op {
-            ArithOp::Add => self.int_result(dst, x.checked_add(y), &both),
-            ArithOp::Sub => self.int_result(dst, x.checked_sub(y), &both),
-            ArithOp::Mul => self.int_result(dst, x.checked_mul(y), &both),
-            ArithOp::Div | ArithOp::Rem => {
+            BinaryOp::Add => self.int_result(dst, x.checked_add(y), &both),
+            BinaryOp::Sub => self.int_result(dst, x.checked_sub(y), &both),
+            BinaryOp::Mul => self.int_result(dst, x.checked_mul(y), &both),
+            BinaryOp::Div | BinaryOp::Rem => {
                 if y == 0 {
                     return Fold::Unknown;
                 }
-                let exact = if op == ArithOp::Div {
+                let exact = if op == BinaryOp::Div {
                     x.checked_div(y)
                 } else {
                     x.checked_rem(y)
@@ -200,40 +196,56 @@ impl ConstantFolder<'_> {
                 }
                 self.int_result(dst, exact, &both)
             }
-            ArithOp::And => self.int_result(dst, Some(x & y), &both),
-            ArithOp::Or => self.int_result(dst, Some(x | y), &both),
-            ArithOp::Xor => self.int_result(dst, Some(x ^ y), &both),
-            ArithOp::Shl | ArithOp::Shr => {
-                if y < 0 {
+            BinaryOp::BitAnd => self.int_result(dst, Some(x & y), &both),
+            BinaryOp::BitOr => self.int_result(dst, Some(x | y), &both),
+            BinaryOp::BitXor => self.int_result(dst, Some(x ^ y), &both),
+            BinaryOp::Shl | BinaryOp::Shr | BinaryOp::UShr => {
+                if !(0..127).contains(&y) {
                     return Fold::Unknown;
                 }
-                match self.shift_limit(dst) {
-                    Some(bits) if y >= bits as i128 => Fold::Unknown,
-                    _ => {}
+                let width = self.types.value_kind(self.func, dst).int_width();
+                if let Some((bits, _)) = width {
+                    if y >= bits as i128 {
+                        return Fold::Unknown;
+                    }
                 }
-                if y >= 127 {
-                    return Fold::Unknown;
-                }
-                let exact = if op == ArithOp::Shl {
-                    x.checked_mul(1i128 << y)
-                } else {
-                    Some(x >> y)
+                let exact = match op {
+                    BinaryOp::Shl => x.checked_mul(1i128 << y),
+                    BinaryOp::Shr => Some(x >> y),
+                    // Zero-filling shift: equal to the arithmetic shift on non-negative
+                    // operands; a negative operand is first read as its unsigned bit pattern
+                    // of the result width.
+                    _ if x >= 0 => Some(x >> y),
+                    _ => match width {
+                        Some((bits, signed)) => match wrap_unsigned(x, bits) {
+                            Some(u) => {
+                                let r = u >> y;
+                                return Fold::Const(ConstKey::Int(if signed {
+                                    wrap_signed(r, bits)
+                                } else {
+                                    r
+                                }));
+                            }
+                            None => return Fold::Unknown,
+                        },
+                        None => return Fold::TypeDependent,
+                    },
                 };
                 self.int_result(dst, exact, &[x])
             }
         }
     }
 
-    fn float_binary(&self, dst: ValueId, op: ArithOp, x: u64, y: u64) -> Fold {
+    fn float_binary(&self, dst: ValueId, op: BinaryOp, x: u64, y: u64) -> Fold {
         let (a, b) = (f64::from_bits(x), f64::from_bits(y));
         match self.types.value_kind(self.func, dst) {
             ScalarKind::Float { bits: 64 } => {
                 let r = match op {
-                    ArithOp::Add => a + b,
-                    ArithOp::Sub => a - b,
-                    ArithOp::Mul => a * b,
-                    ArithOp::Div => a / b,
-                    ArithOp::Rem => a % b,
+                    BinaryOp::Add => a + b,
+                    BinaryOp::Sub => a - b,
+                    BinaryOp::Mul => a * b,
+                    BinaryOp::Div => a / b,
+                    BinaryOp::Rem => a % b,
                     _ => return Fold::Unknown,
                 };
                 Fold::Const(ConstKey::Float(r.to_bits()))
@@ -241,11 +253,11 @@ impl ConstantFolder<'_> {
             ScalarKind::Float { bits: 32 } => {
                 let (a, b) = (a as f32, b as f32);
                 let r = match op {
-                    ArithOp::Add => a + b,
-                    ArithOp::Sub => a - b,
-                    ArithOp::Mul => a * b,
-                    ArithOp::Div => a / b,
-                    ArithOp::Rem => a % b,
+                    BinaryOp::Add => a + b,
+                    BinaryOp::Sub => a - b,
+                    BinaryOp::Mul => a * b,
+                    BinaryOp::Div => a / b,
+                    BinaryOp::Rem => a % b,
                     _ => return Fold::Unknown,
                 };
                 Fold::Const(ConstKey::Float((r as f64).to_bits()))
@@ -260,11 +272,13 @@ impl ConstantFolder<'_> {
             (UnaryOp::Not, ConstKey::Bool(b)) => Fold::Const(ConstKey::Bool(!b)),
             (UnaryOp::Neg, ConstKey::Int(x)) => self.int_result(dst, x.checked_neg(), &[x]),
             (UnaryOp::Neg, ConstKey::Float(bits)) => Fold::Const(ConstKey::Float(bits ^ (1u64 << 63))),
+            (UnaryOp::BitNot, ConstKey::Int(x)) => self.int_result(dst, Some(!x), &[x]),
+            (UnaryOp::Plus, c @ (ConstKey::Int(_) | ConstKey::Float(_))) => Fold::Const(c),
             _ => Fold::Unknown,
         }
     }
 
-    pub fn compare(&self, op: CmpOp, a: ConstKey, b: ConstKey) -> Fold {
+    pub fn compare(&self, op: ComparePred, a: ConstKey, b: ConstKey) -> Fold {
         match fold_const_compare(op, a, b) {
             Some(r) => Fold::Const(ConstKey::Bool(r)),
             None => Fold::Unknown,
@@ -471,34 +485,31 @@ impl Sccp<'_> {
                 self.raise(*dst, v);
             }
             Inst::Unary { dst, op, src } => {
-                let fold = match (UnaryOp::from_ir(op), self.operand(src)) {
-                    (_, Flat::Bottom) => return,
-                    (Some(u), Flat::Value(c)) => self.folder.unary(*dst, u, c),
-                    _ => Fold::Unknown,
+                let fold = match self.operand(src) {
+                    Flat::Bottom => return,
+                    Flat::Value(c) => self.folder.unary(*dst, *op, c),
+                    Flat::Top => Fold::Unknown,
                 };
                 self.raise_fold(*dst, fold);
             }
             Inst::Binary { dst, op, lhs, rhs } => {
                 let (a, b) = (self.operand(lhs), self.operand(rhs));
-                let arith = ArithOp::from_ir(op);
                 // Absorbing elements decide the result whatever the other operand is.
-                if let Some(op) = arith {
-                    if let Some(c) = absorbing(op, &a).or_else(|| absorbing(op, &b)) {
-                        self.raise(*dst, Flat::Value(c));
-                        return;
-                    }
+                if let Some(c) = absorbing(*op, &a).or_else(|| absorbing(*op, &b)) {
+                    self.raise(*dst, Flat::Value(c));
+                    return;
                 }
-                let fold = match (arith, a, b) {
-                    (_, Flat::Bottom, _) | (_, _, Flat::Bottom) => return,
-                    (Some(op), Flat::Value(x), Flat::Value(y)) => self.folder.binary(*dst, op, x, y),
+                let fold = match (a, b) {
+                    (Flat::Bottom, _) | (_, Flat::Bottom) => return,
+                    (Flat::Value(x), Flat::Value(y)) => self.folder.binary(*dst, *op, x, y),
                     _ => Fold::Unknown,
                 };
                 self.raise_fold(*dst, fold);
             }
             Inst::Compare { dst, pred, lhs, rhs } => {
-                let fold = match (CmpOp::from_ir(pred), self.operand(lhs), self.operand(rhs)) {
-                    (_, Flat::Bottom, _) | (_, _, Flat::Bottom) => return,
-                    (Some(op), Flat::Value(x), Flat::Value(y)) => self.folder.compare(op, x, y),
+                let fold = match (self.operand(lhs), self.operand(rhs)) {
+                    (Flat::Bottom, _) | (_, Flat::Bottom) => return,
+                    (Flat::Value(x), Flat::Value(y)) => self.folder.compare(*pred, x, y),
                     _ => Fold::Unknown,
                 };
                 self.raise_fold(*dst, fold);
@@ -602,13 +613,12 @@ impl Sccp<'_> {
 
 /// The constant result of `op` when one operand is an absorbing element: `false ∧ x`,
 /// `true ∨ x`, `0 & x`, `0 · x` (integers).
-fn absorbing(op: ArithOp, v: &Flat<ConstKey>) -> Option<ConstKey> {
+fn absorbing(op: BinaryOp, v: &Flat<ConstKey>) -> Option<ConstKey> {
     match (op, v) {
-        (ArithOp::And, Flat::Value(ConstKey::Bool(false))) => Some(ConstKey::Bool(false)),
-        (ArithOp::Or, Flat::Value(ConstKey::Bool(true))) => Some(ConstKey::Bool(true)),
-        (ArithOp::And, Flat::Value(ConstKey::Int(0))) | (ArithOp::Mul, Flat::Value(ConstKey::Int(0))) => {
-            Some(ConstKey::Int(0))
-        }
+        (BinaryOp::BitAnd, Flat::Value(ConstKey::Bool(false))) => Some(ConstKey::Bool(false)),
+        (BinaryOp::BitOr, Flat::Value(ConstKey::Bool(true))) => Some(ConstKey::Bool(true)),
+        (BinaryOp::BitAnd, Flat::Value(ConstKey::Int(0)))
+        | (BinaryOp::Mul, Flat::Value(ConstKey::Int(0))) => Some(ConstKey::Int(0)),
         _ => None,
     }
 }

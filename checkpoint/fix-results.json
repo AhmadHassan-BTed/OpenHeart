@@ -449,461 +449,6 @@
    "D:\\Repos\\OpenHeart\\.gitattributes"
   ]
  },
- "fix:BDD:1": {
-  "owner": "BDD",
-  "pass": 1,
-  "results": [
-   {
-    "id": "BDD-01",
-    "status": "fixed",
-    "note": "All unsafe removed: BDD ops read nodes by value and are iterative; src/psa and src/tra compiled under #![forbid(unsafe_code)]."
-   },
-   {
-    "id": "BDD-02",
-    "status": "fixed",
-    "note": "New exact flow encoding over the Ball-Larus DAG plus an O(V+E) path-count DP using an unbounded PathCount; the BDD #SAT is cross-checked against the DP and loops are flagged separately (PSA_FLAG_HAS_LOOPS)."
-   },
-   {
-    "id": "AUTO-03",
-    "status": "fixed",
-    "note": "The aliasing slice is gone: apply, not, restrict and exists copy nodes out before allocating. The mmap.rs SAFETY note is handed off."
-   },
-   {
-    "id": "BDD-03",
-    "status": "fixed",
-    "note": "Topological seed with each block's in and out edges adjacent, FORCE with a span stop rule, real sifting, per-function node budget and deadline that degrade to a 'summary unavailable' record, fully iterative ops."
-   },
-   {
-    "id": "BDD-04",
-    "status": "fixed",
-    "note": "Longest path is now an O(V+E) DP over the back-edge-free DAG; loops get a flag and saturation gets its own flag."
-   },
-   {
-    "id": "BDD-05",
-    "status": "partial",
-    "note": "Aliasing filter removed. Predicate variables now get their own levels, the x_true/x_false implications are added and the variables are quantified out. Canonical predicates need a Phase 5 producer (handoff); until then nothing is filtered and the PSA flag says so."
-   },
-   {
-    "id": "BDD-06",
-    "status": "fixed",
-    "note": "Real Rudell sifting on the final compacted ROBDD: in-place adjacent swaps, per-variable unique subtables, refcounts, perm/invperm, 1.2x growth cutoff, swap and time budget, result kept only if smaller and #SAT unchanged."
-   },
-   {
-    "id": "BDD-07",
-    "status": "fixed",
-    "note": "SHA-256 digests of canonical artifact content (no mtimes or CRC links), chained as h_i = H(h_{i-1}||label||d_i) at 256 bits. Per-entity stable keys and content digests, chain checked on load and by Invariant 3, real SSA digest written to PSA.ssa_hash."
-   },
-   {
-    "id": "BDD-08",
-    "status": "partial",
-    "note": "Real per-entity delta in tra (match by stable key; added/removed/modified/relocated; propagation to enclosing declarations and transitive callers). Salsa, tree-sitter reparse and the scpg apply_delta are outside my paths."
-   },
-   {
-    "id": "CORE-05",
-    "status": "partial",
-    "note": "In my paths: the u8/u16 truncations in feasibility are removed, TRA span lines widened to u32, ssa_bi no longer aliases def_block for functions over 256 blocks. Ingestion, ssa and cg casts are handed off."
-   },
-   {
-    "id": "SYM-12",
-    "status": "skipped",
-    "note": "Java adapter declaration coverage lives entirely in src/ast and src/symbol, outside my paths."
-   },
-   {
-    "id": "COMP-07",
-    "status": "partial",
-    "note": "Foundations only: stable keys, per-entity content digests and DeltaApplicator/StaleDetector. Commit-aware incremental reanalysis (baseline commit, reparse) is outside my paths."
-   },
-   {
-    "id": "AUTO-09",
-    "status": "partial",
-    "note": "PSA and TRA readers rewritten with bounds-checked cursors and count-vs-remaining checks before allocation; uma/symbol/ast readers are handed off."
-   },
-   {
-    "id": "BDD-09",
-    "status": "partial",
-    "note": "Block and SSA offsets come from CFA prefix sums and are stored in .tra; synthetic blocks map to the owning function span or an explicit sentinel; phis resolve via PhiRecord block ids; u32 lines; UMLLink sentinels; exhaustive Invariant 4 reported as Result diagnostics. def_block u8 widening is handed off."
-   },
-   {
-    "id": "BDD-10",
-    "status": "partial",
-    "note": "Span parent links give O(log N + depth) forward queries, cs query is O(log N + k), dense uml_slots give O(1) uml_link()/source_range(). Consumers in navigation and class_diagram are handed off."
-   },
-   {
-    "id": "BDD-11",
-    "status": "partial",
-    "note": "Persistent lossy computed and not tables, Fx hashing, iterative ops, mark-compact of the root sub-DAG before serialization, order check in verify_canonicity. Complement edges, ITE and refcount GC are not implemented."
-   },
-   {
-    "id": "BDD-12",
-    "status": "partial",
-    "note": "Query API added (psa::query: count with required/forbidden edges, paths through an edge, feasibility, witness). Tarjan order used without .rev(), per-function parallelism via std::thread::scope, recursion flagged honestly. No interprocedural composition."
-   },
-   {
-    "id": "BDD-13",
-    "status": "fixed",
-    "note": "PathGraph builds edge-id CSR in O(V+E); variables are indexed by edge id so parallel edges stay distinct; all edge_index_of scans removed."
-   },
-   {
-    "id": "SCPG-14",
-    "status": "partial",
-    "note": "One shared SHA-256 hash definition (tra::uml_link::digest) and a 256-bit chain_digest for cache keys; the scpg cache, Mutex and EngineBuilder are outside my paths."
-   },
-   {
-    "id": "SCPG-15",
-    "status": "partial",
-    "note": "TRA accessors added: uml_link, source_range, innermost_symbol_at, symbols_at, function_blocks, function_ssa. Impact and navigation rewrites in scpg are handed off."
-   },
-   {
-    "id": "FLOW-18",
-    "status": "partial",
-    "note": "Phase 8 no longer reads the aliased u8 def_block; ssa_bi uses it only where exact (256 blocks or fewer). cfa/ssa encodings are outside my paths."
-   },
-   {
-    "id": "FLOW-19",
-    "status": "partial",
-    "note": "psa/mod.rs now follows Tarjan's callee-first order without .rev() and also schedules CFG functions the call graph does not cover. Call-site record fixes are outside my paths."
-   },
-   {
-    "id": "SRV-09",
-    "status": "partial",
-    "note": "TRA (and PSA) deserializers are bounds-checked, verify the CRC before trusting counts, and return InvalidData instead of panicking; main.rs and uma are handed off."
-   },
-   {
-    "id": "BDD-14",
-    "status": "partial",
-    "note": "Stable symbol identity added: 128-bit stable_key from kind, name path, parameter-type signature and ordinal. An occurrence table needs Phase 3 use-site data (handoff)."
-   },
-   {
-    "id": "BDD-16",
-    "status": "partial",
-    "note": "Counting is exact (PathCount). Headers carry a clamped u64 plus PSA_FLAG_COUNT_SATURATED; metrics store log2 f64, flags and unwind_depth, and the fake 'mean' is removed. The uma consumer's += is handed off."
-   },
-   {
-    "id": "BDD-17",
-    "status": "fixed",
-    "note": "PSA uses the shared ingestion CRC-64/ECMA-182. The reader validates every count, offset, ordering table, node array and root, and rejects trailing bytes. The TRA reader does the same."
-   }
-  ],
-  "files_changed": [
-   "D:\\Repos\\OpenHeart\\src\\psa\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\types.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\builder.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\metrics.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\serializer.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\config.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\count.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\query.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\library.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\apply.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\restrict.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\sat_count.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\unique_table.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\fxhash.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\graph.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\levels.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\constraints.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\feasibility.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\recursive.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\rpo.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\force.rs",
-   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\sifting.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\types.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\builder.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\entity.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\serializer.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\backward\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\backward\\blk_bi.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\backward\\ssa_bi.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\forward\\sym_span.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\forward\\cs_span.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\uml_link\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\uml_link\\hash_chain.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\uml_link\\digest.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\delta\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\tra\\delta\\invalidation.rs"
-  ]
- },
- "fix:CORE:1": {
-  "owner": "CORE",
-  "pass": 1,
-  "results": [
-   {
-    "id": "CORE-01",
-    "status": "partial",
-    "note": "Registries no longer fall back to the JS grammar: unsupported languages are skipped with SkipReason::UnsupportedLanguage diagnostics, Kotlin gets a real spec-based lexer (lexical-only, flagged), JS gets a proper Phase 1 adapter; grammar upgrade and new grammars not added (Cargo/lib.rs outside paths)."
-   },
-   {
-    "id": "CORE-02",
-    "status": "fixed",
-    "note": "Java reducer now defaults to Eliminate, Drop only for explicit trivia; constructor_body, switch groups/rules/labels, try-with-resources, explicit ctor invocation, enum constants, generic/array/scoped types, catch params, inferred params, ERROR all classified (node-types test skipped per phase rules)."
-   },
-   {
-    "id": "SYM-01",
-    "status": "partial",
-    "note": "Phase 2 emits NN_PACKAGE_DECL / NN_IMPORT_DECL (AUX_IMPORT_STATIC / AUX_IMPORT_ON_DEMAND) with one qualified NN_IDENTIFIER_EXPR child; Pass 2/3 resolution is a handoff."
-   },
-   {
-    "id": "SYM-02",
-    "status": "partial",
-    "note": "New name-token side array (PreorderArrays.name_tokens, BPASTArtifact::name_token, persisted in .bpa v2) for every declaration, declarator, parameter, call; annotation-name identifiers typed Annotation in Phase 1; Pass 1 consumption is a handoff."
-   },
-   {
-    "id": "FLOW-02",
-    "status": "partial",
-    "note": "Phase 2 now preserves switch bodies (cases + AUX_CASE_ARROW/DEFAULT flags, statement-position switches as NN_SWITCH_STMT), constructor bodies as NN_BLOCK, explicit this()/super() calls, yield, try-with-resources (resources precede body), instance initializers wrapped; CFG semantics outside."
-   },
-   {
-    "id": "COMP-01",
-    "status": "partial",
-    "note": "Kotlin no longer parsed with the Java grammar: dedicated Kotlin lexer frontend + SourceLexer trait, explicit supported_languages(); registries accept injected grammar adapters (run_with_registry) for the concurrent tree-sitter-kotlin adapter; README/API claims outside."
-   },
-   {
-    "id": "AUTO-03",
-    "status": "partial",
-    "note": "core/io/mmap.rs: safe open() now reads an owned buffer; true mapping is an unsafe fn map() with a documented Safety contract and SAFETY note. ROBDD aliasing is outside my paths."
-   },
-   {
-    "id": "AUTO-05",
-    "status": "partial",
-    "note": "No wrong-grammar fallback in either registry; TypeScript/Rust/Python/C++/Go files are rejected with diagnostics; claims in README/server are handoffs."
-   },
-   {
-    "id": "BENCH-02",
-    "status": "partial",
-    "note": "Code side done (only Java/JS grammars used for their own languages, Kotlin lexical-only, others skipped); README claim narrowing and suite S13 are outside."
-   },
-   {
-    "id": "BENCH-03",
-    "status": "partial",
-    "note": "Sparse-table RMQ, per-bit jump table, excess and log2 arrays removed; replaced by rank9-style rank/select + range min-max tree (~0.9 bit/node overhead); BPASTArtifact::memory_usage() reports real bytes; parent_map kept; docs/bench outside."
-   },
-   {
-    "id": "BDD-05",
-    "status": "partial",
-    "note": "SSARecord.def_block widened to u32 (no 8-bit truncation); predicate allocation/SMT in psa are outside."
-   },
-   {
-    "id": "BDD-07",
-    "status": "skipped",
-    "note": "Hash chain lives in src/tra; outside my paths."
-   },
-   {
-    "id": "SCPG-02",
-    "status": "partial",
-    "note": "Only the core/io/mmap.rs part: a sound unsafe map() exists for zero-copy views; .scpg sections and queries are outside."
-   },
-   {
-    "id": "SCPG-09",
-    "status": "skipped",
-    "note": "src/scpg/query; outside my paths."
-   },
-   {
-    "id": "UML-05",
-    "status": "skipped",
-    "note": "class_diagram blacklist is outside; path-normalization handoff recorded."
-   },
-   {
-    "id": "UML-08",
-    "status": "partial",
-    "note": "Foundation only: Phase 2 now emits generic (head + args), array (dims), qualified and wildcard NN_TYPE_REF nodes and per-parameter type params; UML consumption outside."
-   },
-   {
-    "id": "CORE-03",
-    "status": "fixed",
-    "note": "Modifiers read from the modifiers child by token kind (annotations never text-matched), all Java modifiers + JLS implicit modifiers/visibility, explicit VISIBILITY_PACKAGE_PRIVATE, all binary/unary/assignment/update operators from operator token kind, exhaustive TryFrom<u8> for OperatorId."
-   },
-   {
-    "id": "CORE-04",
-    "status": "partial",
-    "note": "Topology now BP + rank9 + rmM-tree (o(n) bits), single token array on disk when identical, aligned .bpa v2; parent_map retained and docs regeneration outside."
-   },
-   {
-    "id": "CORE-05",
-    "status": "partial",
-    "note": "Unrepresentable lines/columns skip the file with an explicit diagnostic (try_build_sort_key), >65535 files is a hard error, long tokens keep full text (u32 string lengths, LEN_SATURATED flag), def_block and SCC member_count widened to u32; byte-offset keying not done."
-   },
-   {
-    "id": "CORE-06",
-    "status": "fixed",
-    "note": "lca per Sadakane-Navarro (ancestor check via find_close, else parent of node after rmq minimum); select1 uses partition_point with sampled select, select1_checked returns Option and select1 returns a one-past-end sentinel instead of 0."
-   },
-   {
-    "id": "SYM-04",
-    "status": "partial",
-    "note": "Kotlin now gets an accurate token stream from a real lexer instead of Java-grammar recovery; disabling the sweep for AST languages is a Pass 1 handoff."
-   },
-   {
-    "id": "SYM-07",
-    "status": "partial",
-    "note": "Phase 2 keeps generic_type/array_type/scoped_type_identifier/wildcard as NN_TYPE_REF with AUX flags and one NN_TYPE_PARAM per type_parameter (named via name token); TypeRef table in Pass 3 is a handoff."
-   },
-   {
-    "id": "SYM-12",
-    "status": "partial",
-    "note": "Phase 2 now emits enum constants, anonymous class bodies, interface constants, record components (flagged), compact ctors, catch/resource/for-each/lambda params; symbol synthesis is a handoff."
-   },
-   {
-    "id": "FLOW-12",
-    "status": "partial",
-    "note": "Phase 2 preserves inputs CHA/RTA need (explicit ctor invocations with SUPER/QUALIFIED flags, instance/static initializers, anon bodies, ctor method refs); call-graph algorithms outside."
-   },
-   {
-    "id": "COMP-07",
-    "status": "partial",
-    "note": "Foundation: TreeSitterParser::parse_incremental(source, lang, old_tree) with typed ParseError; dependency tracking/baseline outside scope."
-   },
-   {
-    "id": "FLOW-16",
-    "status": "skipped",
-    "note": "IR lowering is in cfg/ssa; outside my paths."
-   },
-   {
-    "id": "AUTO-09",
-    "status": "partial",
-    "note": "Added bounds-checked ByteCursor (checked_count before allocation); .tca and .bpa readers rewritten on it; uma/symbol/tra/psa readers are handoffs."
-   },
-   {
-    "id": "BENCH-16",
-    "status": "partial",
-    "note": ".bpa v2 has a section directory with 8-byte-aligned sections and rebuilds indexes in O(n/64) word ops (no sparse table); not yet zero-copy."
-   },
-   {
-    "id": "BDD-09",
-    "status": "partial",
-    "note": "Core part: def_block is a full u32; tra backward-index changes outside."
-   },
-   {
-    "id": "UML-12",
-    "status": "skipped",
-    "note": "LabelExtractor/activity diagrams are outside; NodeAttr layout now documented, handoff recorded."
-   },
-   {
-    "id": "CORE-07",
-    "status": "partial",
-    "note": "Phase 2 validates the full .tca (CRC, magic, version, every count/offset) or takes it in memory; .bpa reader validates lengths, alignment, bit_count, balance and parents; path_str_offset is a text_id everywhere; inspect fix is a main.rs handoff."
-   },
-   {
-    "id": "CORE-08",
-    "status": "partial",
-    "note": "Safe open + unsafe map, atomic temp+rename writes for .tca/.bpa/.sta/diagrams, create_new temp files, builder defaults to a unique fresh temp dir, Phase 2 fed in memory by the builder; main/server wiring is a handoff."
-   },
-   {
-    "id": "CORE-09",
-    "status": "partial",
-    "note": "Iterative single-cursor walker and reducer, ERROR eliminated, MISSING skipped, per-file diagnostics (counts, byte ranges, BOM/CRLF flags, DIAG section in .tca), parse timeout; grammar upgrade and cancellation flag not done."
-   },
-   {
-    "id": "CORE-10",
-    "status": "partial",
-    "note": "Phase 1 reads each file once; Phases 1 and 2 parse in parallel (scoped threads, deterministic merge); Phase 2 verifies SHA-256 and fails loudly; table-driven CRC-64; ancestor loop removed; still parses twice."
-   },
-   {
-    "id": "CORE-13",
-    "status": "fixed",
-    "note": "Level gating before lock/IO with separate file level, oh_trace!/oh_debug! macros skip formatting, persistent log size rotation, PhaseTimer logs on Drop, debug println removed; call-site conversion is a handoff."
-   },
-   {
-    "id": "CORE-16",
-    "status": "partial",
-    "note": "Phase 1 canonicalizes and dedups paths, caps file size (skipped with diagnostic), case-insensitive extensions; directory walking lives in main/server (handoff)."
-   },
-   {
-    "id": "SYM-15",
-    "status": "fixed",
-    "note": "Modifiers found by kind, JLS implicit modifiers/default access applied in Phase 2, DEFAULT/VARARGS/NON_SEALED/STRICTFP/DEPRECATED encoded in lang flags; Pass 1 reading the new lang bits is a handoff."
-   },
-   {
-    "id": "FLOW-18",
-    "status": "partial",
-    "note": "Core types widened (def_block u32, SCCRecord.member_count u32); .cga/.ssa/digest serializers are handoffs."
-   },
-   {
-    "id": "FLOW-20",
-    "status": "partial",
-    "note": "Kotlin is now explicitly lexical-only (flagged, reported in Phase 2) instead of JS-parsed; real Kotlin AST requires the grammar adapter wiring handoff."
-   },
-   {
-    "id": "SRV-14",
-    "status": "partial",
-    "note": "Logger honors RUST_LOG fallback, OPENHEART_FILE_LOG, OPENHEART_LOG_MAX_BYTES; ingestion/AST honor OPENHEART_NUM_THREADS; builder honors OPENHEART_ARTIFACT_DIR; #![forbid(unsafe_code)] on ingestion and ast; docs outside."
-   },
-   {
-    "id": "COMP-13",
-    "status": "partial",
-    "note": "Frontends pluggable: AdapterRegistry::register/register_lexer, SourceLexer trait, IngestionStage::run_with_registry, ASTStage::run_with_registry; declarative/WASM loading not done."
-   },
-   {
-    "id": "BDD-14",
-    "status": "skipped",
-    "note": "Occurrence index/SCIP is Phase 3/7 work outside my paths."
-   },
-   {
-    "id": "CORE-12",
-    "status": "partial",
-    "note": "Complete Java token table (?, :, @interface, sealed/non-sealed/permits, module keywords, octal), CommentDoc detection, JS adapter, generic adapter keeps anonymous tokens, exact node token spans (no neighbour borrowing), Invariant 1 enforced; trivia round-trip not done."
-   },
-   {
-    "id": "CORE-14",
-    "status": "partial",
-    "note": "SCPGPipelineBuilder uses a thiserror PipelineError, PipelineStageTemplate implemented for Phases 1-2, timed phases 3-10, in-memory Phase 1->2, diagram_formats wired to export; CLI/server unification is a handoff."
-   },
-   {
-    "id": "AUTO-21",
-    "status": "partial",
-    "note": "Code now reads RUST_LOG (fallback), OPENHEART_NUM_THREADS, OPENHEART_ARTIFACT_DIR; .env.example documentation is a handoff."
-   },
-   {
-    "id": "CORE-17",
-    "status": "fixed",
-    "note": "Interner table hashes with per-process randomly keyed RandomState (SipHash); ids stay insertion-ordered, byte comparison kept, FNV kept only for the persisted header index."
-   }
-  ],
-  "files_changed": [
-   "D:\\Repos\\OpenHeart\\src\\core\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\parallel.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\logger.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\pipeline.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\io\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\io\\binary.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\io\\fs.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\io\\mmap.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\types\\ast.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\types\\token.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\types\\source.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\types\\ssa.rs",
-   "D:\\Repos\\OpenHeart\\src\\core\\types\\cg.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\manifest.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\builder.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\walker.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\interner.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\serializer.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\parser\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\parser\\tree_sitter.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\registry.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\java.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\javascript.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\kotlin.rs",
-   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\generic.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\mod.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\registry.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\java.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\generic.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\reducer.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\builder.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\preorder.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\rank_select.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\rmq.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\serializer.rs",
-   "D:\\Repos\\OpenHeart\\src\\ast\\jump_table.rs"
-  ]
- },
  "fix:DOCS:1": {
   "owner": "DOCS",
   "pass": 1,
@@ -2087,6 +1632,963 @@
    "D:\\Repos\\OpenHeart\\src\\scpg\\serializer\\codec.rs",
    "D:\\Repos\\OpenHeart\\src\\scpg\\serializer\\integrity.rs",
    "D:\\Repos\\OpenHeart\\src\\scpg\\serializer\\layout.rs"
+  ]
+ },
+ "fix:BDD:1": {
+  "owner": "BDD",
+  "pass": 1,
+  "results": [
+   {
+    "id": "BDD-01",
+    "status": "fixed",
+    "note": "All unsafe removed: BDD ops read nodes by value and are iterative; src/psa and src/tra compiled under #![forbid(unsafe_code)]."
+   },
+   {
+    "id": "BDD-02",
+    "status": "fixed",
+    "note": "New exact flow encoding over the Ball-Larus DAG plus an O(V+E) path-count DP using an unbounded PathCount; the BDD #SAT is cross-checked against the DP and loops are flagged separately (PSA_FLAG_HAS_LOOPS)."
+   },
+   {
+    "id": "AUTO-03",
+    "status": "fixed",
+    "note": "The aliasing slice is gone: apply, not, restrict and exists copy nodes out before allocating. The mmap.rs SAFETY note is handed off."
+   },
+   {
+    "id": "BDD-03",
+    "status": "fixed",
+    "note": "Topological seed with each block's in and out edges adjacent, FORCE with a span stop rule, real sifting, per-function node budget and deadline that degrade to a 'summary unavailable' record, fully iterative ops."
+   },
+   {
+    "id": "BDD-04",
+    "status": "fixed",
+    "note": "Longest path is now an O(V+E) DP over the back-edge-free DAG; loops get a flag and saturation gets its own flag."
+   },
+   {
+    "id": "BDD-05",
+    "status": "partial",
+    "note": "Aliasing filter removed. Predicate variables now get their own levels, the x_true/x_false implications are added and the variables are quantified out. Canonical predicates need a Phase 5 producer (handoff); until then nothing is filtered and the PSA flag says so."
+   },
+   {
+    "id": "BDD-06",
+    "status": "fixed",
+    "note": "Real Rudell sifting on the final compacted ROBDD: in-place adjacent swaps, per-variable unique subtables, refcounts, perm/invperm, 1.2x growth cutoff, swap and time budget, result kept only if smaller and #SAT unchanged."
+   },
+   {
+    "id": "BDD-07",
+    "status": "fixed",
+    "note": "SHA-256 digests of canonical artifact content (no mtimes or CRC links), chained as h_i = H(h_{i-1}||label||d_i) at 256 bits. Per-entity stable keys and content digests, chain checked on load and by Invariant 3, real SSA digest written to PSA.ssa_hash."
+   },
+   {
+    "id": "BDD-08",
+    "status": "partial",
+    "note": "Real per-entity delta in tra (match by stable key; added/removed/modified/relocated; propagation to enclosing declarations and transitive callers). Salsa, tree-sitter reparse and the scpg apply_delta are outside my paths."
+   },
+   {
+    "id": "CORE-05",
+    "status": "partial",
+    "note": "In my paths: the u8/u16 truncations in feasibility are removed, TRA span lines widened to u32, ssa_bi no longer aliases def_block for functions over 256 blocks. Ingestion, ssa and cg casts are handed off."
+   },
+   {
+    "id": "SYM-12",
+    "status": "skipped",
+    "note": "Java adapter declaration coverage lives entirely in src/ast and src/symbol, outside my paths."
+   },
+   {
+    "id": "COMP-07",
+    "status": "partial",
+    "note": "Foundations only: stable keys, per-entity content digests and DeltaApplicator/StaleDetector. Commit-aware incremental reanalysis (baseline commit, reparse) is outside my paths."
+   },
+   {
+    "id": "AUTO-09",
+    "status": "partial",
+    "note": "PSA and TRA readers rewritten with bounds-checked cursors and count-vs-remaining checks before allocation; uma/symbol/ast readers are handed off."
+   },
+   {
+    "id": "BDD-09",
+    "status": "partial",
+    "note": "Block and SSA offsets come from CFA prefix sums and are stored in .tra; synthetic blocks map to the owning function span or an explicit sentinel; phis resolve via PhiRecord block ids; u32 lines; UMLLink sentinels; exhaustive Invariant 4 reported as Result diagnostics. def_block u8 widening is handed off."
+   },
+   {
+    "id": "BDD-10",
+    "status": "partial",
+    "note": "Span parent links give O(log N + depth) forward queries, cs query is O(log N + k), dense uml_slots give O(1) uml_link()/source_range(). Consumers in navigation and class_diagram are handed off."
+   },
+   {
+    "id": "BDD-11",
+    "status": "partial",
+    "note": "Persistent lossy computed and not tables, Fx hashing, iterative ops, mark-compact of the root sub-DAG before serialization, order check in verify_canonicity. Complement edges, ITE and refcount GC are not implemented."
+   },
+   {
+    "id": "BDD-12",
+    "status": "partial",
+    "note": "Query API added (psa::query: count with required/forbidden edges, paths through an edge, feasibility, witness). Tarjan order used without .rev(), per-function parallelism via std::thread::scope, recursion flagged honestly. No interprocedural composition."
+   },
+   {
+    "id": "BDD-13",
+    "status": "fixed",
+    "note": "PathGraph builds edge-id CSR in O(V+E); variables are indexed by edge id so parallel edges stay distinct; all edge_index_of scans removed."
+   },
+   {
+    "id": "SCPG-14",
+    "status": "partial",
+    "note": "One shared SHA-256 hash definition (tra::uml_link::digest) and a 256-bit chain_digest for cache keys; the scpg cache, Mutex and EngineBuilder are outside my paths."
+   },
+   {
+    "id": "SCPG-15",
+    "status": "partial",
+    "note": "TRA accessors added: uml_link, source_range, innermost_symbol_at, symbols_at, function_blocks, function_ssa. Impact and navigation rewrites in scpg are handed off."
+   },
+   {
+    "id": "FLOW-18",
+    "status": "partial",
+    "note": "Phase 8 no longer reads the aliased u8 def_block; ssa_bi uses it only where exact (256 blocks or fewer). cfa/ssa encodings are outside my paths."
+   },
+   {
+    "id": "FLOW-19",
+    "status": "partial",
+    "note": "psa/mod.rs now follows Tarjan's callee-first order without .rev() and also schedules CFG functions the call graph does not cover. Call-site record fixes are outside my paths."
+   },
+   {
+    "id": "SRV-09",
+    "status": "partial",
+    "note": "TRA (and PSA) deserializers are bounds-checked, verify the CRC before trusting counts, and return InvalidData instead of panicking; main.rs and uma are handed off."
+   },
+   {
+    "id": "BDD-14",
+    "status": "partial",
+    "note": "Stable symbol identity added: 128-bit stable_key from kind, name path, parameter-type signature and ordinal. An occurrence table needs Phase 3 use-site data (handoff)."
+   },
+   {
+    "id": "BDD-16",
+    "status": "partial",
+    "note": "Counting is exact (PathCount). Headers carry a clamped u64 plus PSA_FLAG_COUNT_SATURATED; metrics store log2 f64, flags and unwind_depth, and the fake 'mean' is removed. The uma consumer's += is handed off."
+   },
+   {
+    "id": "BDD-17",
+    "status": "fixed",
+    "note": "PSA uses the shared ingestion CRC-64/ECMA-182. The reader validates every count, offset, ordering table, node array and root, and rejects trailing bytes. The TRA reader does the same."
+   }
+  ],
+  "files_changed": [
+   "D:\\Repos\\OpenHeart\\src\\psa\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\types.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\builder.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\metrics.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\serializer.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\config.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\count.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\query.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\library.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\apply.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\restrict.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\sat_count.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\unique_table.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\bdd\\fxhash.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\graph.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\levels.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\constraints.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\feasibility.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\construction\\recursive.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\rpo.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\force.rs",
+   "D:\\Repos\\OpenHeart\\src\\psa\\ordering\\sifting.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\types.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\builder.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\entity.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\serializer.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\backward\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\backward\\blk_bi.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\backward\\ssa_bi.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\forward\\sym_span.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\forward\\cs_span.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\uml_link\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\uml_link\\hash_chain.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\uml_link\\digest.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\delta\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\tra\\delta\\invalidation.rs"
+  ]
+ },
+ "fix:CORE:1": {
+  "owner": "CORE",
+  "pass": 1,
+  "results": [
+   {
+    "id": "CORE-01",
+    "status": "partial",
+    "note": "Registries no longer fall back to the JS grammar: unsupported languages are skipped with SkipReason::UnsupportedLanguage diagnostics, Kotlin gets a real spec-based lexer (lexical-only, flagged), JS gets a proper Phase 1 adapter; grammar upgrade and new grammars not added (Cargo/lib.rs outside paths)."
+   },
+   {
+    "id": "CORE-02",
+    "status": "fixed",
+    "note": "Java reducer now defaults to Eliminate, Drop only for explicit trivia; constructor_body, switch groups/rules/labels, try-with-resources, explicit ctor invocation, enum constants, generic/array/scoped types, catch params, inferred params, ERROR all classified (node-types test skipped per phase rules)."
+   },
+   {
+    "id": "SYM-01",
+    "status": "partial",
+    "note": "Phase 2 emits NN_PACKAGE_DECL / NN_IMPORT_DECL (AUX_IMPORT_STATIC / AUX_IMPORT_ON_DEMAND) with one qualified NN_IDENTIFIER_EXPR child; Pass 2/3 resolution is a handoff."
+   },
+   {
+    "id": "SYM-02",
+    "status": "partial",
+    "note": "New name-token side array (PreorderArrays.name_tokens, BPASTArtifact::name_token, persisted in .bpa v2) for every declaration, declarator, parameter, call; annotation-name identifiers typed Annotation in Phase 1; Pass 1 consumption is a handoff."
+   },
+   {
+    "id": "FLOW-02",
+    "status": "partial",
+    "note": "Phase 2 now preserves switch bodies (cases + AUX_CASE_ARROW/DEFAULT flags, statement-position switches as NN_SWITCH_STMT), constructor bodies as NN_BLOCK, explicit this()/super() calls, yield, try-with-resources (resources precede body), instance initializers wrapped; CFG semantics outside."
+   },
+   {
+    "id": "COMP-01",
+    "status": "partial",
+    "note": "Kotlin no longer parsed with the Java grammar: dedicated Kotlin lexer frontend + SourceLexer trait, explicit supported_languages(); registries accept injected grammar adapters (run_with_registry) for the concurrent tree-sitter-kotlin adapter; README/API claims outside."
+   },
+   {
+    "id": "AUTO-03",
+    "status": "partial",
+    "note": "core/io/mmap.rs: safe open() now reads an owned buffer; true mapping is an unsafe fn map() with a documented Safety contract and SAFETY note. ROBDD aliasing is outside my paths."
+   },
+   {
+    "id": "AUTO-05",
+    "status": "partial",
+    "note": "No wrong-grammar fallback in either registry; TypeScript/Rust/Python/C++/Go files are rejected with diagnostics; claims in README/server are handoffs."
+   },
+   {
+    "id": "BENCH-02",
+    "status": "partial",
+    "note": "Code side done (only Java/JS grammars used for their own languages, Kotlin lexical-only, others skipped); README claim narrowing and suite S13 are outside."
+   },
+   {
+    "id": "BENCH-03",
+    "status": "partial",
+    "note": "Sparse-table RMQ, per-bit jump table, excess and log2 arrays removed; replaced by rank9-style rank/select + range min-max tree (~0.9 bit/node overhead); BPASTArtifact::memory_usage() reports real bytes; parent_map kept; docs/bench outside."
+   },
+   {
+    "id": "BDD-05",
+    "status": "partial",
+    "note": "SSARecord.def_block widened to u32 (no 8-bit truncation); predicate allocation/SMT in psa are outside."
+   },
+   {
+    "id": "BDD-07",
+    "status": "skipped",
+    "note": "Hash chain lives in src/tra; outside my paths."
+   },
+   {
+    "id": "SCPG-02",
+    "status": "partial",
+    "note": "Only the core/io/mmap.rs part: a sound unsafe map() exists for zero-copy views; .scpg sections and queries are outside."
+   },
+   {
+    "id": "SCPG-09",
+    "status": "skipped",
+    "note": "src/scpg/query; outside my paths."
+   },
+   {
+    "id": "UML-05",
+    "status": "skipped",
+    "note": "class_diagram blacklist is outside; path-normalization handoff recorded."
+   },
+   {
+    "id": "UML-08",
+    "status": "partial",
+    "note": "Foundation only: Phase 2 now emits generic (head + args), array (dims), qualified and wildcard NN_TYPE_REF nodes and per-parameter type params; UML consumption outside."
+   },
+   {
+    "id": "CORE-03",
+    "status": "fixed",
+    "note": "Modifiers read from the modifiers child by token kind (annotations never text-matched), all Java modifiers + JLS implicit modifiers/visibility, explicit VISIBILITY_PACKAGE_PRIVATE, all binary/unary/assignment/update operators from operator token kind, exhaustive TryFrom<u8> for OperatorId."
+   },
+   {
+    "id": "CORE-04",
+    "status": "partial",
+    "note": "Topology now BP + rank9 + rmM-tree (o(n) bits), single token array on disk when identical, aligned .bpa v2; parent_map retained and docs regeneration outside."
+   },
+   {
+    "id": "CORE-05",
+    "status": "partial",
+    "note": "Unrepresentable lines/columns skip the file with an explicit diagnostic (try_build_sort_key), >65535 files is a hard error, long tokens keep full text (u32 string lengths, LEN_SATURATED flag), def_block and SCC member_count widened to u32; byte-offset keying not done."
+   },
+   {
+    "id": "CORE-06",
+    "status": "fixed",
+    "note": "lca per Sadakane-Navarro (ancestor check via find_close, else parent of node after rmq minimum); select1 uses partition_point with sampled select, select1_checked returns Option and select1 returns a one-past-end sentinel instead of 0."
+   },
+   {
+    "id": "SYM-04",
+    "status": "partial",
+    "note": "Kotlin now gets an accurate token stream from a real lexer instead of Java-grammar recovery; disabling the sweep for AST languages is a Pass 1 handoff."
+   },
+   {
+    "id": "SYM-07",
+    "status": "partial",
+    "note": "Phase 2 keeps generic_type/array_type/scoped_type_identifier/wildcard as NN_TYPE_REF with AUX flags and one NN_TYPE_PARAM per type_parameter (named via name token); TypeRef table in Pass 3 is a handoff."
+   },
+   {
+    "id": "SYM-12",
+    "status": "partial",
+    "note": "Phase 2 now emits enum constants, anonymous class bodies, interface constants, record components (flagged), compact ctors, catch/resource/for-each/lambda params; symbol synthesis is a handoff."
+   },
+   {
+    "id": "FLOW-12",
+    "status": "partial",
+    "note": "Phase 2 preserves inputs CHA/RTA need (explicit ctor invocations with SUPER/QUALIFIED flags, instance/static initializers, anon bodies, ctor method refs); call-graph algorithms outside."
+   },
+   {
+    "id": "COMP-07",
+    "status": "partial",
+    "note": "Foundation: TreeSitterParser::parse_incremental(source, lang, old_tree) with typed ParseError; dependency tracking/baseline outside scope."
+   },
+   {
+    "id": "FLOW-16",
+    "status": "skipped",
+    "note": "IR lowering is in cfg/ssa; outside my paths."
+   },
+   {
+    "id": "AUTO-09",
+    "status": "partial",
+    "note": "Added bounds-checked ByteCursor (checked_count before allocation); .tca and .bpa readers rewritten on it; uma/symbol/tra/psa readers are handoffs."
+   },
+   {
+    "id": "BENCH-16",
+    "status": "partial",
+    "note": ".bpa v2 has a section directory with 8-byte-aligned sections and rebuilds indexes in O(n/64) word ops (no sparse table); not yet zero-copy."
+   },
+   {
+    "id": "BDD-09",
+    "status": "partial",
+    "note": "Core part: def_block is a full u32; tra backward-index changes outside."
+   },
+   {
+    "id": "UML-12",
+    "status": "skipped",
+    "note": "LabelExtractor/activity diagrams are outside; NodeAttr layout now documented, handoff recorded."
+   },
+   {
+    "id": "CORE-07",
+    "status": "partial",
+    "note": "Phase 2 validates the full .tca (CRC, magic, version, every count/offset) or takes it in memory; .bpa reader validates lengths, alignment, bit_count, balance and parents; path_str_offset is a text_id everywhere; inspect fix is a main.rs handoff."
+   },
+   {
+    "id": "CORE-08",
+    "status": "partial",
+    "note": "Safe open + unsafe map, atomic temp+rename writes for .tca/.bpa/.sta/diagrams, create_new temp files, builder defaults to a unique fresh temp dir, Phase 2 fed in memory by the builder; main/server wiring is a handoff."
+   },
+   {
+    "id": "CORE-09",
+    "status": "partial",
+    "note": "Iterative single-cursor walker and reducer, ERROR eliminated, MISSING skipped, per-file diagnostics (counts, byte ranges, BOM/CRLF flags, DIAG section in .tca), parse timeout; grammar upgrade and cancellation flag not done."
+   },
+   {
+    "id": "CORE-10",
+    "status": "partial",
+    "note": "Phase 1 reads each file once; Phases 1 and 2 parse in parallel (scoped threads, deterministic merge); Phase 2 verifies SHA-256 and fails loudly; table-driven CRC-64; ancestor loop removed; still parses twice."
+   },
+   {
+    "id": "CORE-13",
+    "status": "fixed",
+    "note": "Level gating before lock/IO with separate file level, oh_trace!/oh_debug! macros skip formatting, persistent log size rotation, PhaseTimer logs on Drop, debug println removed; call-site conversion is a handoff."
+   },
+   {
+    "id": "CORE-16",
+    "status": "partial",
+    "note": "Phase 1 canonicalizes and dedups paths, caps file size (skipped with diagnostic), case-insensitive extensions; directory walking lives in main/server (handoff)."
+   },
+   {
+    "id": "SYM-15",
+    "status": "fixed",
+    "note": "Modifiers found by kind, JLS implicit modifiers/default access applied in Phase 2, DEFAULT/VARARGS/NON_SEALED/STRICTFP/DEPRECATED encoded in lang flags; Pass 1 reading the new lang bits is a handoff."
+   },
+   {
+    "id": "FLOW-18",
+    "status": "partial",
+    "note": "Core types widened (def_block u32, SCCRecord.member_count u32); .cga/.ssa/digest serializers are handoffs."
+   },
+   {
+    "id": "FLOW-20",
+    "status": "partial",
+    "note": "Kotlin is now explicitly lexical-only (flagged, reported in Phase 2) instead of JS-parsed; real Kotlin AST requires the grammar adapter wiring handoff."
+   },
+   {
+    "id": "SRV-14",
+    "status": "partial",
+    "note": "Logger honors RUST_LOG fallback, OPENHEART_FILE_LOG, OPENHEART_LOG_MAX_BYTES; ingestion/AST honor OPENHEART_NUM_THREADS; builder honors OPENHEART_ARTIFACT_DIR; #![forbid(unsafe_code)] on ingestion and ast; docs outside."
+   },
+   {
+    "id": "COMP-13",
+    "status": "partial",
+    "note": "Frontends pluggable: AdapterRegistry::register/register_lexer, SourceLexer trait, IngestionStage::run_with_registry, ASTStage::run_with_registry; declarative/WASM loading not done."
+   },
+   {
+    "id": "BDD-14",
+    "status": "skipped",
+    "note": "Occurrence index/SCIP is Phase 3/7 work outside my paths."
+   },
+   {
+    "id": "CORE-12",
+    "status": "partial",
+    "note": "Complete Java token table (?, :, @interface, sealed/non-sealed/permits, module keywords, octal), CommentDoc detection, JS adapter, generic adapter keeps anonymous tokens, exact node token spans (no neighbour borrowing), Invariant 1 enforced; trivia round-trip not done."
+   },
+   {
+    "id": "CORE-14",
+    "status": "partial",
+    "note": "SCPGPipelineBuilder uses a thiserror PipelineError, PipelineStageTemplate implemented for Phases 1-2, timed phases 3-10, in-memory Phase 1->2, diagram_formats wired to export; CLI/server unification is a handoff."
+   },
+   {
+    "id": "AUTO-21",
+    "status": "partial",
+    "note": "Code now reads RUST_LOG (fallback), OPENHEART_NUM_THREADS, OPENHEART_ARTIFACT_DIR; .env.example documentation is a handoff."
+   },
+   {
+    "id": "CORE-17",
+    "status": "fixed",
+    "note": "Interner table hashes with per-process randomly keyed RandomState (SipHash); ids stay insertion-ordered, byte comparison kept, FNV kept only for the persisted header index."
+   }
+  ],
+  "files_changed": [
+   "D:\\Repos\\OpenHeart\\src\\core\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\parallel.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\logger.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\pipeline.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\io\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\io\\binary.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\io\\fs.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\io\\mmap.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\types\\ast.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\types\\token.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\types\\source.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\types\\ssa.rs",
+   "D:\\Repos\\OpenHeart\\src\\core\\types\\cg.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\manifest.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\builder.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\walker.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\interner.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\serializer.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\parser\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\parser\\tree_sitter.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\registry.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\java.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\javascript.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\kotlin.rs",
+   "D:\\Repos\\OpenHeart\\src\\ingestion\\adapter\\generic.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\registry.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\java.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\adapter\\generic.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\reducer.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\builder.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\preorder.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\rank_select.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\rmq.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\serializer.rs",
+   "D:\\Repos\\OpenHeart\\src\\ast\\jump_table.rs"
+  ]
+ },
+ "fix:FLOW:1": {
+  "owner": "FLOW",
+  "pass": 1,
+  "results": [
+   {
+    "id": "CORE-02",
+    "status": "partial",
+    "note": "CFG side done: NN_SWITCH_EXPR dispatched, catch body/param found by kind, constructor bodies taken in either AST shape, `new` type names read from tokens. The real cause, java.rs dropping unlisted kinds by default, is handed off."
+   },
+   {
+    "id": "FLOW-01",
+    "status": "fixed",
+    "note": "Every edge is now wired explicitly and the pending-exit list is gone. try and do-while are fully connected, and the silent sink-to-EXIT patch is replaced by a hard error (Invariant 3: only EXIT may lack successors)."
+   },
+   {
+    "id": "FLOW-02",
+    "status": "partial",
+    "note": "Phase 4 now handles switch expressions, arrow rules, yield, patterns, try-with-resources (JLS 14.20.3), constructor bodies with this()/super() and expression lambdas. The Phase 2 kind mapping is handed off."
+   },
+   {
+    "id": "FLOW-03",
+    "status": "fixed",
+    "note": "Loop roles come from the `;` and `)` tokens of the header (exact). Without token text the body is the last child and a diagnostic is recorded. Empty loop and if bodies are handled."
+   },
+   {
+    "id": "FLOW-04",
+    "status": "fixed",
+    "note": "New ssa/names.rs resolves names by lexical scope and keys variables by symbol id. Parameters and captured variables are defined at ENTRY; compound assignment and ++/-- are handled; liveness uses bitsets; added a verifier that every use is dominated by its def. Fields and arrays are reported as unresolved; uses resolve only on the run_with_source path."
+   },
+   {
+    "id": "FLOW-05",
+    "status": "fixed",
+    "note": "Calls are resolved by name token, arity and inferred receiver type, then dispatched. Lambda sites are attributed to the function that creates them."
+   },
+   {
+    "id": "COMP-03",
+    "status": "partial",
+    "note": "Real Andersen constraints, RTA and sparse intraprocedural taint/nullness/resource-state analysis with a configurable TaintSpec. No IFDS/IDE tabulation, VTA or taint spec file format."
+   },
+   {
+    "id": "BENCH-08",
+    "status": "partial",
+    "note": "The IFDS pass is renamed SparseDataflowAnalyzer and documented as intraprocedural; points-to is now constraint-based. README/docs claims are handed off."
+   },
+   {
+    "id": "BDD-05",
+    "status": "partial",
+    "note": "Added FunctionSSAData.def_blocks (u32) and SSAArtifact::global_ssa_base. The feasibility fix lives in src/psa (handed off)."
+   },
+   {
+    "id": "SCPG-08",
+    "status": "skipped",
+    "note": "Slicing is in src/scpg. SSA now provides def-use, operand (use-def) and correct CDG data for it (handed off)."
+   },
+   {
+    "id": "UML-03",
+    "status": "partial",
+    "note": "orig_sym_id is now an STA symbol id, or ORIG_NODE_TAG|node for unregistered locals. The diagram extractors are outside my paths."
+   },
+   {
+    "id": "CORE-05",
+    "status": "partial",
+    "note": "My phases use checked conversions; SCC member overflow returns an error; def_blocks keeps u32 block ids. Widening the core u8/u16 fields is handed off."
+   },
+   {
+    "id": "SYM-06",
+    "status": "skipped",
+    "note": "Type hierarchy construction is in src/symbol."
+   },
+   {
+    "id": "FLOW-07",
+    "status": "partial",
+    "note": "Calls, new, casts, array access and division get exception edges inside try regions, matched to handlers by type (project hierarchy plus a JDK table). finally runs on every abrupt exit and rethrows continue outward. EXIT is still a single block; Except edges mark the exceptional paths."
+   },
+   {
+    "id": "FLOW-08",
+    "status": "fixed",
+    "note": "Labels are matched by token text. Added synchronized (monitor release on every exit), switch expressions and arrow rules, yield, assert, branch lowering of &&, ||, ?: and !, no exit edge for constant-true conditions, and non-literal case labels."
+   },
+   {
+    "id": "FLOW-09",
+    "status": "fixed",
+    "note": "Post-dominators use a virtual exit, one root per infinite-loop region and the FOW ENTRY edge. CDG labels: true/false/switch/except/entry/uncond."
+   },
+   {
+    "id": "FLOW-10",
+    "status": "partial",
+    "note": "Real propagation over SSA operands and phis with a configurable TaintSpec, honestly named. No RHS tabulation, ICFG or summaries."
+   },
+   {
+    "id": "FLOW-11",
+    "status": "partial",
+    "note": "Global SSA numbering, allocation-site objects, field-sensitive assign/load/store/param/return/this constraints, difference propagation. No cycle collapsing and no on-the-fly call graph."
+   },
+   {
+    "id": "FLOW-12",
+    "status": "partial",
+    "note": "Added upward and default-method lookup, CHA over instantiable subtypes, RTA, this()/super(), method refs, lambda creation, interface classification and points-to re-dispatch. No JDK models, reflection or <clinit>."
+   },
+   {
+    "id": "FLOW-13",
+    "status": "fixed",
+    "note": "Replaced linear scans with ProgramIndex, interval node-to-function map, stmt/SSA lookup maps and counting-sort CSRs. Liveness is a bitset worklist, version stacks pop per block, and catch-type lookup no longer scans."
+   },
+   {
+    "id": "FLOW-14",
+    "status": "fixed",
+    "note": "RPO, loops, post-dominators, CDG, renaming and Tarjan are iterative. Phases 4-6 run on 64 MiB worker threads with catch_unwind."
+   },
+   {
+    "id": "COMP-08",
+    "status": "partial",
+    "note": "Phase 6 indexes, plus Phase 4/5 and context building run in parallel on std threads. The server and web changes are outside my paths."
+   },
+   {
+    "id": "SYM-10",
+    "status": "partial",
+    "note": "Phase 6 resolves receivers, fields, inherited members and arity. A Phase 3 attribution/occurrence table is outside my paths."
+   },
+   {
+    "id": "FLOW-16",
+    "status": "partial",
+    "note": "Control-flow expressions are lowered into blocks, excepting statements split blocks, and lowered_nodes is exported. No three-address IR."
+   },
+   {
+    "id": "AUTO-11",
+    "status": "partial",
+    "note": "while/for now share build_pretest_loop. The diagram exporters are outside my paths."
+   },
+   {
+    "id": "AUTO-16",
+    "status": "partial",
+    "note": "Checked conversions in the CFG/SSA/CG builders and serializers. The Cargo profile change is handed off."
+   },
+   {
+    "id": "BDD-12",
+    "status": "partial",
+    "note": "SCC order is documented as callee-first. The psa .rev() fix is handed off."
+   },
+   {
+    "id": "BDD-13",
+    "status": "partial",
+    "note": "Edges are stored in CSR order with pred_edge_idx, and exact duplicates are removed. PSA must switch to these ids (handed off)."
+   },
+   {
+    "id": "SCPG-14",
+    "status": "skipped",
+    "note": "Cache and hash are in src/scpg."
+   },
+   {
+    "id": "CORE-13",
+    "status": "partial",
+    "note": "Removed the per-call-site trace, guarded trace/debug formatting, and timers now finish in Phases 4-6. Logger internals are outside my paths."
+   },
+   {
+    "id": "SYM-14",
+    "status": "skipped",
+    "note": "STA serializer determinism is in src/symbol."
+   },
+   {
+    "id": "FLOW-17",
+    "status": "fixed",
+    "note": "Loop forest: dominance-based back edges merged per header, irreducible edges flagged. V(G) = decision points + catch clauses + 1, excluding exception edges, saturating with a diagnostic."
+   },
+   {
+    "id": "FLOW-18",
+    "status": "fixed",
+    "note": ".cfa v2 stores the EXIT id, statements, loops and diagnostics and has a full reader. .ssa v2 has correct offsets, u32 fields and a full reader. .cga v2 checks its version and keeps caller edge types. SCCRecord.member_count is still u16 (overflow is checked)."
+   },
+   {
+    "id": "FLOW-19",
+    "status": "fixed",
+    "note": "Call sites carry the name token, real arity, CFG block (u32::MAX if unmapped) and flags. Edges are deduplicated with sort+dedup; SCCs cover only call-graph nodes. method_count is still the symbol id space, now documented."
+   },
+   {
+    "id": "FLOW-20",
+    "status": "skipped",
+    "note": "Needs a Kotlin grammar and adapter outside my paths."
+   },
+   {
+    "id": "FLOW-21",
+    "status": "partial",
+    "note": "Per-function work runs in parallel with a deterministic merge. No incremental caching."
+   }
+  ],
+  "files_changed": [
+   "D:\\Repos\\OpenHeart\\src\\cfg\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\source.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\ast_query.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\parallel.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\serializer.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\analysis\\rpo.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\analysis\\dominators.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\analysis\\frontier.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\analysis\\loops.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\analysis\\postdom.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\builder\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\builder\\state.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\builder\\exceptions.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\expr.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\if_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\while_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\for_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\do_while.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\switch_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\try_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\return_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\throw_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\break_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\continue_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\yield_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\labeled_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\synchronized_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\cfg\\stmts\\assert_stmt.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\names.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\liveness.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\placement.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\renaming.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\version_stack.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\cdg.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\ifds.rs",
+   "D:\\Repos\\OpenHeart\\src\\ssa\\serializer.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\mod.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\index.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\call_sites.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\resolution.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\points_to.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\scc.rs",
+   "D:\\Repos\\OpenHeart\\src\\cg\\serializer.rs"
+  ]
+ },
+ "fix:WEB:1": {
+  "owner": "WEB",
+  "pass": 1,
+  "results": [
+   {
+    "id": "WSEC-01",
+    "status": "fixed",
+    "note": "Every untrusted innerHTML sink (HUD/progress text, ZIP/folder/repo names, history dropdown, layers panel, sidebar, minimap) now builds DOM via h()/textContent (web/js/dom.js). History is validated on read. CSP plus Trusted Types added as defence in depth."
+   },
+   {
+    "id": "COMP-R3-1",
+    "status": "partial",
+    "note": "Studio side: editor.js only calls /api/source in engine sessions, with a repo-relative path (no '..', ':' or absolute paths). It no longer guesses names or probes 21 example paths. The server containment, bind-address and CORS fix is in handoffs."
+   },
+   {
+    "id": "E2E-02",
+    "status": "partial",
+    "note": "The studio no longer fabricates views or 'Verified' badges, and bundled samples are labelled as static samples. The Rust exporter templates and regenerating web/diagrams are in handoffs."
+   },
+   {
+    "id": "WEB-01",
+    "status": "fixed",
+    "note": "Inline module moved to js/main.js. Strict CSP meta with require-trusted-types-for 'script' and a constant-only 'openheart-static' policy. HUD, hover ('<<class>>' symptom), layers, state-file and history sinks use textContent. Sources are kept in sessionStorage only within a size budget."
+   },
+   {
+    "id": "WEB-02",
+    "status": "fixed",
+    "note": "Template generators and synthesizeSourceFromNode are deleted; unavailable views show an explicit empty state. Real declaration anchors and lines, measured timing, a real SHA-256 content hash, no 'verified' field. Timer-driven phase text and the 'Invariant Verified' defaults are gone, and parsed/eligible counts are disclosed."
+   },
+   {
+    "id": "WSEC-02",
+    "status": "partial",
+    "note": "CSP meta (script-src pinned to three exact CDN file URLs, object-src/base-uri/form-action none) and Trusted Types are in place; dagre removed; crossorigin added. SRI hashes are not added because they cannot be computed without downloading the files (handoff)."
+   },
+   {
+    "id": "WSEC-03",
+    "status": "fixed",
+    "note": "The backtracking regexes are replaced by a linear mask→tokenize→bracket-match→scope-walk extractor (analysis/source-parser.js). It runs in a module Worker with a 4 s per-file budget, a 512 KB per-file cap and minified-file skipping."
+   },
+   {
+    "id": "COMP-R3-2",
+    "status": "partial",
+    "note": "The 2.5 s abort is gone: /api/health probe, then a 10-minute engine request with Cancel and job-polling support. Fallback results are labelled as an approximate sample with true counts, and there is no fabricated hash. The server-side async job API is in handoffs."
+   },
+   {
+    "id": "AUTO-04",
+    "status": "partial",
+    "note": "The studio ignores the constant compiler_hash/verified, shows a real SHA-256 of the loaded IR, and labels bundled files as samples. Regenerating the showcase files and the exporter hash are in handoffs."
+   },
+   {
+    "id": "E2E-06",
+    "status": "partial",
+    "note": "The studio consumes IR anchor/file/lines, never invents '<Name>.java' or [1,5,10], highlights the anchor line, and resolves sources only from the IR, raw_url or session files. In-browser anchors are exact token positions. Exporter and server changes are in handoffs."
+   },
+   {
+    "id": "E2E-08",
+    "status": "partial",
+    "note": "Browser engine: deterministic output, real hash, honest coverage. diagram_types is no longer sent, api.js is removed, and engine sessions render the response's own PUML instead of the shared web/diagrams. CLI/server/Dockerfile unification is in handoffs."
+   },
+   {
+    "id": "SCPG-04",
+    "status": "partial",
+    "note": "In-browser node ids are fully qualified (package plus outer types, with @path disambiguation), and edges are resolved by symbol. The Rust exporters are in handoffs."
+   },
+   {
+    "id": "SCPG-05",
+    "status": "partial",
+    "note": "Studio side: no fabricated file or lines, and anchor/qualified_name are consumed. json.rs anchor/hash emission is in handoffs."
+   },
+   {
+    "id": "SCPG-06",
+    "status": "skipped",
+    "note": "PlantUML/Mermaid printers and CI parsing are Rust/CI work outside web/** (handoff)."
+   },
+   {
+    "id": "WEB-03",
+    "status": "partial",
+    "note": "No 2.5 s abort. Engine results are rendered from the session's response PUML, or from artifact_base_url when the server provides one, and never from shared web/diagrams. Engine errors are shown and can be cancelled. Job API and session directories are in handoffs; WASM is not done."
+   },
+   {
+    "id": "WEB-04",
+    "status": "partial",
+    "note": "Members are read only at class-body top level (no leakage, calls or locals). FQN ids, resolution via scope/imports/package/wildcards/unique name, relevance-ranked round-robin sampling, Python support. A hand-written linear parser is used instead of web-tree-sitter."
+   },
+   {
+    "id": "WEB-05",
+    "status": "fixed",
+    "note": "Worker with per-file timeout and AbortController, a 6-wide fetch pool, 512 KB/tree-size and minified/vendored/generated (.gitattributes linguist) skips, linear parser."
+   },
+   {
+    "id": "WEB-06",
+    "status": "partial",
+    "note": "Layered layout (DFS cycle breaking, longest-path layers, barycenter sweeps, linear queues), balanced card grids and shelf-packed packages. PNG export is scaled to canvas limits, which also fixes the missing isDarkMode import. dagre removed. ELK and the dedicated sequence renderer are not done."
+   },
+   {
+    "id": "WEB-07",
+    "status": "fixed",
+    "note": "Theme change restyles in place (stylesheet plus card images in one batch, PUML views re-parsed by id). renderGraph has a render-id token so only the latest render commits. Theme is initialised before the first render."
+   },
+   {
+    "id": "COMP-06",
+    "status": "partial",
+    "note": "Added client-side Graphviz DOT and GraphML exports (graph-export.js) and a versioned state format. SARIF, SCIP, XMI and a JSON Schema for the Rust IR are out of scope (handoff)."
+   },
+   {
+    "id": "COMP-08",
+    "status": "partial",
+    "note": "Browser ingestion now samples up to 150 remote / 1,500 local files by relevance, with parallel fetches and a worker. The Rust-side indexing, rayon and async server are in handoffs."
+   },
+   {
+    "id": "COMP-10",
+    "status": "partial",
+    "note": "Studio consumes anchors (Declared At row, line highlight) and resolves files from IR/session data only. Exporter, navigation and server changes are in handoffs."
+   },
+   {
+    "id": "COMP-11",
+    "status": "partial",
+    "note": "Added fuzzy node search (combobox, keyboard) and removed Kroki egress by deleting viewer.js/api.js. Semantic filters, expand-on-demand and commit diffs are not done."
+   },
+   {
+    "id": "WSEC-04",
+    "status": "fixed",
+    "note": "validateDiagramState allowlists diagram_type and uml_kind, requires version 1.x, rebuilds elements with known keys, restricts raw_url to raw.githubusercontent.com or same-origin, keeps only data:image/svg+xml cards, and checks ids/parents/edges. Colours go through safeColor. The session restore is validated."
+   },
+   {
+    "id": "WSEC-05",
+    "status": "fixed",
+    "note": "Deleted app.js, js/api.js, js/viewer.js, js/ui.js, js/orb.js, js/state.js and js/logger.js, removing the raw Kroki SVG sink and the code egress."
+   },
+   {
+    "id": "AUTO-08",
+    "status": "partial",
+    "note": "Duplicate ids are dropped with visible diagnostics, and a diagram_type mismatch (e.g. communication.json containing sequence) is flagged. The files are not hand-edited; regeneration is in handoffs."
+   },
+   {
+    "id": "AUTO-14",
+    "status": "fixed",
+    "note": "Dead modules deleted and the hand-copied DEFAULT_MANIFEST dropped; a manifest load failure is now reported. Lint CI and the test-script route list are in handoffs."
+   },
+   {
+    "id": "BENCH-15",
+    "status": "partial",
+    "note": "The UI discloses the engine, the parsed/eligible/listed counts, the budget and skip reasons. README wording is in handoffs."
+   },
+   {
+    "id": "SCALE-18",
+    "status": "partial",
+    "note": "True counts and measured time, parallel fetch, truncated-tree walk, rate-limit visibility, texture/hide-edges on viewport above 1,000 elements, zoom LOD, O(n²) BFS removed. WASM and tarball ingestion are not done."
+   },
+   {
+    "id": "SCPG-16",
+    "status": "skipped",
+    "note": "Exporter view scoping and budgets are Rust work (handoff)."
+   },
+   {
+    "id": "SRV-12",
+    "status": "partial",
+    "note": "Web side: CSP meta, crossorigin, no inline script. Server response headers are in handoffs; SRI is pending (see WSEC-02)."
+   },
+   {
+    "id": "WEB-09",
+    "status": "partial",
+    "note": "dagre and cytoscape-dagre removed, CDN scripts deferred, inline module externalised, CSP added, ignored cache metas removed. SRI, self-hosting and the cytoscape upgrade need downloads (handoff)."
+   },
+   {
+    "id": "WEB-10",
+    "status": "fixed",
+    "note": "graph-ir-validate.js checks shape, unique ids, dangling edges/parents, parent cycles and type mismatch. Every IR and state load is validated, and diagnostics are shown in a canvas notice. The state version is checked."
+   },
+   {
+    "id": "WEB-11",
+    "status": "fixed",
+    "note": "Delete undo captures descendants and all connected edges, re-added parents first. History is cleared on every load. Filters are re-applied via layer-hidden. String selectors replaced. Background tap clears the selection. Delete/arrows only act with canvas focus. Headline uses data.name."
+   },
+   {
+    "id": "WEB-12",
+    "status": "fixed",
+    "note": "Single-pass tokenizer emits text nodes (no nested-span corruption). DOM is built once per file and gutter clicks only toggle classes. No candidate-path storm. Superseded loads are aborted by request id plus AbortController."
+   },
+   {
+    "id": "WEB-13",
+    "status": "fixed",
+    "note": "Optional token kept in sessionStorage only, rate-limit headers with reset-time message, refs resolved via matching-refs, subPath honoured, truncated trees walked, per-segment encodeURIComponent, 6-wide pool. ZIP entries are streamed with byte caps plus entry/declared-size limits."
+   },
+   {
+    "id": "WEB-14",
+    "status": "fixed",
+    "note": "studio-store.js session model is replaced atomically on every import and persisted through the guarded storage.js (try/catch plus in-memory fallback). The '(Active Codebase)' sentinel is gone, GitHub and engine sessions persist too, and legacy keys are deleted."
+   },
+   {
+    "id": "WEB-15",
+    "status": "partial",
+    "note": "Added a polite live region, :focus-visible, an ARIA tree with roving tabindex, ARIA tabs, menus with aria-expanded and Escape, canvas-focus-only single-key shortcuts, N/Shift+N node traversal, skip link, reflow below 1024 px and reduced motion. The wheel no longer blocks the layers list. axe CI is not done."
+   },
+   {
+    "id": "WEB-16",
+    "status": "partial",
+    "note": "Zoom LOD class, texture/hide-edges for large graphs, uniform-grid hit index, scoped grab snapshots, loupe/minimap cache invalidation and debounced thumbnail refresh. WebGL/rbush and the perf suite are not done."
+   },
+   {
+    "id": "WSEC-06",
+    "status": "fixed",
+    "note": "main.js refuses to initialise when framed and shows a top-level link. frame-ancestors cannot work in a meta CSP, so the server header is in handoffs."
+   },
+   {
+    "id": "WSEC-08",
+    "status": "fixed",
+    "note": "The highlighter is replaced by a tokenizer that emits non-overlapping text-node spans."
+   },
+   {
+    "id": "AUTO-18",
+    "status": "partial",
+    "note": "crossorigin/referrerpolicy added and CSP pins exact script URLs. SRI hashes are in handoffs (they require downloading the files)."
+   },
+   {
+    "id": "AUTO-19",
+    "status": "skipped",
+    "note": "Deduplicating docs needs a deploy-workflow change (handoff)."
+   },
+   {
+    "id": "AUTO-20",
+    "status": "partial",
+    "note": "Removed the nonexistent example/payment-service preset and the inconsistent personal FractalAndroid preset; presets are now one table. Server, script and README paths are outside web/**."
+   },
+   {
+    "id": "BENCH-19",
+    "status": "skipped",
+    "note": "Measurement suite only (tests/benchmarks). The unverified 'zero overlap' and '100% collision-free' claims were removed from layout comments."
+   },
+   {
+    "id": "WSEC-07",
+    "status": "fixed",
+    "note": "Introduced the dom.js h()/replaceChildren helpers and converted every template-string innerHTML. Trusted Types enforcement makes raw string sinks throw."
+   }
+  ],
+  "files_changed": [
+   "D:\\Repos\\OpenHeart\\web\\index.html",
+   "D:\\Repos\\OpenHeart\\web\\style.css",
+   "D:\\Repos\\OpenHeart\\web\\js\\main.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\dom.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\storage.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\studio-store.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\graph-ir-validate.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\graph-export.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\analysis\\source-parser.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\analysis\\parser-worker.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\analysis\\parser-host.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\analysis\\model-builder.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\analysis\\ir-hash.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\github-engine.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\graph-canvas.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\graph-loader.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\editor.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\file-tree.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\minimap-navigator.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\icons.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\uml-layout.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\puml-parser.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\themes\\theme-manager.js",
+   "D:\\Repos\\OpenHeart\\web\\js\\themes\\index.js",
+   "D:\\Repos\\OpenHeart\\web\\app.js (deleted)",
+   "D:\\Repos\\OpenHeart\\web\\js\\api.js (deleted)",
+   "D:\\Repos\\OpenHeart\\web\\js\\logger.js (deleted)",
+   "D:\\Repos\\OpenHeart\\web\\js\\orb.js (deleted)",
+   "D:\\Repos\\OpenHeart\\web\\js\\state.js (deleted)",
+   "D:\\Repos\\OpenHeart\\web\\js\\ui.js (deleted)",
+   "D:\\Repos\\OpenHeart\\web\\js\\viewer.js (deleted)"
   ]
  }
 }

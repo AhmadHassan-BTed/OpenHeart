@@ -1,0 +1,990 @@
+[
+ {
+  "id": "MANDATE-CORE-ARCH-DOCS",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "critical",
+  "title": "Language-neutral, compiler-grade rewiring of your paths (no hard-coding, no templates)",
+  "files": [
+   "README.md"
+  ],
+  "evidence": "OpenHeart must support every language with language-agnostic algorithms, and must never hard-code, template or guess: it works the way compilers do, statically. New code is being written now (read what exists): src/lang (neutral.rs universal vocabulary, frontend.rs LanguageFrontend trait, registry.rs single list of languages, profile.rs, build/ for compile_commands, CMake and MSBuild, preprocess.rs, project_model.rs, uml_semantics.rs, idioms.rs, frontends java, kotlin, c, cpp, csharp); src/ir (typed three-address SSA IR with explicit memory operations, lowering from the AST, dominators); src/memory (abstract heap, field-sensitive points-to with on-the-fly call graph, escape, ownership, mod/ref); src/analysis (lattices, worklist solvers, SCCP, intervals, nullness, typestate, control dependence, IFDS/IDE, contexts, canonical branch conditions); src/derive (every diagram derived from those facts with provenance and a Derivation tag, NotDerivable instead of invention); src/symex (bounded static symbolic execution with a stack, heap and path-condition model producing execution traces); src/abi (C/C++ Itanium and MSVC, JVM and CLR memory layouts, lifetimes, calling conventions); src/arch (architecture recovery: dependency graph, DSM, layers, clustering, metrics, boundaries); src/memview (lifetime, ownership, heap-shape and stack-frame views plus memory-safety and data-race facts). Everything from the architectural flow down to memory-level execution must come from these facts, for every language, with semantics exactly per each language specification. Contract names: LangId::C, LangId::Cpp, LangId::CSharp; ASTNodeType additions NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_TEMPLATE_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_INCLUDE_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT, NN_YIELD_STMT.",
+  "impact": "Without this, OpenHeart stays Java-specific and heuristic instead of a universal, compiler-grade engine.",
+  "recommendation": "Document the language-neutral, compiler-grade architecture truthfully: which languages and phases each frontend supports, and that diagrams are derived from facts with explicit NotDerivable markers.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: Document: 'openheart server [--host] [--port] [--workspace] [--web-root] [--source-root] [--local-re",
+  "files": [
+   "README.md",
+   "docs/getting_started.md",
+   "docs/security-architecture.md",
+   "SECURITY.md"
+  ],
+  "evidence": "Document: 'openheart server [--host] [--port] [--workspace] [--web-root] [--source-root] [--local-repos] [--allow-clone|--no-clone]' and its 'serve' alias; 'openheart health'; the analyze options (--output, --include-tests, --no-ignore, --diagrams, --formats, --max-*); exit codes 0/1/2; loopback default bind with token login at /?token=; OPENHEART_CORS_ORIGINS and OPENHEART_ALLOWED_HOSTS; async jobs at /api/jobs/<id>; sessions at /api/sessions/<id>; run.json; the environment variables in .env.example. Remove OPENHEART_MAX_MEMORY_MB and the other unimplemented knobs. Correct the supported-version table",
+  "impact": "SRV-14, AUTO-07 and SRV-05: the docs describe the old CLI and server contract",
+  "recommendation": "Document: 'openheart server [--host] [--port] [--workspace] [--web-root] [--source-root] [--local-repos] [--allow-clone|--no-clone]' and its 'serve' alias; 'openheart health'; the analyze options (--output, --include-tests, --no-ignore, --diagrams, --formats, --max-*); exit codes 0/1/2; loopback default bind with token login at /?token=; OPENHEART_CORS_ORIGINS and OPENHEART_ALLOWED_HOSTS; async jobs at /api/jobs/<id>; sessions at /api/sessions/<id>; run.json; the environment variables in .env.example. Remove OPENHEART_MAX_MEMORY_MB and the other unimplemented knobs. Correct the supported-version table",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Lines 48, 56 and 64-91: say that the CFG, DFG, CDG, call graph and ROBDD views need the full artifac",
+  "files": [
+   "README.md"
+  ],
+  "evidence": "Lines 48, 56 and 64-91: say that the CFG, DFG, CDG, call graph and ROBDD views need the full artifact context; that deployment, use case and timing diagrams are reported as not statically derivable; and that XMI output is OMG XMI 2.5.1 / UML 2.5.1.",
+  "impact": "SCPG-01/UML-01/BENCH-17: these claims do not match the code.",
+  "recommendation": "Lines 48, 56 and 64-91: say that the CFG, DFG, CDG, call graph and ROBDD views need the full artifact context; that deployment, use case and timing diagrams are reported as not statically derivable; and that XMI output is OMG XMI 2.5.1 / UML 2.5.1.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_UML_1-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: Withdraw the 'F1 = 1.0000 across six languages' claim (README.md:60, overview.md:102-111) until it i",
+  "files": [
+   "README.md",
+   "docs/overview.md"
+  ],
+  "evidence": "Withdraw the 'F1 = 1.0000 across six languages' claim (README.md:60, overview.md:102-111) until it is re-measured; ruthless_config.json:59-92 no longer mirrors any engine filter.",
+  "impact": "BENCH-01: the engine-side shared denylist was removed.",
+  "recommendation": "Withdraw the 'F1 = 1.0000 across six languages' claim (README.md:60, overview.md:102-111) until it is re-measured; ruthless_config.json:59-92 no longer mirrors any engine filter.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_UML_1-13",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: Correct the claims about IFDS type-state state machines and thread-analysis timing diagrams (paper l",
+  "files": [
+   "docs/openheart_research_paper.tex",
+   "ROADMAP.md"
+  ],
+  "evidence": "Correct the claims about IFDS type-state state machines and thread-analysis timing diagrams (paper lines 811-812 and 1158-1162, ROADMAP line 107): state machines come from enum-field assignments with guards, and timing/deployment diagrams are not produced.",
+  "impact": "UML-03: the claims do not match the implementation.",
+  "recommendation": "Correct the claims about IFDS type-state state machines and thread-analysis timing diagrams (paper lines 811-812 and 1158-1162, ROADMAP line 107): state machines come from enum-field assignments with guards, and timing/deployment diagrams are not produced.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-19",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Update the claims to match the code: exact Ball-Larus counting with loops flagged, sifting on the fi",
+  "files": [
+   "docs/openheart_research_paper.tex",
+   "docs/plans/phase8.md",
+   "docs/traceability_and_incremental.md",
+   "README.md"
+  ],
+  "evidence": "Update the claims to match the code: exact Ball-Larus counting with loops flagged, sifting on the final ROBDD, budgets and degradation, SHA-256 hash chain plus per-entity digests, O(log N + depth) forward queries and O(1) uml_link, PSA/TRA format v2, no interprocedural composition or recursion unwinding.",
+  "impact": "Several published claims (BDD-06, BDD-07, BDD-10, BDD-12) were false before this change; docs are outside my paths.",
+  "recommendation": "Update the claims to match the code: exact Ball-Larus counting with loops flagged, sifting on the final ROBDD, budgets and degradation, SHA-256 hash chain plus per-entity digests, O(log N + depth) forward queries and O(1) uml_link, PSA/TRA format v2, no interprocedural composition or recursion unwinding.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (P",
+  "files": [
+   "README.md",
+   "docs/succinct_structures.md",
+   "docs/overview.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
+  "impact": "CORE-01/AUTO-05/BENCH-02/BENCH-03/CORE-04.",
+  "recommendation": "Narrow language claims to: Java (all phases), JavaScript (Phases 1-2 via generic adapter), Kotlin (Phase 1 lexical only until a grammar adapter is registered); drop the 128x / 4.65 MB per 1M nodes figures and quote BPASTArtifact::memory_usage() measurements; server.rs:84 supported-languages list accordingly.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-13",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Line 100 and the related claims in docs/architecture.md and the paper: replace 'IFDS Solver' with 's",
+  "files": [
+   "README.md"
+  ],
+  "evidence": "Line 100 and the related claims in docs/architecture.md and the paper: replace 'IFDS Solver' with 'sparse intraprocedural SSA data-flow (taint, may-be-null, resource state)'. Describe points-to as 'Andersen, CHA/RTA-seeded, field-sensitive, no cycle collapsing'.",
+  "impact": "BENCH-08 / FLOW-10: claims should match what the code computes.",
+  "recommendation": "Line 100 and the related claims in docs/architecture.md and the paper: replace 'IFDS Solver' with 'sparse intraprocedural SSA data-flow (taint, may-be-null, resource state)'. Describe points-to as 'Andersen, CHA/RTA-seeded, field-sensitive, no cycle collapsing'.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD2-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Entry constraint via restrict doubles every function's sat_count",
+  "files": [
+   "src/psa/construction/mod.rs:89-97",
+   "src/psa/construction/mod.rs:106-109",
+   "src/psa/bdd/restrict.rs:8-12",
+   "docs/plans/phase8.md:133"
+  ],
+  "evidence": "Step 5 replaces f_paths with f|entry=1, which no longer mentions entry_var, but Step 8 still counts over ordering.n_vars(), so the dropped variable counts as free (x2). In a brute-force model of the exact encoding, straight-line ENTRY->B->EXIT gives 2 (true value 1). The entry edge is reached, so this survives a fix for BDD-02. restrict.rs and phase8.md even claim the step 'halves the search space'.",
+  "impact": "Every function reports at least twice its real path count, so the sat_count==0 diagnostic is meaningless.",
+  "recommendation": "Conjoin f_paths AND x_entry instead of restricting, or count over n_vars-1 with the restricted variable removed. Correct the 'halves' comments. Unit test: a straight-line method must give sat_count == 1.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Exit constraint is missing; loops are encoded as self-consistent cycles",
+  "files": [
+   "src/psa/construction/constraints.rs:7",
+   "src/psa/construction/constraints.rs:52-54",
+   "src/psa/construction/mod.rs:81-97",
+   "docs/plans/phase8.md:135"
+  ],
+  "evidence": "phase8.md:135 requires 'at least one edge into EXIT is taken'. The code sets Phi_EXIT=TRUE and adds no exit clause. In a model of simpleLoop (7 edges), the assignment (1,1,1,1,1,0,0) enters the loop forever and never reaches EXIT, yet satisfies f_paths. Loop iteration counts cannot be represented. Unlike BDD-02, every block in that assignment is entered and constrained.",
+  "impact": "Every function with a loop counts non-terminating pseudo-paths, so sat_count has no defined meaning there.",
+  "recommendation": "Add the exit constraint and define loop semantics explicitly: for example, count acyclic paths with LoopBack edges cut (Ball-Larus), or use an acyclic ordering encoding. Test: a for-loop method yields 2 acyclic paths.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: State the minimum Rust version as 1.88 (matching rust-version in Cargo.toml) instead of 1.75. Docume",
+  "files": [
+   "README.md:7",
+   "docs/getting_started.md:19",
+   "docs/contributing.md"
+  ],
+  "evidence": "State the minimum Rust version as 1.88 (matching rust-version in Cargo.toml) instead of 1.75. Document the new make targets (ci, msrv, lint, doc, coverage, miri, asan, deny, dist, docker-smoke). Replace the static CI badge with the workflow status badge.",
+  "impact": "AUTO-07/ENG-10/BENCH-14: the docs disagree with the declared MSRV and the actual gates.",
+  "recommendation": "State the minimum Rust version as 1.88 (matching rust-version in Cargo.toml) instead of 1.75. Document the new make targets (ci, msrv, lint, doc, coverage, miri, asan, deny, dist, docker-smoke). Replace the static CI badge with the workflow status badge.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Align the released and supported versions with Cargo.toml version 0.1.0 (no tag exists yet), instead",
+  "files": [
+   "CHANGELOG.md:10",
+   "SECURITY.md:9-13"
+  ],
+  "evidence": "Align the released and supported versions with Cargo.toml version 0.1.0 (no tag exists yet), instead of 2.0.0 and 1.1.x/1.0.x.",
+  "impact": "ENG-13: version numbers disagree across files.",
+  "recommendation": "Align the released and supported versions with Cargo.toml version 0.1.0 (no tag exists yet), instead of 2.0.0 and 1.1.x/1.0.x.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-21",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and t",
+  "files": [
+   "README.md",
+   "docs/succinct_structures.md",
+   "docs/overview.md",
+   "benches/ (new)",
+   "Makefile follow-up"
+  ],
+  "evidence": "Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and the integration-test count. Publish a benchmark manifest (URL, commit SHA, licence) and committed results JSON. Add criterion benches. Once benches/ exists, a `make bench` target can be added in the Makefile.",
+  "impact": "FIT-15: no benchmark harness exists yet to back a bench target; .gitignore does not block committing the manifest or results.",
+  "recommendation": "Replace the static CI badge with the workflow status badge. Correct 128x to the measured ratio and the integration-test count. Publish a benchmark manifest (URL, commit SHA, licence) and committed results JSON. Add criterion benches. Once benches/ exists, a `make bench` target can be added in the Makefile.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-22",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (",
+  "files": [
+   "README.md",
+   "CHANGELOG.md",
+   "docs/architecture.md",
+   "docs/codebase-guide.md",
+   "ruthless_config.json",
+   "docs/assets/scpg_overview.svg"
+  ],
+  "evidence": "Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (02 and 05 currently disagree). Regenerate the hero SVG figures (CSR ratio, diagram count) from the same data.",
+  "impact": "ENG2-52.",
+  "recommendation": "Call the viewer a 'source viewer' instead of Monaco. Take the diagram numbering from manifest.json (02 and 05 currently disagree). Regenerate the hero SVG figures (CSR ratio, diagram count) from the same data.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: Describe the browser mode as approximate declaration extraction over a bounded sample (class and pac",
+  "files": [
+   "README.md"
+  ],
+  "evidence": "Describe the browser mode as approximate declaration extraction over a bounded sample (class and package views only; other views need the Rust engine). Remove the 'client-side AST parsing', 19-in-browser-projections and Kroki rendering claims.",
+  "impact": "BENCH-15, SCALE-18 and WEB-02.",
+  "recommendation": "Describe the browser mode as approximate declaration extraction over a bounded sample (class and package views only; other views need the Rust engine). Remove the 'client-side AST parsing', 19-in-browser-projections and Kroki rendering claims.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-5",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: When the server-side env readers (src/adapters/runner.rs, security.rs) are compiled in, add their va",
+  "files": [
+   "docs/status.md (docs owner",
+   "next pass)"
+  ],
+  "evidence": "When the server-side env readers (src/adapters/runner.rs, security.rs) are compiled in, add their variables to §8. When any fix lands with an expected-result test, update its row in §4/§5/§6, the matching README status rows and the ROADMAP item. Rows are anchored to audited baseline fc218cd until then",
+  "impact": "The status rule (ADR-010). About 177 source files are being changed in parallel, so rows record the baseline until each fix is proven",
+  "recommendation": "When the server-side env readers (src/adapters/runner.rs, security.rs) are compiled in, add their variables to §8. When any fix lands with an expected-result test, update its row in §4/§5/§6, the matching README status rows and the ROADMAP item. Rows are anchored to audited baseline fc218cd until then",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-07",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "The tca_hash link and Phase 2 invariants 2-5 are documented as enforced but never checked",
+  "files": [
+   "src/ast/builder.rs:179-207",
+   "src/ast/serializer.rs:31",
+   "src/ast/serializer.rs:114",
+   "src/symbol/serializer.rs:41-43",
+   "docs/plans/phase2_ast_reduction_spec.md:1014-1024"
+  ],
+  "evidence": "The spec says finalize() enforces Invariants 1-5 and that Phase 3 rejects a mismatched (TCA, BPA) pair. finalize() asserts only Invariant 1. No code compares bpa.tca_hash with the CRC of the .tca: symbol/serializer.rs:42-43 recomputes the CRCs but only stores them. The 'hash' is also a CRC-64, which is not collision-resistant.",
+  "impact": "A stale or foreign .bpa paired with a different .tca is accepted silently, giving misattributed tokens and symbols.",
+  "recommendation": "Verify bpa.tca_hash in Phase 3 and in the server, and fail with a clear error. Check Invariants 2-4 in debug builds or tests, consider SHA-256 for provenance links, and correct the spec.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-14",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "select1 scans bit by bit and is O(n) for absent ranks; every navigation call pays this despite the O(1) claims",
+  "files": [
+   "src/ast/rank_select.rs:1",
+   "src/ast/rank_select.rs:62-109",
+   "src/ast/builder.rs:58-121",
+   "src/ast/rmq.rs:80-86",
+   "docs/succinct_structures.md:26",
+   "docs/ast/phase2_bp_architecture.html:219"
+  ],
+  "evidence": "select1 binary-searches the superblocks, then loops over positions to bit_count calling bounds-checked get_bit for each bit (512 or more iterations), and scans to the end when the rank is missing. rank1 also builds its partial byte one bit at a time. first_child, next_sibling, subtree_size, is_leaf, depth and lca all start with a select1 call. This differs from CORE-06, which covers correctness.",
+  "impact": "CFG and symbol traversals do hundreds of bit probes per step, far from the documented O(1) navigation.",
+  "recommendation": "Store an open_pos[preorder] array or a sampled select index, use word popcount and broadword select, and correct the complexity claims in the docs.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "generate_diagrams.py looks for its config in scripts/ and silently writes zero diagrams",
+  "files": [
+   "scripts/generate_diagrams.py",
+   "CHANGELOG.md"
+  ],
+  "evidence": "Line 62 builds cfg_path from os.path.dirname(__file__), which is scripts/, but ruthless_config.json lives at the repo root. exists() is False, so diagram_mapping=[] (67), the loop at 73 writes nothing, and the script prints 'Saved 0' and exits 0. CHANGELOG.md:33 advertises 14 .puml files. The hint at 45 names ./restart_server.sh, which is actually in scripts/.",
+  "impact": "The documented diagram generator never produces output and still reports success.",
+  "recommendation": "Resolve Path(__file__).resolve().parents[1]/'ruthless_config.json'. Exit non-zero when the config is missing or no diagram is saved. Fix the hint path.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-16",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Unseeded FNV-1a with low-bit indexing makes string interning hash-floodable",
+  "files": [
+   "docs/technical-decisions.md",
+   "src/ingestion/interner.rs"
+  ],
+  "evidence": "ADR-001 (technical-decisions.md:9-13) picks FNV-1a over SipHash and lists 'avalanche-free distribution' as a benefit. interner.rs:53 uses slot = hash & mask with linear probing (70). FNV-1a's low k bits depend only on the low k bits of state and input, so low-bit multicollisions can be chained cheaply. The server analyses arbitrary repos (AUTO-02).",
+  "impact": "A crafted repository can make interning quadratic, a CPU denial of service against the server.",
+  "recommendation": "Use a randomly keyed hash (SipHash-1-3, ahash or foldhash) for the table, and keep FNV only where a stable persisted hash is needed. Correct the ADR rationale and add a collision stress test.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "ENG2-17",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "security-architecture.md has no threat model for the server, git clone or web studio",
+  "files": [
+   "docs/security-architecture.md",
+   "src/adapters/server.rs",
+   "src/adapters/web_repo.rs"
+  ],
+  "evidence": "The document (1-34) covers only Phase 1 ingestion, hashing and bounds. It never mentions the HTTP server binding all interfaces, /api/source file serving, CORS, cloning user-supplied URLs, request or clone limits, or the studio's GitHub calls. AUTO-01 and AUTO-02 report the code defects; this finding is the missing design document.",
+  "impact": "Deployers cannot tell what is safe to expose, and reviewers have no stated trust boundaries.",
+  "recommendation": "Add a threat model covering assets, trust boundaries, default bind address, authentication, request and clone limits, clone sandboxing and a file-access allowlist. Link it from SECURITY.md.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-18",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "The 12 HTML specs under docs/ are chat-widget fragments that break when opened standalone",
+  "files": [
+   "docs/plans/phase8_robdd_path_summaries.html",
+   "docs/plans/phase3_symbol_table_architecture.html",
+   "docs/architecture/scpg_architecture_diagram.html",
+   "docs/ast/phase2_bp_architecture.html",
+   "docs/ingestion/phase1_architecture_and_bit_layout.html",
+   "docs/pipeline/openheart_10_phase_pipeline.html",
+   "docs/README.md"
+  ],
+  "evidence": "None of the files has a doctype, html element or charset. Each starts with a style block that uses host CSS variables (var(--surface-1), --border, --text-primary) defined nowhere. Buttons call sendPrompt('...') (e.g. phase8:299-301; 6-23 calls per file), a chat-host function that does not exist, so each click throws a ReferenceError. No index links these files. AUTO-19 covers their duplication only.",
+  "impact": "About half the visual design docs render unstyled and have dead controls.",
+  "recommendation": "Convert them to standalone pages with a doctype, charset and defined tokens. Replace sendPrompt with anchors or static text. Index them in docs/README.md, or export them to SVG or Markdown.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-19",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "The research paper cannot compile because its bibliography file is missing",
+  "files": [
+   "docs/openheart_research_paper.tex"
+  ],
+  "evidence": "Lines 1397-1398 use \\bibliography{openheart}, but no .bib file is tracked. A scripted check found 26 cite keys (cytron91, bryant86, reps95, munroraman97 and others) with no source, so every citation renders as [?]. amssymb is loaded twice (4, 16), and the author block is a redaction placeholder (80-82).",
+  "impact": "The paper cannot be built or reviewed as committed.",
+  "recommendation": "Commit openheart.bib (or inline a thebibliography block) and add a latexmk CI job that fails on undefined citations.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-20",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "The paper's Limitations section cites mitigations the code does not implement",
+  "files": [
+   "docs/openheart_research_paper.tex",
+   "src/psa/construction/recursive.rs",
+   "src/core/types/cg.rs"
+  ],
+  "evidence": "tex:1311-1314 claims non-series-parallel CFGs get k<=3 unwinding via Valdes SP recognition. No SP recognizer exists, and RecursiveHandler::apply returns f_paths unchanged (recursive.rs:26-28), for recursion only. tex:1320-1324 says reflective sites are tagged CG_Reflection, but CG_EDGE_REFLECTION (cg.rs:13) is unused. tex:1391 calls a full implementation 'future work'. 'Anderson' (785, 1317) should be Andersen.",
+  "impact": "The stated soundness boundaries are fictional, which overstates where the theorems apply.",
+  "recommendation": "Implement SP detection and reflection tagging, or rewrite Limitations to match the code. Reconcile the paper's status with the README and fix the author name.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-35",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Security doc presents CRC-64 and SHA-256 as tamper protection",
+  "files": [
+   "docs/security-architecture.md",
+   "src/ingestion/serializer.rs",
+   "src/ingestion/mod.rs"
+  ],
+  "evidence": "docs/security-architecture.md:16-20 titles the section 'Tamper Protection', but CRC-64 is unkeyed and anyone can recompute it. The stored SHA-256 digests are written (serializer.rs:77, 109) but never re-verified. Ingestion also hashes one read of each file and tokenizes a second read (mod.rs:53, 111). Differs from SRV-14.",
+  "impact": "Users may treat artifacts as tamper-evident when they only detect accidental corruption.",
+  "recommendation": "Reword the section as corruption detection, or add an HMAC or signature and verify source hashes on load. Hash and tokenize the same buffer.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-36",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Security docs omit the network-facing server and clone path",
+  "files": [
+   "docs/security-architecture.md",
+   "SECURITY.md"
+  ],
+  "evidence": "docs/security-architecture.md:9-34 covers only ingestion, hashing and bounds, and line 33 says there are no local path assumptions, although server.rs:119-214 hard-codes paths. SECURITY.md:26 lists only the parser, interner and tree-sitter as components. Binding, CORS, authentication, git cloning and cache storage are not documented.",
+  "impact": "Operators have no guidance on the most exposed attack surface, and reporters may treat it as out of scope.",
+  "recommendation": "Add a threat model for the HTTP server and clone adapter (trust boundaries, defaults, hardening, safe deployment) and list both as in-scope components.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD2-09",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Most TRA content is write-only: no tau/tau^-1 API and no per-layer forward indexes",
+  "files": [
+   "src/tra/types.rs:5-20",
+   "src/tra/builder.rs:33-41",
+   "src/tra/forward/sym_span.rs:50-54",
+   "src/scpg/serializer/mod.rs:63-67",
+   "docs/plans/phase7.md:53-65"
+  ],
+  "evidence": "Nothing outside src/tra reads bi_ast, bi_blk, bi_ssa, bi_cs or cs_span (main.rs only prints their lengths). LayerKind and EntityRef are never used. Only symbol and call-site spans exist, although §7.2.2 specifies one span index per layer. Queries need a token_id plus a redundant file_id (a mismatch silently returns nothing), and there is no (file, line, col) entry point. The SCPG Traceability section stores only a count.",
+  "impact": "The six-layer bidirectional traceability cannot be queried; the .tra file mostly costs build time and disk space.",
+  "recommendation": "Add a TraceabilityIndex API with to_source(EntityRef) and from_source(file, line, col) -> Vec<EntityRef>, backed by per-layer interval indexes. Embed it in the SCPG, or drop the unused sections.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-16",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Project symbols never get fully qualified names",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs:160-181",
+   "src/symbol/qual_name_table.rs:5-38",
+   "src/symbol/builder.rs:31-32",
+   "docs/plans/phase3.md:97"
+  ],
+  "evidence": "qual_name_id stays u32::MAX for every AST and swept symbol; only externals and stubs are interned, and package paths live separately in custom_package_names. No `com.example.Foo`, `Outer.Inner` or method signature exists anywhere in .sta, contrary to phase3.md:97. QualifiedNameTable stores each string twice and has no lookup that does not intern. SYM-14 covers positional ids; this is the missing FQN.",
+  "impact": "There is no stable FQN identity for cross-file resolution, de-duplication, cross-run diffs or benchmark comparison.",
+  "recommendation": "After package linking, compute FQNs (package + enclosing types + name, plus a parameter-type descriptor for methods) and intern them. Add lookup_id(&str) -> Option<u32> and store each string once. Test the FQN of a nested class.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-21",
+  "kind": "enhancement",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "The documented annotation table and UML metadata section do not exist, and annotations are never recorded",
+  "files": [
+   "src/symbol/serializer.rs:77-195",
+   "src/core/types/symbol.rs:111",
+   "docs/plans/phase3.md:15",
+   "docs/plans/phase3.md:591-594"
+  ],
+  "evidence": "phase3.md lists a UML METADATA section and a per-symbol ANNOTATION TABLE in .sta, with uml_meta_offset pointing into it. The serializer writes neither, and uml_meta_offset is always 0. No pass records which annotations (@Override, @Entity, @Autowired, @Nonnull) a declaration carries, which is why Pass 1 relies on hardcoded annotation-name lists.",
+  "impact": "Framework-aware analysis (Spring/JPA stereotypes, @Override checks, nullability for composition) has no data to work from.",
+  "recommendation": "Resolve the NN_ANNOTATION_USE children of declarations in Pass 3 and store (symbol, annotation type, argument summary) records with an offset index. Serialize them, and either populate uml_meta_offset or remove it from the spec.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-22",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Phase 3 produces no resolution diagnostics",
+  "files": [
+   "src/symbol/passes/pass3_types.rs:86-89",
+   "src/symbol/builder.rs:224-229",
+   "src/symbol/passes/pass1_discovery.rs:372-411",
+   "docs/plans/phase3.md:675"
+  ],
+  "evidence": "Unresolved names silently become SK_EXTERNAL, cycle edges are silently deleted, and sweep conflicts are silently skipped. .sta has no diagnostics section, even though phase3.md:675 says cycles are reported as diagnostics. The only trace is console logging.",
+  "impact": "Users cannot see what failed to resolve, so resolution accuracy can be neither measured nor improved.",
+  "recommendation": "Collect structured diagnostics in the builder (unresolved reference with its node, ambiguous name, removed hierarchy edge, duplicate FQN, sweep conflict), serialize them, and print summary counts.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-48",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Phases 1 and 2 have no incremental path, although hashes are recorded and the docs promise one",
+  "files": [
+   "src/ingestion/parser/tree_sitter.rs:22",
+   "src/ingestion/mod.rs:56-67",
+   "src/ast/builder.rs:124-141",
+   "docs/traceability_and_incremental.md:41-90"
+  ],
+  "evidence": "Per-file SHA-256 hashes and mtimes are stored but never compared. parse(source, None) never reuses an old tree or applies an InputEdit. Token ids and preorder indices form one global space with no per-file segments, so any edit renumbers everything. The docs describe incremental CST parsing and BP excision and insertion.",
+  "impact": "Every change re-ingests and re-encodes the whole project, so IDE-style synchronization is impossible.",
+  "recommendation": "Segment the corpus and the BP per file (file-local ids plus offset tables), skip files whose SHA-256 is unchanged, and keep per-file trees so tree-sitter can reparse incrementally.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD2-17",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "Canonicity check omits ordering and child validity, and runs only in debug builds as a panic",
+  "files": [
+   "src/psa/bdd/mod.rs:139-163",
+   "src/psa/construction/mod.rs:125-134",
+   "tests/psa_tests.rs:129-146",
+   "docs/plans/phase8.md:533"
+  ],
+  "evidence": "verify_canonicity only checks lo != hi and that each (var, lo, hi) is unique. It does not check that var(child) > var(node), that lo/hi < len, or that ids 0 and 1 are the terminals. It runs only under cfg(debug_assertions) and uses panic!, so release builds never check. The BDDLibrary::finalize() named in the spec does not exist, and psa_tests repeats the same partial check.",
+  "impact": "Ordering violations (from a future sifting fix or a crafted .psa) pass the check; debug builds abort the pipeline.",
+  "recommendation": "Add ordering and child-range checks, return a Result or diagnostic instead of panicking, and also run the check on deserialized PSA files.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD2-34",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "UML kind list is duplicated, and Invariant 2 is a count tautology that can panic",
+  "files": [
+   "src/tra/builder.rs:74-95",
+   "src/tra/uml_link/mod.rs:22-37",
+   "src/tra/builder.rs:134",
+   "docs/plans/phase7.md:525"
+  ],
+  "evidence": "The same nine-kind array is defined in both builder.rs and uml_link/mod.rs. Invariant 2 compares two counts produced by the same filter, so it can only fail when the copies diverge, and then assert_eq! aborts. The spec lists seven kinds. The success log says 'Invariants 1-4 asserted', but Invariant 1 is vacuous and Invariant 4 checks only the first 5% of symbols.",
+  "impact": "Adding a kind in only one place crashes Phase 7, while the invariant verifies nothing.",
+  "recommendation": "Define a single UML_KINDS constant, check for each symbol that a link with a valid range exists, report diagnostics, and make the log accurate.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-26",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "verify_invariants skips range and link checks and the BPA/TCA hash link",
+  "files": [
+   "src/symbol/builder.rs:256-309",
+   "src/symbol/builder.rs:350-354",
+   "src/symbol/mod.rs:75-82",
+   "docs/plans/phase3.md:673-677"
+  ],
+  "evidence": "Nothing checks that bpa.tca_hash equals the CRC-64 of tca_bytes, which phase3.md documents as Invariant 4. Invariant 5 checks only that first_token_id is below the token count; it does not check last_token_id, first ≤ last, decl_node, or link and type ids. Invariant 2 covers only methods and fields, and only that the parent is set, not that it is class-like as documented. This goes beyond SYM-16's repair-before-verify point.",
+  "impact": "Mismatched inputs and dangling links pass verification and reach later phases.",
+  "recommendation": "In Phase3Stage::run, compare bpa.tca_hash with the hash of tca_bytes. Extend Invariant 5 to full range and ordering checks, validate every link field and the parent kinds required by phase3.md:673, and collect all violations rather than stopping at the first.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-28",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Pass 2 has no handling for static imports or import aliases",
+  "files": [
+   "src/symbol/passes/pass2_imports.rs:1-2",
+   "src/symbol/passes/pass2_imports.rs:28-43",
+   "docs/plans/phase3.md:364"
+  ],
+  "evidence": "The module doc and phase3.md promise a separate map for static imports. Instead, `import static a.B.c;` is treated as a type import with \"static\" left inside the qualified name, `import static a.B.*` becomes a wildcard package \"static a . B\", and Kotlin `import a.B as C` keeps \"as C\" in the simple name. This differs from SYM-01, which covers imports never reaching Pass 2 and the spacing bug.",
+  "impact": "Once imports reach Pass 2, static members and Kotlin aliases will resolve to bogus type mappings.",
+  "recommendation": "Parse imports structurally from tokens, not from a joined string: record a static flag, an on-demand flag and any alias in a per-file import table, with a separate map for static members.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-18",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "Phase 2 uses positions in the sorted forward index as token ids",
+  "files": [
+   "src/ast/reducer.rs:95-116",
+   "src/ast/mod.rs:107-127",
+   "docs/plans/phase2_ast_reduction_spec.md:656"
+  ],
+  "evidence": "Phase 2 reads Section 4, the forward table ordered by sort_key, and tok_table_lookup returns the binary-search index as the token id. Phase 1 token ids follow allocation order (SourceFileRecord.first_token_id and Section 5). The two coincide only while push order is already sorted, a dependency the spec itself admits.",
+  "impact": "Any change to Phase 1 ordering, such as parallel ingestion or column wrap, silently desynchronizes AST token ranges from file token ranges.",
+  "recommendation": "Resolve through the backward index and return the entry's token_id, or assert in finalize() that forward and backward order match, then drop the duplicate array.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "CORE2-22",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "TCA read() discards the filter flags, source-tree hash and timestamp; the tree hash ignores paths",
+  "files": [
+   "src/ingestion/serializer.rs:56-62",
+   "src/ingestion/serializer.rs:215-217",
+   "src/ingestion/mod.rs:92-97",
+   "src/ingestion/mod.rs:176-179",
+   "docs/plans/phase1_ingestion_spec.md:640"
+  ],
+  "evidence": "read() binds _flags, _hash and _mtime (which is really the creation timestamp) and drops them, and the artifact has no fields to hold them. source_tree_hash hashes the per-file digests in path order without the paths themselves, so a rename that keeps the order goes unnoticed. The spec says SHA-256(sorted(...)) and promises LZ4 compression; neither is implemented.",
+  "impact": "A reloaded corpus cannot be checked against its sources or its token filter, which blocks staleness checks.",
+  "recommendation": "Store the filter, tree hash and timestamp in the artifact, include normalized paths in the tree hash, and align the spec with the code.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-41",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": ".gitignore negations never apply and several patterns over-match",
+  "files": [
+   ".gitignore",
+   "examples/README.md"
+  ],
+  "evidence": "'.vscode/' (92) excludes the whole directory, so the negations at 93-96 have no effect (git check-ignore confirms settings.json is ignored). 'sample_codebase/*' (61) ignores the tracked fixture directory, and the .gitkeep it re-includes does not exist. Unanchored build/, dist/, env/ and out/ (18-19, 34-35, 53) match nested directories. The output directories from examples/README are not ignored.",
+  "impact": "Shared editor settings and new fixtures cannot be committed, and generated output pollutes git status.",
+  "recommendation": "Use '.vscode/*', anchor root-only patterns with '/', drop the sample_codebase rule, and add output_*/.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-42",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "security-architecture.md calls CRC-64 tamper protection and misstates the interner bounds",
+  "files": [
+   "docs/security-architecture.md",
+   "src/ingestion/interner.rs",
+   "src/ingestion/mod.rs"
+  ],
+  "evidence": "Lines 16-20 present CRC-64 as 'Tamper Protection', but an attacker can simply recompute a CRC, and the SHA-256 digests written in ingestion/mod.rs:56-97 are never re-verified. Line 27 says u16 lengths prevent unbounded allocation. In fact interner.rs:99 truncates tokens over 64 KiB and line 67 then never matches them, so each occurrence is stored again. ENG-17 covered only lines 11-12, 26 and 34.",
+  "impact": "Readers assume tamper evidence that does not exist, and long tokens bloat storage.",
+  "recommendation": "Call it corruption detection or add a keyed MAC. Verify the SHA-256 digests on load. Store full token text or reject oversize tokens explicitly.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-43",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "README and codebase-guide list artifact magic headers that do not exist",
+  "files": [
+   "README.md",
+   "docs/codebase-guide.md",
+   "src/core/io/binary.rs",
+   "src/ingestion/serializer.rs",
+   "docs/plans/phase2_ast_reduction_spec.md"
+  ],
+  "evidence": "README.md:113-124 and codebase-guide.md:272-283 list TCA\\0, BPA\\0, SSA\\0 and so on. The code uses 'TOKCORP\\x01', b'BPAST\\0\\x01\\0', 'SSA1', b'OPENHPSA' and b'OPENHUMA'. u64 magics are written little-endian (binary.rs:40-41), so the STA, CFA, CGA and TCA bytes appear reversed on disk. CFA_MAGIC contains '0' where its comment says \\0, and phase2 spec:946 shows a 15-digit hex magic.",
+  "impact": "Anyone who writes a reader or file-type detector from these docs gets it wrong.",
+  "recommendation": "Define magics as byte arrays written verbatim, generate the table from the constants, and fix the source comments.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-44",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "Docs claim CRC-64 on all ten artifacts, but .scpg uses CRC-32 and inspect skips verification",
+  "files": [
+   "README.md",
+   "docs/plans/10_phase_pipeline_overview.md",
+   "src/main.rs",
+   "src/scpg/serializer/mod.rs"
+  ],
+  "evidence": "README.md:59 says all 10 phases produce CRC-64 verified artifacts, and 10_phase_pipeline_overview.md:85 says Phase 10 verifies CRC-64. The .scpg writer uses per-section CRC-32 (serializer/mod.rs:22, 111). 'inspect' on a .scpg prints 'SYSTEM PRODUCTION READY' without checking any checksum (main.rs:469-474). The help text (main.rs:56) lists 6 inspectable types, although inspect handles 10.",
+  "impact": "Integrity guarantees are overstated, and the inspect output is misleading.",
+  "recommendation": "Verify the section CRCs in inspect, print a factual status, and correct the docs and help text.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-45",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Docs give contradictory token and traceability record layouts",
+  "files": [
+   "CHANGELOG.md",
+   "docs/traceability_and_incremental.md",
+   "docs/succinct_structures.md",
+   "src/core/types/token.rs",
+   "src/tra/types.rs"
+  ],
+  "evidence": "CHANGELOG.md:53 describes the sort_key as 48/24/8 bits, which is 80 bits in a u64; the code packs 16/24/16 plus a reserved byte (token.rs:121-124). traceability:29 calls the key u48, and line 36 gives a '10-byte' backward-index entry whose fields sum to 9 bytes (the real entry is 16). succinct_structures.md:121-122 says 12 and 10 bytes, where both are 16. The UMLLink struct in traceability:57-68 does not match tra/types.rs:99-109.",
+  "impact": "Contributors who write readers or review invariants work from wrong layouts.",
+  "recommendation": "Keep one layout reference generated from the const asserts and link every doc to it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-46",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "The 'cache-line aligned' TokenRecord and 'hardware-friendly' CRC claims are inaccurate",
+  "files": [
+   "docs/technical-decisions.md",
+   "CHANGELOG.md",
+   "docs/overview.md",
+   "src/core/types/token.rs",
+   "src/ingestion/serializer.rs"
+  ],
+  "evidence": "ADR-003 (technical-decisions.md:25-29), CHANGELOG.md:50 and overview.md:9 call the 16-byte TokenRecord cache-line aligned. It is repr(C) with 8-byte alignment (token.rs:136-145), and the .tca token table is only 8-byte aligned, so a record can straddle two cache lines. ADR-004 (33-37) calls the CRC 'fast hardware-friendly', but crc64_ecma is a bit-at-a-time loop (serializer.rs:16-29).",
+  "impact": "The ADRs' performance rationale does not describe the actual implementation.",
+  "recommendation": "Use #[repr(C, align(16))] with 64-byte section alignment, or reword the claim. Switch to a table-driven (slicing-by-8) CRC.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-47",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "overview.md and architecture.md define the layers as both disjoint and strict subsets",
+  "files": [
+   "docs/overview.md",
+   "docs/architecture.md",
+   "docs/traceability_and_incremental.md",
+   "docs/openheart_research_paper.tex"
+  ],
+  "evidence": "overview.md:37-51 and architecture.md:35-56 define V as a disjoint union of five layers and then assert V_tok ⊂ V_syn ⊂ V_bb ⊂ V_sym. That is impossible for disjoint non-empty sets, V_ssa is left out, and the docs derive O(1) projection from it. The paper's caption (tex:485-491) reinterprets ⊂ as 'anchored'. traceability:17-20 also mislabels phases 3, 4 and 5.",
+  "impact": "The formal model is self-contradictory as written.",
+  "recommendation": "Replace the subset chain with anchoring functions into token ranges, state the O(1) claim as a property of the stored arrays, and fix the phase labels.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-48",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "architecture.md lists ROBDD and BP operations that do not exist",
+  "files": [
+   "docs/architecture.md",
+   "docs/succinct_structures.md",
+   "src/psa/bdd/node.rs",
+   "src/ast/builder.rs"
+  ],
+  "evidence": "architecture.md:119 says the ROBDD layer uses complement edges, but ROBDDNode (node.rs:44-58) has no complement bit; flag bits 2-15 are reserved. architecture.md:106 and succinct_structures.md:32-34 promise O(1) findopen, findclose and enclose over the BP bitstring. No such primitives exist, and first_child and next_sibling live on the builder's arrays (builder.rs:58-71).",
+  "impact": "Readers credit the engine with algorithms it does not have.",
+  "recommendation": "Remove these claims, or implement the operations with tests.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-49",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "succinct_structures.md uses the wrong probe-count formula and a wrong baseline size",
+  "files": [
+   "docs/succinct_structures.md"
+  ],
+  "evidence": "Line 81 gives E[probes] = 1/(1-α) = 4 for linear probing at α = 0.75, but that is the uniform-hashing bound. Knuth's linear-probing costs at that load are about 2.5 probes for a hit and 8.5 for a miss. The pointer-AST baseline at lines 40-41 ({u32, u64, u64, u64, u32}) takes 40 bytes with natural alignment, not 32.",
+  "impact": "The document's complexity and memory comparisons are off.",
+  "recommendation": "Use ½(1+1/(1-α)) for hits and ½(1+1/(1-α)²) for misses, and recompute the baseline with alignment.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-50",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "The Phase 2 spec understates its sparse-table size by about 140 MB",
+  "files": [
+   "docs/plans/phase2_ast_reduction_spec.md",
+   "docs/plans/phase1_ingestion_spec.md"
+  ],
+  "evidence": "Lines 967-969 compute Σ_{k=0}^{20}(2M-2^k) × 4 B as about 20 MB. The sum is roughly 39.9M entries, or about 160 MB. The 20 MB figure feeds the totals at 933, 971 (45.75 MB) and 1003 (92 MB peak). phase1 spec:675 calls tree-sitter 'GLL, linear', but it is GLR. BENCH-03 measured the code; this finding is about the spec's own arithmetic.",
+  "impact": "The design document's own memory budget is wrong.",
+  "recommendation": "Fix the arithmetic. If the budget matters, specify an RMQ structure with O(n) words, such as a block decomposition.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-51",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "The codebase-guide.md module map is stale in many places",
+  "files": [
+   "docs/codebase-guide.md",
+   "examples/README.md"
+  ],
+  "evidence": "The guide places the cfg builder and dominator files at the cfg root (91-94; they live in cfg/builder/ and cfg/analysis/). cg/builder.rs and virtual_dispatch.rs (107-109) do not exist. It lists 6 of 13 pattern matchers (150-156), uses wrong theme file names (221-222) and puts CRC-64 in core/io (39). Line 240 and examples/README.md:11 describe 35 files implementing 9 patterns as '35 implementations'.",
+  "impact": "The onboarding guide sends contributors to files that are not there.",
+  "recommendation": "Generate the tree from git ls-files in CI, or cut it down to directory level.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-52",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Docs name a Monaco editor that is not used and disagree on diagram numbering",
+  "files": [
+   "README.md",
+   "CHANGELOG.md",
+   "docs/architecture.md",
+   "docs/codebase-guide.md",
+   "ruthless_config.json",
+   "docs/assets/scpg_overview.svg"
+  ],
+  "evidence": "README.md:157, CHANGELOG.md:17,25, architecture.md:182 and codebase-guide.md:229 call the source viewer Monaco. web/js/editor.js:1-6 is a zero-dependency viewer, and index.html loads no Monaco. README.md:69-84 numbers 02 Package and 05 Object, while ruthless_config.json:107-121 numbers them the other way round. The README's hero SVG says '9x CSR' and '14 diagrams', but overview.md says 7.1x and the README says 19.",
+  "impact": "Inconsistent names and numbers erode trust in the docs.",
+  "recommendation": "Call it a 'source viewer'. Take the diagram numbering from manifest.json, and regenerate the SVG from the same data.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-53",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Getting Started step 5 serves the studio where its API calls cannot reach the engine",
+  "files": [
+   "docs/getting_started.md",
+   "web/index.html",
+   "web/js/editor.js"
+  ],
+  "evidence": "getting_started.md:63-68 serves web/ with 'python3 -m http.server 8000' after starting the API on port 8080 (58-61). index.html:864 and editor.js:161 call the relative paths /api/analyze and /api/source, which then hit the static server and return 404. The Rust server already serves web/ on 8080.",
+  "impact": "Following the guide gives a studio that is silently disconnected from the engine.",
+  "recommendation": "Remove step 5, or document a configurable API base URL and make index.html use it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-54",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "uml_derivation.md gives wrong or missing derivation rules",
+  "files": [
+   "docs/uml_derivation.md"
+  ],
+  "evidence": "The Profile rule 'Extension (--|>)' (80) uses the generalization arrow, but a UML Extension is drawn as a solid line with a filled triangle. Composition is derived from 'final/owned fields' (56), which conflates final with ownership. The component, composite, deployment, profile, state machine, interaction and timing sections (62-113) give no rule from SCPG facts to diagram elements.",
+  "impact": "The exporters have no checkable spec, and two of the stated rules are semantically wrong.",
+  "recommendation": "Write a precise rule for each diagram (input facts to elements) with golden fixtures, and fix the extension notation and the composition heuristic.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-55",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "CHANGELOG has no Unreleased section or compare links and cites untraceable 'Issues 1-100'",
+  "files": [
+   "CHANGELOG.md",
+   "ROADMAP.md"
+  ],
+  "evidence": "The CHANGELOG claims the Keep a Changelog format (5) but has no [Unreleased] section and no compare links. 'Issues 1-12, 61-72...' (21-27) and ROADMAP.md:119 ('100 deep logical errors') match no GitHub issues; the repo's numbered items are dependabot PRs #11-#15. The thiserror 2 and sha2 0.11 upgrades are not recorded.",
+  "impact": "Changes cannot be traced back to issues or commits.",
+  "recommendation": "Add an Unreleased section and compare links, link real issues and PRs, and record dependency major bumps.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-57",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "The phase plans are the only file-format specs, and they have drifted from the code with no versioning",
+  "files": [
+   "docs/plans/phase10.md",
+   "docs/plans/10_phase_pipeline_overview.md",
+   "docs/plans/phase6.md",
+   "docs/overview.md",
+   "src/scpg/types.rs"
+  ],
+  "evidence": "phase10.md:17-36 specifies format_version 1, magic 0x5343504700010000 and 24-byte directory entries. The code uses SCPG_FORMAT_VERSION 2 and 40-byte entries (types.rs:20, 33). 10_phase_pipeline_overview.md:49 adds CFG_EXCEPT and CFG_RETURN, which architecture.md:62 omits. The Phase 6 inputs in phase6.md:11 disagree with overview.md:91. docs/README.md:33 calls the plans 'historical', yet nothing newer exists.",
+  "impact": "There is no authoritative format reference for third-party readers or for compatibility.",
+  "recommendation": "Add docs/format/ generated from the constants, with a format-version changelog, and mark the plans as superseded.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-76",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Security doc's input-bounds claims contradict the code",
+  "files": [
+   "docs/security-architecture.md",
+   "src/core/types/token.rs",
+   "src/ingestion/walker.rs",
+   "src/ingestion/interner.rs"
+  ],
+  "evidence": "docs/security-architecture.md:26 says lines and columns are capped. In fact build_sort_key masks the line with 0x00FFFFFF after only a debug_assert (token.rs:122-123), and the walker truncates columns with 'as u16' (walker.rs:59). Line 27 says u16 length headers prevent unbounded allocation, but the interner silently truncates text beyond 65,535 bytes (interner.rs:99-101).",
+  "impact": "Wrong positions on huge or minified files are neither documented nor expected.",
+  "recommendation": "Implement saturation or explicit errors, and document the truncation behavior accurately.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-77",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Security contact address is unverifiable",
+  "files": [
+   "SECURITY.md",
+   "SUPPORT.md"
+  ],
+  "evidence": "SECURITY.md:19 and SUPPORT.md:26 send reports to security@openheart.dev. Nothing in the repository shows that the project controls that domain (it lives under a personal GitHub account), and GitHub private vulnerability reporting has to be enabled separately.",
+  "impact": "Vulnerability reports may silently go nowhere.",
+  "recommendation": "Verify the mailbox or make GitHub Security Advisories the primary channel, and state the PGP policy.",
+  "effort": "S",
+  "confidence": "low"
+ },
+ {
+  "id": "CORE2-44",
+  "kind": "enhancement",
+  "category": "performance",
+  "severity": "low",
+  "title": "Token classification runs the same string match twice per leaf",
+  "files": [
+   "src/ingestion/walker.rs:22",
+   "src/ingestion/walker.rs:27",
+   "src/ingestion/walker.rs:42-46",
+   "src/ingestion/adapter/java.rs:33-77",
+   "docs/plans/phase1_ingestion_spec.md:383"
+  ],
+  "evidence": "For anonymous leaves, include_anonymous calls map_node_type and the walker then calls it again, so two long match chains run per token. rustc lowers such matches to length and memcmp comparisons, not the 'perfect hash' the spec claims. walk_cst sizes its Vec from the root's child count, and its _source parameter is unused.",
+  "impact": "Adds measurable per-token CPU in the hottest Phase 1 loop.",
+  "recommendation": "Precompute a TokenType table indexed by node.kind_id() once per language, look it up once per leaf, and size the Vec from the source length.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "ENG2-59",
+  "kind": "enhancement",
+  "category": "documentation",
+  "severity": "low",
+  "title": "The ADR log covers four micro-decisions and leaves out the major ones",
+  "files": [
+   "docs/technical-decisions.md"
+  ],
+  "evidence": "The file has ADR-001 to ADR-004 (FNV-1a, token_id, TokenRecord, CRC), with no status, date, alternatives or consequences. No record exists for the single-crate layout, the hand-rolled HTTP server, the unsafe BDD arena, the tree-sitter 0.20 pin, little-endian u64 magics, or the web studio's separate regex extractor.",
+  "impact": "Reviewers cannot see why the risky choices were made or when to revisit them.",
+  "recommendation": "Adopt a MADR template and record the major decisions, including the options that were rejected.",
+  "effort": "S",
+  "confidence": "high"
+ }
+]

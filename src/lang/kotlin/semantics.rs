@@ -894,12 +894,15 @@ pub fn supertype_distances(classifier: &str, index: &dyn KotlinDeclarationIndex)
     let mut queue = VecDeque::new();
     queue.push_back((classifier.to_string(), 0usize));
     while let Some((current, distance)) = queue.pop_front() {
-        let current = match index.typealias_target(&current) {
-            Some(target) if !seen.contains(&target) => target,
-            _ => current,
-        };
         if !seen.insert(current.clone()) {
             continue;
+        }
+        // An alias stands for its expansion at the same distance (pushed to the front so the
+        // queue stays ordered by distance); the alias keeps its own declared supertypes.
+        if let Some(target) = index.typealias_target(&current) {
+            if !seen.contains(&target) {
+                queue.push_front((target, distance));
+            }
         }
         for supertype in index.supertypes(&current) {
             if !seen.contains(&supertype) {
@@ -1767,7 +1770,7 @@ impl KotlinJavaInterop {
     /// `kotlin.collections.MutableList` → `java.util.List`, `kotlin.Int` → `java.lang.Integer`
     /// when boxed) or aliases on the JVM (`kotlin.collections.ArrayList`).
     pub fn java_peer(kotlin_qual: &str) -> Option<&'static str> {
-        type_stub_by_qual_name(kotlin_qual).and_then(|(_, stub)| stub.java_peer)
+        type_stub_by_qual_name(kotlin_qual).and_then(|(_, stub)| stub.jvm_peer)
     }
 
     /// Kotlin view of a Java class: the mapped built-in type, choosing the mutable collection
@@ -1779,7 +1782,7 @@ impl KotlinJavaInterop {
         let mut read_only: Option<String> = None;
         let mut fallback: Option<String> = None;
         for stub in KOTLIN_TYPES.iter() {
-            if stub.java_peer != Some(java_qual) || stub.flags & KotlinTypeFlags::MAPPED == 0 {
+            if stub.jvm_peer != Some(java_qual) || stub.flags & KotlinTypeFlags::MAPPED == 0 {
                 continue;
             }
             let qual = stub.qual_name();

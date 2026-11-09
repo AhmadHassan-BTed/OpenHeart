@@ -188,7 +188,7 @@ impl<'d, 'a> DataflowInput<'d, 'a> {
         self.bpa.node_type(node) == ASTNodeType::NN_LITERAL
             && self
                 .src
-                .is_some_and(|s| s.node_text(self.bpa, node) == Some(b"null"))
+                .is_some_and(|s| s.node_text(self.bpa, node) == Some(&b"null"[..]))
     }
 }
 
@@ -507,7 +507,7 @@ impl SparseDataflowAnalyzer {
                         args,
                     }) = crate::cfg::ast_query::call_shape(bpa, src, k)
                     {
-                        if receiver.is_some_and(is_ref) && src.node_text(bpa, name) == Some(b"close")
+                        if receiver.is_some_and(is_ref) && src.node_text(bpa, name) == Some(&b"close"[..])
                         {
                             closed = true;
                         }

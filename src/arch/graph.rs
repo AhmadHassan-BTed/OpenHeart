@@ -3,34 +3,43 @@
 //!
 //! **Units.** The finest level has one node per *architectural unit*: a named type (nested
 //! named types are units of their own, linked to their outer type by `parent`), a member
-//! declared outside every type (free function, global variable), the file-scope code of a
-//! compilation unit, or an external declaration the project references. Members, closures and
-//! anonymous classes fold into the nearest enclosing named unit: nothing outside can name
-//! them, so they never form a separate dependency target.
+//! declared outside every type (free function, module-level variable), the file-scope code
+//! of a compilation unit, or an external declaration the project references. Members,
+//! closures and anonymous classes fold into the nearest enclosing named unit: nothing
+//! outside can name them, so they never form a separate dependency target.
 //!
 //! **Facts.** An edge `from → to` of kind `k` is the union of its *evidence*: dependency sites
 //! (a declaration, an instruction, a call site, an allocation site, an import, an annotation
-//! use), each with its source span and strength. The weight of an edge is its number of
-//! distinct sites; lifting to a coarser level unions evidence by site, so one site reaching
-//! two types of the same package counts once. Fact sources:
+//! use, a name occurrence), each with its source span and strength. The weight of an edge is
+//! its number of distinct sites; lifting to a coarser level unions evidence by site, so one
+//! site that reaches two types of the same package counts once. Fact sources:
 //!
-//! - symbol table: declared supertypes, declared field / parameter / local / return type
-//!   heads, field associations;
+//! - symbol table: declared supertypes with their type arguments, type-parameter bounds,
+//!   declared field / parameter / local / return types (complete `TypeRef` trees), field
+//!   associations, resolved imports and resolved name occurrences in bodies;
 //! - IR: allocations, static callees and the declared method of virtual and interface calls,
-//!   instance and static field accesses, casts and type tests, closures and function
-//!   references, and the complete field and return type trees (generic arguments count);
-//! - points-to call graph: runtime dispatch targets of virtual, interface and indirect calls;
-//! - Phase 6 symbol-level call graph, for pipelines that do not lower to the IR yet;
-//! - frontend facts the symbol table does not persist: imports, annotation uses and the
-//!   project membership of files.
+//!   instance, static and module-variable accesses, casts and type tests, closures and
+//!   function references, and the field, parameter, local and return types of the lowered
+//!   program;
+//! - points-to call graph: runtime dispatch targets with the solver's precision, external
+//!   targets, unresolved sites, entry points and callbacks from external code;
+//! - Phase 6 symbol-level call graph, for pipelines that do not lower to the IR;
+//! - frontend facts the symbol table does not record: annotation uses and the project
+//!   membership of files.
+//!
+//! Sources that describe the same site under the same origin (a declaration seen by the
+//! symbol table and by the IR, a call site seen by the IR and by the call graph) merge into
+//! one piece of evidence. Name occurrences and IR instructions describe body code at
+//! different granularity, so `build_model` uses occurrences only when no IR is supplied.
 //!
 //! **Externals.** A unit is external when its symbol is `SK_EXTERNAL` or its declaration has
 //! no source location in the analysed corpus. At every level coarser than type, external
 //! units are aggregated to their namespace.
 //!
-//! **What is not derivable** is recorded, never filled in: unbound callees, indirect calls the
-//! call graph leaves unresolved and types the IR could not determine become
-//! [`UnresolvedFact`]s, and [`Coverage`] states which fact sources were supplied, so that a
+//! **What is not derivable** is recorded, never filled in: unbound names, indirect calls the
+//! call graph leaves unresolved and types that could not be determined become
+//! [`UnresolvedFact`]s, dependencies on declarations whose binding Phase 3 could only infer
+//! are `Partial` with the reason, and [`Coverage`] states which sources were supplied, so a
 //! consumer can tell "no edge of this kind exists" from "this kind was not analysed".
 
 use std::collections::btree_map::Entry;
@@ -41,12 +50,20 @@ use crate::core::types::cg::{
     CG_EDGE_SPECIAL, CG_EDGE_VIRTUAL,
 };
 use crate::core::types::symbol::{SymbolKind, SymbolModifiers, SymbolVisibility, THRelation};
+use crate::derive::model::Derivation;
 use crate::ingestion::TokenCorpusArtifact;
-use crate::ir::{
-    CallSiteId, CallSiteIr, Callee, FieldId, FieldIr, FuncId, FuncIr, Inst, IrType, ModuleIr,
-    Place, Span, TypeId, TypeTable,
+use crate::ir::func::{FuncIr, FuncKind};
+use crate::ir::inst::{Callee, Inst};
+use crate::ir::module::{CallSiteIr, FieldIr, GlobalIr, ModuleIr};
+use crate::ir::types::{CallSiteId, FieldId, FuncId, GlobalId, IrType, Span, TypeId, TypeTable};
+use crate::ir::value::Place;
+use crate::memory::callgraph::{
+    CallGraph, CallKind, CallbackOrigin, EdgePrecision, ExternalTarget, UnresolvedReason,
 };
-use crate::memory::callgraph::CallGraph;
+use crate::symbol::model::{
+    EdgeFlags, OccurrenceRole, ResolutionStatus, SymbolFlags, TypeRef, TypeRefFlags,
+};
+use crate::symbol::scope_graph::ImportKind;
 use crate::symbol::SymbolTableArtifact;
 
 // ── Identifiers and vocabularies ─────────────────────────────────────────────
@@ -110,7 +127,7 @@ pub enum DepKind {
     Inheritance = 1,
     /// Interface realization: the unit implements the target.
     Realization = 2,
-    /// A field of the unit mentions the target in its declared type.
+    /// A field or module variable of the unit mentions the target in its declared type.
     FieldType = 3,
     /// A parameter of a function of the unit mentions the target in its declared type.
     ParameterType = 4,
@@ -125,9 +142,10 @@ pub enum DepKind {
     Instantiation = 8,
     /// A declaration of the unit carries the target annotation or attribute type.
     AnnotationUse = 9,
-    /// The unit reads, writes or releases a field declared by the target.
+    /// The unit reads, writes or releases a field or module variable of the target.
     FieldAccess = 10,
-    /// The unit casts to, tests against or declares a local of a type mentioning the target.
+    /// The unit casts to, tests against, binds a type argument or a bound to, or declares a
+    /// local of a type mentioning the target.
     TypeUse = 11,
     /// The unit creates a closure over, or a reference to, a function of the target.
     Reference = 12,
@@ -234,7 +252,8 @@ pub enum Strength {
     Partial,
 }
 
-/// How a result relates to the program, matching the derivation tags of the diagram model.
+/// How a result relates to the program; maps one to one onto the diagram model's
+/// `Derivation`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Certainty {
     Exact,
@@ -289,13 +308,24 @@ impl Certainty {
     }
 }
 
+impl From<Certainty> for Derivation {
+    fn from(c: Certainty) -> Self {
+        match c {
+            Certainty::Exact => Derivation::Exact,
+            Certainty::OverApproximate => Derivation::OverApproximate,
+            Certainty::Partial { reason } => Derivation::Partial { reason },
+            Certainty::NotDerivable { reason } => Derivation::NotDerivable { reason },
+        }
+    }
+}
+
 /// The program site that establishes one piece of evidence. Two facts with the same origin
 /// are the same evidence, whichever source reported them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Origin {
     /// A declaration whose declared type or annotation creates the dependency.
     Symbol(u32),
-    /// A declared supertype relation of the symbol table.
+    /// A declared supertype relation (or type-parameter bound) of the symbol table.
     Hierarchy { sub: u32, sup: u32 },
     /// One IR instruction.
     Instruction { func: u32, block: u32, index: u32 },
@@ -303,12 +333,18 @@ pub enum Origin {
     CallSite(u32),
     /// An IR allocation site.
     AllocSite(u32),
-    /// An IR field that has no matching declaration in the symbol table.
+    /// An IR field without a declaring symbol.
     Field(u32),
-    /// An IR function that has no symbol.
+    /// An IR module variable without a declaring symbol.
+    Global(u32),
+    /// A declared parameter of an IR function whose value names no symbol.
+    Parameter { func: u32, index: u32 },
+    /// An IR function without a symbol.
     Function(u32),
     /// A Phase 6 call site (symbol-level call graph).
     SymbolCallSite(u32),
+    /// A name occurrence recorded by Phase 3, identified by its token.
+    Occurrence(u32),
     /// An import of a compilation unit, identified by its first token.
     Import { file: u32, token: u32 },
     /// An annotation use on a declaration, identified by the annotation's first token.
@@ -517,7 +553,7 @@ impl DependencyGraph {
         &out[lo..hi]
     }
 
-    /// True when `id` takes part in analyses that include or exclude external nodes.
+    /// True when `id` takes part in an analysis that does or does not include externals.
     #[inline]
     pub fn included(&self, id: NodeId, include_external: bool) -> bool {
         include_external || !self.nodes[id.index()].external
@@ -680,17 +716,20 @@ pub struct SiteCall {
 pub struct FunctionFacts {
     pub func: FuncId,
     pub symbol: Option<u32>,
+    pub kind: FuncKind,
     /// Type-level unit that owns the function.
     pub owner: NodeId,
     pub role: MemberRole,
     /// For closures: the named callable whose body creates the closure, when the symbol
     /// table records the nesting.
     pub enclosing_member: Option<u32>,
-    pub span: Span,
+    pub span: Option<Span>,
     /// Fields accessed through an object (`Place::Field`), sorted and distinct.
     pub instance_fields: Vec<FieldId>,
     /// Static fields accessed (`Place::Static`): owner symbol and field, sorted and distinct.
     pub static_fields: Vec<(u32, FieldId)>,
+    /// Module variables accessed, sorted and distinct.
+    pub globals: Vec<GlobalId>,
     /// Statically bound callees, sorted and distinct.
     pub static_callees: Vec<FuncId>,
     /// Callee symbols of calls that are not lowered, external, virtual or interface calls,
@@ -710,10 +749,10 @@ pub struct FieldFacts {
     pub field: FieldId,
     pub owner: NodeId,
     pub owner_symbol: u32,
-    /// Matching declaration in the symbol table (same owner and name).
     pub symbol: Option<u32>,
-    /// From the declaration's modifiers; `None` when no declaration matches.
-    pub is_static: Option<bool>,
+    pub is_static: bool,
+    /// Synthesized by lowering (closure captures).
+    pub synthetic: bool,
 }
 
 /// One resolved call edge at function granularity.
@@ -723,8 +762,28 @@ pub struct CallFact {
     pub caller: FuncId,
     pub callee: FuncId,
     pub span: Option<Span>,
-    /// `Exact` for static calls and for sites with a single points-to target.
+    /// `Exact` for statically named callees and for targets derived from the receiver's
+    /// dynamic type; `OverApproximate` for class-hierarchy and ambiguity fallbacks.
     pub strength: Strength,
+}
+
+/// Why external code may invoke module code that has no call site in the module.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallbackKind {
+    /// The receiver reached external code and implements the external declaration.
+    ExternalOverride { declaration: u32 },
+    /// A closure or function value reached external code.
+    ExternalFunctionValue,
+    /// An intrinsic invokes one of its arguments.
+    Intrinsic { name: u32 },
+}
+
+/// A function the points-to analysis found invocable from external code.
+#[derive(Debug, Clone, Copy)]
+pub struct CallbackFact {
+    pub func: FuncId,
+    pub kind: CallbackKind,
+    pub span: Option<Span>,
 }
 
 /// A dependency the facts name but do not resolve.
@@ -743,10 +802,11 @@ pub struct UnresolvedFact {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Coverage {
     pub declarations: bool,
+    pub imports: bool,
+    pub occurrences: bool,
     pub ir: bool,
     pub call_graph: bool,
     pub symbol_calls: bool,
-    pub imports: bool,
     pub annotations: bool,
     pub projects: bool,
 }
@@ -758,48 +818,49 @@ impl Coverage {
         let missing = |reason: &str| Certainty::NotDerivable {
             reason: reason.to_string(),
         };
+        let body = self.ir || self.occurrences;
         match kind {
             DepKind::Import if self.imports => Certainty::Exact,
-            DepKind::Import => missing("no import facts were supplied by the language frontend"),
+            DepKind::Import => missing("no import facts were added"),
             DepKind::AnnotationUse if self.annotations => Certainty::Exact,
             DepKind::AnnotationUse => {
                 missing("no annotation-use facts were supplied by the language frontend")
             }
-            DepKind::Inheritance | DepKind::Realization | DepKind::ParameterType
-                if self.declarations =>
+            DepKind::Inheritance | DepKind::Realization if self.declarations => Certainty::Exact,
+            DepKind::Inheritance | DepKind::Realization => {
+                missing("the symbol-table declarations were not added")
+            }
+            DepKind::FieldType | DepKind::ParameterType | DepKind::ReturnType
+                if self.declarations || self.ir =>
             {
                 Certainty::Exact
             }
-            DepKind::Inheritance | DepKind::Realization | DepKind::ParameterType => {
-                missing("the symbol-table declarations were not added")
-            }
-            DepKind::FieldType | DepKind::ReturnType if self.ir => Certainty::Exact,
-            DepKind::FieldType | DepKind::ReturnType if self.declarations => Certainty::Partial {
-                reason: "only declared type heads are known; generic arguments require the IR"
-                    .to_string(),
-            },
-            DepKind::FieldType | DepKind::ReturnType => {
+            DepKind::FieldType | DepKind::ParameterType | DepKind::ReturnType => {
                 missing("neither declarations nor the IR were added")
             }
-            DepKind::Call | DepKind::Instantiation if self.ir => Certainty::Exact,
+            DepKind::Call | DepKind::Instantiation | DepKind::FieldAccess if body => {
+                Certainty::Exact
+            }
             DepKind::Call | DepKind::Instantiation if self.symbol_calls => Certainty::Partial {
-                reason: "calls come from the Phase 6 symbol-level call graph".to_string(),
+                reason: "calls come only from the Phase 6 symbol-level call graph".to_string(),
             },
-            DepKind::Call | DepKind::Instantiation => missing("the IR was not added"),
+            DepKind::Call | DepKind::Instantiation | DepKind::FieldAccess => {
+                missing("neither the IR nor the symbol-table occurrences were added")
+            }
             DepKind::Dispatch if self.call_graph => Certainty::OverApproximate,
             DepKind::Dispatch if self.symbol_calls => Certainty::Partial {
                 reason: "dispatch targets come from the Phase 6 symbol-level call graph"
                     .to_string(),
             },
             DepKind::Dispatch => missing("the points-to call graph was not added"),
-            DepKind::FieldAccess | DepKind::Reference if self.ir => Certainty::Exact,
-            DepKind::FieldAccess | DepKind::Reference => missing("the IR was not added"),
-            DepKind::TypeUse if self.ir => Certainty::Exact,
+            DepKind::TypeUse if body => Certainty::Exact,
             DepKind::TypeUse if self.declarations => Certainty::Partial {
-                reason: "only declared local types are known; casts and type tests require the IR"
+                reason: "only declared local types and type arguments are known; casts and type tests need the IR or the occurrences"
                     .to_string(),
             },
-            DepKind::TypeUse => missing("neither declarations nor the IR were added"),
+            DepKind::TypeUse => missing("neither declarations nor body facts were added"),
+            DepKind::Reference if self.ir => Certainty::Exact,
+            DepKind::Reference => missing("closures and function references need the IR"),
         }
     }
 }
@@ -820,14 +881,19 @@ pub struct ArchModel {
     /// Project-level node of each file-level node (external namespace groups map to their
     /// project-level namespace group); `None` when no unit or import ties the node to one.
     pub file_project: Vec<Option<NodeId>>,
+    /// Body facts of every IR function, sorted by function id.
     pub functions: Vec<FunctionFacts>,
+    /// IR fields, sorted by field id.
     pub fields: Vec<FieldFacts>,
     /// Function-level call edges, sorted by `(site, callee)`.
     pub calls: Vec<CallFact>,
     /// Functions the points-to call graph reaches, sorted; `None` without a call graph.
     pub reachable: Option<Vec<FuncId>>,
+    /// Entry points the points-to solve started from; `None` without a call graph.
+    pub entries: Option<Vec<FuncId>>,
+    pub callbacks: Vec<CallbackFact>,
     pub unresolved: Vec<UnresolvedFact>,
-    /// Import facts that have no target at file level (namespace imports).
+    /// Namespace imports, which have no target at file level.
     pub namespace_imports_without_file_target: u32,
     pub coverage: Coverage,
 }
@@ -862,35 +928,25 @@ impl ArchModel {
         }
     }
 
-    /// Index of each function's facts by `FuncId`.
-    pub fn function_index(&self) -> HashMap<u32, usize> {
+    /// Position of each function's facts in `functions`, by `FuncId`.
+    pub fn function_index(&self) -> HashMap<FuncId, usize> {
         self.functions
             .iter()
             .enumerate()
-            .map(|(i, f)| (f.func.0, i))
+            .map(|(i, f)| (f.func, i))
             .collect()
+    }
+
+    /// The facts of `func`.
+    pub fn function(&self, func: FuncId) -> Option<&FunctionFacts> {
+        self.functions
+            .binary_search_by_key(&func, |f| f.func)
+            .ok()
+            .map(|i| &self.functions[i])
     }
 }
 
 // ── Inputs supplied by the language frontends ────────────────────────────────
-
-/// Target of an import, include or namespace-opening directive.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ImportTarget {
-    /// The directive names one declaration.
-    Symbol(u32),
-    /// The directive opens a whole namespace (on-demand import, `using namespace`).
-    Namespace(String),
-    /// The directive names something no declaration or namespace binds.
-    Unresolved(String),
-}
-
-#[derive(Debug, Clone)]
-pub struct ImportFact {
-    pub file_id: u32,
-    pub target: ImportTarget,
-    pub span: Option<Span>,
-}
 
 #[derive(Debug, Clone)]
 pub struct AnnotationFact {
@@ -962,11 +1018,23 @@ impl FileIndex {
         self.ranges
             .iter()
             .find(|r| r.2 == file)
-            .map(|&(first, end, file_id)| Span {
-                file_id,
-                first_token: first,
-                last_token: end.saturating_sub(1).max(first),
+            .map(|&(first, end, file_id)| {
+                Span::new(file_id, first, end.saturating_sub(1).max(first))
             })
+    }
+
+    /// Span of the tokens `first..=last`, when they lie in one file.
+    pub fn token_span(&self, first: u32, last: u32) -> Option<Span> {
+        if first == u32::MAX {
+            return None;
+        }
+        let file = self.file_of_token(first)?;
+        let last = if last == u32::MAX || last < first || self.file_of_token(last) != Some(file) {
+            first
+        } else {
+            last
+        };
+        Some(Span::new(file, first, last))
     }
 }
 
@@ -985,11 +1053,13 @@ struct UnitDraft {
     is_abstract: bool,
     visibility: Option<SymbolVisibility>,
     parent: Option<u32>,
-    /// Namespace name ("" is the global namespace).
-    package: String,
-    package_symbol: Option<u32>,
+    /// Namespace name ("" is the global namespace); `None` for an external declaration
+    /// whose namespace the symbol table does not record.
+    package: Option<String>,
     /// Name of an enclosing module declaration.
     module: Option<String>,
+    /// Why a dependency on this unit holds only partially (its binding was inferred).
+    binding_note: Option<&'static str>,
     spans: Vec<Span>,
 }
 
@@ -1063,10 +1133,12 @@ enum ImportKey {
     Namespace(String),
 }
 
-/// Lookup tables over one IR module (ids are not assumed to equal vector indices).
+/// Lookup tables over one IR module (ids index the owning vectors, but the tables do not
+/// rely on it).
 struct IrIndex {
     funcs: HashMap<u32, usize>,
     fields: HashMap<u32, usize>,
+    globals: HashMap<u32, usize>,
     call_sites: HashMap<u32, usize>,
 }
 
@@ -1085,6 +1157,12 @@ impl IrIndex {
                 .enumerate()
                 .map(|(i, f)| (f.id.0, i))
                 .collect(),
+            globals: module
+                .globals
+                .iter()
+                .enumerate()
+                .map(|(i, g)| (g.id.0, i))
+                .collect(),
             call_sites: module
                 .call_sites
                 .iter()
@@ -1100,6 +1178,10 @@ impl IrIndex {
 
     fn field<'m>(&self, module: &'m ModuleIr, id: FieldId) -> Option<&'m FieldIr> {
         self.fields.get(&id.0).map(|&i| &module.fields[i])
+    }
+
+    fn global<'m>(&self, module: &'m ModuleIr, id: GlobalId) -> Option<&'m GlobalIr> {
+        self.globals.get(&id.0).map(|&i| &module.globals[i])
     }
 
     fn call_site<'m>(&self, module: &'m ModuleIr, id: CallSiteId) -> Option<&'m CallSiteIr> {
@@ -1129,6 +1211,8 @@ pub struct ArchGraphBuilder<'a> {
     fields: Vec<FieldFacts>,
     calls: BTreeMap<(u32, u32), CallFact>,
     reachable: Option<Vec<FuncId>>,
+    entries: Option<Vec<FuncId>>,
+    callbacks: Vec<CallbackFact>,
     unresolved: Vec<UnresolvedFact>,
     coverage: Coverage,
 }
@@ -1158,6 +1242,8 @@ impl<'a> ArchGraphBuilder<'a> {
             fields: Vec::new(),
             calls: BTreeMap::new(),
             reachable: None,
+            entries: None,
+            callbacks: Vec::new(),
             unresolved: Vec::new(),
             coverage: Coverage::default(),
         }
@@ -1167,10 +1253,11 @@ impl<'a> ArchGraphBuilder<'a> {
         &self.files
     }
 
-    // ── Symbol table ─────────────────────────────────────────────────────────
+    // ── Symbol table: declarations ───────────────────────────────────────────
 
-    /// Adds every project declaration as a unit, the declared supertypes, the declared
-    /// field / parameter / local / return type heads and the field associations.
+    /// Adds every project declaration as a unit, the declared supertypes (with their type
+    /// arguments), type-parameter bounds, the declared field / parameter / local / return
+    /// types and the field associations.
     pub fn add_declarations(&mut self) {
         if self.coverage.declarations {
             return;
@@ -1203,25 +1290,59 @@ impl<'a> ArchGraphBuilder<'a> {
                 sup: edge.to_sym,
             };
             let span = self.symbol_span(edge.from_sym);
+            let (strength, reason) = if edge.flags & EdgeFlags::RELATION_ASSUMED != 0 {
+                (
+                    Strength::Partial,
+                    Some("extends versus implements was assumed: the supertype's kind is unknown"),
+                )
+            } else {
+                (Strength::Exact, None)
+            };
             match edge.relation {
                 THRelation::TH_EXTENDS => {
-                    self.record(from, to, DepKind::Inheritance, origin, Strength::Exact, span, None)
+                    self.record(from, to, DepKind::Inheritance, origin, strength, span, reason)
                 }
                 THRelation::TH_IMPLEMENTS => {
-                    self.record(from, to, DepKind::Realization, origin, Strength::Exact, span, None)
+                    self.record(from, to, DepKind::Realization, origin, strength, span, reason)
                 }
-                THRelation::TH_CREATES => self.record(
-                    from,
-                    to,
-                    DepKind::Instantiation,
-                    origin,
-                    Strength::Exact,
-                    span,
-                    None,
-                ),
+                THRelation::TH_CREATES => {
+                    self.record(from, to, DepKind::Instantiation, origin, strength, span, reason)
+                }
                 // Phase 3 derives `uses` from field types; it is kept only where no field-type
                 // fact explains it (decided in `finish`, once every source is in).
                 THRelation::TH_USES => self.pending_uses.push((from, to, origin, span)),
+            }
+        }
+
+        // Type arguments of written supertypes and the bounds of type parameters.
+        for record in &sta.supertypes {
+            let Some(from) = self.unit_of_symbol(record.sub) else {
+                continue;
+            };
+            let Some(type_ref) = sta.type_ref(record.type_ref) else {
+                continue;
+            };
+            let origin = Origin::Hierarchy {
+                sub: record.sub,
+                sup: record.sup,
+            };
+            let span = self
+                .files
+                .token_span(type_ref.first_token, type_ref.last_token)
+                .or_else(|| self.symbol_span(record.sub));
+            let is_bound = self.kind_of(record.sub) == Some(SymbolKind::SK_TYPE_PARAM);
+            let mut mentions = Vec::new();
+            let mut unknown = false;
+            self.type_ref_mentions(type_ref, true, &mut mentions, &mut unknown);
+            for (sym, head, binding) in mentions {
+                // The head of a supertype is the inheritance edge itself.
+                if head && !is_bound {
+                    continue;
+                }
+                self.record_symbol_dependency(from, sym, DepKind::TypeUse, origin, span, binding);
+            }
+            if unknown {
+                self.unresolved_type(from, DepKind::TypeUse, span);
             }
         }
 
@@ -1235,15 +1356,29 @@ impl<'a> ArchGraphBuilder<'a> {
                 SymbolKind::SK_LOCAL_VAR => DepKind::TypeUse,
                 _ => continue,
             };
-            let Some(type_sym) = self.declared_type_symbol(rec.type_id) else {
-                continue;
-            };
-            let (Some(from), Some(to)) = (self.unit_of_symbol(sym), self.unit_of_symbol(type_sym))
-            else {
+            let Some(from) = self.unit_of_symbol(sym) else {
                 continue;
             };
             let span = self.symbol_span(sym);
-            self.record(from, to, dep, Origin::Symbol(sym), Strength::Exact, span, None);
+            let origin = Origin::Symbol(sym);
+            match sta.type_ref_of(sym) {
+                Some(type_ref) => {
+                    let mut mentions = Vec::new();
+                    let mut unknown = false;
+                    self.type_ref_mentions(type_ref, true, &mut mentions, &mut unknown);
+                    for (target, _, binding) in mentions {
+                        self.record_symbol_dependency(from, target, dep, origin, span, binding);
+                    }
+                    if unknown {
+                        self.unresolved_type(from, dep, span);
+                    }
+                }
+                None => {
+                    if let Some(target) = self.declared_type_symbol(rec.type_id) {
+                        self.record_symbol_dependency(from, target, dep, origin, span, None);
+                    }
+                }
+            }
         }
 
         for assoc in &sta.associations {
@@ -1271,41 +1406,275 @@ impl<'a> ArchGraphBuilder<'a> {
         }
     }
 
+    /// Adds the import table of the symbol table. Each import is bound through the Phase 3
+    /// occurrence at its last path segment; an on-demand import of a namespace targets the
+    /// namespace, and an import Phase 3 could not bind is recorded as unresolved.
+    pub fn add_symbol_imports(&mut self) {
+        if self.coverage.imports {
+            return;
+        }
+        self.coverage.imports = true;
+        let sta = self.sta;
+        for (_, decl) in &sta.imports {
+            let Some(file) = self.files.file_of_token(decl.first_token) else {
+                continue;
+            };
+            let span = self.files.token_span(decl.first_token, decl.name_token);
+            let origin = Origin::Import {
+                file,
+                token: decl.first_token,
+            };
+            let on_demand = matches!(decl.kind, ImportKind::OnDemand);
+            let binding = sta
+                .occurrences_at_token(decl.name_token)
+                .iter()
+                .find(|o| o.role == OccurrenceRole::Import as u8);
+            let status = binding.and_then(|o| ResolutionStatus::from_u8(o.status));
+            let bound = binding
+                .map(|o| o.symbol)
+                .filter(|&s| (s as usize) < sta.symbol_records.len());
+
+            let key = match bound {
+                Some(sym) if self.kind_of(sym).is_some_and(is_namespace_kind) => {
+                    ImportKey::Namespace(self.symbol_name(sym).unwrap_or_else(|| decl.path.clone()))
+                }
+                Some(sym) => match self.unit_of_symbol(sym) {
+                    Some(unit) => ImportKey::Unit(unit),
+                    None => continue,
+                },
+                None if on_demand => ImportKey::Namespace(decl.path.clone()),
+                None => {
+                    let reason = match status {
+                        Some(ResolutionStatus::Ambiguous) => format!(
+                            "the import `{}` matches {} declarations",
+                            decl.path,
+                            binding.map_or(0, |o| o.candidates.len())
+                        ),
+                        _ => format!("the import `{}` binds no declaration", decl.path),
+                    };
+                    self.unresolved.push(UnresolvedFact {
+                        from: None,
+                        kind: DepKind::Import,
+                        span,
+                        name: None,
+                        reason,
+                    });
+                    continue;
+                }
+            };
+            let (strength, reason) = binding_strength(status);
+            self.imports
+                .entry((file, key))
+                .or_default()
+                .add(origin, strength, span, reason);
+        }
+    }
+
+    /// Adds the body dependencies Phase 3 resolved by name: type references, field reads
+    /// and writes, calls and instantiations. Type references inside declared types are
+    /// skipped (the declarations already record them). Use either this or `add_ir` for body
+    /// facts: the two describe the same code at different granularity.
+    pub fn add_occurrences(&mut self) {
+        if self.coverage.occurrences {
+            return;
+        }
+        self.coverage.occurrences = true;
+        let sta = self.sta;
+        let count = sta.symbol_records.len();
+
+        // Token ranges of declared types, merged into disjoint intervals, so that references
+        // inside declarations are not counted twice.
+        let mut spans: Vec<(u32, u32)> = sta
+            .symbol_type_refs
+            .iter()
+            .filter_map(|&id| sta.type_ref(id))
+            .chain(sta.supertypes.iter().filter_map(|r| sta.type_ref(r.type_ref)))
+            .filter(|t| t.first_token != u32::MAX)
+            .map(|t| (t.first_token, t.last_token.max(t.first_token)))
+            .collect();
+        spans.sort_unstable();
+        let mut declared: Vec<(u32, u32)> = Vec::with_capacity(spans.len());
+        for (first, last) in spans {
+            match declared.last_mut() {
+                Some(prev) if first <= prev.1.saturating_add(1) => prev.1 = prev.1.max(last),
+                _ => declared.push((first, last)),
+            }
+        }
+        let in_declared_type = |token: u32| {
+            let i = declared.partition_point(|r| r.0 <= token);
+            i > 0 && declared[i - 1].1 >= token
+        };
+
+        // Declaration ranges for the innermost enclosing declaration of each occurrence.
+        let mut ranges: Vec<(u32, u32, u32)> = (0..count as u32)
+            .filter_map(|sym| {
+                let rec = &sta.symbol_records[sym as usize];
+                let kind = SymbolKind::from(rec.kind);
+                (!is_namespace_kind(kind)
+                    && kind != SymbolKind::SK_EXTERNAL
+                    && rec.first_token_id != u32::MAX)
+                    .then(|| {
+                        let last = if rec.last_token_id == u32::MAX {
+                            rec.first_token_id
+                        } else {
+                            rec.last_token_id.max(rec.first_token_id)
+                        };
+                        (rec.first_token_id, last, sym)
+                    })
+            })
+            .collect();
+        // Outer ranges before the ranges they contain.
+        ranges.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then(a.2.cmp(&b.2)));
+
+        let mut open: Vec<(u32, u32)> = Vec::new();
+        let mut next = 0usize;
+        for occ in &sta.occurrences {
+            let token = occ.token;
+            while open.last().is_some_and(|&(last, _)| last < token) {
+                open.pop();
+            }
+            while next < ranges.len() && ranges[next].0 <= token {
+                let (_, last, sym) = ranges[next];
+                while open.last().is_some_and(|&(l, _)| l < ranges[next].0) {
+                    open.pop();
+                }
+                if last >= token {
+                    open.push((last, sym));
+                }
+                next += 1;
+            }
+            while open.last().is_some_and(|&(last, _)| last < token) {
+                open.pop();
+            }
+
+            let Some(role) = occurrence_role(occ.role) else {
+                continue;
+            };
+            let provisional = match role {
+                OccurrenceRole::TypeReference if in_declared_type(token) => continue,
+                OccurrenceRole::TypeReference => DepKind::TypeUse,
+                OccurrenceRole::Read | OccurrenceRole::Write => DepKind::FieldAccess,
+                OccurrenceRole::Call => DepKind::Call,
+                OccurrenceRole::Instantiation => DepKind::Instantiation,
+                OccurrenceRole::Definition | OccurrenceRole::Import => continue,
+            };
+            let Some(file) = self.files.file_of_token(token) else {
+                continue;
+            };
+            let from = match open.last() {
+                Some(&(_, sym)) => match self.unit_of_symbol(sym) {
+                    Some(unit) => unit,
+                    None => continue,
+                },
+                None => self.file_scope_unit(file),
+            };
+            let span = Some(Span::new(file, token, token));
+            let status = ResolutionStatus::from_u8(occ.status);
+            match status {
+                Some(ResolutionStatus::Primitive) | Some(ResolutionStatus::TypeInference) => {
+                    continue
+                }
+                Some(ResolutionStatus::Unresolved) | Some(ResolutionStatus::Ambiguous) | None => {
+                    self.unresolved.push(UnresolvedFact {
+                        from: Some(NodeId(from)),
+                        kind: provisional,
+                        span,
+                        name: None,
+                        reason: if status == Some(ResolutionStatus::Ambiguous) {
+                            format!(
+                                "the name matches {} declarations at the same precedence",
+                                occ.candidates.len()
+                            )
+                        } else {
+                            "the name is not bound to any declaration".to_string()
+                        },
+                    });
+                    continue;
+                }
+                _ => {}
+            }
+            if (occ.symbol as usize) >= count {
+                continue;
+            }
+            let dep = match role {
+                OccurrenceRole::Read | OccurrenceRole::Write => match self.kind_of(occ.symbol) {
+                    Some(SymbolKind::SK_FIELD | SymbolKind::SK_ENUM_CONSTANT) => {
+                        DepKind::FieldAccess
+                    }
+                    // A callable used as a value: a function or method reference.
+                    Some(SymbolKind::SK_METHOD | SymbolKind::SK_CONSTRUCTOR) => DepKind::Reference,
+                    Some(kind)
+                        if is_named_type_kind(kind)
+                            || kind == SymbolKind::SK_ANON_CLASS
+                            || kind == SymbolKind::SK_EXTERNAL =>
+                    {
+                        DepKind::TypeUse
+                    }
+                    // Module-level variables are units; other locals and parameters stay
+                    // inside the unit that declares them.
+                    Some(SymbolKind::SK_LOCAL_VAR | SymbolKind::SK_PARAM)
+                        if self.locate_unit_symbol(occ.symbol) == Some(occ.symbol) =>
+                    {
+                        DepKind::FieldAccess
+                    }
+                    _ => continue,
+                },
+                _ => provisional,
+            };
+            let (strength, reason) = binding_strength(status);
+            if let Some(to) = self.unit_of_symbol(occ.symbol) {
+                self.record(from, to, dep, Origin::Occurrence(token), strength, span, reason);
+            }
+        }
+    }
+
     // ── IR ───────────────────────────────────────────────────────────────────
 
-    /// Adds the field types and the body facts of every function of `module`.
+    /// Adds the field, module-variable, parameter, local and return types and the body facts
+    /// of every function of `module`.
     pub fn add_ir(&mut self, module: &ModuleIr) {
         self.coverage.ir = true;
         let index = IrIndex::new(module);
 
         for field in &module.fields {
-            let Some(owner) = self.unit_of_symbol(field.owner_symbol) else {
+            let owner = if field.owner_symbol == u32::MAX {
+                None
+            } else {
+                self.unit_of_symbol(field.owner_symbol)
+            };
+            let Some(owner) = owner else {
                 self.unresolved.push(UnresolvedFact {
                     from: None,
                     kind: DepKind::FieldType,
                     span: None,
                     name: Some(field.name),
-                    reason: "the owner symbol of the IR field is not in the symbol table"
-                        .to_string(),
+                    reason: "the declaring type of the field is not derivable".to_string(),
                 });
                 continue;
             };
-            let symbol = self.member_symbol(field.owner_symbol, field.name, |k| {
-                matches!(k, SymbolKind::SK_FIELD | SymbolKind::SK_ENUM_CONSTANT)
-            });
-            let origin = symbol.map_or(Origin::Field(field.id.0), Origin::Symbol);
-            let span = symbol.and_then(|s| self.symbol_span(s));
-            self.record_type_tree(&module.types, owner, field.ty, DepKind::FieldType, origin, span);
-            let is_static = symbol.map(|s| {
-                self.sta.symbol_records[s as usize].modifiers & SymbolModifiers::STATIC != 0
-            });
             self.fields.push(FieldFacts {
                 field: field.id,
                 owner: NodeId(owner),
                 owner_symbol: field.owner_symbol,
-                symbol,
-                is_static,
+                symbol: field.symbol,
+                is_static: field.is_static,
+                synthetic: field.synthetic,
             });
+            // Synthesized capture fields restate the types of captured variables, which the
+            // enclosing code already depends on.
+            if field.synthetic {
+                continue;
+            }
+            let origin = field.symbol.map_or(Origin::Field(field.id.0), Origin::Symbol);
+            let span = field.symbol.and_then(|s| self.symbol_span(s));
+            self.record_type_tree(&module.types, owner, field.ty, DepKind::FieldType, origin, span);
+        }
+
+        for global in &module.globals {
+            let owner = self.global_unit(global);
+            let origin = global.symbol.map_or(Origin::Global(global.id.0), Origin::Symbol);
+            let span = real_span(global.span).or_else(|| global.symbol.and_then(|s| self.symbol_span(s)));
+            self.record_type_tree(&module.types, owner, global.ty, DepKind::FieldType, origin, span);
         }
 
         for func in &module.funcs {
@@ -1320,25 +1689,58 @@ impl<'a> ArchGraphBuilder<'a> {
             (MemberRole::Closure, Some(sym)) => self.enclosing_callable(sym),
             _ => None,
         };
+        let func_span = real_span(func.span);
         let func_origin = func.symbol.map_or(Origin::Function(func.id.0), Origin::Symbol);
-        self.record_type_tree(
-            &module.types,
-            owner,
-            func.ret,
-            DepKind::ReturnType,
-            func_origin,
-            Some(func.span),
-        );
+        if !matches!(
+            func.kind,
+            FuncKind::Constructor
+                | FuncKind::ImplicitConstructor
+                | FuncKind::StaticInit
+                | FuncKind::InstanceInit
+                | FuncKind::ModuleInit
+        ) {
+            let span = func.symbol.and_then(|s| self.symbol_span(s)).or(func_span);
+            self.record_type_tree(&module.types, owner, func.ret, DepKind::ReturnType, func_origin, span);
+        }
+
+        // Declared parameters and declared locals with their lowered types.
+        for (i, &param) in func.declared_params().iter().enumerate() {
+            let symbol = func.value_info(param).and_then(|v| v.symbol);
+            let origin = symbol.map_or(
+                Origin::Parameter {
+                    func: func.id.0,
+                    index: i as u32,
+                },
+                Origin::Symbol,
+            );
+            let span = symbol.and_then(|s| self.symbol_span(s)).or(func_span);
+            let ty = func.value_type(param);
+            self.record_type_tree(&module.types, owner, ty, DepKind::ParameterType, origin, span);
+        }
+        let mut locals: BTreeMap<u32, TypeId> = BTreeMap::new();
+        for info in &func.values {
+            if let Some(sym) = info.symbol {
+                if self.kind_of(sym) == Some(SymbolKind::SK_LOCAL_VAR) {
+                    locals.entry(sym).or_insert(info.ty);
+                }
+            }
+        }
+        for (sym, ty) in locals {
+            let span = self.symbol_span(sym);
+            self.record_type_tree(&module.types, owner, ty, DepKind::TypeUse, Origin::Symbol(sym), span);
+        }
 
         let mut facts = FunctionFacts {
             func: func.id,
             symbol: func.symbol,
+            kind: func.kind,
             owner: NodeId(owner),
             role,
             enclosing_member,
-            span: func.span,
+            span: func_span,
             instance_fields: Vec::new(),
             static_fields: Vec::new(),
+            globals: Vec::new(),
             static_callees: Vec::new(),
             symbol_callees: Vec::new(),
             closures: Vec::new(),
@@ -1350,7 +1752,7 @@ impl<'a> ArchGraphBuilder<'a> {
         for block in &func.blocks {
             for (i, inst) in block.insts.iter().enumerate() {
                 facts.instructions += 1;
-                let span = block.inst_spans.get(i).copied();
+                let span = block.inst_spans.get(i).copied().and_then(real_span);
                 let at = Origin::Instruction {
                     func: func.id.0,
                     block: block.id.0,
@@ -1400,16 +1802,18 @@ impl<'a> ArchGraphBuilder<'a> {
             }
         }
 
-        facts.instance_fields.sort_unstable_by_key(|f| f.0);
-        facts.instance_fields.dedup_by_key(|f| f.0);
-        facts.static_fields.sort_unstable_by_key(|&(o, f)| (o, f.0));
-        facts.static_fields.dedup_by_key(|&mut (o, f)| (o, f.0));
-        facts.static_callees.sort_unstable_by_key(|f| f.0);
-        facts.static_callees.dedup_by_key(|f| f.0);
+        facts.instance_fields.sort_unstable();
+        facts.instance_fields.dedup();
+        facts.static_fields.sort_unstable();
+        facts.static_fields.dedup();
+        facts.globals.sort_unstable();
+        facts.globals.dedup();
+        facts.static_callees.sort_unstable();
+        facts.static_callees.dedup();
         facts.symbol_callees.sort_unstable();
         facts.symbol_callees.dedup();
-        facts.closures.sort_unstable_by_key(|f| f.0);
-        facts.closures.dedup_by_key(|f| f.0);
+        facts.closures.sort_unstable();
+        facts.closures.dedup();
         self.functions.push(facts);
     }
 
@@ -1425,6 +1829,7 @@ impl<'a> ArchGraphBuilder<'a> {
         span: Option<Span>,
         facts: &mut FunctionFacts,
     ) {
+        let span = span.or_else(|| index.call_site(module, site).and_then(|c| real_span(c.span)));
         let target = match callee {
             Callee::Static(f) => CallTarget::Function(*f),
             Callee::Symbol(sym)
@@ -1462,31 +1867,29 @@ impl<'a> ArchGraphBuilder<'a> {
             },
             Callee::Symbol(sym)
             | Callee::Virtual { method: sym, .. }
-            | Callee::Interface { method: sym, .. } => match self.unit_of_symbol(*sym) {
-                Some(to) => {
-                    self.record(owner, to, DepKind::Call, origin, Strength::Exact, span, None);
+            | Callee::Interface { method: sym, .. } => {
+                if self.record_symbol_dependency(owner, *sym, DepKind::Call, origin, span, None) {
                     facts.symbol_callees.push(*sym);
-                }
-                None => {
+                } else {
                     facts.unresolved_calls += 1;
-                    self.unresolved.push(UnresolvedFact {
-                        from: Some(NodeId(owner)),
-                        kind: DepKind::Call,
-                        span,
-                        name: None,
-                        reason: "the callee symbol is not in the symbol table".to_string(),
-                    });
                 }
-            },
+            }
             Callee::Indirect(_) => self.pending_indirect.push((site.0, owner, span)),
             Callee::Unresolved(name) => {
                 facts.unresolved_calls += 1;
+                let candidates = index
+                    .call_site(module, site)
+                    .map_or(0, |c| c.candidates.len());
                 self.unresolved.push(UnresolvedFact {
                     from: Some(NodeId(owner)),
                     kind: DepKind::Call,
                     span,
                     name: Some(*name),
-                    reason: "the callee name is not bound to any declaration".to_string(),
+                    reason: if candidates > 1 {
+                        format!("overload resolution left {} applicable methods", candidates)
+                    } else {
+                        "the callee name is not bound to any declaration".to_string()
+                    },
                 });
             }
         }
@@ -1504,40 +1907,53 @@ impl<'a> ArchGraphBuilder<'a> {
         facts: &mut FunctionFacts,
     ) {
         match place {
-            Place::Field { field, .. } => match index.field(module, *field) {
-                Some(field_ir) => {
-                    if let Some(to) = self.unit_of_symbol(field_ir.owner_symbol) {
-                        self.record(owner, to, DepKind::FieldAccess, at, Strength::Exact, span, None);
+            Place::Field { field, .. } => {
+                facts.instance_fields.push(*field);
+                match index.field(module, *field) {
+                    Some(field_ir) if field_ir.owner_symbol != u32::MAX => {
+                        self.record_symbol_dependency(
+                            owner,
+                            field_ir.owner_symbol,
+                            DepKind::FieldAccess,
+                            at,
+                            span,
+                            None,
+                        );
                     }
-                    facts.instance_fields.push(*field);
+                    _ => self.unresolved.push(UnresolvedFact {
+                        from: Some(NodeId(owner)),
+                        kind: DepKind::FieldAccess,
+                        span,
+                        name: index.field(module, *field).map(|f| f.name),
+                        reason: "the declaring type of the accessed field is not derivable"
+                            .to_string(),
+                    }),
                 }
-                None => self.unresolved.push(UnresolvedFact {
-                    from: Some(NodeId(owner)),
-                    kind: DepKind::FieldAccess,
-                    span,
-                    name: None,
-                    reason: "the accessed field is not part of the IR module".to_string(),
-                }),
-            },
+            }
             Place::Static {
                 owner: owner_sym,
                 field,
                 ..
             } => {
-                match self.unit_of_symbol(*owner_sym) {
-                    Some(to) => {
-                        self.record(owner, to, DepKind::FieldAccess, at, Strength::Exact, span, None)
+                facts.static_fields.push((*owner_sym, *field));
+                self.record_symbol_dependency(owner, *owner_sym, DepKind::FieldAccess, at, span, None);
+            }
+            Place::Global(global) => {
+                facts.globals.push(*global);
+                match index.global(module, *global) {
+                    Some(global_ir) => {
+                        let to = self.global_unit(global_ir);
+                        self.record(owner, to, DepKind::FieldAccess, at, Strength::Exact, span, None);
                     }
                     None => self.unresolved.push(UnresolvedFact {
                         from: Some(NodeId(owner)),
                         kind: DepKind::FieldAccess,
                         span,
                         name: None,
-                        reason: "the owner of the static field is not in the symbol table"
+                        reason: "the accessed module variable is not part of the IR module"
                             .to_string(),
                     }),
                 }
-                facts.static_fields.push((*owner_sym, *field));
             }
             _ => {}
         }
@@ -1561,112 +1977,184 @@ impl<'a> ArchGraphBuilder<'a> {
             } else {
                 kind
             };
-            match self.unit_of_symbol(sym) {
-                Some(to) => self.record(from, to, dep, origin, Strength::Exact, span, None),
-                None => self.unresolved.push(UnresolvedFact {
-                    from: Some(NodeId(from)),
-                    kind: dep,
-                    span,
-                    name: None,
-                    reason: "the IR names a type symbol that is not in the symbol table".to_string(),
-                }),
-            }
+            self.record_symbol_dependency(from, sym, dep, origin, span, None);
         }
         if unknown {
-            self.unresolved.push(UnresolvedFact {
-                from: Some(NodeId(from)),
-                kind,
-                span,
-                name: None,
-                reason: "the IR could not determine (part of) the type".to_string(),
-            });
+            self.unresolved_type(from, kind, span);
         }
     }
 
     // ── Call graphs ──────────────────────────────────────────────────────────
 
-    /// Adds the runtime dispatch targets of the points-to call graph and its reachable set.
-    /// Sites with a single target are exact; sites with several are over-approximations.
+    /// Adds the points-to call graph: call and dispatch edges with the solver's precision,
+    /// external dispatch targets, the reasons of unresolved sites, the reachable set, the
+    /// entry points and the callbacks from external code.
     pub fn add_call_graph(&mut self, module: &ModuleIr, call_graph: &CallGraph) {
         self.coverage.call_graph = true;
         let index = IrIndex::new(module);
 
-        let mut static_target: HashMap<u32, u32> = HashMap::new();
-        for func in &module.funcs {
-            for block in &func.blocks {
-                for inst in &block.insts {
-                    if let Inst::Call {
-                        site,
-                        callee: Callee::Static(target),
-                        ..
-                    } = inst
-                    {
-                        static_target.insert(site.0, target.0);
-                    }
-                }
-            }
-        }
-
-        let mut targets_per_site: HashMap<u32, u32> = HashMap::new();
-        for (site, _) in &call_graph.edges {
-            *targets_per_site.entry(site.0).or_insert(0) += 1;
-        }
-
-        for &(site, callee) in &call_graph.edges {
-            self.resolved_sites.insert(site.0);
-            let Some(site_ir) = index.call_site(module, site) else {
-                self.unresolved.push(UnresolvedFact {
-                    from: None,
-                    kind: DepKind::Dispatch,
-                    span: None,
-                    name: None,
-                    reason: "the call graph names a call site that is not part of the IR module"
-                        .to_string(),
-                });
-                continue;
-            };
+        for info in &call_graph.edge_info {
+            self.resolved_sites.insert(info.site.0);
             let (Some(caller), Some(target)) =
-                (index.func(module, site_ir.func), index.func(module, callee))
+                (index.func(module, info.caller), index.func(module, info.callee))
             else {
                 self.unresolved.push(UnresolvedFact {
                     from: None,
                     kind: DepKind::Dispatch,
-                    span: Some(site_ir.span),
+                    span: None,
                     name: None,
                     reason: "the call graph names a function that is not part of the IR module"
                         .to_string(),
                 });
                 continue;
             };
-            let span = Some(site_ir.span);
-            let strength = if targets_per_site.get(&site.0).copied() == Some(1) {
+            let span = index
+                .call_site(module, info.site)
+                .and_then(|c| real_span(c.span));
+            let strength = precision_strength(info.precision);
+            let entry = self
+                .calls
+                .entry((info.site.0, info.callee.0))
+                .or_insert(CallFact {
+                    site: info.site,
+                    caller: info.caller,
+                    callee: info.callee,
+                    span,
+                    strength,
+                });
+            if strength < entry.strength {
+                entry.strength = strength;
+            }
+            let dep = match info.kind {
+                CallKind::Static | CallKind::Symbol => DepKind::Call,
+                CallKind::Virtual | CallKind::Interface | CallKind::Indirect | CallKind::Unresolved => {
+                    DepKind::Dispatch
+                }
+            };
+            let from = self.function_owner(caller);
+            let to = self.function_owner(target);
+            self.record(from, to, dep, Origin::CallSite(info.site.0), strength, span, None);
+        }
+
+        for site in &call_graph.sites {
+            self.resolved_sites.insert(site.site.0);
+            let Some(caller) = index.func(module, site.caller) else {
+                continue;
+            };
+            let from = self.function_owner(caller);
+            let span = real_span(site.span);
+            let origin = Origin::CallSite(site.site.0);
+            let dynamic = matches!(
+                site.kind,
+                CallKind::Virtual | CallKind::Interface | CallKind::Indirect | CallKind::Unresolved
+            );
+            let strength = if site.is_exact() {
                 Strength::Exact
             } else {
                 Strength::OverApproximate
             };
-            let entry = self.calls.entry((site.0, callee.0)).or_insert(CallFact {
-                site,
-                caller: caller.id,
-                callee,
-                span,
-                strength,
-            });
-            if strength < entry.strength {
-                entry.strength = strength;
+            for external in &site.external {
+                match *external {
+                    ExternalTarget::Symbol(sym) => {
+                        let dep = if dynamic { DepKind::Dispatch } else { DepKind::Call };
+                        if let Some(to) = self.unit_of_symbol(sym) {
+                            self.record(from, to, dep, origin, strength, span, None);
+                        }
+                    }
+                    ExternalTarget::Name(name) if !self.coverage.ir => {
+                        self.unresolved.push(UnresolvedFact {
+                            from: Some(NodeId(from)),
+                            kind: DepKind::Call,
+                            span,
+                            name: Some(name),
+                            reason: "the callee name is not bound to any declaration".to_string(),
+                        })
+                    }
+                    ExternalTarget::FunctionValue => self.unresolved.push(UnresolvedFact {
+                        from: Some(NodeId(from)),
+                        kind: DepKind::Dispatch,
+                        span,
+                        name: None,
+                        reason: "the called function value was created outside the module"
+                            .to_string(),
+                    }),
+                    ExternalTarget::MissingFunction(_) if !self.coverage.ir => {
+                        self.unresolved.push(UnresolvedFact {
+                            from: Some(NodeId(from)),
+                            kind: DepKind::Call,
+                            span,
+                            name: None,
+                            reason: "the callee function is not part of the IR module".to_string(),
+                        })
+                    }
+                    ExternalTarget::Name(_) | ExternalTarget::MissingFunction(_) => {}
+                }
             }
-            if static_target.get(&site.0) == Some(&callee.0) {
-                // The static call edge already records this dependency exactly.
-                continue;
+            for reason in &site.unresolved {
+                let reason = self.unresolved_reason_text(reason);
+                self.unresolved.push(UnresolvedFact {
+                    from: Some(NodeId(from)),
+                    kind: DepKind::Dispatch,
+                    span,
+                    name: None,
+                    reason,
+                });
             }
-            let from = self.function_owner(caller);
-            let to = self.function_owner(target);
-            self.record(from, to, DepKind::Dispatch, Origin::CallSite(site.0), strength, span, None);
         }
 
         let mut reachable = call_graph.reachable.clone();
-        reachable.sort_unstable_by_key(|f| f.0);
-        reachable.dedup_by_key(|f| f.0);
+        reachable.sort_unstable();
+        reachable.dedup();
         self.reachable = Some(reachable);
+        let mut entries = call_graph.entries.clone();
+        entries.sort_unstable();
+        entries.dedup();
+        self.entries = Some(entries);
+        for callback in &call_graph.callbacks {
+            let kind = match callback.origin {
+                CallbackOrigin::ExternalOverride { declaration } => {
+                    CallbackKind::ExternalOverride { declaration }
+                }
+                CallbackOrigin::ExternalFunctionValue => CallbackKind::ExternalFunctionValue,
+                CallbackOrigin::Intrinsic { name, .. } => CallbackKind::Intrinsic { name },
+            };
+            self.callbacks.push(CallbackFact {
+                func: callback.func,
+                kind,
+                span: real_span(callback.span),
+            });
+        }
+    }
+
+    fn unresolved_reason_text(&self, reason: &UnresolvedReason) -> String {
+        let name = |sym: u32| {
+            self.symbol_name(sym)
+                .unwrap_or_else(|| format!("#{}", sym))
+        };
+        match *reason {
+            UnresolvedReason::EmptyReceiverSet => {
+                "the receiver or called value points to no object at the fixpoint".to_string()
+            }
+            UnresolvedReason::NoImplementation { dynamic_type } => format!(
+                "the type hierarchy records no implementation of the method in `{}`",
+                name(dynamic_type)
+            ),
+            UnresolvedReason::HierarchyFactsMissing { dynamic_type } => format!(
+                "no type-hierarchy facts for the receiver's dynamic type `{}`",
+                name(dynamic_type)
+            ),
+            UnresolvedReason::MethodFactsMissing { method } => format!(
+                "no facts about `{}`, so its implementations cannot be enumerated",
+                name(method)
+            ),
+            UnresolvedReason::NonCallableValue { .. } => {
+                "the called value points to an object that is not a function value".to_string()
+            }
+            UnresolvedReason::Truncated => {
+                "the points-to solve stopped at its work budget before resolving the site"
+                    .to_string()
+            }
+        }
     }
 
     /// Adds the symbol-level call edges of a Phase 6 call graph, for pipelines that have not
@@ -1686,12 +2174,11 @@ impl<'a> ArchGraphBuilder<'a> {
         }
 
         for &(caller, callee, site_id) in &cga.site_to_edge_map {
-            let (Some(from), Some(to)) = (self.unit_of_symbol(caller), self.unit_of_symbol(callee))
-            else {
+            let Some(from) = self.unit_of_symbol(caller) else {
                 continue;
             };
             let site = sites.get(&site_id).copied();
-            let span = site.and_then(|s| self.token_span(s.call_token));
+            let span = site.and_then(|s| self.files.token_span(s.call_token, s.call_token));
             let single = targets_per_site.get(&site_id).copied() == Some(1);
             let (kind, strength, reason) = match site.map(|s| s.call_type) {
                 Some(CG_EDGE_DIRECT) | Some(CG_EDGE_SPECIAL) => (DepKind::Call, Strength::Exact, None),
@@ -1710,8 +2197,11 @@ impl<'a> ArchGraphBuilder<'a> {
                 None => (
                     DepKind::Dispatch,
                     Strength::Partial,
-                    Some("the Phase 6 call site record is missing; the edge kind is unknown"),
+                    Some("the Phase 6 call site record is missing; the call kind is unknown"),
                 ),
+            };
+            let Some(to) = self.unit_of_symbol(callee) else {
+                continue;
             };
             self.record(from, to, kind, Origin::SymbolCallSite(site_id), strength, span, reason);
         }
@@ -1719,64 +2209,18 @@ impl<'a> ArchGraphBuilder<'a> {
 
     // ── Frontend facts ───────────────────────────────────────────────────────
 
-    /// Adds the import, include and namespace-opening directives of every file. Calling it
-    /// states that the frontend supplied all of them.
-    pub fn add_imports<I: IntoIterator<Item = ImportFact>>(&mut self, imports: I) {
-        self.coverage.imports = true;
-        for fact in imports {
-            let origin = Origin::Import {
-                file: fact.file_id,
-                token: fact.span.map_or(u32::MAX, |s| s.first_token),
-            };
-            let key = match fact.target {
-                ImportTarget::Symbol(sym) => match self.unit_of_symbol(sym) {
-                    Some(unit) => ImportKey::Unit(unit),
-                    None => {
-                        self.unresolved.push(UnresolvedFact {
-                            from: None,
-                            kind: DepKind::Import,
-                            span: fact.span,
-                            name: None,
-                            reason: "the imported symbol is not in the symbol table".to_string(),
-                        });
-                        continue;
-                    }
-                },
-                ImportTarget::Namespace(name) => ImportKey::Namespace(name),
-                ImportTarget::Unresolved(text) => {
-                    self.unresolved.push(UnresolvedFact {
-                        from: None,
-                        kind: DepKind::Import,
-                        span: fact.span,
-                        name: None,
-                        reason: format!("the import `{}` binds no declaration or namespace", text),
-                    });
-                    continue;
-                }
-            };
-            self.imports
-                .entry((fact.file_id, key))
-                .or_default()
-                .add(origin, Strength::Exact, fact.span, None);
-        }
-    }
-
     /// Adds annotation, attribute and decorator uses. Calling it states that the frontend
     /// supplied all of them.
     pub fn add_annotation_uses<I: IntoIterator<Item = AnnotationFact>>(&mut self, uses: I) {
         self.coverage.annotations = true;
         for fact in uses {
-            let (Some(from), Some(to)) = (
-                self.unit_of_symbol(fact.annotated_symbol),
-                self.unit_of_symbol(fact.annotation_symbol),
-            ) else {
+            let Some(from) = self.unit_of_symbol(fact.annotated_symbol) else {
                 self.unresolved.push(UnresolvedFact {
                     from: None,
                     kind: DepKind::AnnotationUse,
                     span: fact.span,
                     name: None,
-                    reason: "the annotated declaration or the annotation type is not in the symbol table"
-                        .to_string(),
+                    reason: "the annotated declaration is not in the symbol table".to_string(),
                 });
                 continue;
             };
@@ -1784,7 +2228,14 @@ impl<'a> ArchGraphBuilder<'a> {
                 target: fact.annotated_symbol,
                 token: fact.span.map_or(u32::MAX, |s| s.first_token),
             };
-            self.record(from, to, DepKind::AnnotationUse, origin, Strength::Exact, fact.span, None);
+            self.record_symbol_dependency(
+                from,
+                fact.annotation_symbol,
+                DepKind::AnnotationUse,
+                origin,
+                fact.span,
+                None,
+            );
         }
     }
 
@@ -1823,8 +2274,9 @@ impl<'a> ArchGraphBuilder<'a> {
         );
     }
 
-    // ── Units ────────────────────────────────────────────────────────────────
+    // ── Recording ────────────────────────────────────────────────────────────
 
+    /// Records a dependency; evidence on a unit whose binding was only inferred is partial.
     #[allow(clippy::too_many_arguments)]
     fn record(
         &mut self,
@@ -1836,11 +2288,105 @@ impl<'a> ArchGraphBuilder<'a> {
         span: Option<Span>,
         reason: Option<&str>,
     ) {
+        let (strength, reason) = match self.units[to as usize].binding_note {
+            Some(note) if strength < Strength::Partial => (Strength::Partial, Some(note)),
+            _ => (strength, reason),
+        };
         self.facts
             .entry((from, to, kind))
             .or_default()
             .add(origin, strength, span, reason);
     }
+
+    /// Records a dependency on the unit of `sym`, or an unresolved fact when `sym` is not in
+    /// the symbol table. Returns whether the dependency was recorded.
+    fn record_symbol_dependency(
+        &mut self,
+        from: u32,
+        sym: u32,
+        kind: DepKind,
+        origin: Origin,
+        span: Option<Span>,
+        binding: Option<&'static str>,
+    ) -> bool {
+        match self.unit_of_symbol(sym) {
+            Some(to) => {
+                let strength = if binding.is_some() {
+                    Strength::Partial
+                } else {
+                    Strength::Exact
+                };
+                self.record(from, to, kind, origin, strength, span, binding);
+                true
+            }
+            None => {
+                self.unresolved.push(UnresolvedFact {
+                    from: Some(NodeId(from)),
+                    kind,
+                    span,
+                    name: None,
+                    reason: "the referenced symbol is not in the symbol table".to_string(),
+                });
+                false
+            }
+        }
+    }
+
+    fn unresolved_type(&mut self, from: u32, kind: DepKind, span: Option<Span>) {
+        self.unresolved.push(UnresolvedFact {
+            from: Some(NodeId(from)),
+            kind,
+            span,
+            name: None,
+            reason: "the type (or part of it) could not be determined".to_string(),
+        });
+    }
+
+    /// Declarations mentioned by a `TypeRef` tree, each with whether it is the head of the
+    /// root and the reason its binding is only inferred; type variables and primitives are
+    /// not dependencies.
+    fn type_ref_mentions(
+        &self,
+        root: &TypeRef,
+        head: bool,
+        out: &mut Vec<(u32, bool, Option<&'static str>)>,
+        unknown: &mut bool,
+    ) {
+        let sta = self.sta;
+        let mut stack: Vec<(&TypeRef, bool)> = vec![(root, head)];
+        let mut steps = 0usize;
+        while let Some((t, is_head)) = stack.pop() {
+            steps += 1;
+            if steps > sta.type_refs.len() + 1 {
+                break;
+            }
+            let skip_head = t.flags & (TypeRefFlags::PRIMITIVE | TypeRefFlags::TYPE_VARIABLE) != 0;
+            if t.flags & TypeRefFlags::UNKNOWN != 0 {
+                *unknown = true;
+            } else if !skip_head && t.head != u32::MAX {
+                if (t.head as usize) < sta.symbol_records.len() {
+                    let (_, binding) = binding_strength(ResolutionStatus::from_u8(t.status));
+                    out.push((t.head, is_head, binding));
+                }
+            } else if t.head == u32::MAX
+                && !skip_head
+                && !t.is_wildcard()
+                && t.flags & TypeRefFlags::UNION == 0
+            {
+                // A written type without a binding.
+                *unknown = true;
+            }
+            for &arg in &t.args {
+                if let Some(a) = sta.type_ref(arg) {
+                    // Alternatives of a union type are heads of their own.
+                    let arg_head = is_head && t.flags & TypeRefFlags::UNION != 0;
+                    stack.push((a, arg_head));
+                }
+            }
+        }
+    }
+
+    // ── Units ────────────────────────────────────────────────────────────────
 
     /// Unit (draft index) of the declaration `sym`, creating it on first use.
     fn unit_of_symbol(&mut self, sym: u32) -> Option<u32> {
@@ -1911,10 +2457,17 @@ impl<'a> ArchGraphBuilder<'a> {
             kind,
             SymbolKind::SK_INTERFACE | SymbolKind::SK_ANNOTATION_TYPE
         ) || (is_named_type_kind(kind) && rec.modifiers & SymbolModifiers::ABSTRACT != 0);
+        let binding_note = if rec.flags & SymbolFlags::UNRESOLVED != 0 {
+            Some(UNRESOLVED_BINDING_NOTE)
+        } else if rec.flags & SymbolFlags::INFERRED_PACKAGE != 0 {
+            Some(INFERRED_PACKAGE_NOTE)
+        } else {
+            None
+        };
         let name = self
             .symbol_name(sym)
             .unwrap_or_else(|| format!("#{}", sym));
-        let (package, package_symbol, module) = self.namespace_of(sym, file);
+        let (package, module) = self.namespace_of(sym, file);
 
         let unit = self.units.len() as u32;
         self.units.push(UnitDraft {
@@ -1929,8 +2482,8 @@ impl<'a> ArchGraphBuilder<'a> {
             visibility: Some(SymbolVisibility::from(rec.visibility)),
             parent: None,
             package,
-            package_symbol,
             module,
+            binding_note,
             spans: span.into_iter().collect(),
         });
         // Registered before the parent is resolved, so a malformed parent cycle terminates.
@@ -1956,7 +2509,7 @@ impl<'a> ArchGraphBuilder<'a> {
             .path(file)
             .map(str::to_string)
             .unwrap_or_else(|| format!("file #{}", file));
-        let package = self.file_package_name(file).unwrap_or_default();
+        let package = Some(self.file_package_name(file).unwrap_or_default());
         let unit = self.units.len() as u32;
         self.units.push(UnitDraft {
             kind: NodeKind::FileScope,
@@ -1970,8 +2523,8 @@ impl<'a> ArchGraphBuilder<'a> {
             visibility: None,
             parent: None,
             package,
-            package_symbol: None,
             module: None,
+            binding_note: None,
             spans: self.files.file_span(file).into_iter().collect(),
         });
         self.unit_by_file_scope.insert(file, unit);
@@ -1990,16 +2543,27 @@ impl<'a> ArchGraphBuilder<'a> {
         self.file_scope_unit(func.span.file_id)
     }
 
+    /// Unit of a module variable: the unit of its symbol, else the file-scope code of its
+    /// file.
+    fn global_unit(&mut self, global: &GlobalIr) -> u32 {
+        if let Some(unit) = global.symbol.and_then(|s| self.unit_of_symbol(s)) {
+            return unit;
+        }
+        self.file_scope_unit(global.span.file_id)
+    }
+
     fn member_role(&self, func: &FuncIr, owner: u32) -> MemberRole {
-        match func.symbol.and_then(|s| self.kind_of(s)) {
-            Some(SymbolKind::SK_CONSTRUCTOR) => MemberRole::Constructor,
-            Some(SymbolKind::SK_STATIC_INIT) | Some(SymbolKind::SK_INSTANCE_INIT) => {
+        match func.kind {
+            FuncKind::Constructor | FuncKind::ImplicitConstructor => MemberRole::Constructor,
+            FuncKind::StaticInit | FuncKind::InstanceInit | FuncKind::ModuleInit => {
                 MemberRole::Initializer
             }
-            Some(SymbolKind::SK_LAMBDA) => MemberRole::Closure,
-            _ if func.is_closure => MemberRole::Closure,
-            _ if self.units[owner as usize].kind == NodeKind::Type => MemberRole::Method,
-            _ => MemberRole::Function,
+            FuncKind::Lambda | FuncKind::Adapter => MemberRole::Closure,
+            FuncKind::Method if func.is_closure => MemberRole::Closure,
+            FuncKind::Method if self.units[owner as usize].kind == NodeKind::Type => {
+                MemberRole::Method
+            }
+            FuncKind::Method => MemberRole::Function,
         }
     }
 
@@ -2034,37 +2598,11 @@ impl<'a> ArchGraphBuilder<'a> {
 
     fn symbol_span(&self, sym: u32) -> Option<Span> {
         let rec = self.sta.symbol_records.get(sym as usize)?;
-        if rec.first_token_id == u32::MAX {
-            return None;
-        }
-        let file_id = self.files.file_of_token(rec.first_token_id)?;
-        let last_token = if rec.last_token_id == u32::MAX || rec.last_token_id < rec.first_token_id
-        {
-            rec.first_token_id
-        } else {
-            rec.last_token_id
-        };
-        Some(Span {
-            file_id,
-            first_token: rec.first_token_id,
-            last_token,
-        })
+        self.files.token_span(rec.first_token_id, rec.last_token_id)
     }
 
-    fn token_span(&self, token: u32) -> Option<Span> {
-        if token == u32::MAX {
-            return None;
-        }
-        let file_id = self.files.file_of_token(token)?;
-        Some(Span {
-            file_id,
-            first_token: token,
-            last_token: token,
-        })
-    }
-
-    /// Qualified name as recorded (package display names first, then the qualified-name
-    /// table, then the simple name).
+    /// Qualified name as recorded (package display names first, then the canonical qualified
+    /// name, then the simple name).
     fn symbol_name(&self, sym: u32) -> Option<String> {
         let rec = self.sta.symbol_records.get(sym as usize)?;
         if let Some(name) = self.sta.custom_package_names.get(&sym) {
@@ -2072,7 +2610,7 @@ impl<'a> ArchGraphBuilder<'a> {
                 return Some(name.clone());
             }
         }
-        if let Some(name) = qualified_name(self.sta, rec.qual_name_id) {
+        if let Some(name) = self.sta.qualified_name_of(sym) {
             if !name.is_empty() {
                 return Some(name.to_string());
             }
@@ -2090,10 +2628,11 @@ impl<'a> ArchGraphBuilder<'a> {
         self.sta.file_package_names.get(&file).cloned()
     }
 
-    /// Namespace name and symbol of the unit `sym`, and the name of an enclosing module
-    /// declaration. Without a package ancestor, the file's recorded package applies; without
-    /// either, the unit is in the global namespace.
-    fn namespace_of(&self, sym: u32, file: Option<u32>) -> (String, Option<u32>, Option<String>) {
+    /// Namespace name of the unit `sym` and the name of an enclosing module declaration.
+    /// Without a package ancestor, the file's recorded package applies; without either, a
+    /// project unit is in the global namespace and an external unit's namespace is not
+    /// recorded.
+    fn namespace_of(&self, sym: u32, file: Option<u32>) -> (Option<String>, Option<String>) {
         let records = &self.sta.symbol_records;
         let mut package = None;
         let mut module = None;
@@ -2109,28 +2648,13 @@ impl<'a> ArchGraphBuilder<'a> {
             steps += 1;
         }
         let name = match package {
-            Some(p) => self.symbol_name(p).unwrap_or_default(),
-            None => file
-                .and_then(|f| self.file_package_name(f))
-                .unwrap_or_default(),
+            Some(p) => Some(self.symbol_name(p).unwrap_or_default()),
+            None => match file {
+                Some(f) => Some(self.file_package_name(f).unwrap_or_default()),
+                None => None,
+            },
         };
-        (name, package, module)
-    }
-
-    /// The child of `owner` named `name` whose kind `accept`s.
-    fn member_symbol(&self, owner: u32, name: u32, accept: fn(SymbolKind) -> bool) -> Option<u32> {
-        let records = &self.sta.symbol_records;
-        let mut child = records.get(owner as usize)?.first_child;
-        let mut steps = 0usize;
-        while (child as usize) < records.len() && steps <= records.len() {
-            let rec = &records[child as usize];
-            if rec.name_id == name && accept(SymbolKind::from(rec.kind)) {
-                return Some(child);
-            }
-            child = rec.next_sibling;
-            steps += 1;
-        }
-        None
+        (name, module)
     }
 
     /// `type_id` of a declaration when it denotes a type declaration (type parameters and
@@ -2160,7 +2684,7 @@ impl<'a> ArchGraphBuilder<'a> {
                     span,
                     name: None,
                     reason: if call_graph {
-                        "the points-to call graph resolves no target for this indirect call"
+                        "the indirect call is unreachable from the call graph's entry points, so its targets were not computed"
                     } else {
                         "the target of an indirect call needs the points-to call graph, which was not supplied"
                     }
@@ -2169,7 +2693,7 @@ impl<'a> ArchGraphBuilder<'a> {
             }
         }
 
-        // ── Type level: order units by name, then key ──
+        // ── Type level: units ordered by name, then key ──
         let mut order: Vec<u32> = (0..self.units.len() as u32).collect();
         order.sort_by(|&a, &b| {
             let (ua, ub) = (&self.units[a as usize], &self.units[b as usize]);
@@ -2202,6 +2726,17 @@ impl<'a> ArchGraphBuilder<'a> {
             .collect();
         let types = self.lift_level(Level::Type, type_nodes, &remap, &HashMap::new(), None);
 
+        let mut import_files: BTreeSet<u32> = BTreeSet::new();
+        let mut namespace_imports: BTreeSet<String> = BTreeSet::new();
+        let mut namespace_import_count = 0u32;
+        for (file, key) in self.imports.keys() {
+            import_files.insert(*file);
+            if let ImportKey::Namespace(name) = key {
+                namespace_imports.insert(name.clone());
+                namespace_import_count += 1;
+            }
+        }
+
         // ── File level ──
         let mut file_groups = GroupTable::default();
         let mut unit_file = vec![0u32; self.units.len()];
@@ -2209,12 +2744,8 @@ impl<'a> ArchGraphBuilder<'a> {
             let u = &self.units[old as usize];
             unit_file[old as usize] = match (u.external, u.file) {
                 (false, Some(file)) => self.file_group(&mut file_groups, file),
-                _ => namespace_group(&mut file_groups, &u.package, true, None),
+                _ => namespace_group(&mut file_groups, u.package.as_deref(), true, None),
             };
-        }
-        let mut import_files: BTreeSet<u32> = BTreeSet::new();
-        for (file, _) in self.imports.keys() {
-            import_files.insert(*file);
         }
         for &file in &import_files {
             self.file_group(&mut file_groups, file);
@@ -2225,20 +2756,14 @@ impl<'a> ArchGraphBuilder<'a> {
         }
         let file_import_sources: HashMap<u32, Vec<(u32, Strength)>> = import_files
             .iter()
-            .map(|&f| {
-                let g = file_groups.by_key[&file_key(f)];
-                (f, vec![(g, Strength::Exact)])
+            .filter_map(|&f| {
+                let g = *file_groups.by_key.get(&file_key(f))?;
+                Some((f, vec![(g, Strength::Exact)]))
             })
             .collect();
-        let mut unlifted = 0u32;
-        for (_, key) in self.imports.keys() {
-            if matches!(key, ImportKey::Namespace(_)) {
-                unlifted += 1;
-            }
-        }
         let files = self.lift_level(
             Level::File,
-            file_groups.nodes,
+            file_groups.nodes.clone(),
             &unit_file,
             &file_import_sources,
             Some(&|key: &ImportKey| match key {
@@ -2253,14 +2778,12 @@ impl<'a> ArchGraphBuilder<'a> {
         for &old in &order {
             let u = &self.units[old as usize];
             unit_package[old as usize] =
-                namespace_group(&mut package_groups, &u.package, u.external, None);
+                namespace_group(&mut package_groups, u.package.as_deref(), u.external, None);
         }
-        for (_, key) in self.imports.keys() {
-            if let ImportKey::Namespace(name) = key {
-                namespace_group(&mut package_groups, name, true, None);
-            }
+        for name in &namespace_imports {
+            namespace_group(&mut package_groups, Some(name), true, None);
         }
-        // A file whose imports no project unit receives imports into its recorded package.
+        // A file that holds no project unit receives its imports in its recorded package.
         let files_with_units: HashSet<u32> = self
             .units
             .iter()
@@ -2270,7 +2793,7 @@ impl<'a> ArchGraphBuilder<'a> {
         for &file in &import_files {
             if !files_with_units.contains(&file) {
                 let name = self.file_package_name(file).unwrap_or_default();
-                namespace_group(&mut package_groups, &name, false, None);
+                namespace_group(&mut package_groups, Some(&name), false, None);
             }
         }
         // Package declarations contribute their spans and symbol.
@@ -2311,8 +2834,12 @@ impl<'a> ArchGraphBuilder<'a> {
                 .by_key
                 .contains_key(&namespace_key(&parent_name));
             let external = package_groups.nodes[g as usize].external;
-            let parent =
-                namespace_group(&mut package_groups, &parent_name, external, Some(parent_sym));
+            let parent = namespace_group(
+                &mut package_groups,
+                Some(&parent_name),
+                external,
+                Some(parent_sym),
+            );
             if created {
                 let span = self.symbol_span(parent_sym);
                 package_groups.nodes[parent as usize].spans.extend(span);
@@ -2385,7 +2912,7 @@ impl<'a> ArchGraphBuilder<'a> {
         for &old in &order {
             let u = &self.units[old as usize];
             unit_project[old as usize] = if u.external {
-                namespace_group(&mut project_groups, &u.package, true, None)
+                namespace_group(&mut project_groups, u.package.as_deref(), true, None)
             } else {
                 let name = self.project_name(u);
                 project_group(&mut project_groups, &name)
@@ -2401,10 +2928,8 @@ impl<'a> ArchGraphBuilder<'a> {
             let g = project_group(&mut project_groups, &name);
             file_project_group.insert(file, g);
         }
-        for (_, key) in self.imports.keys() {
-            if let ImportKey::Namespace(name) = key {
-                namespace_group(&mut project_groups, name, true, None);
-            }
+        for name in &namespace_imports {
+            namespace_group(&mut project_groups, Some(name), true, None);
         }
         let project_remap = project_groups.sort();
         for g in unit_project.iter_mut() {
@@ -2417,9 +2942,9 @@ impl<'a> ArchGraphBuilder<'a> {
         let mut namespace_projects: HashMap<String, BTreeSet<u32>> = HashMap::new();
         for &old in &order {
             let u = &self.units[old as usize];
-            if !u.external {
+            if let (false, Some(package)) = (u.external, &u.package) {
                 namespace_projects
-                    .entry(u.package.clone())
+                    .entry(package.clone())
                     .or_default()
                     .insert(unit_project[old as usize]);
             }
@@ -2438,11 +2963,13 @@ impl<'a> ArchGraphBuilder<'a> {
                 Some(&|key: &ImportKey| match key {
                     ImportKey::Unit(u) => vec![(unit_project[*u as usize], Strength::Exact)],
                     ImportKey::Namespace(name) => match namespace_projects.get(name) {
-                        Some(set) if set.len() == 1 => {
-                            set.iter().map(|&g| (g, Strength::Exact)).collect()
-                        }
                         Some(set) if !set.is_empty() => {
-                            set.iter().map(|&g| (g, Strength::OverApproximate)).collect()
+                            let strength = if set.len() == 1 {
+                                Strength::Exact
+                            } else {
+                                Strength::OverApproximate
+                            };
+                            set.iter().map(|&g| (g, strength)).collect()
                         }
                         _ => by_key
                             .get(&namespace_key(name))
@@ -2483,16 +3010,18 @@ impl<'a> ArchGraphBuilder<'a> {
         for f in &mut functions {
             f.owner = NodeId(remap[f.owner.index()]);
         }
-        functions.sort_by_key(|f| f.func.0);
+        functions.sort_by_key(|f| f.func);
         let mut fields = std::mem::take(&mut self.fields);
         for f in &mut fields {
             f.owner = NodeId(remap[f.owner.index()]);
         }
-        fields.sort_by_key(|f| f.field.0);
+        fields.sort_by_key(|f| f.field);
         let mut unresolved = std::mem::take(&mut self.unresolved);
         for u in &mut unresolved {
             u.from = u.from.map(|n| NodeId(remap[n.index()]));
         }
+        let mut callbacks = std::mem::take(&mut self.callbacks);
+        callbacks.sort_by_key(|c| (c.func, c.span.map(|s| span_key(&s))));
 
         ArchModel {
             types,
@@ -2507,8 +3036,10 @@ impl<'a> ArchGraphBuilder<'a> {
             fields,
             calls: std::mem::take(&mut self.calls).into_values().collect(),
             reachable: self.reachable.take(),
+            entries: self.entries.take(),
+            callbacks,
             unresolved,
-            namespace_imports_without_file_target: unlifted,
+            namespace_imports_without_file_target: namespace_import_count,
             coverage: self.coverage,
         }
     }
@@ -2608,7 +3139,9 @@ impl<'a> ArchGraphBuilder<'a> {
     }
 }
 
-/// One-call construction from the available artifacts.
+/// One-call construction from the available artifacts: declarations and imports of the
+/// symbol table, then the IR and its call graph when given, else the name occurrences for
+/// body facts.
 pub fn build_model(
     sta: &SymbolTableArtifact,
     tca: &TokenCorpusArtifact,
@@ -2618,11 +3151,15 @@ pub fn build_model(
 ) -> ArchModel {
     let mut builder = ArchGraphBuilder::new(sta, tca, config);
     builder.add_declarations();
-    if let Some(module) = module {
-        builder.add_ir(module);
-        if let Some(cg) = call_graph {
-            builder.add_call_graph(module, cg);
+    builder.add_symbol_imports();
+    match module {
+        Some(module) => {
+            builder.add_ir(module);
+            if let Some(cg) = call_graph {
+                builder.add_call_graph(module, cg);
+            }
         }
+        None => builder.add_occurrences(),
     }
     builder.finish()
 }
@@ -2688,28 +3225,35 @@ fn project_key(name: &str) -> String {
     format!("project:{}", name)
 }
 
-/// Namespace group `name`; a group stays external only while every member is external.
+/// Key of the group that collects external declarations whose namespace the symbol table
+/// does not record (kept apart from the project's global namespace).
+pub const UNRECORDED_NAMESPACE_KEY: &str = "ns-unrecorded";
+
+/// Namespace group `name` (`None`: the unrecorded-namespace group); a group stays external
+/// only while every member is external.
 fn namespace_group(
     groups: &mut GroupTable,
-    name: &str,
+    name: Option<&str>,
     external: bool,
     symbol: Option<u32>,
 ) -> u32 {
-    let id = groups.intern(namespace_key(name), |id| ArchNode {
+    let key = name.map_or_else(|| UNRECORDED_NAMESPACE_KEY.to_string(), namespace_key);
+    let display = name.unwrap_or_default().to_string();
+    let id = groups.intern(key.clone(), |id| ArchNode {
         id,
         kind: NodeKind::Package,
-        key: namespace_key(name),
-        name: name.to_string(),
+        key,
+        name: display,
         symbol,
         symbol_kind: symbol.map(|_| SymbolKind::SK_PACKAGE),
         file: None,
-        external,
+        external: external || name.is_none(),
         is_abstract: false,
         visibility: None,
         parent: None,
         spans: Vec::new(),
     });
-    if !external {
+    if !external && name.is_some() {
         groups.nodes[id as usize].external = false;
     }
     id
@@ -2734,25 +3278,49 @@ fn project_group(groups: &mut GroupTable, name: &str) -> u32 {
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
+const UNRESOLVED_BINDING_NOTE: &str =
+    "the referenced type is external and no import, package or catalog entry binds it";
+const INFERRED_PACKAGE_NOTE: &str =
+    "the referenced type's package is inferred from the only applicable on-demand import";
+
 /// Sort and identity key of a span.
 #[inline]
 pub fn span_key(span: &Span) -> (u32, u32, u32) {
     (span.file_id, span.first_token, span.last_token)
 }
 
-/// Qualified name stored for `qual_name_id` (ids at or above the table base index the
-/// table from the base; smaller ids index it directly).
-pub fn qualified_name(sta: &SymbolTableArtifact, qual_name_id: u32) -> Option<&str> {
-    const BASE: u32 = crate::symbol::QualifiedNameTable::BASE_QUAL_NAME_ID;
-    if qual_name_id == u32::MAX {
-        return None;
+/// `span` unless it is the "no source counterpart" sentinel.
+#[inline]
+pub fn real_span(span: Span) -> Option<Span> {
+    (!span.is_none() && span.file_id != u32::MAX).then_some(span)
+}
+
+fn precision_strength(precision: EdgePrecision) -> Strength {
+    match precision {
+        EdgePrecision::Exact => Strength::Exact,
+        EdgePrecision::OverApproximate(_) => Strength::OverApproximate,
     }
-    let index = if qual_name_id >= BASE {
-        qual_name_id - BASE
-    } else {
-        qual_name_id
-    };
-    sta.qual_names.get(index as usize).map(String::as_str)
+}
+
+/// Strength of a Phase 3 binding and the assumption behind a partial one.
+fn binding_strength(status: Option<ResolutionStatus>) -> (Strength, Option<&'static str>) {
+    match status {
+        Some(ResolutionStatus::InferredPackage) => (Strength::Partial, Some(INFERRED_PACKAGE_NOTE)),
+        _ => (Strength::Exact, None),
+    }
+}
+
+fn occurrence_role(role: u8) -> Option<OccurrenceRole> {
+    Some(match role {
+        0 => OccurrenceRole::Definition,
+        1 => OccurrenceRole::TypeReference,
+        2 => OccurrenceRole::Read,
+        3 => OccurrenceRole::Write,
+        4 => OccurrenceRole::Call,
+        5 => OccurrenceRole::Import,
+        6 => OccurrenceRole::Instantiation,
+        _ => return None,
+    })
 }
 
 #[inline]
@@ -2772,43 +3340,43 @@ fn is_namespace_kind(kind: SymbolKind) -> bool {
     matches!(kind, SymbolKind::SK_PACKAGE | SymbolKind::SK_MODULE)
 }
 
-/// The type table entry of `id`.
-#[inline]
-fn ir_type(types: &TypeTable, id: TypeId) -> Option<&IrType> {
-    types.get(id)
-}
-
 /// Named symbols in the type tree of `root`, each flagged when it is the head (the type
 /// itself, through pointers, references and generic bases), and whether part of the tree is
 /// unknown. Type parameters and primitive types are not dependencies.
 pub fn named_in_type(types: &TypeTable, root: TypeId) -> (Vec<(u32, bool)>, bool) {
     let mut named = Vec::new();
     let mut unknown = false;
-    let mut seen: HashSet<(u32, bool)> = HashSet::new();
+    let mut seen: HashSet<(TypeId, bool)> = HashSet::new();
     let mut stack = vec![(root, true)];
     while let Some((id, head)) = stack.pop() {
-        if !seen.insert((id.0, head)) {
+        if !seen.insert((id, head)) {
             continue;
         }
-        let Some(ty) = ir_type(types, id) else {
+        if id.index() >= types.len() {
             unknown = true;
             continue;
-        };
-        match ty {
+        }
+        match types.get(id) {
             IrType::Named(sym) => named.push((*sym, head)),
-            IrType::Generic { base, args, .. } => {
+            IrType::Generic { base, args } => {
                 stack.push((*base, head));
                 stack.extend(args.iter().map(|&a| (a, false)));
             }
             IrType::Ptr(target) => stack.push((*target, head)),
             IrType::Ref { target, .. } => stack.push((*target, head)),
             IrType::Array { elem, .. } => stack.push((*elem, false)),
-            IrType::Func { params, ret, .. } => {
+            IrType::Func { params, ret } => {
                 stack.extend(params.iter().map(|&p| (p, false)));
                 stack.push((*ret, false));
             }
             IrType::Unknown => unknown = true,
-            _ => {}
+            IrType::Void
+            | IrType::Bool
+            | IrType::Int { .. }
+            | IrType::Float { .. }
+            | IrType::Char
+            | IrType::Str
+            | IrType::TypeParam(_) => {}
         }
     }
     named.sort_unstable();

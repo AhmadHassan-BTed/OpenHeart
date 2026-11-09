@@ -1,0 +1,267 @@
+[
+ {
+  "id": "HO-fix_SRV_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the mat",
+  "files": [
+   "src/tra/mod.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs"
+  ],
+  "evidence": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "impact": "The runner currently contains their panic-on-write behavior via catch_unwind; a signature change will break the build at those call sites",
+  "recommendation": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_UML_1-15",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: Return an exactness flag or use BigUint for counts above 2^64.",
+  "files": [
+   "src/psa/bdd/sat_count.rs"
+  ],
+  "evidence": "Return an exactness flag or use BigUint for counts above 2^64.",
+  "impact": "BDD-16: UMA now saturates and flags, but cannot tell an exact count from a clamped one.",
+  "recommendation": "Return an exactness flag or use BigUint for counts above 2^64.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: ScpgHashChain::scpg_hash (XOR/CRC of counts in Phase 7) cannot equal the final snapshot hash. Rename",
+  "files": [
+   "src/tra/uml_link/hash_chain.rs"
+  ],
+  "evidence": "ScpgHashChain::scpg_hash (XOR/CRC of counts in Phase 7) cannot equal the final snapshot hash. Rename it to a Phase-7 build fingerprint, or stop writing it into UMLLinkRecord.scpg_hash. Engine-issued links use NavigationIndex::link_record stamped with scpg::serializer::integrity::short_hash(&digest), the single shared definition.",
+  "impact": "SCPG-14: links must be checkable against OpenHeartEngine::scpg_hash().",
+  "recommendation": "ScpgHashChain::scpg_hash (XOR/CRC of counts in Phase 7) cannot equal the final snapshot hash. Rename it to a Phase-7 build fingerprint, or stop writing it into UMLLinkRecord.scpg_hash. Engine-issued links use NavigationIndex::link_record stamped with scpg::serializer::integrity::short_hash(&digest), the single shared definition.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: Replace the backward walk in forward_sym_query (and the non-terminating loop in cs_span.rs forward_c",
+  "files": [
+   "src/tra/forward/sym_span.rs"
+  ],
+  "evidence": "Replace the backward walk in forward_sym_query (and the non-terminating loop in cs_span.rs forward_cs_query) with an enclosing-span parent index or a max-end segment tree (same scheme as scpg::query::navigation::NavigationIndex), and break early once first_token_id > token_id.",
+  "impact": "BDD-10: forward queries are O(n) per file.",
+  "recommendation": "Replace the backward walk in forward_sym_query (and the non-terminating loop in cs_span.rs forward_cs_query) with an enclosing-span parent index or a max-end segment tree (same scheme as scpg::query::navigation::NavigationIndex), and break early once first_token_id > token_id.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: Lines ~98-102: use Tarjan's emitted SCC order without .rev() (callee first). In psa/construction/rec",
+  "files": [
+   "src/psa/mod.rs"
+  ],
+  "evidence": "Lines ~98-102: use Tarjan's emitted SCC order without .rev() (callee first). In psa/construction/recursive.rs, implement bounded unwinding instead of stamping unwind_depth=3 and compose callee summaries at call sites. The query side now lives in scpg::query::robdd::PathSummaryIndex (count_paths/is_feasible/witness/paths_through_edge).",
+  "impact": "BDD-12 recursion and interprocedural composition are Phase 8 work.",
+  "recommendation": "Lines ~98-102: use Tarjan's emitted SCC order without .rev() (callee first). In psa/construction/recursive.rs, implement bounded unwinding instead of stamping unwind_depth=3 and compose callee summaries at call sites. The query side now lives in scpg::query::robdd::PathSummaryIndex (count_paths/is_feasible/witness/paths_through_edge).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: DeltaApplicator::compute_delta / StaleDetector compare positional ids. Remove them or delegate to sc",
+  "files": [
+   "src/tra/delta/mod.rs"
+  ],
+  "evidence": "DeltaApplicator::compute_delta / StaleDetector compare positional ids. Remove them or delegate to scpg::incremental::SnapshotDiff and IncrementalEngine::commit, which key entities by stable id and position-independent fingerprints.",
+  "impact": "BDD-08: dead and unsound positional invalidation.",
+  "recommendation": "DeltaApplicator::compute_delta / StaleDetector compare positional ids. Remove them or delegate to scpg::incremental::SnapshotDiff and IncrementalEngine::commit, which key entities by stable id and position-independent fingerprints.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-5",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Line 344: h.u8(r.def_block) -> h.u32(r.def_block); line 416: h.u16(s.member_count) -> h.u32(s.member",
+  "files": [
+   "src/tra/uml_link/digest.rs"
+  ],
+  "evidence": "Line 344: h.u8(r.def_block) -> h.u32(r.def_block); line 416: h.u16(s.member_count) -> h.u32(s.member_count).",
+  "impact": "SSARecord.def_block and SCCRecord.member_count are now u32; these lines no longer compile.",
+  "recommendation": "Line 344: h.u8(r.def_block) -> h.u32(r.def_block); line 416: h.u16(s.member_count) -> h.u32(s.member_count).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Update comments that say SSARecord::def_block keeps 8 bits; the def_blocks side vectors and the 256-",
+  "files": [
+   "src/ssa/serializer.rs",
+   "src/ssa/renaming.rs",
+   "src/tra/backward/ssa_bi.rs"
+  ],
+  "evidence": "Update comments that say SSARecord::def_block keeps 8 bits; the def_blocks side vectors and the 256-block limit constant in ssa_bi.rs:26 can use rec.def_block directly.",
+  "impact": "def_block widened to u32 (BDD-05/BDD-09/FLOW-18).",
+  "recommendation": "Update comments that say SSARecord::def_block keeps 8 bits; the def_blocks side vectors and the 256-block limit constant in ssa_bi.rs:26 can use rec.def_block directly.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-16",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? ",
+  "files": [
+   "src/uma/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
+  "impact": "AUTO-09: these readers still panic or over-allocate on malformed input.",
+  "recommendation": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Stop reading IFDSResults.taint_sparse.1 as a block id: it is the taint source id (k+1). Use Function",
+  "files": [
+   "src/psa/construction/feasibility.rs"
+  ],
+  "evidence": "Stop reading IFDSResults.taint_sparse.1 as a block id: it is the taint source id (k+1). Use FunctionSSAData.def_blocks (u32) instead of def_block (u8). Take the edge index from cfg.succ_edge_range(b) or cfg.pred_edge_ids(b) instead of edge_index_of.",
+  "impact": "BDD-05 and BDD-13: edges are now stored in canonical CSR order, so edge index k is succ_adj position k.",
+  "recommendation": "Stop reading IFDSResults.taint_sparse.1 as a block id: it is the taint source id (k+1). Use FunctionSSAData.def_blocks (u32) instead of def_block (u8). Take the edge index from cfg.succ_edge_range(b) or cfg.pred_edge_ids(b) instead of edge_index_of.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Replace edge_index_of (a linear position() search) with FunctionCFGData::succ_edge_range / pred_edge",
+  "files": [
+   "src/psa/ordering/rpo.rs"
+  ],
+  "evidence": "Replace edge_index_of (a linear position() search) with FunctionCFGData::succ_edge_range / pred_edge_ids.",
+  "impact": "O(1) edge ids; parallel edges keep distinct ids (BDD-13).",
+  "recommendation": "Replace edge_index_of (a linear position() search) with FunctionCFGData::succ_edge_range / pred_edge_ids.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Lines 100-102: iterate cga.sccs without .rev() to process callees first.",
+  "files": [
+   "src/psa/mod.rs"
+  ],
+  "evidence": "Lines 100-102: iterate cga.sccs without .rev() to process callees first.",
+  "impact": "Tarjan already emits callees first (documented in src/cg/scc.rs); .rev() inverts the intended order (BDD-12).",
+  "recommendation": "Lines 100-102: iterate cga.sccs without .rev() to process callees first.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Use func.def_blocks[i] instead of var.def_block when computing global block ids.",
+  "files": [
+   "src/tra/backward/ssa_bi.rs"
+  ],
+  "evidence": "Use func.def_blocks[i] instead of var.def_block when computing global block ids.",
+  "impact": "def_block is truncated to 8 bits.",
+  "recommendation": "Use func.def_blocks[i] instead of var.def_block when computing global block ids.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-cfam_MEM-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from cfam:MEM: When the IR pipeline runs, schedule functions in `CallGraph::bottom_up_sccs()` order and flag recurs",
+  "files": [
+   "src/psa/mod.rs"
+  ],
+  "evidence": "When the IR pipeline runs, schedule functions in `CallGraph::bottom_up_sccs()` order and flag recursion from `CallGraph::recursive_functions()`.",
+  "impact": "Gives the callee-first SCC order from the on-the-fly call graph instead of the CHA graph.",
+  "recommendation": "When the IR pipeline runs, schedule functions in `CallGraph::bottom_up_sccs()` order and flag recursion from `CallGraph::recursive_functions()`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-13",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Encode flow conservation per the paper's Def. 'Feasible Path Function': AMO(in), AMO(out), in<->out,",
+  "files": [
+   "src/psa/construction/constraints.rs",
+   "src/psa/construction/mod.rs"
+  ],
+  "evidence": "Encode flow conservation per the paper's Def. 'Feasible Path Function': AMO(in), AMO(out), in<->out, EXO(out(entry)), EXO(in(exit)); exclude restricted variables from the sat_count variable count; add a Ball-Larus count as reference",
+  "impact": "BDD-02. docs/plans/phase8.md and the paper now specify this encoding",
+  "recommendation": "Encode flow conservation per the paper's Def. 'Feasible Path Function': AMO(in), AMO(out), in<->out, EXO(out(entry)), EXO(in(exit)); exclude restricted variables from the sat_count variable count; add a Ball-Larus count as reference",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Implement real in-place adjacent-level swaps with live node counts, or remove the pass",
+  "files": [
+   "src/psa/ordering/sifting.rs"
+  ],
+  "evidence": "Implement real in-place adjacent-level swaps with live node counts, or remove the pass",
+  "impact": "BDD-06",
+  "recommendation": "Implement real in-place adjacent-level swaps with live node counts, or remove the pass",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-18",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Keep one table-driven CRC implementation in core and reuse it",
+  "files": [
+   "src/tra/uml_link/hash_chain.rs",
+   "src/scpg/serializer/integrity.rs"
+  ],
+  "evidence": "Keep one table-driven CRC implementation in core and reuse it",
+  "impact": "SCPG2-29",
+  "recommendation": "Keep one table-driven CRC implementation in core and reuse it",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

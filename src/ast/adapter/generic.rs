@@ -27,7 +27,7 @@ fn operator_of(node: &Node, arity: OperatorArity) -> OperatorId {
 
 impl ASTReductionAdapter for GenericASTReductionAdapter {
     fn ts_language(&self) -> Language {
-        self.ts_lang
+        self.ts_lang.clone()
     }
 
     fn classify(&self, kind: &str, _node: &Node, _ctx: &ReductionContext) -> ReductionDecision {

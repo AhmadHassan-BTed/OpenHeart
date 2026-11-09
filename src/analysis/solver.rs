@@ -3,13 +3,13 @@
 //!
 //! Three layers:
 //!
-//! 1. **IR binding.** The only code in `crate::analysis` that names IR operators and constant
-//!    kinds: [`OperandView`], [`ConstKey`], [`ArithOp`], [`UnaryOp`], [`CmpOp`], the def/use
-//!    walkers and [`TypeFacts`]. Every analysis reads the IR through these, so a change of the
-//!    IR vocabulary is absorbed here.
+//! 1. **IR binding.** Operand and constant access ([`OperandView`], [`ConstKey`]), predicate
+//!    evaluation ([`pred_holds`]), the def/use walkers, copy resolution and [`TypeFacts`] with
+//!    its IR implementation [`IrTypeFacts`]. Every analysis reads the IR through these.
 //! 2. **CFG view.** [`IrCfg`] turns a [`FuncIr`] into dense block positions with typed edges:
-//!    `Jump`, `True`/`False` of a `Branch`, `Case`/`Default` of a `Switch`, and `Unwind` edges
-//!    that leave a block *in the middle*, at the `Call` that names the handler. It also holds
+//!    `Jump`, `True`/`False` of a `Branch`, `Case`/`Default` of a `Switch`, `Throw` to the
+//!    block's landing block, and `Unwind` edges that leave a block at the `Call` naming the
+//!    landing block (the IR places such a call last in its block). It also holds
 //!    the reverse post-order, the loop heads (targets of RPO-retreating edges, a feedback
 //!    vertex set for every cycle reachable from entry) and the dominator tree.
 //! 3. **Solvers.** [`solve_forward`] and [`solve_backward`] run a priority worklist in reverse
@@ -40,10 +40,10 @@ use std::fmt;
 use crate::analysis::lattice::Lattice;
 use crate::cfg::analysis::dominators::{compute_idom_cooper, DominatorTree, UNDEFINED_IDOM};
 use crate::cfg::analysis::rpo::reverse_postorder_from;
-use crate::ir::{
-    BinOp, BlockId, BlockIr, Callee, CmpPred, ConstVal, FuncIr, Inst, Operand, Place, Terminator,
-    TypeId, UnOp, ValueId,
-};
+use crate::ir::func::{BlockIr, FuncIr};
+use crate::ir::inst::{Callee, ComparePred, Inst, Terminator};
+use crate::ir::types::{BlockId, IrType, TypeId, TypeTable, ValueId};
+use crate::ir::value::{ConstVal, Operand, Place};
 
 // ── IR binding: operands and constants ───────────────────────────────────────
 
@@ -112,11 +112,11 @@ pub enum ConstKey {
 
 impl ConstKey {
     pub fn from_ir(c: &ConstVal) -> ConstKey {
-        match c {
-            ConstVal::Bool(b) => ConstKey::Bool(*b),
-            ConstVal::Int(i) => ConstKey::Int(*i),
-            ConstVal::Float(bits) => ConstKey::Float(*bits),
-            ConstVal::Str(s) => ConstKey::Str(*s),
+        match *c {
+            ConstVal::Bool(b) => ConstKey::Bool(b),
+            ConstVal::Int(i) => ConstKey::Int(i),
+            ConstVal::Float(bits) => ConstKey::Float(bits),
+            ConstVal::Str(s) => ConstKey::Str(s),
             ConstVal::Null => ConstKey::Null,
         }
     }
@@ -174,130 +174,28 @@ impl fmt::Display for ConstKey {
     }
 }
 
-// ── IR binding: operators ────────────────────────────────────────────────────
+// ── IR binding: predicates ───────────────────────────────────────────────────
 
-/// Binary operators the analyses give a meaning to. IR operators without a counterpart here
-/// are treated as uninterpreted (their result is unknown).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ArithOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Rem,
-    And,
-    Or,
-    Xor,
-    Shl,
-    Shr,
-}
-
-impl ArithOp {
-    pub fn from_ir(op: &BinOp) -> Option<ArithOp> {
-        #[allow(unreachable_patterns)]
-        match op {
-            BinOp::Add => Some(ArithOp::Add),
-            BinOp::Sub => Some(ArithOp::Sub),
-            BinOp::Mul => Some(ArithOp::Mul),
-            BinOp::Div => Some(ArithOp::Div),
-            BinOp::Rem => Some(ArithOp::Rem),
-            BinOp::And => Some(ArithOp::And),
-            BinOp::Or => Some(ArithOp::Or),
-            BinOp::Xor => Some(ArithOp::Xor),
-            BinOp::Shl => Some(ArithOp::Shl),
-            BinOp::Shr => Some(ArithOp::Shr),
-            _ => None,
-        }
+/// Evaluates a comparison predicate on an ordering result; `None` (unordered operands, a
+/// NaN) makes every predicate except `Ne` false.
+pub fn pred_holds(pred: ComparePred, ord: Option<std::cmp::Ordering>) -> bool {
+    use std::cmp::Ordering::*;
+    match (pred, ord) {
+        (ComparePred::Ne, None) => true,
+        (_, None) => false,
+        (ComparePred::Eq, Some(o)) => o == Equal,
+        (ComparePred::Ne, Some(o)) => o != Equal,
+        (ComparePred::Lt, Some(o)) => o == Less,
+        (ComparePred::Le, Some(o)) => o != Greater,
+        (ComparePred::Gt, Some(o)) => o == Greater,
+        (ComparePred::Ge, Some(o)) => o != Less,
     }
 }
 
-/// Unary operators the analyses give a meaning to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum UnaryOp {
-    /// Arithmetic negation.
-    Neg,
-    /// Negation: logical on Booleans; on other operands its meaning is operand-kind specific
-    /// and the analyses leave the result unknown.
-    Not,
-}
-
-impl UnaryOp {
-    pub fn from_ir(op: &UnOp) -> Option<UnaryOp> {
-        #[allow(unreachable_patterns)]
-        match op {
-            UnOp::Neg => Some(UnaryOp::Neg),
-            UnOp::Not => Some(UnaryOp::Not),
-            _ => None,
-        }
-    }
-}
-
-/// Comparison predicates.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CmpOp {
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-}
-
-impl CmpOp {
-    pub fn from_ir(pred: &CmpPred) -> Option<CmpOp> {
-        #[allow(unreachable_patterns)]
-        match pred {
-            CmpPred::Eq => Some(CmpOp::Eq),
-            CmpPred::Ne => Some(CmpOp::Ne),
-            CmpPred::Lt => Some(CmpOp::Lt),
-            CmpPred::Le => Some(CmpOp::Le),
-            CmpPred::Gt => Some(CmpOp::Gt),
-            CmpPred::Ge => Some(CmpOp::Ge),
-            _ => None,
-        }
-    }
-
-    /// The predicate with its operands exchanged: `a op b ⇔ b op.swap() a`.
-    pub fn swap(self) -> CmpOp {
-        match self {
-            CmpOp::Eq => CmpOp::Eq,
-            CmpOp::Ne => CmpOp::Ne,
-            CmpOp::Lt => CmpOp::Gt,
-            CmpOp::Le => CmpOp::Ge,
-            CmpOp::Gt => CmpOp::Lt,
-            CmpOp::Ge => CmpOp::Le,
-        }
-    }
-
-    /// The logical negation under a total order: `¬(a op b) ⇔ a op.negate() b`. Valid for
-    /// integers, Booleans and references; for floating point only `Eq`/`Ne` negate this way
-    /// (an unordered operand makes every ordered comparison false).
-    pub fn negate(self) -> CmpOp {
-        match self {
-            CmpOp::Eq => CmpOp::Ne,
-            CmpOp::Ne => CmpOp::Eq,
-            CmpOp::Lt => CmpOp::Ge,
-            CmpOp::Le => CmpOp::Gt,
-            CmpOp::Gt => CmpOp::Le,
-            CmpOp::Ge => CmpOp::Lt,
-        }
-    }
-
-    /// Evaluates the predicate on an ordering result; `None` (unordered) makes every
-    /// predicate except `Ne` false.
-    pub fn eval(self, ord: Option<std::cmp::Ordering>) -> bool {
-        use std::cmp::Ordering::*;
-        match (self, ord) {
-            (CmpOp::Ne, None) => true,
-            (_, None) => false,
-            (CmpOp::Eq, Some(o)) => o == Equal,
-            (CmpOp::Ne, Some(o)) => o != Equal,
-            (CmpOp::Lt, Some(o)) => o == Less,
-            (CmpOp::Le, Some(o)) => o != Greater,
-            (CmpOp::Gt, Some(o)) => o == Greater,
-            (CmpOp::Ge, Some(o)) => o != Less,
-        }
-    }
+/// True for `Eq` and `Ne`.
+#[inline]
+pub fn is_equality(pred: ComparePred) -> bool {
+    matches!(pred, ComparePred::Eq | ComparePred::Ne)
 }
 
 // ── IR binding: type facts ───────────────────────────────────────────────────
@@ -311,9 +209,10 @@ pub enum ScalarKind {
     Float { bits: u16 },
     /// A character type; its width is a language property not carried by the IR type.
     Char,
-    /// Pointers, references, strings, named (class / struct) types, function values.
+    /// Values that denote memory: pointers, references, strings, named types, arrays,
+    /// function values (the IR's reference-like types).
     Reference,
-    /// Arrays and other aggregates held by value.
+    /// Aggregates held by value.
     Aggregate,
     Void,
     /// Type parameters and types the frontend could not resolve.
@@ -364,6 +263,51 @@ impl TypeFacts for NoTypeFacts {
 
     fn value_type(&self, _func: &FuncIr, _value: ValueId) -> Option<TypeId> {
         None
+    }
+}
+
+/// Type facts read from the IR: the module's type table and the per-value types the lowering
+/// records in `FuncIr::values`. `signed_overflow_wraps` is the source language's rule, as
+/// its frontend reports it.
+#[derive(Clone, Copy, Debug)]
+pub struct IrTypeFacts<'a> {
+    pub types: &'a TypeTable,
+    pub signed_overflow_wraps: bool,
+}
+
+impl TypeFacts for IrTypeFacts<'_> {
+    fn resolve(&self, ty: TypeId) -> ScalarKind {
+        match self.types.get(ty) {
+            IrType::Void => ScalarKind::Void,
+            IrType::Bool => ScalarKind::Bool,
+            IrType::Int { bits, signed } => ScalarKind::Int {
+                bits: *bits,
+                signed: *signed,
+            },
+            IrType::Float { bits } => ScalarKind::Float { bits: *bits },
+            IrType::Char => ScalarKind::Char,
+            IrType::Str
+            | IrType::Ptr(_)
+            | IrType::Ref { .. }
+            | IrType::Named(_)
+            | IrType::Array { .. }
+            | IrType::Func { .. }
+            | IrType::Generic { .. } => ScalarKind::Reference,
+            IrType::TypeParam(_) | IrType::Unknown => ScalarKind::Unknown,
+        }
+    }
+
+    fn value_type(&self, func: &FuncIr, value: ValueId) -> Option<TypeId> {
+        let ty = func.value_type(value);
+        if self.types.is_unknown(ty) {
+            None
+        } else {
+            Some(ty)
+        }
+    }
+
+    fn signed_overflow_wraps(&self) -> bool {
+        self.signed_overflow_wraps
     }
 }
 
@@ -491,7 +435,7 @@ pub fn value_count(func: &FuncIr) -> usize {
         }
         for_each_term_use(&block.term, &mut see);
     }
-    max.map_or(0, |m| m as usize + 1)
+    max.map_or(0, |m| m as usize + 1).max(func.values.len())
 }
 
 /// The operands a phi receives from predecessor `pred` (normally exactly one).
@@ -602,14 +546,23 @@ pub enum EdgeKind {
     Case { index: u32 },
     /// The default edge of a `Switch`.
     Default,
+    /// A `Throw` terminator transferring to the block's landing block.
+    Throw,
     /// Exceptional edge leaving at instruction `inst` (a `Call` with `unwind`).
     Unwind { inst: u32 },
 }
 
 impl EdgeKind {
+    /// True for the edge of a call that throws (it leaves before the block's end).
     #[inline]
     pub fn is_unwind(self) -> bool {
         matches!(self, EdgeKind::Unwind { .. })
+    }
+
+    /// True for every edge taken by an exception.
+    #[inline]
+    pub fn is_exceptional(self) -> bool {
+        matches!(self, EdgeKind::Unwind { .. } | EdgeKind::Throw)
     }
 }
 
@@ -644,7 +597,8 @@ pub struct IrCfg {
     pub rpo_index: Vec<u32>,
     /// Targets of RPO-retreating edges: the widening points.
     pub loop_heads: Vec<bool>,
-    /// Blocks whose terminator has no successor (`Return`, `Throw`, `Unreachable`).
+    /// Blocks without successors: `Return`, `Unreachable`, and `Throw` without a landing
+    /// block.
     pub exits: Vec<u32>,
     /// Immediate dominators by position (`UNDEFINED_IDOM` when unreachable).
     pub idom: Vec<u32>,
@@ -695,9 +649,11 @@ impl IrCfg {
                     }
                     builder.push(p, *default, EdgeKind::Default);
                 }
-                Terminator::Return(_) | Terminator::Throw(_) | Terminator::Unreachable => {
-                    exits.push(p)
-                }
+                Terminator::Throw(_) => match block.unwind {
+                    Some(landing) => builder.push(p, landing, EdgeKind::Throw),
+                    None => exits.push(p),
+                },
+                Terminator::Return(_) | Terminator::Unreachable => exits.push(p),
             }
         }
         let EdgeBuilder {

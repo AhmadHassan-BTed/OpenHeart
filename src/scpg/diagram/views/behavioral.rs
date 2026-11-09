@@ -476,12 +476,17 @@ impl Lifelines {
         if let Some(k) = self.by_sym.get(&sym) {
             return k.clone();
         }
-        let is_actor = sym == EXTERNAL_ACTOR_SYM || sym == UNKNOWN_SYM;
-        let key = lifeline_node(ctx, model, aliases, sym, UNKNOWN_SYM, is_actor);
+        let key = lifeline_node(ctx, model, aliases, sym, UNKNOWN_SYM, sym == EXTERNAL_ACTOR_SYM);
         self.by_sym.insert(sym, key.clone());
         key
     }
 }
+
+/// Node key of the external actor. The `actor:` namespace is disjoint from the `ll:`
+/// namespace of program lifelines, so a declared class named `Actor` never merges with it.
+const EXTERNAL_ACTOR_KEY: &str = "actor:external";
+/// Node key of the lifeline standing for receivers Phase 9 could not resolve.
+const UNRESOLVED_LIFELINE_KEY: &str = "ll-unresolved:receiver";
 
 fn lifeline_node(
     ctx: &DiagramContext,
@@ -492,11 +497,22 @@ fn lifeline_node(
     is_actor: bool,
 ) -> String {
     if is_actor || sym == EXTERNAL_ACTOR_SYM {
-        let key = "ll:actor".to_string();
+        let key = EXTERNAL_ACTOR_KEY.to_string();
         if !model.has_node(&key) {
+            let alias = aliases.alias("actor_", "external", &key);
             model.add_node(
-                ViewNode::new(key.clone(), "ll_actor", "Actor", NodeKind::Actor)
-                    .with_provenance(Provenance::Heuristic),
+                ViewNode::new(key.clone(), alias, "External caller", NodeKind::Actor),
+            );
+        }
+        return key;
+    }
+    if sym == UNKNOWN_SYM {
+        let key = UNRESOLVED_LIFELINE_KEY.to_string();
+        if !model.has_node(&key) {
+            let alias = aliases.alias("ll_unresolved_", "receiver", &key);
+            model.add_node(
+                ViewNode::new(key.clone(), alias, "<unresolved receiver>", NodeKind::Lifeline)
+                    .with_provenance(Provenance::Partial),
             );
         }
         return key;
@@ -697,6 +713,12 @@ fn build_interaction(
             }
             let span = ctx.span_of_tokens(m.uml_link_token, m.uml_link_token);
             *order_counter += 1;
+            let sort = match m.message_kind {
+                MSG_KIND_ASYNC => "asynchCall",
+                MSG_KIND_CREATE => "createMessage",
+                MSG_KIND_FOUND => "found",
+                _ => "synchCall",
+            };
             model.add_edge(
                 ViewEdge::new(
                     &from,
@@ -706,6 +728,9 @@ fn build_interaction(
                 )
                 .with_label(Some(format!("{} {}", number, label)))
                 .with_order(*order_counter)
+                .with_scenario(format!("sd:{}", seq_index))
+                .with_property("message_sort", sort)
+                .with_property("ordinal", m.ordinal.to_string())
                 .with_span(span.clone()),
             );
             events.push(InteractionEvent::Call {
@@ -840,7 +865,9 @@ pub fn communication_view(ctx: &DiagramContext) -> ViewModel {
             }
             model.add_edge(
                 ViewEdge::new(&from, &to, EdgeKind::Link, &idx.to_string())
-                    .with_label(Some(shown.join("\n"))),
+                    .with_label(Some(shown.join("\n")))
+                    .with_scenario(format!("sd:{}", idx))
+                    .with_property("messages", lines.len().to_string()),
             );
         }
         if multiple {

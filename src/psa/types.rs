@@ -40,8 +40,9 @@ pub const PSA_FLAG_COUNT_SATURATED: u16 = 1 << 1;
 /// consistency check failed). `root_node` is [`PSA_NO_ROOT`]; counts come from the exact
 /// dynamic program over the CFG and remain valid.
 pub const PSA_FLAG_BDD_UNAVAILABLE: u16 = 1 << 2;
-/// Branch-predicate feasibility filtering was applied: `sat_count` counts feasible paths.
-/// Without this flag the count is structural (every CFG path is assumed feasible).
+/// Feasibility filtering was applied (correlated branch predicates and/or edges whose
+/// condition is constantly false): `sat_count` counts feasible paths. Without this flag the
+/// count is structural (every CFG path is assumed feasible).
 pub const PSA_FLAG_FEASIBILITY_FILTERED: u16 = 1 << 3;
 /// The function belongs to a recursive SCC; the summary is intraprocedural (no unwinding).
 pub const PSA_FLAG_RECURSIVE_SCC: u16 = 1 << 4;
@@ -51,6 +52,33 @@ pub const PSA_FLAG_MAX_PATH_SATURATED: u16 = 1 << 5;
 pub const PSA_FLAG_SIFTED: u16 = 1 << 6;
 /// The CFG has no blocks; there is no path and no ROBDD.
 pub const PSA_FLAG_EMPTY_CFG: u16 = 1 << 7;
+/// Invariant 2 (§8.8) failed: the producer's V(G) is below the structural lower bound
+/// `decision points + 1` recomputed from the CFG's edges. `cyclomatic` holds the producer's
+/// value unchanged.
+pub const PSA_FLAG_CYCLOMATIC_INCONSISTENT: u16 = 1 << 8;
+/// V(G) exceeds `u16::MAX`; `cyclomatic` holds `u16::MAX`.
+pub const PSA_FLAG_CYCLOMATIC_SATURATED: u16 = 1 << 9;
+/// Exceptional edges were excluded from the path model (`Phase8Config::exceptional_edges`):
+/// the counts are of normal paths, and a block left only by exceptional edges ends a path.
+pub const PSA_FLAG_EXCEPTIONAL_EXCLUDED: u16 = 1 << 10;
+/// The summary was built from a language-neutral CFG supplied to Phase 8
+/// (`construction::NeutralPathFunction`, e.g. an IR CFG): edge ids in the ordering table are
+/// positions in that CFG's edge list, not Phase 4 CFA edge ids.
+pub const PSA_FLAG_NEUTRAL_CFG: u16 = 1 << 11;
+
+/// Every flag bit defined by format version 2; readers reject records with other bits set.
+pub const PSA_KNOWN_FLAGS: u16 = PSA_FLAG_HAS_LOOPS
+    | PSA_FLAG_COUNT_SATURATED
+    | PSA_FLAG_BDD_UNAVAILABLE
+    | PSA_FLAG_FEASIBILITY_FILTERED
+    | PSA_FLAG_RECURSIVE_SCC
+    | PSA_FLAG_MAX_PATH_SATURATED
+    | PSA_FLAG_SIFTED
+    | PSA_FLAG_EMPTY_CFG
+    | PSA_FLAG_CYCLOMATIC_INCONSISTENT
+    | PSA_FLAG_CYCLOMATIC_SATURATED
+    | PSA_FLAG_EXCEPTIONAL_EXCLUDED
+    | PSA_FLAG_NEUTRAL_CFG;
 
 /// `root_node` value of functions without a stored ROBDD.
 pub const PSA_NO_ROOT: u32 = u32::MAX;
@@ -75,6 +103,8 @@ pub enum BoolOp {
 pub enum SummaryUnavailable {
     /// The CFG has no blocks.
     EmptyCfg,
+    /// The CFG is malformed (for example, its entry block is not one of its blocks).
+    InvalidCfg(String),
     /// The path formula needs more variables than a 16-bit node label can address.
     TooManyVariables { needed: usize },
     /// A budgeted BDD operation hit the node budget or the deadline.
@@ -90,6 +120,7 @@ impl fmt::Display for SummaryUnavailable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SummaryUnavailable::EmptyCfg => f.write_str("empty CFG"),
+            SummaryUnavailable::InvalidCfg(msg) => write!(f, "invalid CFG: {}", msg),
             SummaryUnavailable::TooManyVariables { needed } => write!(
                 f,
                 "{} path variables exceed the 65535-variable ROBDD limit",
@@ -135,7 +166,9 @@ pub struct FunctionROBDD {
     /// `log2(path_count)`; negative infinity when there is no path.
     pub log2_paths: f64,
 
-    /// V(G) = |E| - |B| + 2 (§8.2.5), taken from Phase 4. Stored as u16.
+    /// McCabe V(G) = decision points + 1 (§8.2.5): the producer's value (Phase 4 for CFA
+    /// input), else the structural value recomputed from the CFG. See
+    /// `PSA_FLAG_CYCLOMATIC_INCONSISTENT` / `PSA_FLAG_CYCLOMATIC_SATURATED`.
     pub cyclomatic: u16,
 
     /// Number of blocks on the longest path through the back-edge-free DAG.
@@ -166,7 +199,7 @@ pub struct FunctionROBDD {
 ///  8       4    n_nodes          : u32   number of ROBDD nodes (including shared terminals)
 /// 12       4    root_node        : u32   root node index, or PSA_NO_ROOT
 /// 16       8    sat_count        : u64   path count, clamped (see PSA_FLAG_COUNT_SATURATED)
-/// 24       2    cyclomatic       : u16   V(G) = |E| - |B| + 2
+/// 24       2    cyclomatic       : u16   V(G) = decision points + 1
 /// 26       2    max_path_len     : u16   blocks on the longest acyclic path
 /// 28       2    unwind_depth     : u16   recursive expansions included (always 0)
 /// 30       2    flags            : u16   PSA_FLAG_* bits
@@ -261,7 +294,10 @@ impl FunctionPSAHeader {
 /// - FUNCTION DIRECTORY (n × 32 B, sorted by sym_id)
 /// - VARIABLE ORDERING TABLES (per-function variable code[n_vars])
 /// - ROBDD NODE ARRAYS (per-function ROBDDNode[], compacted)
-/// - PATH METRICS TABLE (n × 16 B, always mmap'd in Phase 9)
+/// - PATH METRICS TABLE (n × 16 B)
+///
+/// The reader decodes the whole file eagerly (sections are located by summing the
+/// per-function counts of the directory; there is no per-function offset table).
 pub struct PathSummaryArtifact {
     /// File format version ([`PSA_FORMAT_VERSION`]).
     pub format_version: u32,
@@ -283,7 +319,7 @@ pub struct PathSummaryArtifact {
     /// Per-function ROBDD node arrays. `node_arrays[i]` = ROBDDNode[] for function i.
     pub node_arrays: Vec<Vec<ROBDDNode>>,
 
-    /// Path metrics table — always memory-mapped in Phase 9 for O(1) access per function.
+    /// Path metrics table, one record per directory entry (same order).
     pub metrics: Vec<PathMetrics>,
 
     /// Total stored ROBDD nodes across all functions (§8.7 size estimate).
@@ -307,6 +343,11 @@ impl PathSummaryArtifact {
     /// Look up path metrics for a function by its directory index (O(1)).
     pub fn path_metrics(&self, dir_idx: usize) -> Option<&PathMetrics> {
         self.metrics.get(dir_idx)
+    }
+
+    /// Look up path metrics for a function by sym_id (O(log n)).
+    pub fn metrics_of(&self, sym_id: u32) -> Option<&PathMetrics> {
+        self.path_metrics(self.function_index(sym_id)?)
     }
 
     /// Total number of functions in this PSA.

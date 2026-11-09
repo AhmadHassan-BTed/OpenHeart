@@ -25,6 +25,8 @@ pub use reduce::{CASTReductionAdapter, CFamilyAttr};
 /// member access, `struct` semantics).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Dialect {
+    /// ISO C with GNU / MSVC extensions.
     C,
+    /// ISO C++ with GNU / MSVC extensions.
     Cpp,
 }

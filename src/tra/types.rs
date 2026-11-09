@@ -2,11 +2,15 @@
 
 use crate::tra::forward::SymbolSpanIndex;
 
-pub const TRA_MAGIC: u64 = 0x5452413100010000; // "TRA1\x00\x01\x00\x00"
+/// Magic of the `.tra` format: the bytes `b"OPENHTRA"`, read as a little-endian `u64`
+/// (the convention of every OpenHeart artifact magic, e.g. `PSA_MAGIC`).
+pub const TRA_MAGIC: u64 = u64::from_le_bytes(*b"OPENHTRA");
 
-/// Current `.tra` format version. Version 2: SHA-256 hash chain, per-entity digests and
-/// stable keys, function block/SSA offset tables, 32-bit span lines, span parent links.
-pub const TRA_FORMAT_VERSION: u32 = 2;
+/// Current `.tra` format version. Version 3: byte-string magic and a section directory with
+/// offsets (direct access to any section). Since version 2: SHA-256 hash chain, per-entity
+/// digests and stable keys, function block/SSA offset tables, 32-bit span lines, span
+/// parent links.
+pub const TRA_FORMAT_VERSION: u32 = 3;
 
 /// Token id meaning "no source location" (synthetic entity without an owning span).
 pub const NO_SOURCE_TOKEN: u32 = u32::MAX;

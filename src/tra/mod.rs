@@ -9,6 +9,7 @@ pub mod builder;
 pub mod delta;
 pub mod entity;
 pub mod forward;
+pub mod position;
 pub mod serializer;
 pub mod types;
 pub mod uml_link;

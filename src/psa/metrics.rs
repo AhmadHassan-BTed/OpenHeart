@@ -3,9 +3,12 @@
 //! Stores the key metrics derived from Phase 8 construction:
 //!
 //! **V(G) — Cyclomatic complexity:**
-//! `V(G) = |E| - |B| + 2` (§8.2.5).
-//! Computed ONCE from CFA edge and block counts. Stored permanently as `u16`.
-//! NOT derived from the ROBDD at query time.
+//! McCabe's `V(G) = decision points + 1` (§8.2.5): a block with k non-exceptional successors
+//! contributes k − 1 decisions (for a single-entry, single-exit CFG without exceptional
+//! edges this equals `|E| − |B| + 2`). Phase 4 additionally counts one decision per catch
+//! clause. Computed ONCE by the CFG producer (or structurally by Phase 8 when the producer
+//! supplies none), checked against the structural lower bound (Invariant 2), stored as
+//! `u16`. NOT derived from the ROBDD at query time.
 //!
 //! **log2_paths — Path count magnitude:**
 //! `log2(#paths)` as `f64`. The exact count can exceed any fixed width; the function
@@ -26,11 +29,13 @@
 /// 16 bytes total — stored in the PSA PATH METRICS TABLE section (§8.6):
 /// `(cyclomatic:u16, max_path:u16, unwind_depth:u16, flags:u16, log2_paths:f64)`.
 ///
-/// **Phase 9 hot path:** This table is always memory-mapped (~240 KB for 15K functions)
-/// providing O(1) cyclomatic complexity and path-count magnitude lookup for every function.
+/// The table is contiguous and fixed-width (~240 KB for 15K functions), so a reader that
+/// maps the file (`PsaFileView`) gets O(1) access to any function's metrics by directory
+/// index.
 #[derive(Clone, Debug)]
 pub struct PathMetrics {
-    /// V(G) = |E| - |B| + 2 (McCabe cyclomatic complexity). Max value ~65K.
+    /// McCabe V(G) = decision points + 1. Saturates at `u16::MAX`
+    /// (`PSA_FLAG_CYCLOMATIC_SATURATED`).
     pub cyclomatic: u16,
 
     /// Length of longest acyclic path (number of blocks visited). Max value ~65K.
@@ -47,7 +52,7 @@ pub struct PathMetrics {
 }
 
 impl PathMetrics {
-    /// Construct path metrics from the values computed in Phase 8 step 8.
+    /// Construct path metrics from the values computed in Phase 8 step 10.
     pub fn new(
         cyclomatic: u16,
         max_path_len: u16,
@@ -110,13 +115,21 @@ mod tests {
     }
 
     #[test]
-    fn cyclomatic_formula() {
-        // V(G) = |E| - |B| + 2 — verify with a simple if-else CFG:
-        // 5 blocks (ENTRY, condition, true-branch, false-branch, EXIT)
-        // 6 edges: ENTRY→cond, cond→true, cond→false, true→exit, false→exit, (entry=1 edge)
-        let e = 6i32;
-        let b = 5i32;
-        let vg = e - b + 2;
-        assert_eq!(vg, 3, "Simple if-else: V(G) = 6 - 5 + 2 = 3");
+    fn cyclomatic_of_if_else() {
+        use crate::psa::construction::graph::{PathCfg, PathEdgeKind};
+        // ENTRY(0) → cond(1); cond → then(2) / else(3); then, else → EXIT(4):
+        // 5 blocks, 5 edges, one decision ⇒ V(G) = 1 + 1 = 2 = 5 − 5 + 2.
+        let cfg = PathCfg {
+            n_blocks: 5,
+            entry: 0,
+            edges: vec![
+                (0, 1, PathEdgeKind::Normal),
+                (1, 2, PathEdgeKind::True),
+                (1, 3, PathEdgeKind::False),
+                (2, 4, PathEdgeKind::Normal),
+                (3, 4, PathEdgeKind::Normal),
+            ],
+        };
+        assert_eq!(cfg.structural_cyclomatic(), 2);
     }
 }

@@ -29,7 +29,7 @@ pub fn build_if(
             let empty_then = state
                 .src
                 .as_ref()
-                .is_some_and(|s| s.text_before(bpa, second) == Some(b"else"));
+                .is_some_and(|s| s.text_before(bpa, second) == Some(&b"else"[..]));
             if empty_then {
                 (None, Some(second))
             } else {

@@ -341,7 +341,7 @@ pub fn digest_ssa(ssa: &SSAArtifact) -> Digest256 {
             h.u32(r.def_stmt);
             h.u16(r.version);
             h.u8(r.flags);
-            h.u8(r.def_block);
+            h.u32(r.def_block);
         }
         h.seq_len(f.phi_records.len());
         for p in &f.phi_records {
@@ -413,7 +413,7 @@ pub fn digest_cga(cga: &CallGraphArtifact) -> Digest256 {
     for s in &cga.sccs {
         h.u32(s.scc_id);
         h.u32(s.member_offset);
-        h.u16(s.member_count);
+        h.u32(s.member_count);
         h.u8(s.scc_class);
     }
     h.u32s(&cga.scc_members);

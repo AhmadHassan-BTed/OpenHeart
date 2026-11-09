@@ -66,8 +66,10 @@ pub struct SymbolTableArtifact {
     pub th_edges: Vec<TypeHierarchyEdge>,
     pub associations: Vec<UMLAssociationRecord>,
     pub qual_names: Vec<String>,
-    pub custom_package_names: BTreeMap<u32, String>,
-    pub file_package_names: BTreeMap<u16, String>,
+    /// Package name of every package symbol (written sorted by symbol id).
+    pub custom_package_names: HashMap<u32, String>,
+    /// Package name of every file with a package declaration (written sorted by file id).
+    pub file_package_names: HashMap<u16, String>,
     /// Import declarations as (compilation-unit scope, import), ordered by scope.
     pub imports: Vec<(u32, ImportDecl)>,
     pub type_refs: Vec<TypeRef>,
@@ -233,8 +235,16 @@ impl SymbolTableArtifact {
             th_edges,
             associations: builder.associations.clone(),
             qual_names: builder.qual_names.all_names().to_vec(),
-            custom_package_names: builder.custom_package_names.clone(),
-            file_package_names: builder.file_package_names.clone(),
+            custom_package_names: builder
+                .custom_package_names
+                .iter()
+                .map(|(&k, v)| (k, v.clone()))
+                .collect(),
+            file_package_names: builder
+                .file_package_names
+                .iter()
+                .map(|(&k, v)| (k, v.clone()))
+                .collect(),
             imports,
             type_refs: builder.type_refs.clone(),
             symbol_type_refs: builder.symbol_type_refs.clone(),
@@ -363,15 +373,25 @@ impl SymbolTableArtifact {
             w.string(name)?;
         }
 
-        // 8./9. Package maps (sorted by key).
-        w.u32(len_u32(self.custom_package_names.len())?);
-        for (sym_id, name) in &self.custom_package_names {
-            w.u32(*sym_id);
+        // 8./9. Package maps, sorted by key so the bytes do not depend on hash order.
+        let custom: BTreeMap<u32, &String> = self
+            .custom_package_names
+            .iter()
+            .map(|(&k, v)| (k, v))
+            .collect();
+        w.u32(len_u32(custom.len())?);
+        for (sym_id, name) in custom {
+            w.u32(sym_id);
             w.string(name)?;
         }
-        w.u32(len_u32(self.file_package_names.len())?);
-        for (fid, name) in &self.file_package_names {
-            w.u16(*fid);
+        let files: BTreeMap<u16, &String> = self
+            .file_package_names
+            .iter()
+            .map(|(&k, v)| (k, v))
+            .collect();
+        w.u32(len_u32(files.len())?);
+        for (fid, name) in files {
+            w.u16(fid);
             w.string(name)?;
         }
 
@@ -623,13 +643,13 @@ impl SymbolTableArtifact {
         }
 
         let cc = r.count(8, "package name")?;
-        let mut custom_package_names = BTreeMap::new();
+        let mut custom_package_names = HashMap::with_capacity(cc);
         for _ in 0..cc {
             let sym_id = r.u32()?;
             custom_package_names.insert(sym_id, r.string()?);
         }
         let fc = r.count(6, "file package name")?;
-        let mut file_package_names = BTreeMap::new();
+        let mut file_package_names = HashMap::with_capacity(fc);
         for _ in 0..fc {
             let fid = r.u16()?;
             file_package_names.insert(fid, r.string()?);

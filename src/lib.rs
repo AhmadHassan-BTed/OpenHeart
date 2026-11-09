@@ -7,6 +7,8 @@
 //! `openheart` CLI and the HTTP server in [`adapters::server`].
 
 #![warn(missing_docs)]
+// The JSON exporters build large documents with serde_json::json!, which nests deeper than the default limit.
+#![recursion_limit = "512"]
 
 pub mod adapters;
 pub mod ast;
