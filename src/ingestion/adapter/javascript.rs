@@ -28,7 +28,7 @@ impl LanguageAdapter for JavaScriptLanguageAdapter {
     }
 
     fn ts_language(&self) -> Language {
-        tree_sitter_javascript::language()
+        tree_sitter_javascript::LANGUAGE.into()
     }
 
     fn map_node_type(&self, kind: &str) -> TokenType {

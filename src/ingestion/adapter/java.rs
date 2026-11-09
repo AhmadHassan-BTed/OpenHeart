@@ -33,7 +33,7 @@ impl LanguageAdapter for JavaLanguageAdapter {
     }
 
     fn ts_language(&self) -> Language {
-        tree_sitter_java::language()
+        tree_sitter_java::LANGUAGE.into()
     }
 
     fn map_node_type(&self, kind: &str) -> TokenType {

@@ -22,6 +22,7 @@ use crate::core::types::ast::ASTNodeType;
 use crate::core::types::symbol::{
     AssocKind, SymbolKind, SymbolModifiers, SymbolVisibility, THRelation, UMLAssociationRecord,
 };
+use crate::symbol::adapter::SemanticAdapter;
 use crate::symbol::ast_index::AstIndex;
 use crate::symbol::builder::SymbolTableBuilder;
 use crate::symbol::model::{Dialect, TypeRefFlags, WildcardKind};
@@ -44,12 +45,13 @@ impl AssociationDetector {
     /// Far end of the association declared by `field`, or `None` when the field is an
     /// attribute.
     pub fn classify_field(
+        adapter: &dyn SemanticAdapter,
         b: &SymbolTableBuilder,
         tv: &TokenView,
         field: u32,
     ) -> Option<AssociationEnd> {
         let tr = b.symbol_type_refs.get(field as usize).copied()?;
-        let (target, min, max, many) = Self::end_of(b, tr, 0)?;
+        let (target, min, max, many) = Self::end_of(adapter, b, tr, 0)?;
         if many {
             return Some(AssociationEnd {
                 target,
@@ -83,7 +85,12 @@ impl AssociationDetector {
 
     /// (target, min, max, many) of a TypeRef, following collections, maps, optionals and
     /// arrays to their element type.
-    fn end_of(b: &SymbolTableBuilder, tr: u32, depth: u8) -> Option<(u32, u16, u16, bool)> {
+    fn end_of(
+        adapter: &dyn SemanticAdapter,
+        b: &SymbolTableBuilder,
+        tr: u32,
+        depth: u8,
+    ) -> Option<(u32, u16, u16, bool)> {
         if depth > 4 {
             return None;
         }
@@ -100,7 +107,7 @@ impl AssociationDetector {
         }
         if t.is_wildcard() {
             return if t.wildcard == WildcardKind::Extends as u8 {
-                Self::end_of(b, *t.args.first()?, depth + 1)
+                Self::end_of(adapter, b, *t.args.first()?, depth + 1)
             } else {
                 None
             };
@@ -115,17 +122,32 @@ impl AssociationDetector {
         if b.is_project_type(t.head) {
             return Some((t.head, 0, 1, false));
         }
-        match b.library_category_of(t.head)? {
+        let category = match b.library_category_of(t.head) {
+            Some(c) => c,
+            // A library type outside the catalog: the language adapter decides whether its
+            // qualified name denotes a collection.
+            None => match b.qualified_name_of(t.head) {
+                Some(q)
+                    if b.symbol(t.head).is_some_and(|s| {
+                        s.flags & crate::symbol::model::SymbolFlags::UNRESOLVED == 0
+                    }) && adapter.is_collection_type(q) =>
+                {
+                    LibraryCategory::Collection
+                }
+                _ => return None,
+            },
+        };
+        match category {
             LibraryCategory::Collection => {
-                let (h, _, _, _) = Self::end_of(b, *t.args.first()?, depth + 1)?;
+                let (h, _, _, _) = Self::end_of(adapter, b, *t.args.first()?, depth + 1)?;
                 Some((h, 0, u16::MAX, true))
             }
             LibraryCategory::Map => {
-                let (h, _, _, _) = Self::end_of(b, *t.args.get(1)?, depth + 1)?;
+                let (h, _, _, _) = Self::end_of(adapter, b, *t.args.get(1)?, depth + 1)?;
                 Some((h, 0, u16::MAX, true))
             }
             LibraryCategory::Optional => {
-                let inner = Self::end_of(b, *t.args.first()?, depth + 1)?;
+                let inner = Self::end_of(adapter, b, *t.args.first()?, depth + 1)?;
                 if inner.3 {
                     Some(inner)
                 } else {
@@ -230,6 +252,7 @@ impl AssociationDetector {
         bpa: &BPASTArtifact,
         tv: &TokenView,
         ast: &AstIndex,
+        adapter: &dyn SemanticAdapter,
         b: &mut SymbolTableBuilder,
     ) {
         let supertypes = b.supertype_index();
@@ -244,7 +267,7 @@ impl AssociationDetector {
             if modifiers & SymbolModifiers::STATIC != 0 || !b.is_project_type(owner) {
                 continue;
             }
-            let end = match Self::classify_field(b, tv, field) {
+            let end = match Self::classify_field(adapter, b, tv, field) {
                 Some(e) => e,
                 None => continue,
             };

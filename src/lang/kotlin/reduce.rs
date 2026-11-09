@@ -18,8 +18,8 @@
 //!   (`KotlinAttr::AUX_PARAM_HAS_DEFAULT`). A where-clause entry is an `NN_IDENTIFIER_EXPR`
 //!   naming the type parameter followed by its bound `NN_TYPE_REF` (`TYPE_WHERE_BOUND`).
 //!   Member functions are `NN_METHOD_DECL`; top-level and local functions are free functions,
-//!   `NN_FUNCTION_DECL`. An expression body `= e` is an `NN_BLOCK` flagged
-//!   `BLOCK_EXPRESSION_BODY` whose single child is `e`, the value the function returns.
+//!   `NN_FUNCTION_DECL`. An expression body `= e` is its definition `{ return e }`: an
+//!   `NN_BLOCK` flagged `BLOCK_EXPRESSION_BODY` wrapping an `NN_RETURN_STMT` around `e`.
 //! - property: `NN_PROPERTY_DECL` (member and top-level) or `NN_LOCAL_VAR_DECL` (local), with
 //!   `[NN_ANNOTATION_USE*, NN_TYPE_PARAM*, NN_TYPE_REF receiver?, NN_LOCAL_VAR_DECL
 //!   declarator+, initializer-or-delegate?, NN_METHOD_DECL getter?, NN_METHOD_DECL setter?]`;
@@ -29,9 +29,15 @@
 //! - `when` is `NN_SWITCH_STMT` in statement position and `NN_SWITCH_EXPR` elsewhere, always in
 //!   arrow form; each entry is `NN_SWITCH_CASE [conditions*, NN_BLOCK body]`.
 //! - `if` / `try` / `for` / `while` / `do` keep their statement kinds; every control-structure
-//!   body is an `NN_BLOCK` (`BLOCK_IMPLICIT` when written without braces), and the hidden
-//!   braces of `try` / `catch` / `finally` / `init` / secondary-constructor / lambda bodies are
-//!   recovered from their `statements` list. `for` is always `NN_ENHANCED_FOR`.
+//!   body is an `NN_BLOCK` (`BLOCK_IMPLICIT` when written without braces). The grammar hides
+//!   the braces of `init` / `finally` blocks, so those wrap an `NN_BLOCK` (present even when
+//!   empty); the bodies of `try` / `catch` / secondary constructors / lambdas are recovered
+//!   from their `statements` list. `for` is always `NN_ENHANCED_FOR`.
+//! - names: every declaration, parameter, declarator, call, member access, annotation, label
+//!   and catch clause reports its name node through `name_node`; class, object, alias and
+//!   import-alias names are also `NN_IDENTIFIER_EXPR` children (as in Java), type-parameter
+//!   names are carried by the name token only, and the segments of qualified names are
+//!   covered by the enclosing node's token span.
 //! - a statement label `outer@` is an `NN_IDENTIFIER_EXPR` flagged `IDENT_LABEL` that labels its
 //!   next sibling; `l@ expr` in expression position is `NN_JAVA_LABELED_STMT [label, expr]`.
 //! - `a.b(c)` is `NN_CALL_EXPR [a, NN_IDENTIFIER_EXPR b, c]` (`AUX_CALL_QUALIFIED`); `a.b` is
@@ -45,15 +51,18 @@
 //! fragments), so the interpolations inside it have no tokens of their own and are not
 //! reduced; the literal carries `AUX_LITERAL_TEMPLATE`.
 //!
-//! Syntax errors: ERROR nodes are eliminated (their recoverable children attach to the
-//! enclosing node) and MISSING nodes are dropped (they have no source text); both are counted,
-//! and so are named kinds absent from the grammar's `node-types.json`.
-
-use std::sync::atomic::{AtomicU64, Ordering};
+//! Syntax errors: ERROR regions are eliminated so their recoverable children attach to the
+//! enclosing node (the reducer counts them in `ReductionStats::error_regions`; MISSING nodes
+//! never reach the adapter and are counted as `missing`). Unlisted kinds are eliminated, never
+//! dropped; only comments, modifier keywords and literal internals are dropped.
+//!
+//! Anonymous tokens never reach the adapter, but two Kotlin values are anonymous in this
+//! grammar: the `null` literal and the `dynamic` type. [`KotlinASTReductionAdapter::anonymous_value`]
+//! classifies them for a reducer that forwards anonymous leaves.
 
 use tree_sitter::Node;
 
-use crate::ast::adapter::{ASTReductionAdapter, ReductionDecision};
+use crate::ast::adapter::{ASTReductionAdapter, ReductionContext, ReductionDecision};
 use crate::core::types::ast::{ASTNodeType, NodeAttr, OperatorArity, OperatorId};
 use crate::lang::kotlin::semantics::KotlinModifierSet;
 
@@ -273,23 +282,7 @@ impl KotlinAttr {
     pub const TARGET_DELEGATE: u8 = 9;
 }
 
-/// Counters of the nodes the reducer could not map structurally, aggregated over every file
-/// reduced through one adapter instance.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct KotlinReductionStats {
-    /// ERROR nodes eliminated (their children were reduced in place).
-    pub error_nodes: u64,
-    /// MISSING nodes dropped.
-    pub missing_nodes: u64,
-    /// Named nodes of a kind the grammar's `node-types.json` does not list (eliminated).
-    pub unclassified_nodes: u64,
-}
-
-pub struct KotlinASTReductionAdapter {
-    error_nodes: AtomicU64,
-    missing_nodes: AtomicU64,
-    unclassified_nodes: AtomicU64,
-}
+pub struct KotlinASTReductionAdapter;
 
 impl Default for KotlinASTReductionAdapter {
     fn default() -> Self {
@@ -299,19 +292,17 @@ impl Default for KotlinASTReductionAdapter {
 
 impl KotlinASTReductionAdapter {
     pub fn new() -> Self {
-        Self {
-            error_nodes: AtomicU64::new(0),
-            missing_nodes: AtomicU64::new(0),
-            unclassified_nodes: AtomicU64::new(0),
-        }
+        Self
     }
 
-    /// ERROR / MISSING / unclassified node counts accumulated so far.
-    pub fn stats(&self) -> KotlinReductionStats {
-        KotlinReductionStats {
-            error_nodes: self.error_nodes.load(Ordering::Relaxed),
-            missing_nodes: self.missing_nodes.load(Ordering::Relaxed),
-            unclassified_nodes: self.unclassified_nodes.load(Ordering::Relaxed),
+    /// Decision and attribute word for an anonymous leaf that is a value in Kotlin: the `null`
+    /// literal (`NN_LITERAL`, `LITERAL_NULL`) and the `dynamic` type (`NN_TYPE_REF`). Every
+    /// other anonymous token is structure and yields `None`.
+    pub fn anonymous_value(&self, kind: &str) -> Option<(ASTNodeType, u32)> {
+        match kind {
+            "null" => Some((ASTNodeType::NN_LITERAL, literal_attr(NodeAttr::LITERAL_NULL, 0))),
+            "dynamic" => Some((ASTNodeType::NN_TYPE_REF, 0)),
+            _ => None,
         }
     }
 }

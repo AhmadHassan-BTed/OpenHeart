@@ -6,14 +6,15 @@ pub mod hash_chain;
 pub use crate::tra::types::ScpgHashChain;
 
 use crate::core::types::symbol::SymbolKind;
-use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
+use crate::tra::position::{clamp_span, column_u16, token_end, token_start};
 use crate::tra::types::{
     BISymEntry, UMLLinkRecord, NO_SLOT, UML_LINK_NO_COL, UML_LINK_NO_FILE, UML_LINK_NO_LINE,
 };
 
-/// Symbol kinds that appear as UML elements and therefore get a UMLLink.
+/// Symbol kinds that appear as UML elements and therefore get a UMLLink — the single
+/// definition used by the registry and by Invariant 2.
 pub const UML_SYMBOL_KINDS: [u8; 9] = [
     SymbolKind::SK_CLASS as u8,
     SymbolKind::SK_INTERFACE as u8,
@@ -35,23 +36,20 @@ impl UMLLinkRegistry {
         sta: &SymbolTableArtifact,
         scpg_hash: u32,
     ) -> Vec<UMLLinkRecord> {
-        let n_tokens = tca.token_records.len();
         let mut records = Vec::new();
 
         for (sym_id, sym) in sta.symbol_records.iter().enumerate() {
             if !UML_SYMBOL_KINDS.contains(&sym.kind) {
                 continue;
             }
+            // The declaration span, clamped to the declaring file; its end is the exact end
+            // of the last token (multi-line tokens end on a later line). Columns beyond the
+            // 16-bit field saturate at `u16::MAX`.
             let located = bi_sym.get(sym_id).and_then(|entry| {
-                if entry.decl_first_tok == u32::MAX || (entry.decl_first_tok as usize) >= n_tokens {
-                    return None;
-                }
-                let last = entry.decl_last_tok.min(n_tokens as u32 - 1).max(entry.decl_first_tok);
-                let start_tok = &tca.token_records[entry.decl_first_tok as usize];
-                let end_tok = &tca.token_records[last as usize];
-                let (fid, ls, cs) = unpack_sort_key(start_tok.sort_key);
-                let (_, le, ce) = unpack_sort_key(end_tok.sort_key);
-                Some((fid, ls, cs, le, ce.saturating_add(end_tok.len)))
+                let (first, last) = clamp_span(tca, entry.decl_first_tok, entry.decl_last_tok)?;
+                let (fid, ls, cs) = token_start(tca, first);
+                let (le, ce) = token_end(tca, last);
+                Some((fid, ls, cs, le, column_u16(ce)))
             });
             // No source location: explicit sentinels, never (file 0, line 0).
             let (file_id, line_start, col_start, line_end, col_end) = located.unwrap_or((

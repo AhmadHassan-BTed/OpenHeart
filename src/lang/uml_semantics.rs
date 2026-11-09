@@ -1442,3 +1442,2259 @@ impl<'t> TypeParser<'t> {
         })
     }
 }
+
+// ── Multiplicity ──────────────────────────────────────────────────────────────
+
+/// A UML multiplicity `min..max` using the UMA bound markers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Multiplicity {
+    pub min: u16,
+    /// `MULTIPLICITY_MANY` for `*`, `MULTIPLICITY_UNKNOWN` when not derivable.
+    pub max: u16,
+}
+
+impl Default for Multiplicity {
+    fn default() -> Self {
+        Multiplicity::UNKNOWN
+    }
+}
+
+impl Multiplicity {
+    pub const ONE: Multiplicity = Multiplicity { min: 1, max: 1 };
+    pub const OPTIONAL: Multiplicity = Multiplicity { min: 0, max: 1 };
+    pub const MANY: Multiplicity = Multiplicity {
+        min: 0,
+        max: MULTIPLICITY_MANY,
+    };
+    pub const UNKNOWN: Multiplicity = Multiplicity {
+        min: MULTIPLICITY_UNKNOWN,
+        max: MULTIPLICITY_UNKNOWN,
+    };
+
+    /// Exactly `n`; counts beyond the representable range become `?..*`.
+    pub fn exactly(n: u64) -> Self {
+        if n < u64::from(MULTIPLICITY_UNKNOWN) {
+            let v = n as u16;
+            Multiplicity { min: v, max: v }
+        } else {
+            Multiplicity {
+                min: MULTIPLICITY_UNKNOWN,
+                max: MULTIPLICITY_MANY,
+            }
+        }
+    }
+
+    /// Multiplicity of a part reached through `self` and then `inner`.
+    pub fn times(self, inner: Multiplicity) -> Multiplicity {
+        Multiplicity {
+            min: mul_bound(self.min, inner.min),
+            max: mul_bound(self.max, inner.max),
+        }
+    }
+
+    pub fn is_many(self) -> bool {
+        self.max == MULTIPLICITY_MANY
+    }
+
+    pub fn is_known(self) -> bool {
+        self.min != MULTIPLICITY_UNKNOWN && self.max != MULTIPLICITY_UNKNOWN
+    }
+
+    /// UML label: `1`, `0..1`, `0..*`, `4`, `?..1` for an unknown bound.
+    pub fn label(self) -> String {
+        fn bound(v: u16) -> String {
+            match v {
+                MULTIPLICITY_MANY => "*".to_string(),
+                MULTIPLICITY_UNKNOWN => "?".to_string(),
+                n => n.to_string(),
+            }
+        }
+        if self.min == self.max {
+            bound(self.min)
+        } else {
+            format!("{}..{}", bound(self.min), bound(self.max))
+        }
+    }
+}
+
+fn mul_bound(a: u16, b: u16) -> u16 {
+    if a == 0 || b == 0 {
+        return 0;
+    }
+    if a == MULTIPLICITY_UNKNOWN || b == MULTIPLICITY_UNKNOWN {
+        return MULTIPLICITY_UNKNOWN;
+    }
+    if a == MULTIPLICITY_MANY || b == MULTIPLICITY_MANY {
+        return MULTIPLICITY_MANY;
+    }
+    let p = u32::from(a) * u32::from(b);
+    if p >= u32::from(MULTIPLICITY_UNKNOWN) {
+        MULTIPLICITY_MANY
+    } else {
+        p as u16
+    }
+}
+
+// ── Type Classification ───────────────────────────────────────────────────────
+
+/// Kind of classifier a type name denotes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TypeCategory {
+    Class,
+    Struct,
+    Union,
+    Interface,
+    Enum,
+    Delegate,
+    TypeParameter,
+    Builtin,
+    Unknown,
+}
+
+/// Where a type comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TypeOrigin {
+    /// Declared in the analysed sources.
+    Project,
+    /// A modelled standard-library, BCL or common third-party library type.
+    Library,
+    Builtin,
+    /// A template or generic parameter in scope.
+    TypeParameter,
+    /// No binding could be computed (not declared in the project, not modelled, or
+    /// ambiguous).
+    Unknown,
+}
+
+/// The classifier a written type name binds to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TypeInfo {
+    pub category: TypeCategory,
+    pub origin: TypeOrigin,
+    /// Index into `CFamilyUmlModel::classes` for project types.
+    pub class_index: Option<usize>,
+    /// Symbol id of a project type, `UNKNOWN_SYM` otherwise.
+    pub sym_id: u32,
+}
+
+impl TypeInfo {
+    pub const UNKNOWN: TypeInfo = TypeInfo {
+        category: TypeCategory::Unknown,
+        origin: TypeOrigin::Unknown,
+        class_index: None,
+        sym_id: UNKNOWN_SYM,
+    };
+    pub const BUILTIN: TypeInfo = TypeInfo {
+        category: TypeCategory::Builtin,
+        origin: TypeOrigin::Builtin,
+        class_index: None,
+        sym_id: UNKNOWN_SYM,
+    };
+    pub const TYPE_PARAMETER: TypeInfo = TypeInfo {
+        category: TypeCategory::TypeParameter,
+        origin: TypeOrigin::TypeParameter,
+        class_index: None,
+        sym_id: UNKNOWN_SYM,
+    };
+
+    pub fn library(category: TypeCategory) -> Self {
+        TypeInfo {
+            category,
+            origin: TypeOrigin::Library,
+            class_index: None,
+            sym_id: UNKNOWN_SYM,
+        }
+    }
+
+    pub fn project(category: TypeCategory, class_index: usize, sym_id: u32) -> Self {
+        TypeInfo {
+            category,
+            origin: TypeOrigin::Project,
+            class_index: Some(class_index),
+            sym_id,
+        }
+    }
+
+    pub fn is_project(&self) -> bool {
+        self.origin == TypeOrigin::Project
+    }
+}
+
+/// Ownership strength of one step of a member type (weakest first).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Ownership {
+    /// The holder refers to the part (pointer, reference, weak pointer, view).
+    Reference,
+    /// The holder shares ownership (`std::shared_ptr`, COM pointers).
+    Shared,
+    /// The holder owns the part exclusively (value, `std::unique_ptr`, owning container).
+    Exclusive,
+}
+
+fn min_own(current: Option<Ownership>, hop: Ownership) -> Option<Ownership> {
+    Some(match current {
+        Some(c) => c.min(hop),
+        None => hop,
+    })
+}
+
+/// How a library template relates its holder to the type arguments it carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HopEffect {
+    /// Limits the ownership of the path to at most this strength.
+    Owns(Ownership),
+    /// Leaves ownership unchanged (`std::atomic`, `Lazy<T>`, .NET collections).
+    Transparent,
+    /// `gsl::owner<T*>`: the pointer argument owns its pointee.
+    OwnsPointee,
+}
+
+/// Which type arguments of a library template are the elements it holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ElementArgs {
+    First,
+    Second,
+    All,
+}
+
+/// What a modelled library type is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LibraryKind {
+    /// A template holding elements of (some of) its type arguments.
+    Holder,
+    /// A callable wrapper or delegate type (`std::function`, `Func<T>`).
+    Callable,
+    /// A type-erased or non-generic holder whose element type is not written.
+    Opaque,
+    /// A plain library type used as an attribute value.
+    Value,
+}
+
+/// Model of one library type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LibrarySpec {
+    pub kind: LibraryKind,
+    pub category: TypeCategory,
+    /// C#: the type is a value type (struct). Always false for C and C++.
+    pub value_type: bool,
+    /// The type holds a variable number of elements.
+    pub collection: bool,
+    effect: HopEffect,
+    mult: Multiplicity,
+    elements: ElementArgs,
+    /// Argument that keys the elements (maps): a UML qualifier.
+    key: Option<usize>,
+    /// Argument that gives a fixed element count (`std::array<T, N>`).
+    extent_arg: Option<usize>,
+    /// The holder is never empty (`gsl::not_null<T*>`).
+    non_null: bool,
+}
+
+impl LibrarySpec {
+    fn holder(effect: HopEffect, mult: Multiplicity, elements: ElementArgs) -> Self {
+        LibrarySpec {
+            kind: LibraryKind::Holder,
+            category: TypeCategory::Class,
+            value_type: false,
+            collection: false,
+            effect,
+            mult,
+            elements,
+            key: None,
+            extent_arg: None,
+            non_null: false,
+        }
+    }
+
+    fn container(elements: ElementArgs) -> Self {
+        let mut s = Self::holder(
+            HopEffect::Owns(Ownership::Exclusive),
+            Multiplicity::MANY,
+            elements,
+        );
+        s.collection = true;
+        s
+    }
+
+    fn map(key: usize, elements: ElementArgs) -> Self {
+        let mut s = Self::container(elements);
+        s.key = Some(key);
+        s
+    }
+
+    fn callable() -> Self {
+        let mut s = Self::value(TypeCategory::Delegate);
+        s.kind = LibraryKind::Callable;
+        s
+    }
+
+    fn opaque(collection: bool) -> Self {
+        let mut s = Self::value(TypeCategory::Class);
+        s.kind = LibraryKind::Opaque;
+        s.collection = collection;
+        s
+    }
+
+    fn value(category: TypeCategory) -> Self {
+        LibrarySpec {
+            kind: LibraryKind::Value,
+            category,
+            value_type: false,
+            collection: false,
+            effect: HopEffect::Transparent,
+            mult: Multiplicity::ONE,
+            elements: ElementArgs::First,
+            key: None,
+            extent_arg: None,
+            non_null: false,
+        }
+    }
+
+    fn cs_collection(name: &str, elements: ElementArgs) -> Self {
+        let mut s = Self::holder(HopEffect::Transparent, Multiplicity::MANY, elements);
+        s.collection = true;
+        s.category = cs_category_of_name(name);
+        s
+    }
+
+    fn with_value_type(mut self) -> Self {
+        self.value_type = true;
+        if self.category == TypeCategory::Class {
+            self.category = TypeCategory::Struct;
+        }
+        self
+    }
+}
+
+/// BCL naming convention: `IName` is an interface.
+fn cs_category_of_name(name: &str) -> TypeCategory {
+    if looks_like_cs_interface(name) {
+        TypeCategory::Interface
+    } else {
+        TypeCategory::Class
+    }
+}
+
+/// `I` followed by an upper-case letter (`IDisposable`, `IList`).
+pub fn looks_like_cs_interface(name: &str) -> bool {
+    let b = name.as_bytes();
+    b.len() >= 2 && b[0] == b'I' && b[1].is_ascii_uppercase()
+}
+
+/// Root namespaces whose C++ types are library types.
+const CPP_LIBRARY_ROOTS: &[&str] = &[
+    "std", "boost", "gsl", "absl", "folly", "eastl", "tsl", "phmap", "robin_hood", "llvm",
+    "fmt", "spdlog", "Eigen", "cv", "Microsoft", "winrt", "Concurrency", "concurrency", "ATL",
+    "Platform", "Windows", "nlohmann", "google", "grpc", "tbb", "oneapi", "sycl", "thrust",
+    "cuda", "Poco", "QtConcurrent", "ranges",
+];
+
+/// Inline, ABI and versioning namespaces that do not change a library type's identity.
+fn is_abi_namespace(n: &str) -> bool {
+    n.starts_with("__")
+        || n == "_V2"
+        || n == "pmr"
+        || n == "experimental"
+        || n == "fundamentals_v1"
+        || n == "fundamentals_v2"
+        || n == "inline_v1"
+}
+
+/// C, POSIX and Win32 typedefs that are plain values.
+fn is_c_library_typedef(name: &str) -> bool {
+    const NAMES: &[&str] = &[
+        "size_t", "ssize_t", "ptrdiff_t", "intptr_t", "uintptr_t", "intmax_t", "uintmax_t",
+        "max_align_t", "nullptr_t", "wint_t", "off_t", "pid_t", "time_t", "clock_t", "FILE",
+        "fpos_t", "va_list", "errno_t", "sig_atomic_t", "mbstate_t", "rsize_t", "socklen_t",
+        "BOOL", "BOOLEAN", "BYTE", "CHAR", "WCHAR", "TCHAR", "WORD", "DWORD", "DWORD32",
+        "DWORD64", "DWORDLONG", "QWORD", "UINT", "UINT8", "UINT16", "UINT32", "UINT64", "INT",
+        "INT8", "INT16", "INT32", "INT64", "LONG", "ULONG", "LONGLONG", "ULONGLONG", "SHORT",
+        "USHORT", "FLOAT", "DOUBLE", "SIZE_T", "SSIZE_T", "LONG_PTR", "ULONG_PTR", "INT_PTR",
+        "UINT_PTR", "DWORD_PTR", "HANDLE", "HMODULE", "HINSTANCE", "HWND", "HDC", "HKEY",
+        "HRESULT", "NTSTATUS", "LPVOID", "LPCVOID", "PVOID", "LPSTR", "LPCSTR", "LPWSTR",
+        "LPCWSTR", "LPTSTR", "LPCTSTR", "BSTR", "GUID", "LARGE_INTEGER", "ULARGE_INTEGER",
+        "WPARAM", "LPARAM", "LRESULT", "ATOM", "COLORREF", "VARIANT",
+    ];
+    if NAMES.contains(&name) {
+        return true;
+    }
+    // `int8_t`, `uint_least16_t`, `int_fast64_t`, ...
+    let core = match name.strip_suffix("_t") {
+        Some(c) => c,
+        None => return false,
+    };
+    let core = core.strip_prefix('u').unwrap_or(core);
+    let core = match core.strip_prefix("int") {
+        Some(c) => c,
+        None => return false,
+    };
+    let core = core
+        .strip_prefix("_least")
+        .or_else(|| core.strip_prefix("_fast"))
+        .unwrap_or(core);
+    matches!(core, "8" | "16" | "32" | "64" | "128")
+}
+
+/// Unqualified standard-library value types commonly used after `using namespace std`.
+const CPP_STD_VALUE_NAMES: &[&str] = &[
+    "string", "wstring", "u8string", "u16string", "u32string", "string_view", "wstring_view",
+    "u8string_view", "mutex", "recursive_mutex", "shared_mutex", "timed_mutex",
+    "condition_variable", "condition_variable_any", "thread", "jthread", "byte", "ostream",
+    "istream", "iostream", "ofstream", "ifstream", "fstream", "stringstream", "ostringstream",
+    "istringstream", "regex", "exception", "runtime_error", "logic_error", "error_code",
+    "type_info", "type_index", "random_device", "mt19937", "mt19937_64", "once_flag",
+    "stop_token", "stop_source", "bitset", "locale",
+];
+
+fn container_spec_with(mult: Multiplicity, effect: HopEffect) -> LibrarySpec {
+    let mut s = LibrarySpec::holder(effect, mult, ElementArgs::First);
+    s.collection = true;
+    s
+}
+
+fn cpp_template_spec(name: &str) -> Option<LibrarySpec> {
+    use ElementArgs::*;
+    use Ownership::*;
+    let spec = match name {
+        "unique_ptr" | "auto_ptr" | "scoped_ptr" | "local_ptr" => {
+            LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::OPTIONAL, First)
+        }
+        "indirect" | "polymorphic" | "value_ptr" => {
+            LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::ONE, First)
+        }
+        "scoped_array" => container_spec_with(Multiplicity::MANY, HopEffect::Owns(Exclusive)),
+        "shared_ptr" | "intrusive_ptr" | "local_shared_ptr" | "atomic_shared_ptr" => {
+            LibrarySpec::holder(HopEffect::Owns(Shared), Multiplicity::OPTIONAL, First)
+        }
+        "shared_array" => container_spec_with(Multiplicity::MANY, HopEffect::Owns(Shared)),
+        "weak_ptr" | "observer_ptr" | "atomic_weak_ptr" => {
+            LibrarySpec::holder(HopEffect::Owns(Reference), Multiplicity::OPTIONAL, First)
+        }
+        "reference_wrapper" | "atomic_ref" => {
+            LibrarySpec::holder(HopEffect::Owns(Reference), Multiplicity::ONE, First)
+        }
+        "not_null" | "strict_not_null" => {
+            let mut s = LibrarySpec::holder(HopEffect::Transparent, Multiplicity::ONE, First);
+            s.non_null = true;
+            s
+        }
+        "owner" => LibrarySpec::holder(HopEffect::OwnsPointee, Multiplicity::ONE, First),
+        "propagate_const" | "atomic" | "synchronized" | "Synchronized" => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::ONE, First)
+        }
+        "optional" | "expected" => {
+            LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::OPTIONAL, First)
+        }
+        "variant" => LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::OPTIONAL, All),
+        "pair" | "tuple" | "compressed_pair" => {
+            LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::ONE, All)
+        }
+        "function" | "move_only_function" | "copyable_function" | "function_ref"
+        | "packaged_task" | "function_view" | "unique_function" => LibrarySpec::callable(),
+        "any" => LibrarySpec::opaque(false),
+        "vector" | "deque" | "list" | "forward_list" | "set" | "multiset" | "unordered_set"
+        | "unordered_multiset" | "flat_set" | "flat_multiset" | "queue" | "stack"
+        | "priority_queue" | "valarray" | "inplace_vector" | "hive" | "small_vector"
+        | "static_vector" | "stable_vector" | "devector" | "circular_buffer" | "InlinedVector"
+        | "FixedArray" | "flat_hash_set" | "node_hash_set" | "btree_set" | "btree_multiset"
+        | "SmallVector" | "SmallPtrSet" | "DenseSet" | "SetVector" | "fbvector" | "F14FastSet"
+        | "F14ValueSet" | "F14NodeSet" | "F14VectorSet" | "sorted_vector_set" | "ptr_vector"
+        | "ptr_list" | "ptr_deque" | "ptr_set" | "ptr_multiset" | "concurrent_vector"
+        | "concurrent_queue" | "concurrent_bounded_queue" | "robin_set" | "hopscotch_set"
+        | "sparse_set" | "StringMap" => LibrarySpec::container(First),
+        "map" | "multimap" | "unordered_map" | "unordered_multimap" | "flat_map"
+        | "flat_multimap" | "flat_hash_map" | "node_hash_map" | "btree_map" | "btree_multimap"
+        | "DenseMap" | "MapVector" | "F14FastMap" | "F14ValueMap" | "F14NodeMap"
+        | "F14VectorMap" | "sorted_vector_map" | "robin_map" | "hopscotch_map" | "sparse_map"
+        | "ptr_map" | "ptr_multimap" | "concurrent_hash_map" | "concurrent_unordered_map"
+        | "bimap" => LibrarySpec::map(0, Second),
+        "array" => {
+            let mut s = LibrarySpec::container(First);
+            s.extent_arg = Some(1);
+            s.mult = Multiplicity::UNKNOWN;
+            s
+        }
+        "span" | "mdspan" | "initializer_list" | "ArrayRef" | "MutableArrayRef" | "ref_view"
+        | "array_view" => container_spec_with(Multiplicity::MANY, HopEffect::Owns(Reference)),
+        "basic_string" | "basic_string_view" | "bitset" | "basic_ostream" | "basic_istream"
+        | "duration" | "time_point" | "basic_regex" | "complex" => {
+            LibrarySpec::value(TypeCategory::Class)
+        }
+        _ => return None,
+    };
+    Some(spec)
+}
+
+/// Library templates recognised in any namespace (Qt, ATL, WRL, WinRT, Chromium, LLVM).
+fn cpp_distinctive_spec(name: &str) -> Option<LibrarySpec> {
+    use ElementArgs::*;
+    use Ownership::*;
+    let spec = match name {
+        "QScopedPointer" => {
+            LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::OPTIONAL, First)
+        }
+        "QScopedArrayPointer" => {
+            container_spec_with(Multiplicity::MANY, HopEffect::Owns(Exclusive))
+        }
+        "QSharedPointer" | "QExplicitlySharedDataPointer" | "QSharedDataPointer" | "CComPtr"
+        | "CComQIPtr" | "ComPtr" | "com_ptr" | "scoped_refptr" | "IntrusiveRefCntPtr" => {
+            LibrarySpec::holder(HopEffect::Owns(Shared), Multiplicity::OPTIONAL, First)
+        }
+        "QWeakPointer" | "QPointer" | "raw_ptr" | "WeakRef" => {
+            LibrarySpec::holder(HopEffect::Owns(Reference), Multiplicity::OPTIONAL, First)
+        }
+        "raw_ref" => LibrarySpec::holder(HopEffect::Owns(Reference), Multiplicity::ONE, First),
+        "QList" | "QVector" | "QSet" | "QQueue" | "QStack" | "QLinkedList" | "QVarLengthArray"
+        | "QContiguousCache" | "CAtlArray" | "CAtlList" => LibrarySpec::container(First),
+        "QMap" | "QHash" | "QMultiMap" | "QMultiHash" | "CAtlMap" => LibrarySpec::map(0, Second),
+        "QPair" => LibrarySpec::holder(HopEffect::Owns(Exclusive), Multiplicity::ONE, All),
+        _ => return None,
+    };
+    Some(spec)
+}
+
+fn c_library_spec(ty: &TypeExpr) -> Option<LibrarySpec> {
+    let segs = ty.segments();
+    if segs.len() != 1 {
+        return None;
+    }
+    if is_c_library_typedef(&segs[0].name) {
+        Some(LibrarySpec::value(TypeCategory::Builtin))
+    } else {
+        None
+    }
+}
+
+fn cpp_library_spec(ty: &TypeExpr) -> Option<LibrarySpec> {
+    let segs = ty.segments();
+    let last = segs.last()?;
+    let name = last.name.as_str();
+    if let Some(spec) = cpp_distinctive_spec(name) {
+        return Some(spec);
+    }
+    let ns: Vec<&str> = segs[..segs.len() - 1]
+        .iter()
+        .map(|s| s.name.as_str())
+        .filter(|n| !is_abi_namespace(n))
+        .collect();
+    let root = ns.first().copied();
+    let in_library = match root {
+        Some(r) => CPP_LIBRARY_ROOTS.contains(&r),
+        None => true,
+    };
+    if !in_library {
+        return None;
+    }
+    if let Some(spec) = cpp_template_spec(name) {
+        return Some(spec);
+    }
+    if is_c_library_typedef(name) {
+        return Some(LibrarySpec::value(TypeCategory::Builtin));
+    }
+    match root {
+        // Any other `std::` / `boost::` / ... type is a library value.
+        Some(_) => Some(LibrarySpec::value(TypeCategory::Class)),
+        None if CPP_STD_VALUE_NAMES.contains(&name) => {
+            Some(LibrarySpec::value(TypeCategory::Class))
+        }
+        None if name.len() > 1
+            && name.as_bytes()[0] == b'Q'
+            && name.as_bytes()[1].is_ascii_uppercase() =>
+        {
+            // Qt value classes (`QString`, `QVariant`, `QDateTime`, ...).
+            Some(LibrarySpec::value(TypeCategory::Class))
+        }
+        None => None,
+    }
+}
+
+fn cs_collection_spec(name: &str, arity: usize) -> Option<LibrarySpec> {
+    use ElementArgs::*;
+    let spec = match (name, arity) {
+        (
+            "List" | "IList" | "ICollection" | "IEnumerable" | "IReadOnlyList"
+            | "IReadOnlyCollection" | "ISet" | "IReadOnlySet" | "HashSet" | "SortedSet"
+            | "LinkedList" | "Queue" | "Stack" | "Collection" | "ReadOnlyCollection"
+            | "ObservableCollection" | "ReadOnlyObservableCollection" | "BindingList"
+            | "ConcurrentBag" | "ConcurrentQueue" | "ConcurrentStack" | "BlockingCollection"
+            | "IProducerConsumerCollection" | "ImmutableList" | "ImmutableHashSet"
+            | "ImmutableSortedSet" | "ImmutableQueue" | "ImmutableStack" | "IImmutableList"
+            | "IImmutableSet" | "IImmutableQueue" | "IImmutableStack" | "FrozenSet"
+            | "IAsyncEnumerable" | "IQueryable" | "IOrderedEnumerable" | "IOrderedQueryable"
+            | "DbSet" | "IEnumerator" | "IAsyncEnumerator" | "Channel"
+            | "SynchronizedCollection",
+            1,
+        ) => LibrarySpec::cs_collection(name, First),
+        (
+            "ImmutableArray" | "Span" | "ReadOnlySpan" | "Memory" | "ReadOnlyMemory"
+            | "ArraySegment" | "ReadOnlySequence",
+            1,
+        ) => LibrarySpec::cs_collection(name, First).with_value_type(),
+        ("PriorityQueue", 2) => LibrarySpec::cs_collection(name, First),
+        (
+            "Dictionary" | "IDictionary" | "IReadOnlyDictionary" | "SortedDictionary"
+            | "SortedList" | "ConcurrentDictionary" | "ImmutableDictionary"
+            | "ImmutableSortedDictionary" | "IImmutableDictionary" | "FrozenDictionary"
+            | "ILookup" | "Lookup" | "KeyedCollection" | "OrderedDictionary" | "IGrouping",
+            2,
+        ) => {
+            let mut s = LibrarySpec::cs_collection(name, Second);
+            s.key = Some(0);
+            s
+        }
+        ("ConditionalWeakTable", 2) => {
+            let mut s = LibrarySpec::cs_collection(name, Second);
+            s.effect = HopEffect::Owns(Ownership::Reference);
+            s.key = Some(0);
+            s
+        }
+        (
+            "ArrayList" | "Hashtable" | "Queue" | "Stack" | "SortedList" | "IEnumerable"
+            | "ICollection" | "IList" | "IDictionary" | "NameValueCollection"
+            | "StringCollection" | "StringDictionary" | "HybridDictionary" | "ListDictionary"
+            | "OrderedDictionary" | "CollectionBase" | "DictionaryBase" | "BitArray",
+            0,
+        ) => {
+            let mut s = LibrarySpec::opaque(true);
+            s.category = cs_category_of_name(name);
+            s
+        }
+        _ => return None,
+    };
+    Some(spec)
+}
+
+fn cs_wrapper_spec(name: &str, arity: usize) -> Option<LibrarySpec> {
+    use ElementArgs::*;
+    let spec = match (name, arity) {
+        ("Nullable", 1) => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::OPTIONAL, First)
+                .with_value_type()
+        }
+        ("Lazy" | "ThreadLocal" | "AsyncLocal" | "StrongBox", 1) => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::ONE, First)
+        }
+        ("Task" | "TaskCompletionSource", 1) => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::OPTIONAL, First)
+        }
+        ("ValueTask", 1) => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::OPTIONAL, First)
+                .with_value_type()
+        }
+        ("WeakReference", 1) => LibrarySpec::holder(
+            HopEffect::Owns(Ownership::Reference),
+            Multiplicity::OPTIONAL,
+            First,
+        ),
+        ("KeyValuePair", 2) => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::ONE, All).with_value_type()
+        }
+        ("Tuple", 1..=8) => LibrarySpec::holder(HopEffect::Transparent, Multiplicity::ONE, All),
+        ("ValueTuple", 1..=8) => {
+            LibrarySpec::holder(HopEffect::Transparent, Multiplicity::ONE, All).with_value_type()
+        }
+        ("Action", 0..=16)
+        | ("Func", 1..=17)
+        | ("Predicate" | "Comparison" | "EventHandler", 1)
+        | ("Converter", 2)
+        | (
+            "EventHandler" | "AsyncCallback" | "ThreadStart" | "ParameterizedThreadStart"
+            | "TimerCallback" | "WaitCallback" | "PropertyChangedEventHandler"
+            | "PropertyChangingEventHandler" | "NotifyCollectionChangedEventHandler"
+            | "RoutedEventHandler" | "ElapsedEventHandler" | "Delegate" | "MulticastDelegate",
+            0,
+        ) => LibrarySpec::callable(),
+        _ => return None,
+    };
+    Some(spec)
+}
+
+fn cs_value_spec(name: &str, arity: usize) -> Option<LibrarySpec> {
+    let spec = match (name, arity) {
+        (
+            "IObservable" | "IObserver" | "IComparer" | "IEqualityComparer" | "IComparable"
+            | "IEquatable" | "IProgress" | "IOptions" | "IOptionsMonitor" | "IOptionsSnapshot"
+            | "ILogger" | "IParsable" | "ISpanParsable" | "IRequestHandler"
+            | "INotificationHandler" | "IValidator" | "IConfigureOptions",
+            1..=2,
+        )
+        | (
+            "IDisposable" | "IAsyncDisposable" | "ICloneable" | "IComparable" | "IFormattable"
+            | "IConvertible" | "INotifyPropertyChanged" | "INotifyPropertyChanging"
+            | "INotifyCollectionChanged" | "INotifyDataErrorInfo" | "IServiceProvider"
+            | "ISerializable" | "IAsyncResult" | "IHostedService" | "ILogger" | "ILoggerFactory"
+            | "IConfiguration" | "ICommand" | "IValueConverter" | "IEqualityComparer"
+            | "IComparer" | "IStructuralEquatable" | "IStructuralComparable"
+            | "ISpanFormattable" | "IUtf8SpanFormattable" | "IDataErrorInfo" | "IEditableObject"
+            | "IServiceScope" | "IServiceScopeFactory" | "IServiceCollection" | "IHost"
+            | "IHostBuilder" | "IHostEnvironment" | "IWebHostEnvironment" | "IHttpClientFactory"
+            | "IMediator" | "IEnumerator",
+            0,
+        ) => LibrarySpec::value(TypeCategory::Interface),
+        (
+            "DateTime" | "DateTimeOffset" | "TimeSpan" | "Guid" | "Decimal" | "DateOnly"
+            | "TimeOnly" | "CancellationToken" | "Int16" | "Int32" | "Int64" | "UInt16"
+            | "UInt32" | "UInt64" | "Byte" | "SByte" | "Char" | "Boolean" | "Single" | "Double"
+            | "Half" | "Int128" | "UInt128" | "IntPtr" | "UIntPtr" | "BigInteger" | "Complex"
+            | "Vector2" | "Vector3" | "Vector4" | "Matrix3x2" | "Matrix4x4" | "Quaternion"
+            | "Plane" | "Color" | "Point" | "PointF" | "Size" | "SizeF" | "Rectangle"
+            | "RectangleF" | "Index" | "Range" | "SpinLock" | "ValueTuple" | "Rune" | "HashCode"
+            | "ConsoleKeyInfo" | "Thickness" | "CornerRadius" | "GridLength" | "ValueTask"
+            | "RuntimeTypeHandle" | "TypedReference",
+            0,
+        ) => LibrarySpec::value(TypeCategory::Struct).with_value_type(),
+        (
+            "String" | "Object" | "Type" | "Uri" | "Version" | "StringBuilder" | "Regex"
+            | "Stream" | "MemoryStream" | "FileStream" | "StreamReader" | "StreamWriter"
+            | "TextReader" | "TextWriter" | "BinaryReader" | "BinaryWriter" | "HttpClient"
+            | "HttpResponseMessage" | "HttpRequestMessage" | "Thread" | "Timer" | "Random"
+            | "CancellationTokenSource" | "SemaphoreSlim" | "Mutex" | "Semaphore"
+            | "ManualResetEvent" | "AutoResetEvent" | "ManualResetEventSlim"
+            | "ReaderWriterLockSlim" | "Stopwatch" | "Encoding" | "CultureInfo" | "Assembly"
+            | "Exception" | "Task" | "Array" | "Attribute" | "EventArgs" | "Lock"
+            | "JsonSerializerOptions" | "DbContext" | "Process" | "FileInfo" | "DirectoryInfo"
+            | "XmlDocument" | "XElement" | "XDocument" | "DataTable" | "DataSet"
+            | "SqlConnection" | "SqlCommand" | "WeakReference" | "Monitor",
+            0,
+        ) => LibrarySpec::value(TypeCategory::Class),
+        _ => return None,
+    };
+    Some(spec)
+}
+
+fn cs_library_spec(ty: &TypeExpr) -> Option<LibrarySpec> {
+    let segs = ty.segments();
+    let last = segs.last()?;
+    let arity = last.args.as_ref().map(|a| a.len()).unwrap_or(0);
+    let name = last.name.as_str();
+    if let Some(spec) = cs_collection_spec(name, arity)
+        .or_else(|| cs_wrapper_spec(name, arity))
+        .or_else(|| cs_value_spec(name, arity))
+    {
+        return Some(spec);
+    }
+    let system_qualified = segs.len() > 1
+        && matches!(
+            segs[0].name.as_str(),
+            "System" | "Microsoft" | "Windows" | "Android"
+        );
+    if system_qualified {
+        return Some(LibrarySpec::value(cs_category_of_name(name)));
+    }
+    // Framework convention for delegate types not modelled individually.
+    if arity <= 1 && name.ends_with("EventHandler") && name.len() > "EventHandler".len() {
+        return Some(LibrarySpec::callable());
+    }
+    None
+}
+
+/// The library model entry for a named type in `lang`.
+pub fn library_spec(lang: CFamily, ty: &TypeExpr) -> Option<LibrarySpec> {
+    match lang {
+        CFamily::C => c_library_spec(ty),
+        CFamily::Cpp => cpp_library_spec(ty),
+        CFamily::CSharp => cs_library_spec(ty),
+    }
+}
+
+/// How a member holds what its type names, one level deep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HolderKind {
+    /// The type itself, held by value.
+    Value,
+    RawPointer,
+    Reference,
+    UniqueOwner,
+    SharedOwner,
+    WeakRef,
+    Optional,
+    /// C# `Lazy<T>` and other deferred holders.
+    Lazy,
+    /// C# `T?` / `Nullable<T>`.
+    Nullable,
+    Collection,
+    Callable,
+}
+
+/// Peels one holder level off a declared type: `std::unique_ptr<T>` is
+/// `(UniqueOwner, T)`, `T*` is `(RawPointer, T)`, `List<T>` is `(Collection, T)`.
+/// Transparent wrappers (`gsl::not_null`, `std::propagate_const`) are looked through.
+pub fn peel_holder(lang: CFamily, ty: &TypeExpr) -> (HolderKind, Option<TypeExpr>) {
+    if let Some(d) = ty.declarators.last() {
+        let kind = match d {
+            Declarator::Pointer { .. } => HolderKind::RawPointer,
+            Declarator::LValueRef | Declarator::RValueRef => HolderKind::Reference,
+            Declarator::Nullable => HolderKind::Nullable,
+            Declarator::Array(_) | Declarator::CsArray { .. } | Declarator::PackExpansion => {
+                HolderKind::Collection
+            }
+            Declarator::MemberPointer(_) => return (HolderKind::Callable, None),
+        };
+        return (kind, Some(ty.peel_outermost()));
+    }
+    match &ty.head {
+        TypeHead::Function { .. } => return (HolderKind::Callable, None),
+        TypeHead::Named { .. } => {}
+        _ => return (HolderKind::Value, Some(ty.clone())),
+    }
+    let name = ty.simple_name().unwrap_or("");
+    let spec = match library_spec(lang, ty) {
+        Some(s) => s,
+        None => return (HolderKind::Value, Some(ty.clone())),
+    };
+    match spec.kind {
+        LibraryKind::Callable => (HolderKind::Callable, None),
+        LibraryKind::Opaque => (HolderKind::Collection, None),
+        LibraryKind::Value => (HolderKind::Value, Some(ty.clone())),
+        LibraryKind::Holder => {
+            let first = match spec.elements {
+                ElementArgs::Second => ty.type_arg(1).cloned(),
+                _ => ty.type_arg(0).cloned(),
+            };
+            if spec.collection {
+                return (HolderKind::Collection, first);
+            }
+            match spec.effect {
+                HopEffect::Owns(Ownership::Exclusive) => {
+                    if matches!(name, "optional" | "expected") {
+                        (HolderKind::Optional, first)
+                    } else if spec.elements == ElementArgs::All {
+                        (HolderKind::Value, Some(ty.clone()))
+                    } else {
+                        (HolderKind::UniqueOwner, first)
+                    }
+                }
+                HopEffect::Owns(Ownership::Shared) => (HolderKind::SharedOwner, first),
+                HopEffect::Owns(Ownership::Reference) => {
+                    if spec.mult == Multiplicity::ONE {
+                        (HolderKind::Reference, first)
+                    } else {
+                        (HolderKind::WeakRef, first)
+                    }
+                }
+                HopEffect::OwnsPointee => match first {
+                    Some(inner) => match inner.declarators.last() {
+                        Some(Declarator::Pointer { .. }) => {
+                            (HolderKind::UniqueOwner, Some(inner.peel_outermost()))
+                        }
+                        _ => (HolderKind::Value, Some(inner)),
+                    },
+                    None => (HolderKind::Value, None),
+                },
+                HopEffect::Transparent => {
+                    if lang == CFamily::CSharp && name == "Nullable" {
+                        (HolderKind::Nullable, first)
+                    } else if spec.elements == ElementArgs::All {
+                        (HolderKind::Value, Some(ty.clone()))
+                    } else if lang == CFamily::CSharp {
+                        (HolderKind::Lazy, first)
+                    } else {
+                        match first {
+                            Some(inner) => peel_holder(lang, &inner),
+                            None => (HolderKind::Value, None),
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Peels every holder level until a non-holder type remains
+/// (`std::vector<std::unique_ptr<T>>` gives `T`); returns the kinds crossed, outermost
+/// first, and the remaining type (`None` when a callable or opaque holder ends the walk).
+pub fn innermost_type(lang: CFamily, ty: &TypeExpr) -> (Vec<HolderKind>, Option<TypeExpr>) {
+    let mut kinds = Vec::new();
+    let mut current = ty.clone();
+    for _ in 0..MAX_TYPE_DEPTH {
+        let (kind, inner) = peel_holder(lang, &current);
+        if kind == HolderKind::Value {
+            return (kinds, inner);
+        }
+        kinds.push(kind);
+        match inner {
+            Some(i) => current = i,
+            None => return (kinds, None),
+        }
+    }
+    (kinds, None)
+}
+
+// ── Member Relationships ──────────────────────────────────────────────────────
+
+/// Binds written names to project types and aliases in one lexical context.
+pub trait TypeResolver {
+    fn language(&self) -> CFamily;
+    /// Binds a named type to a project type or an in-scope type parameter;
+    /// `TypeInfo::UNKNOWN` when neither applies (library types are classified by the
+    /// caller from the library model).
+    fn resolve_project(&self, ty: &TypeExpr) -> TypeInfo;
+    /// The aliased type when `ty` names a project alias (`using X = ...`, `typedef`),
+    /// with `ty`'s declarators applied on top.
+    fn expand_alias(&self, ty: &TypeExpr) -> Option<TypeExpr>;
+    /// Template / generic parameters of a project type.
+    fn template_params(&self, class_index: usize) -> Option<&[TemplateParam]>;
+}
+
+/// Full binding of a written type: project type, type parameter, library, built-in, or
+/// `TypeInfo::UNKNOWN`. Declarators are ignored; aliases are expanded.
+pub fn resolve_type(resolver: &dyn TypeResolver, ty: &TypeExpr) -> TypeInfo {
+    let mut current = ty.without_declarators();
+    for _ in 0..MAX_ALIAS_EXPANSIONS {
+        match resolver.expand_alias(&current) {
+            Some(next) => {
+                let next = next.without_declarators();
+                if next == current {
+                    break;
+                }
+                current = next;
+            }
+            None => break,
+        }
+    }
+    match &current.head {
+        TypeHead::Builtin(_) => TypeInfo::BUILTIN,
+        TypeHead::Named { .. } => {
+            let info = resolver.resolve_project(&current);
+            if info.origin != TypeOrigin::Unknown {
+                return info;
+            }
+            match library_spec(resolver.language(), &current) {
+                Some(spec) => TypeInfo::library(spec.category),
+                None => TypeInfo::UNKNOWN,
+            }
+        }
+        TypeHead::Tuple(_) => TypeInfo::library(TypeCategory::Struct),
+        TypeHead::Function { .. } => TypeInfo::library(TypeCategory::Delegate),
+        TypeHead::Inferred => TypeInfo::UNKNOWN,
+    }
+}
+
+/// What kind of member a type belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MemberRole {
+    Field,
+    Property,
+    Event,
+}
+
+/// One UML relationship implied by a member's declared type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberRelation {
+    /// ASSOC_* kind.
+    pub assoc_kind: u8,
+    /// The target classifier as written (holders and declarators peeled off).
+    pub target: TypeExpr,
+    pub info: TypeInfo,
+    /// Multiplicity at the target end (`MULTIPLICITY_UNKNOWN` bounds for dependencies).
+    pub mult: Multiplicity,
+    pub ownership: Ownership,
+    /// The target is reached through a collection, array or container.
+    pub through_collection: bool,
+    /// Map key type: a UML qualifier on the association end.
+    pub qualifier: Option<TypeExpr>,
+    /// Template binding when the target is a project template used with arguments.
+    pub binding: Option<TemplateBinding>,
+}
+
+/// UML reading of a member's declared type.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MemberShape {
+    /// Relations to project types: structural ones in source order, then «use»
+    /// dependencies carried by callable signatures and event arguments.
+    pub relations: Vec<MemberRelation>,
+    /// Multiplicity of the attribute (of the primary relation when there is one).
+    pub mult: Multiplicity,
+    /// The type is an array, a container or a library collection.
+    pub is_collection: bool,
+    /// The type is (or holds) a callable: `std::function`, function pointer, delegate.
+    pub is_callable: bool,
+    /// The callable type as written.
+    pub callable: Option<TypeExpr>,
+    /// Leaf type names that could not be resolved.
+    pub unresolved: Vec<String>,
+    /// Extra stereotype of the member («event»).
+    pub stereotype: Option<&'static str>,
+}
+
+impl MemberShape {
+    /// The structural (non-dependency) relation that represents the attribute.
+    pub fn primary(&self) -> Option<&MemberRelation> {
+        self.relations
+            .iter()
+            .find(|r| r.assoc_kind != ASSOC_DEPENDENCY)
+    }
+
+    /// True when every leaf of the type was bound.
+    pub fn fully_resolved(&self) -> bool {
+        self.unresolved.is_empty()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct HopCtx {
+    mult: Multiplicity,
+    ownership: Option<Ownership>,
+    through_collection: bool,
+    qualifier: Option<TypeExpr>,
+    depth: u32,
+    owns_pointee: bool,
+    non_null: bool,
+}
+
+struct Leaf {
+    ty: TypeExpr,
+    info: TypeInfo,
+    ctx: HopCtx,
+}
+
+struct Walk<'r> {
+    lang: CFamily,
+    resolver: &'r dyn TypeResolver,
+    leaves: Vec<Leaf>,
+    is_collection: bool,
+    is_callable: bool,
+    callable: Option<TypeExpr>,
+    unresolved: Vec<String>,
+    end_mult: Option<Multiplicity>,
+}
+
+impl<'r> Walk<'r> {
+    fn note_mult(&mut self, m: Multiplicity) {
+        if self.end_mult.is_none() {
+            self.end_mult = Some(m);
+        }
+    }
+
+    fn note_unresolved(&mut self, name: String) {
+        if !self.unresolved.contains(&name) {
+            self.unresolved.push(name);
+        }
+    }
+
+    fn leaf(&mut self, ty: TypeExpr, info: TypeInfo, ctx: HopCtx) {
+        self.note_mult(ctx.mult);
+        self.leaves.push(Leaf { ty, info, ctx });
+    }
+
+    fn note_callable(&mut self, ty: &TypeExpr, mult: Multiplicity) {
+        self.is_callable = true;
+        if self.callable.is_none() {
+            self.callable = Some(ty.clone());
+        }
+        self.note_mult(mult);
+    }
+
+    fn expand(&self, ty: &TypeExpr) -> Option<TypeExpr> {
+        if !matches!(ty.head, TypeHead::Named { .. }) {
+            return None;
+        }
+        let mut current = ty.clone();
+        let mut changed = false;
+        for _ in 0..MAX_ALIAS_EXPANSIONS {
+            match self.resolver.expand_alias(&current) {
+                Some(next) => {
+                    if next == current {
+                        break;
+                    }
+                    let stop = !matches!(next.head, TypeHead::Named { .. });
+                    current = next;
+                    changed = true;
+                    if stop {
+                        break;
+                    }
+                }
+                None => break,
+            }
+        }
+        if changed {
+            Some(current)
+        } else {
+            None
+        }
+    }
+
+    fn walk(&mut self, ty: &TypeExpr, ctx: HopCtx) {
+        if ctx.depth > MAX_TYPE_DEPTH {
+            self.note_unresolved(ty.display(self.lang));
+            self.note_mult(Multiplicity::UNKNOWN);
+            return;
+        }
+        let expanded = self.expand(ty);
+        let ty = match &expanded {
+            Some(e) => e,
+            None => ty,
+        };
+        let mut ctx = ctx;
+        for d in ty.declarators.iter().rev() {
+            match d {
+                Declarator::Pointer { .. } => {
+                    if ctx.owns_pointee {
+                        ctx.owns_pointee = false;
+                        ctx.ownership = min_own(ctx.ownership, Ownership::Exclusive);
+                    } else {
+                        ctx.ownership = min_own(ctx.ownership, Ownership::Reference);
+                    }
+                    let hop = if ctx.non_null {
+                        ctx.non_null = false;
+                        Multiplicity::ONE
+                    } else {
+                        Multiplicity::OPTIONAL
+                    };
+                    ctx.mult = ctx.mult.times(hop);
+                }
+                Declarator::LValueRef | Declarator::RValueRef => {
+                    ctx.ownership = min_own(ctx.ownership, Ownership::Reference);
+                }
+                Declarator::Array(extent) => {
+                    self.is_collection = true;
+                    ctx.through_collection = true;
+                    let m = match extent {
+                        ArrayExtent::Literal(n) => Multiplicity::exactly(*n),
+                        ArrayExtent::Symbolic(_) => Multiplicity::UNKNOWN,
+                        ArrayExtent::Unspecified => Multiplicity::MANY,
+                    };
+                    ctx.mult = ctx.mult.times(m);
+                }
+                Declarator::CsArray { .. } | Declarator::PackExpansion => {
+                    self.is_collection = true;
+                    ctx.through_collection = true;
+                    ctx.mult = ctx.mult.times(Multiplicity::MANY);
+                }
+                Declarator::Nullable => {
+                    ctx.mult = ctx.mult.times(Multiplicity::OPTIONAL);
+                }
+                Declarator::MemberPointer(_) => {
+                    // A pointer to member designates a member, not an object.
+                    self.note_mult(ctx.mult.times(Multiplicity::OPTIONAL));
+                    return;
+                }
+            }
+        }
+        let head_ty = ty.without_declarators();
+        match &ty.head {
+            TypeHead::Builtin(_) => self.leaf(head_ty, TypeInfo::BUILTIN, ctx),
+            TypeHead::Inferred => self.leaf(head_ty, TypeInfo::UNKNOWN, ctx),
+            TypeHead::Tuple(elems) => {
+                for e in elems {
+                    let mut c = ctx.clone();
+                    c.depth += 1;
+                    self.walk(&e.ty, c);
+                }
+                self.note_mult(ctx.mult);
+            }
+            TypeHead::Function { .. } => self.note_callable(ty, ctx.mult),
+            TypeHead::Named { .. } => self.walk_named(head_ty, ctx),
+        }
+    }
+
+    fn walk_named(&mut self, head_ty: TypeExpr, ctx: HopCtx) {
+        let info = self.resolver.resolve_project(&head_ty);
+        if matches!(info.origin, TypeOrigin::Project | TypeOrigin::TypeParameter) {
+            self.leaf(head_ty, info, ctx);
+            return;
+        }
+        let spec = match library_spec(self.lang, &head_ty) {
+            Some(s) => s,
+            None => {
+                self.leaf(head_ty, TypeInfo::UNKNOWN, ctx);
+                return;
+            }
+        };
+        match spec.kind {
+            LibraryKind::Value => self.leaf(head_ty, TypeInfo::library(spec.category), ctx),
+            LibraryKind::Callable => self.note_callable(&head_ty, ctx.mult),
+            LibraryKind::Opaque => {
+                let m = if spec.collection {
+                    self.is_collection = true;
+                    ctx.mult.times(Multiplicity::MANY)
+                } else {
+                    ctx.mult
+                };
+                self.note_mult(m);
+            }
+            LibraryKind::Holder => self.walk_holder(&head_ty, &spec, ctx),
+        }
+    }
+
+    fn walk_holder(&mut self, ty: &TypeExpr, spec: &LibrarySpec, mut ctx: HopCtx) {
+        let args = ty.last_args();
+        match spec.effect {
+            HopEffect::Owns(o) => ctx.ownership = min_own(ctx.ownership, o),
+            HopEffect::Transparent => {}
+            HopEffect::OwnsPointee => ctx.owns_pointee = true,
+        }
+        if spec.non_null {
+            ctx.non_null = true;
+        }
+        let mut mult = spec.mult;
+        if let Some(k) = spec.extent_arg {
+            mult = match args.get(k) {
+                Some(TypeArg::Value(v)) => parse_int_literal(v)
+                    .map(Multiplicity::exactly)
+                    .unwrap_or(Multiplicity::UNKNOWN),
+                _ => Multiplicity::UNKNOWN,
+            };
+        }
+        let mut collection = spec.collection;
+        // `std::unique_ptr<T[]>` owns an array of T.
+        let mut first_override: Option<TypeExpr> = None;
+        if self.lang.is_c_like() && !collection && matches!(spec.effect, HopEffect::Owns(_)) {
+            if let Some(TypeArg::Type(inner)) = args.first() {
+                if let Some(Declarator::Array(_)) = inner.declarators.last() {
+                    collection = true;
+                    mult = Multiplicity::MANY;
+                    first_override = Some(inner.peel_outermost());
+                }
+            }
+        }
+        if collection {
+            self.is_collection = true;
+            ctx.through_collection = true;
+        }
+        ctx.mult = ctx.mult.times(mult);
+        ctx.depth += 1;
+        let key = spec.key.and_then(|k| match args.get(k) {
+            Some(TypeArg::Type(t)) => Some(t.clone()),
+            _ => None,
+        });
+        let positions: Vec<usize> = match spec.elements {
+            ElementArgs::First => vec![0],
+            ElementArgs::Second => vec![1],
+            ElementArgs::All => (0..args.len()).collect(),
+        };
+        let mut walked = false;
+        for k in positions {
+            let arg = if k == 0 && first_override.is_some() {
+                first_override.as_ref()
+            } else {
+                match args.get(k) {
+                    Some(TypeArg::Type(t)) => Some(t),
+                    _ => None,
+                }
+            };
+            if let Some(t) = arg {
+                let mut c = ctx.clone();
+                if key.is_some() {
+                    c.qualifier = key.clone();
+                }
+                self.walk(t, c);
+                walked = true;
+            }
+        }
+        if !walked {
+            self.note_mult(ctx.mult);
+        }
+    }
+}
+
+/// C#: whether the declared top-level type is a reference type without a `?`
+/// annotation (`Some(true)`), a value type or annotated (`Some(false)`), or unknown.
+fn cs_top_level_reference(resolver: &dyn TypeResolver, ty: &TypeExpr) -> Option<bool> {
+    match ty.declarators.last() {
+        Some(Declarator::Nullable) | Some(Declarator::Pointer { .. }) => return Some(false),
+        Some(Declarator::CsArray { .. }) => return Some(true),
+        Some(_) => return None,
+        None => {}
+    }
+    match &ty.head {
+        TypeHead::Builtin(b) => Some(matches!(b.as_str(), "string" | "object" | "dynamic")),
+        TypeHead::Tuple(_) | TypeHead::Function { .. } => Some(false),
+        TypeHead::Inferred => None,
+        TypeHead::Named { .. } => {
+            let info = resolver.resolve_project(ty);
+            match info.origin {
+                TypeOrigin::Project => Some(!matches!(
+                    info.category,
+                    TypeCategory::Struct | TypeCategory::Enum | TypeCategory::Union
+                )),
+                TypeOrigin::TypeParameter => None,
+                _ => library_spec(CFamily::CSharp, ty).map(|s| !s.value_type),
+            }
+        }
+    }
+}
+
+fn relation_kind(lang: CFamily, leaf: &Leaf) -> (u8, Ownership) {
+    let cat = leaf.info.category;
+    if lang == CFamily::CSharp {
+        if leaf.ctx.ownership == Some(Ownership::Reference) {
+            return (ASSOC_ASSOCIATION, Ownership::Reference);
+        }
+        return match cat {
+            TypeCategory::Struct | TypeCategory::Union => {
+                (ASSOC_COMPOSITION, Ownership::Exclusive)
+            }
+            _ if leaf.ctx.through_collection => (ASSOC_AGGREGATION, Ownership::Shared),
+            _ => (ASSOC_ASSOCIATION, Ownership::Reference),
+        };
+    }
+    let leaf_strength = match cat {
+        TypeCategory::Enum | TypeCategory::Delegate => Ownership::Reference,
+        _ => Ownership::Exclusive,
+    };
+    let own = match leaf.ctx.ownership {
+        Some(o) => o.min(leaf_strength),
+        None => leaf_strength,
+    };
+    let kind = match own {
+        Ownership::Exclusive => ASSOC_COMPOSITION,
+        Ownership::Shared => ASSOC_AGGREGATION,
+        Ownership::Reference => ASSOC_ASSOCIATION,
+    };
+    (kind, own)
+}
+
+fn binding_for(
+    resolver: &dyn TypeResolver,
+    lang: CFamily,
+    target: &TypeExpr,
+    info: &TypeInfo,
+) -> Option<TemplateBinding> {
+    let ci = info.class_index?;
+    let seg = target.segments().last()?;
+    let args = seg.args.as_ref()?;
+    let params = resolver.template_params(ci).unwrap_or(&[]);
+    Some(TemplateBinding::bind(
+        &seg.name,
+        Some(ci),
+        info.sym_id,
+        params,
+        args,
+        lang,
+    ))
+}
+
+/// «use» dependencies on project types named inside `ty`.
+fn dependency_relations(
+    resolver: &dyn TypeResolver,
+    ty: &TypeExpr,
+    include_self: bool,
+) -> Vec<MemberRelation> {
+    let mut named = Vec::new();
+    collect_named(ty, include_self, &mut named);
+    let mut out: Vec<MemberRelation> = Vec::new();
+    for n in named {
+        let info = resolve_type(resolver, n);
+        if !info.is_project() {
+            continue;
+        }
+        if out.iter().any(|r| r.info.class_index == info.class_index) {
+            continue;
+        }
+        out.push(MemberRelation {
+            assoc_kind: ASSOC_DEPENDENCY,
+            target: n.without_declarators(),
+            info,
+            mult: Multiplicity::UNKNOWN,
+            ownership: Ownership::Reference,
+            through_collection: false,
+            qualifier: None,
+            binding: None,
+        });
+    }
+    out
+}
+
+/// Classifies a member's declared type into UML relationships (see the module rules).
+/// `nullable` is the C# annotation context at the declaration (ignored for C and C++).
+pub fn classify_member_type(
+    resolver: &dyn TypeResolver,
+    ty: &TypeExpr,
+    role: MemberRole,
+    nullable: NullableContext,
+) -> MemberShape {
+    let lang = resolver.language();
+    if role == MemberRole::Event {
+        return classify_event(resolver, ty);
+    }
+    let mut walk = Walk {
+        lang,
+        resolver,
+        leaves: Vec::new(),
+        is_collection: false,
+        is_callable: false,
+        callable: None,
+        unresolved: Vec::new(),
+        end_mult: None,
+    };
+    let ctx = HopCtx {
+        mult: Multiplicity::ONE,
+        ownership: None,
+        through_collection: false,
+        qualifier: None,
+        depth: 0,
+        owns_pointee: false,
+        non_null: false,
+    };
+    walk.walk(ty, ctx);
+
+    let mut shape = MemberShape {
+        relations: Vec::new(),
+        mult: walk.end_mult.unwrap_or(Multiplicity::UNKNOWN),
+        is_collection: walk.is_collection,
+        is_callable: walk.is_callable,
+        callable: walk.callable.clone(),
+        unresolved: walk.unresolved.clone(),
+        stereotype: None,
+    };
+    let mut primary_mult: Option<Multiplicity> = None;
+    for leaf in &walk.leaves {
+        match leaf.info.origin {
+            TypeOrigin::Project => {}
+            TypeOrigin::Unknown => {
+                let n = leaf.ty.display(lang);
+                if !shape.unresolved.contains(&n) {
+                    shape.unresolved.push(n);
+                }
+                continue;
+            }
+            _ => continue,
+        }
+        let (assoc_kind, ownership) = relation_kind(lang, leaf);
+        if primary_mult.is_none() {
+            primary_mult = Some(leaf.ctx.mult);
+        }
+        shape.relations.push(MemberRelation {
+            assoc_kind,
+            target: leaf.ty.clone(),
+            info: leaf.info,
+            mult: leaf.ctx.mult,
+            ownership,
+            through_collection: leaf.ctx.through_collection,
+            qualifier: leaf.ctx.qualifier.clone(),
+            binding: binding_for(resolver, lang, &leaf.ty, &leaf.info),
+        });
+    }
+    if let Some(m) = primary_mult {
+        shape.mult = m;
+    }
+    if let Some(callable) = &walk.callable {
+        for dep in dependency_relations(resolver, callable, true) {
+            if !shape
+                .relations
+                .iter()
+                .any(|r| r.info.class_index == dep.info.class_index)
+            {
+                shape.relations.push(dep);
+            }
+        }
+    }
+    if lang == CFamily::CSharp {
+        let top = cs_top_level_reference(resolver, ty);
+        let adjust = |m: Multiplicity| -> Multiplicity {
+            if m.min == 0 || m.min == MULTIPLICITY_UNKNOWN {
+                return m;
+            }
+            match (top, nullable) {
+                (Some(false), _) | (_, NullableContext::Enabled) => m,
+                (Some(true), NullableContext::Disabled) => Multiplicity { min: 0, max: m.max },
+                _ => Multiplicity {
+                    min: MULTIPLICITY_UNKNOWN,
+                    max: m.max,
+                },
+            }
+        };
+        shape.mult = adjust(shape.mult);
+        for r in shape.relations.iter_mut() {
+            if r.assoc_kind != ASSOC_DEPENDENCY {
+                r.mult = adjust(r.mult);
+            }
+        }
+    }
+    shape
+}
+
+/// C# event: an association to the delegate type (multiplicity `0..*`, the invocation
+/// list) plus «use» dependencies on project types among the delegate's arguments.
+fn classify_event(resolver: &dyn TypeResolver, ty: &TypeExpr) -> MemberShape {
+    let lang = resolver.language();
+    let mut shape = MemberShape {
+        mult: Multiplicity::MANY,
+        is_callable: true,
+        callable: Some(ty.clone()),
+        stereotype: Some("event"),
+        ..Default::default()
+    };
+    let info = resolve_type(resolver, ty);
+    match info.origin {
+        TypeOrigin::Project => shape.relations.push(MemberRelation {
+            assoc_kind: ASSOC_ASSOCIATION,
+            target: ty.without_declarators(),
+            info,
+            mult: Multiplicity::MANY,
+            ownership: Ownership::Reference,
+            through_collection: false,
+            qualifier: None,
+            binding: binding_for(resolver, lang, ty, &info),
+        }),
+        TypeOrigin::Unknown => shape.unresolved.push(ty.display(lang)),
+        _ => {}
+    }
+    for dep in dependency_relations(resolver, ty, false) {
+        if !shape
+            .relations
+            .iter()
+            .any(|r| r.info.class_index == dep.info.class_index)
+        {
+            shape.relations.push(dep);
+        }
+    }
+    shape
+}
+
+// ── Visibility ────────────────────────────────────────────────────────────────
+
+/// Declared access of a C-family member or type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AccessLevel {
+    Public,
+    Protected,
+    Private,
+    /// C# `internal`: visible within the assembly.
+    Internal,
+    /// C# `protected internal`: derived types or the same assembly.
+    ProtectedInternal,
+    /// C# `private protected`: derived types within the same assembly.
+    PrivateProtected,
+    /// C# 11 `file`: visible within the source file.
+    File,
+}
+
+/// UML visibility kinds (`+`, `-`, `#`, `~`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UmlVisibility {
+    Public,
+    Private,
+    Protected,
+    Package,
+}
+
+impl UmlVisibility {
+    pub fn symbol(self) -> char {
+        match self {
+            UmlVisibility::Public => '+',
+            UmlVisibility::Private => '-',
+            UmlVisibility::Protected => '#',
+            UmlVisibility::Package => '~',
+        }
+    }
+
+    pub fn to_symbol_visibility(self) -> SymbolVisibility {
+        match self {
+            UmlVisibility::Public => SymbolVisibility::Public,
+            UmlVisibility::Private => SymbolVisibility::Private,
+            UmlVisibility::Protected => SymbolVisibility::Protected,
+            UmlVisibility::Package => SymbolVisibility::Package,
+        }
+    }
+}
+
+impl AccessLevel {
+    /// UML visibility: `internal` is package (`~`); the two C# combined levels are shown
+    /// as protected with their exact level in `property()`; `file` is private.
+    pub fn uml(self) -> UmlVisibility {
+        match self {
+            AccessLevel::Public => UmlVisibility::Public,
+            AccessLevel::Protected
+            | AccessLevel::ProtectedInternal
+            | AccessLevel::PrivateProtected => UmlVisibility::Protected,
+            AccessLevel::Private | AccessLevel::File => UmlVisibility::Private,
+            AccessLevel::Internal => UmlVisibility::Package,
+        }
+    }
+
+    pub fn uml_symbol(self) -> char {
+        self.uml().symbol()
+    }
+
+    /// UML property string for levels that the four visibility kinds cannot express.
+    pub fn property(self) -> Option<&'static str> {
+        match self {
+            AccessLevel::ProtectedInternal => Some("{protected internal}"),
+            AccessLevel::PrivateProtected => Some("{private protected}"),
+            AccessLevel::File => Some("{file}"),
+            _ => None,
+        }
+    }
+
+    pub fn keyword(self) -> &'static str {
+        match self {
+            AccessLevel::Public => "public",
+            AccessLevel::Protected => "protected",
+            AccessLevel::Private => "private",
+            AccessLevel::Internal => "internal",
+            AccessLevel::ProtectedInternal => "protected internal",
+            AccessLevel::PrivateProtected => "private protected",
+            AccessLevel::File => "file",
+        }
+    }
+
+    /// Combines C# access keywords (`protected internal`, `private protected`).
+    pub fn from_keywords(words: &[&str]) -> Option<AccessLevel> {
+        let has = |w: &str| words.contains(&w);
+        if words.is_empty() {
+            return None;
+        }
+        Some(if has("protected") && has("internal") {
+            AccessLevel::ProtectedInternal
+        } else if has("private") && has("protected") {
+            AccessLevel::PrivateProtected
+        } else if has("public") {
+            AccessLevel::Public
+        } else if has("protected") {
+            AccessLevel::Protected
+        } else if has("internal") {
+            AccessLevel::Internal
+        } else if has("file") {
+            AccessLevel::File
+        } else if has("private") {
+            AccessLevel::Private
+        } else {
+            return None;
+        })
+    }
+}
+
+/// Default access of a member declared in a `container` without an access keyword.
+pub fn default_member_access(lang: CFamily, container: TypeDeclKind) -> AccessLevel {
+    match lang {
+        CFamily::C => AccessLevel::Public,
+        CFamily::Cpp => match container {
+            TypeDeclKind::Class => AccessLevel::Private,
+            _ => AccessLevel::Public,
+        },
+        CFamily::CSharp => match container {
+            TypeDeclKind::Interface | TypeDeclKind::Enum => AccessLevel::Public,
+            _ => AccessLevel::Private,
+        },
+    }
+}
+
+/// Default access of a type declaration (`nested_in` is the enclosing type's kind).
+pub fn default_type_access(lang: CFamily, nested_in: Option<TypeDeclKind>) -> AccessLevel {
+    match (lang, nested_in) {
+        (CFamily::CSharp, None) => AccessLevel::Internal,
+        (_, Some(kind)) => default_member_access(lang, kind),
+        _ => AccessLevel::Public,
+    }
+}
+
+/// Default access of a C++ base specifier without an access keyword.
+pub fn default_base_access(lang: CFamily, derived: TypeDeclKind) -> AccessLevel {
+    match (lang, derived) {
+        (CFamily::Cpp, TypeDeclKind::Class) => AccessLevel::Private,
+        _ => AccessLevel::Public,
+    }
+}
+
+// ── Member Flags ──────────────────────────────────────────────────────────────
+
+/// C-family declaration flags (`u32` bitset; `CFamilyModifiers::to_symbol_modifiers`
+/// maps the subset the symbol table models).
+pub struct CFamilyModifiers;
+
+impl CFamilyModifiers {
+    pub const STATIC: u32 = 1 << 0;
+    pub const ABSTRACT: u32 = 1 << 1;
+    pub const VIRTUAL: u32 = 1 << 2;
+    pub const OVERRIDE: u32 = 1 << 3;
+    /// C++ `final`, C# `sealed`: cannot be overridden or derived from (UML `{leaf}`).
+    pub const FINAL: u32 = 1 << 4;
+    /// C++ const-qualified data member, C# `const`.
+    pub const CONST: u32 = 1 << 5;
+    /// C# `readonly` field or struct.
+    pub const READONLY: u32 = 1 << 6;
+    /// C++ `const` member function, C# `readonly` struct member (UML `{query}`).
+    pub const CONST_METHOD: u32 = 1 << 7;
+    pub const CONSTEXPR: u32 = 1 << 8;
+    pub const INLINE: u32 = 1 << 9;
+    pub const EXPLICIT: u32 = 1 << 10;
+    /// `= delete`.
+    pub const DELETED: u32 = 1 << 11;
+    /// `= default`.
+    pub const DEFAULTED: u32 = 1 << 12;
+    /// C++ pure virtual `= 0`.
+    pub const PURE: u32 = 1 << 13;
+    pub const MUTABLE: u32 = 1 << 14;
+    pub const VOLATILE: u32 = 1 << 15;
+    pub const EXTERN: u32 = 1 << 16;
+    pub const ASYNC: u32 = 1 << 17;
+    /// C# `new` member modifier (hides an inherited member).
+    pub const NEW_SLOT: u32 = 1 << 18;
+    pub const PARTIAL: u32 = 1 << 19;
+    pub const UNSAFE: u32 = 1 << 20;
+    pub const REQUIRED: u32 = 1 << 21;
+    pub const NOEXCEPT: u32 = 1 << 22;
+    pub const FRIEND: u32 = 1 << 23;
+    pub const THREAD_LOCAL: u32 = 1 << 24;
+    /// C# `implicit` conversion operator.
+    pub const IMPLICIT: u32 = 1 << 25;
+    /// C# `ref` struct, field or return.
+    pub const REF: u32 = 1 << 26;
+    pub const CONSTEVAL: u32 = 1 << 27;
+    pub const VARIADIC: u32 = 1 << 28;
+    /// C# `fixed` size buffer.
+    pub const FIXED: u32 = 1 << 29;
+
+    pub fn has(bits: u32, flag: u32) -> bool {
+        bits & flag != 0
+    }
+
+    /// Flag of a leading declaration keyword in `lang` (0 for anything else). C++ `const`
+    /// and `volatile` belong to the type and are not handled here.
+    pub fn from_keyword(lang: CFamily, word: &str) -> u32 {
+        match lang {
+            CFamily::CSharp => match word {
+                "static" => Self::STATIC,
+                "abstract" => Self::ABSTRACT,
+                "virtual" => Self::VIRTUAL,
+                "override" => Self::OVERRIDE,
+                "sealed" => Self::FINAL,
+                "const" => Self::CONST | Self::STATIC,
+                "readonly" => Self::READONLY,
+                "volatile" => Self::VOLATILE,
+                "extern" => Self::EXTERN,
+                "async" => Self::ASYNC,
+                "new" => Self::NEW_SLOT,
+                "partial" => Self::PARTIAL,
+                "unsafe" => Self::UNSAFE,
+                "required" => Self::REQUIRED,
+                "implicit" => Self::IMPLICIT,
+                "explicit" => Self::EXPLICIT,
+                "ref" => Self::REF,
+                "fixed" => Self::FIXED,
+                _ => 0,
+            },
+            _ => match word {
+                "static" => Self::STATIC,
+                "virtual" => Self::VIRTUAL,
+                "inline" | "__inline" | "__inline__" | "__forceinline" => Self::INLINE,
+                "explicit" => Self::EXPLICIT,
+                "constexpr" => Self::CONSTEXPR,
+                "consteval" => Self::CONSTEVAL,
+                "constinit" => Self::CONSTEXPR,
+                "mutable" => Self::MUTABLE,
+                "extern" => Self::EXTERN,
+                "thread_local" | "_Thread_local" | "__thread" => Self::THREAD_LOCAL,
+                "friend" => Self::FRIEND,
+                "register" | "_Noreturn" => 0,
+                _ => 0,
+            },
+        }
+    }
+
+    /// Maps to `SymbolModifiers` (static, final, abstract, volatile, native, varargs).
+    pub fn to_symbol_modifiers(bits: u32) -> u16 {
+        let mut m = 0u16;
+        if Self::has(bits, Self::STATIC) {
+            m |= SymbolModifiers::STATIC;
+        }
+        if Self::has(bits, Self::FINAL | Self::CONST | Self::READONLY) {
+            m |= SymbolModifiers::FINAL;
+        }
+        if Self::has(bits, Self::ABSTRACT | Self::PURE) {
+            m |= SymbolModifiers::ABSTRACT;
+        }
+        if Self::has(bits, Self::VOLATILE) {
+            m |= SymbolModifiers::VOLATILE;
+        }
+        if Self::has(bits, Self::EXTERN) {
+            m |= SymbolModifiers::NATIVE;
+        }
+        if Self::has(bits, Self::VARIADIC) {
+            m |= SymbolModifiers::VARARGS;
+        }
+        m
+    }
+
+    /// UML property strings of a feature (`{readOnly}`, `{query}`, `{leaf}`, ...). Static
+    /// (underlined) and abstract (italic) are rendering styles, not property strings.
+    pub fn uml_properties(bits: u32) -> Vec<&'static str> {
+        let mut out = Vec::new();
+        if Self::has(bits, Self::CONST | Self::READONLY) {
+            out.push("readOnly");
+        }
+        if Self::has(bits, Self::CONST_METHOD) {
+            out.push("query");
+        }
+        if Self::has(bits, Self::FINAL) {
+            out.push("leaf");
+        }
+        if Self::has(bits, Self::VIRTUAL) && !Self::has(bits, Self::PURE | Self::ABSTRACT) {
+            out.push("virtual");
+        }
+        if Self::has(bits, Self::OVERRIDE) {
+            out.push("redefines");
+        }
+        if Self::has(bits, Self::CONSTEXPR | Self::CONSTEVAL) {
+            out.push("constexpr");
+        }
+        if Self::has(bits, Self::NOEXCEPT) {
+            out.push("noexcept");
+        }
+        if Self::has(bits, Self::ASYNC) {
+            out.push("async");
+        }
+        if Self::has(bits, Self::DELETED) {
+            out.push("deleted");
+        }
+        if Self::has(bits, Self::DEFAULTED) {
+            out.push("defaulted");
+        }
+        out
+    }
+
+    /// Underlined in UML.
+    pub fn is_static(bits: u32) -> bool {
+        Self::has(bits, Self::STATIC)
+    }
+
+    /// Italic in UML.
+    pub fn is_abstract(bits: u32) -> bool {
+        Self::has(bits, Self::ABSTRACT | Self::PURE)
+    }
+}
+
+// ── Templates and Generics ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TemplateParamKind {
+    /// `typename T`, `class T`, C# `T`, a concept-constrained `Concept T`.
+    Type,
+    /// Non-type parameter of the given type (`int N`, `auto V`).
+    Value(String),
+    /// Template template parameter `template<class> class TT`.
+    Template,
+}
+
+/// C# generic variance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Variance {
+    Invariant,
+    In,
+    Out,
+}
+
+/// One template or generic parameter of a classifier or operation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TemplateParam {
+    /// `None` for an unnamed parameter (`typename = void`).
+    pub name: Option<String>,
+    pub kind: TemplateParamKind,
+    pub is_pack: bool,
+    pub default: Option<String>,
+    /// Concepts (C++) or `where` constraints (C#), as written.
+    pub constraints: Vec<String>,
+    pub variance: Variance,
+}
+
+impl TemplateParam {
+    /// UML template-parameter label: `T`, `N : int`, `T : class, IFoo`, `Ts...`.
+    pub fn label(&self) -> String {
+        let mut s = self.name.clone().unwrap_or_else(|| "_".to_string());
+        if self.is_pack {
+            s.push_str("...");
+        }
+        match &self.kind {
+            TemplateParamKind::Value(t) => s.push_str(&format!(" : {}", t)),
+            TemplateParamKind::Template => s.push_str(" : template"),
+            TemplateParamKind::Type => {
+                if !self.constraints.is_empty() {
+                    s.push_str(&format!(" : {}", self.constraints.join(", ")));
+                }
+            }
+        }
+        if let Some(d) = &self.default {
+            s.push_str(&format!(" = {}", d));
+        }
+        s
+    }
+}
+
+/// One argument of a template binding.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BoundArgument {
+    /// Parameter name; `None` when the template's signature is not known.
+    pub param: Option<String>,
+    pub value: String,
+    /// The argument comes from the parameter's default.
+    pub is_default: bool,
+}
+
+/// A UML template binding (`«bind» <T -> int>`) of a project template.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TemplateBinding {
+    pub template_name: String,
+    pub template_index: Option<usize>,
+    pub template_sym: u32,
+    pub arguments: Vec<BoundArgument>,
+}
+
+impl TemplateBinding {
+    /// Binds written arguments to a template signature positionally; a pack parameter
+    /// absorbs the remaining arguments and missing arguments take their defaults.
+    pub fn bind(
+        template_name: &str,
+        template_index: Option<usize>,
+        template_sym: u32,
+        params: &[TemplateParam],
+        args: &[TypeArg],
+        lang: CFamily,
+    ) -> TemplateBinding {
+        let texts: Vec<String> = args
+            .iter()
+            .map(|a| match a {
+                TypeArg::Type(t) => t.display(lang),
+                TypeArg::Value(v) => v.clone(),
+            })
+            .collect();
+        let mut arguments = Vec::new();
+        let mut k = 0usize;
+        for p in params {
+            if p.is_pack {
+                let rest: Vec<String> = texts[k.min(texts.len())..].to_vec();
+                k = texts.len();
+                arguments.push(BoundArgument {
+                    param: p.name.clone(),
+                    value: rest.join(", "),
+                    is_default: false,
+                });
+                continue;
+            }
+            if k < texts.len() {
+                arguments.push(BoundArgument {
+                    param: p.name.clone(),
+                    value: texts[k].clone(),
+                    is_default: false,
+                });
+                k += 1;
+            } else if let Some(d) = &p.default {
+                arguments.push(BoundArgument {
+                    param: p.name.clone(),
+                    value: d.clone(),
+                    is_default: true,
+                });
+            }
+        }
+        for t in texts.iter().skip(k) {
+            arguments.push(BoundArgument {
+                param: None,
+                value: t.clone(),
+                is_default: false,
+            });
+        }
+        TemplateBinding {
+            template_name: template_name.to_string(),
+            template_index,
+            template_sym,
+            arguments,
+        }
+    }
+
+    /// UML 2.5 binding label: `Name<T -> int, U -> Foo>`.
+    pub fn uml_label(&self) -> String {
+        let parts: Vec<String> = self
+            .arguments
+            .iter()
+            .map(|a| match &a.param {
+                Some(p) => format!("{} -> {}", p, a.value),
+                None => a.value.clone(),
+            })
+            .collect();
+        format!("{}<{}>", self.template_name, parts.join(", "))
+    }
+}
+
+/// Well-known standard concepts (used to tell `Concept T` from a non-type `Type N`).
+fn is_std_concept(name: &str) -> bool {
+    const NAMES: &[&str] = &[
+        "same_as", "derived_from", "convertible_to", "common_reference_with", "common_with",
+        "integral", "signed_integral", "unsigned_integral", "floating_point", "assignable_from",
+        "swappable", "swappable_with", "destructible", "constructible_from",
+        "default_initializable", "move_constructible", "copy_constructible",
+        "equality_comparable", "equality_comparable_with", "totally_ordered",
+        "totally_ordered_with", "three_way_comparable", "movable", "copyable", "semiregular",
+        "regular", "invocable", "regular_invocable", "predicate", "relation",
+        "equivalence_relation", "strict_weak_order", "range", "sized_range", "view",
+        "input_range", "output_range", "forward_range", "bidirectional_range",
+        "random_access_range", "contiguous_range", "common_range", "input_iterator",
+        "output_iterator", "forward_iterator", "bidirectional_iterator",
+        "random_access_iterator", "contiguous_iterator", "sentinel_for", "indirectly_readable",
+        "arithmetic", "Arithmetic",
+    ];
+    NAMES.contains(&name)
+}
+
+/// Parses the tokens strictly inside a C++ `template< ... >` header.
+pub fn parse_cpp_template_params(lang: CFamily, toks: &[&str]) -> Vec<TemplateParam> {
+    split_text_commas(toks)
+        .into_iter()
+        .filter_map(|item| parse_cpp_template_param(lang, item))
+        .collect()
+}
+
+/// Splits token texts at commas outside `()`, `[]`, `{}` and `<>`.
+fn split_text_commas<'s, 't>(toks: &'s [&'t str]) -> Vec<&'s [&'t str]> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0usize;
+    for (k, t) in toks.iter().enumerate() {
+        match *t {
+            "(" | "[" | "{" | "<" => depth += 1,
+            ")" | "]" | "}" => depth -= 1,
+            ">" | ">>" | ">>>" => depth -= t.len() as i32,
+            "," if depth <= 0 => {
+                parts.push(&toks[start..k]);
+                start = k + 1;
+            }
+            _ => {}
+        }
+    }
+    if start < toks.len() {
+        parts.push(&toks[start..]);
+    }
+    parts
+}
+
+/// Index of the first `=` outside brackets.
+fn find_text_top_level(toks: &[&str], what: &str) -> Option<usize> {
+    let mut depth = 0i32;
+    for (k, t) in toks.iter().enumerate() {
+        match *t {
+            "(" | "[" | "{" | "<" => depth += 1,
+            ")" | "]" | "}" => depth -= 1,
+            ">" | ">>" | ">>>" => depth -= t.len() as i32,
+            _ if *t == what && depth <= 0 => return Some(k),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_cpp_template_param(lang: CFamily, item: &[&str]) -> Option<TemplateParam> {
+    if item.is_empty() {
+        return None;
+    }
+    let (body, default) = match find_text_top_level(item, "=") {
+        Some(eq) => (&item[..eq], Some(item[eq + 1..].join(" "))),
+        None => (item, None),
+    };
+    let is_pack = body.contains(&"...");
+    let body: Vec<&str> = body.iter().copied().filter(|t| *t != "...").collect();
+    let mut param = TemplateParam {
+        name: None,
+        kind: TemplateParamKind::Type,
+        is_pack,
+        default,
+        constraints: Vec::new(),
+        variance: Variance::Invariant,
+    };
+    match body.first().copied() {
+        Some("template") => {
+            param.kind = TemplateParamKind::Template;
+            param.name = body
+                .last()
+                .filter(|t| is_name(lang, t))
+                .map(|t| t.to_string());
+        }
+        Some("typename") | Some("class") => {
+            param.name = body
+                .get(1)
+                .filter(|t| is_name(lang, t))
+                .map(|t| t.to_string());
+        }
+        Some(_) => match parse_type_greedy(lang, &body) {
+            Ok((ty, used)) => {
+                param.name = body
+                    .get(used)
+                    .filter(|t| is_name(lang, t))
+                    .map(|t| t.to_string());
+                let is_concept = ty.is_plain()
+                    && ty
+                        .simple_name()
+                        .map(is_std_concept)
+                        .unwrap_or(false);
+                if is_concept {
+                    param.constraints.push(ty.display(lang));
+                } else {
+                    param.kind = TemplateParamKind::Value(ty.display(lang));
+                }
+            }
+            Err(_) => {
+                param.kind = TemplateParamKind::Value(body.join(" "));
+            }
+        },
+        None => return None,
+    }
+    Some(param)
+}
+
+/// Parses C# type parameters (the tokens strictly inside `< ... >`).
+pub fn parse_cs_type_params(toks: &[&str]) -> Vec<TemplateParam> {
+    let mut out = Vec::new();
+    for item in split_text_commas(toks) {
+        let mut k = 0usize;
+        let mut variance = Variance::Invariant;
+        while k < item.len() {
+            match item[k] {
+                "[" => {
+                    while k < item.len() && item[k] != "]" {
+                        k += 1;
+                    }
+                    k += 1;
+                }
+                "in" => {
+                    variance = Variance::In;
+                    k += 1;
+                }
+                "out" => {
+                    variance = Variance::Out;
+                    k += 1;
+                }
+                _ => break,
+            }
+        }
+        let name = item
+            .get(k)
+            .filter(|t| is_name(CFamily::CSharp, t))
+            .map(|t| plain_name(t).to_string());
+        out.push(TemplateParam {
+            name,
+            kind: TemplateParamKind::Type,
+            is_pack: false,
+            default: None,
+            constraints: Vec::new(),
+            variance,
+        });
+    }
+    out
+}
+
+/// Applies C# `where T : c1, c2 where U : ...` clauses to `params`.
+pub fn apply_cs_constraints(params: &mut [TemplateParam], toks: &[&str]) {
+    let mut k = 0usize;
+    while k < toks.len() {
+        if toks[k] != "where" {
+            k += 1;
+            continue;
+        }
+        let name = toks.get(k + 1).copied().unwrap_or("");
+        if toks.get(k + 2).copied() != Some(":") {
+            k += 1;
+            continue;
+        }
+        let start = k + 3;
+        let mut end = start;
+        while end < toks.len() && toks[end] != "where" {
+            end += 1;
+        }
+        let constraints: Vec<String> = split_text_commas(&toks[start..end])
+            .into_iter()
+            .filter(|c| !c.is_empty())
+            .map(|c| c.join(" ").replace(" (", "(").replace("( ", "(").replace(" )", ")"))
+            .collect();
+        for p in params.iter_mut() {
+            if p.name.as_deref() == Some(plain_name(name)) {
+                p.constraints.extend(constraints.iter().cloned());
+            }
+        }
+        k = end;
+    }
+}
+
+// ── Packages ──────────────────────────────────────────────────────────────────
+
+/// One namespace segment.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PackageSegment {
+    pub name: String,
+    /// C++ `inline namespace`: members are also visible in the enclosing namespace.
+    pub is_inline: bool,
+    /// C++ unnamed namespace (internal linkage).
+    pub is_anonymous: bool,
+}
+
+/// A namespace path; a UML package (the empty path is the global namespace).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PackagePath {
+    pub segments: Vec<PackageSegment>,
+}
+
+impl PackagePath {
+    /// Display name of an unnamed C++ namespace.
+    pub const ANONYMOUS: &'static str = "(anonymous)";
+
+    pub fn from_names<'s, I: IntoIterator<Item = &'s str>>(names: I) -> PackagePath {
+        PackagePath {
+            segments: names
+                .into_iter()
+                .map(|n| PackageSegment {
+                    name: n.to_string(),
+                    is_inline: false,
+                    is_anonymous: false,
+                })
+                .collect(),
+        }
+    }
+
+    pub fn is_global(&self) -> bool {
+        self.segments.is_empty()
+    }
+
+    pub fn names(&self) -> Vec<&str> {
+        self.segments.iter().map(|s| s.name.as_str()).collect()
+    }
+
+    /// Names with inline namespaces removed (the lookup-visible path).
+    pub fn visible_names(&self) -> Vec<&str> {
+        self.segments
+            .iter()
+            .filter(|s| !s.is_inline)
+            .map(|s| s.name.as_str())
+            .collect()
+    }
+
+    /// UML qualified name (`::`-separated).
+    pub fn uml_name(&self) -> String {
+        self.names().join("::")
+    }
+
+    /// Qualified name as written in `lang`.
+    pub fn qualified(&self, lang: CFamily) -> String {
+        self.names().join(lang.scope_separator())
+    }
+
+    pub fn parent(&self) -> Option<PackagePath> {
+        if self.segments.is_empty() {
+            return None;
+        }
+        let mut p = self.clone();
+        p.segments.pop();
+        Some(p)
+    }
+
+    /// True when `self` is `other` or encloses it.
+    pub fn encloses(&self, other: &PackagePath) -> bool {
+        self.segments.len() <= other.segments.len()
+            && self
+                .segments
+                .iter()
+                .zip(other.segments.iter())
+                .all(|(a, b)| a.name == b.name)
+    }
+
+    /// Length of the common leading path of two packages.
+    pub fn common_prefix(&self, other: &PackagePath) -> usize {
+        self.segments
+            .iter()
+            .zip(other.segments.iter())
+            .take_while(|(a, b)| a.name == b.name)
+            .count()
+    }
+
+    /// Internal linkage: the path crosses an unnamed namespace.
+    pub fn is_internal_linkage(&self) -> bool {
+        self.segments.iter().any(|s| s.is_anonymous)
+    }
+}

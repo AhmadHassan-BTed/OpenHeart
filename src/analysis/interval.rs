@@ -20,11 +20,12 @@ use std::collections::BTreeMap;
 use crate::analysis::lattice::{BitSet, Interval, Lattice};
 use crate::analysis::solver::{
     def_points, defining_inst, phi_operands_from, replay_forward, resolve_copies, solve_forward,
-    value_count, ArithOp, CfgEdge, CmpOp, ConstKey, DataflowResult, DefPoint, EdgeKind,
-    ForwardTransfer, InstPoint, IrCfg, OperandView, ResolvedOperand, ScalarKind, SolverOptions,
-    TypeFacts, UnaryOp,
+    value_count, CfgEdge, ConstKey, DataflowResult, DefPoint, EdgeKind, ForwardTransfer,
+    InstPoint, IrCfg, OperandView, ResolvedOperand, ScalarKind, SolverOptions, TypeFacts,
 };
-use crate::ir::{FuncIr, Inst, Terminator, ValueId};
+use crate::ir::func::FuncIr;
+use crate::ir::inst::{BinaryOp, ComparePred, Inst, Terminator, UnaryOp};
+use crate::ir::types::ValueId;
 
 // ── Environment lattice ──────────────────────────────────────────────────────
 
@@ -233,6 +234,21 @@ impl<'a> IntervalTransfer<'a> {
         }
     }
 
+    /// True unless the operand is known not to be an integer or Boolean: a float, string or
+    /// null constant, or a value whose type is floating point or reference-like.
+    fn integral<O: OperandView + ?Sized>(&self, op: &O) -> bool {
+        if let Some(c) = op.constant() {
+            return const_interval(c).is_some();
+        }
+        match op.value() {
+            Some(v) => !matches!(
+                self.types.value_kind(self.func, v),
+                ScalarKind::Float { .. } | ScalarKind::Reference | ScalarKind::Aggregate
+            ),
+            None => false,
+        }
+    }
+
     /// The range of a value of the declared type of `v` (unconstrained when not an integer).
     fn declared_range(&self, v: ValueId) -> Interval {
         match self.types.value_kind(self.func, v) {
@@ -263,37 +279,49 @@ impl<'a> IntervalTransfer<'a> {
             Inst::Assign { dst, src } => (*dst, self.operand(env, src), false),
             Inst::Unary { dst, op, src } => {
                 let a = self.operand(env, src);
-                match UnaryOp::from_ir(op) {
-                    Some(UnaryOp::Neg) => {
+                match op {
+                    UnaryOp::Neg => {
                         let (i, w) = self.fit(*dst, a.neg());
                         (*dst, i, w)
                     }
-                    Some(UnaryOp::Not) if a.leq(&Interval::range(0, 1)) => {
+                    UnaryOp::Plus => {
+                        let (i, w) = self.fit(*dst, a);
+                        (*dst, i, w)
+                    }
+                    // `!x = −x − 1` in two's complement.
+                    UnaryOp::BitNot => {
+                        let (i, w) = self.fit(*dst, a.neg().sub(&Interval::constant(1)));
+                        (*dst, i, w)
+                    }
+                    UnaryOp::Not if a.leq(&Interval::range(0, 1)) => {
                         (*dst, Interval::constant(1).sub(&a), false)
                     }
-                    _ => (*dst, self.declared_range(*dst), false),
+                    UnaryOp::Not => (*dst, Interval::range(0, 1), false),
                 }
             }
             Inst::Binary { dst, op, lhs, rhs } => {
                 let (a, b) = (self.operand(env, lhs), self.operand(env, rhs));
-                let raw = match ArithOp::from_ir(op) {
-                    Some(ArithOp::Add) => a.add(&b),
-                    Some(ArithOp::Sub) => a.sub(&b),
-                    Some(ArithOp::Mul) => a.mul(&b),
-                    Some(ArithOp::Div) => a.div(&b),
-                    Some(ArithOp::Rem) => a.rem(&b),
-                    Some(ArithOp::And) => a.bit_and(&b),
-                    Some(ArithOp::Or) => a.bit_or_xor(&b, false),
-                    Some(ArithOp::Xor) => a.bit_or_xor(&b, true),
-                    Some(ArithOp::Shl) => a.shl(&b),
-                    Some(ArithOp::Shr) => a.shr(&b),
-                    None => Interval::top(),
+                let raw = match op {
+                    BinaryOp::Add => a.add(&b),
+                    BinaryOp::Sub => a.sub(&b),
+                    BinaryOp::Mul => a.mul(&b),
+                    BinaryOp::Div => a.div(&b),
+                    BinaryOp::Rem => a.rem(&b),
+                    BinaryOp::BitAnd => a.bit_and(&b),
+                    BinaryOp::BitOr => a.bit_or_xor(&b, false),
+                    BinaryOp::BitXor => a.bit_or_xor(&b, true),
+                    BinaryOp::Shl => a.shl(&b),
+                    BinaryOp::Shr => a.shr(&b),
+                    // Zero-filling shift: the arithmetic shift on non-negative operands; a
+                    // negative operand's bit pattern depends on the width, which `fit` bounds.
+                    BinaryOp::UShr if a.is_non_negative() => a.shr(&b),
+                    BinaryOp::UShr => Interval::top(),
                 };
                 let (i, w) = self.fit(*dst, raw);
                 (*dst, i, w)
             }
             Inst::Compare { dst, pred, lhs, rhs } => {
-                let decided = self.decide(CmpOp::from_ir(pred), lhs, rhs, env);
+                let decided = self.decide(*pred, lhs, rhs, env);
                 let i = match decided {
                     Some(true) => Interval::constant(1),
                     Some(false) => Interval::constant(0),
@@ -325,23 +353,22 @@ impl<'a> IntervalTransfer<'a> {
     /// Decides `lhs op rhs` from the operand intervals, for integer and Boolean operands.
     fn decide<L: OperandView + ?Sized, R: OperandView + ?Sized>(
         &self,
-        op: Option<CmpOp>,
+        op: ComparePred,
         lhs: &L,
         rhs: &R,
         env: &IntervalEnv,
     ) -> Option<bool> {
-        let op = op?;
-        if !integral_operand(lhs) || !integral_operand(rhs) {
+        if !self.integral(lhs) || !self.integral(rhs) {
             return None;
         }
         let (a, b) = (self.operand(env, lhs), self.operand(env, rhs));
         match op {
-            CmpOp::Eq => a.decide_eq(&b),
-            CmpOp::Ne => a.decide_eq(&b).map(|r| !r),
-            CmpOp::Lt => a.decide_lt(&b),
-            CmpOp::Le => a.decide_le(&b),
-            CmpOp::Gt => b.decide_lt(&a),
-            CmpOp::Ge => b.decide_le(&a),
+            ComparePred::Eq => a.decide_eq(&b),
+            ComparePred::Ne => a.decide_eq(&b).map(|r| !r),
+            ComparePred::Lt => a.decide_lt(&b),
+            ComparePred::Le => a.decide_le(&b),
+            ComparePred::Gt => b.decide_lt(&a),
+            ComparePred::Ge => b.decide_le(&a),
         }
     }
 
@@ -376,23 +403,18 @@ impl<'a> IntervalTransfer<'a> {
         }
         match def {
             Some(Inst::Compare { pred, lhs, rhs, .. }) => {
-                let Some(op) = CmpOp::from_ir(pred) else {
-                    return true;
-                };
-                if !integral_operand(lhs) || !integral_operand(rhs) {
+                // Negating the predicate is exact on the totally ordered integers only.
+                if !self.integral(lhs) || !self.integral(rhs) {
                     return true;
                 }
-                let op = if truth { op } else { op.negate() };
+                let op = if truth { *pred } else { pred.negate() };
                 self.assume_compare(env, op, lhs, rhs)
             }
-            Some(Inst::Unary { op, src, .. }) if UnaryOp::from_ir(op) == Some(UnaryOp::Not) => {
-                let inner = self.operand(env, src);
-                if inner.leq(&Interval::range(0, 1)) {
-                    self.assume(env, src, !truth, depth + 1)
-                } else {
-                    true
-                }
-            }
+            Some(Inst::Unary {
+                op: UnaryOp::Not,
+                src,
+                ..
+            }) => self.assume(env, src, !truth, depth + 1),
             _ => true,
         }
     }
@@ -400,24 +422,24 @@ impl<'a> IntervalTransfer<'a> {
     fn assume_compare<L: OperandView + ?Sized, R: OperandView + ?Sized>(
         &self,
         env: &mut IntervalEnv,
-        op: CmpOp,
+        op: ComparePred,
         lhs: &L,
         rhs: &R,
     ) -> bool {
         let (a, b) = (self.operand(env, lhs), self.operand(env, rhs));
         let (a2, b2) = match op {
-            CmpOp::Lt => Interval::refine_lt(&a, &b),
-            CmpOp::Le => Interval::refine_le(&a, &b),
-            CmpOp::Gt => {
+            ComparePred::Lt => Interval::refine_lt(&a, &b),
+            ComparePred::Le => Interval::refine_le(&a, &b),
+            ComparePred::Gt => {
                 let (b2, a2) = Interval::refine_lt(&b, &a);
                 (a2, b2)
             }
-            CmpOp::Ge => {
+            ComparePred::Ge => {
                 let (b2, a2) = Interval::refine_le(&b, &a);
                 (a2, b2)
             }
-            CmpOp::Eq => Interval::refine_eq(&a, &b),
-            CmpOp::Ne => Interval::refine_ne(&a, &b),
+            ComparePred::Eq => Interval::refine_eq(&a, &b),
+            ComparePred::Ne => Interval::refine_ne(&a, &b),
         };
         if a2.is_bottom() || b2.is_bottom() {
             *env = IntervalEnv::Unreached;
@@ -461,15 +483,6 @@ impl<'a> IntervalTransfer<'a> {
                 env.set(dst, i);
             }
         }
-    }
-}
-
-/// True unless the operand is a non-integer, non-Boolean constant (the comparison is then
-/// over floats, strings or references and intervals say nothing about it).
-fn integral_operand<O: OperandView + ?Sized>(op: &O) -> bool {
-    match op.constant() {
-        Some(c) => const_interval(c).is_some(),
-        None => true,
     }
 }
 

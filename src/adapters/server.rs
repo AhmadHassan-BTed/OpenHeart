@@ -479,12 +479,15 @@ impl ServerState {
             max_body_bytes: config.max_body_bytes,
             read_timeout: config.request_timeout,
         };
-        let fetch = FetchOptions {
+        let fetch = FetchOptions::new(
             repos_dir,
             allow_clone,
-            clone_timeout: config.clone_timeout,
-            max_repo_bytes: config.max_repo_bytes,
-        };
+            config.clone_timeout,
+            config.max_repo_bytes,
+        );
+        fetch
+            .prepare()
+            .map_err(|err| format!("cannot prepare the repository cache: {}", err.detail()))?;
         let sample_sources = index_sample_roots(&config);
         let analyses = Semaphore::new(config.max_concurrent_analyses);
         let jobs = JobStore::new(config.max_sessions.saturating_mul(4));
@@ -526,6 +529,7 @@ fn index_sample_roots(config: &ServerConfig) -> Vec<SourceIndex> {
         limits: config.source_limits,
         include_tests: true,
         respect_ignore_files: false,
+        languages: None,
     };
     let mut indexes = Vec::new();
     for root in &config.source_roots {
@@ -807,7 +811,10 @@ fn version() -> Response {
 }
 
 fn supported_languages() -> Response {
-    let ids: Vec<&str> = SOURCE_LANGUAGES.iter().map(|language| language.id).collect();
+    let ids: Vec<&str> = SOURCE_LANGUAGES
+        .iter()
+        .map(|language| language.id.as_str())
+        .collect();
     Response::json(
         200,
         &json!({
@@ -831,8 +838,8 @@ fn supported_diagrams() -> Response {
     Response::json(
         200,
         &json!({
-            "diagrams": UML_DIAGRAM_TYPES,
-            "analysis_graphs": ANALYSIS_GRAPH_TYPES,
+            "diagrams": &*UML_DIAGRAM_TYPES,
+            "analysis_graphs": &*ANALYSIS_GRAPH_TYPES,
             "formats": formats,
         }),
     )
@@ -1201,6 +1208,7 @@ fn execute_analysis(state: &ServerState, plan: &AnalysisPlan) -> AnalysisOutcome
         limits: state.config.source_limits,
         include_tests: plan.include_tests,
         respect_ignore_files: true,
+        languages: None,
     };
     let inventory = match discover_sources(&resolved.root, &options) {
         Ok(inventory) => inventory,
@@ -1536,8 +1544,10 @@ fn session_diagram(session: &AnalysisSession, file: &str) -> Option<Response> {
     let format = parse_diagram_format(extension)?;
     let content_type = match format {
         DiagramFormat::JSON => "application/json; charset=utf-8",
-        DiagramFormat::XMI => "application/xml; charset=utf-8",
-        DiagramFormat::PlantUML | DiagramFormat::Mermaid => "text/plain; charset=utf-8",
+        DiagramFormat::XMI | DiagramFormat::GraphML => "application/xml; charset=utf-8",
+        DiagramFormat::PlantUML | DiagramFormat::Mermaid | DiagramFormat::DOT => {
+            "text/plain; charset=utf-8"
+        }
     };
     let path = session
         .dir

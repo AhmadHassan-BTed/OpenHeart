@@ -7,6 +7,7 @@ use crate::scpg::diagram::context::DiagramContext;
 use crate::scpg::diagram::model::{
     AliasTable, EdgeKind, NodeKind, Provenance, ViewEdge, ViewKind, ViewModel, ViewNode,
 };
+use crate::symbol::model::OccurrenceRole;
 use crate::scpg::diagram::views::{
     classifier_node, ensure_package_chain, function_label, multiplicity, settle_provenance,
     type_display, TypeIndex,
@@ -105,9 +106,17 @@ pub fn class_view(ctx: &DiagramContext) -> ViewModel {
         ));
     }
     if ctx.uma.design_patterns.iter().any(|d| d.class_sym != UNKNOWN_SYM) {
-        model.note(
-            "Pattern stereotypes show the Phase 9 structural-evidence score, which is uncalibrated.",
-        );
+        let mut text = "Pattern stereotypes «Pattern N%» list every detected pattern of a class with the Phase 9 structural-evidence score, which is uncalibrated.".to_string();
+        if ctx.options.min_pattern_score > 0 {
+            text.push_str(&format!(
+                " Detections scoring below {}% are not shown.",
+                ctx.options.min_pattern_score
+            ));
+        }
+        model.note(text);
+    }
+    if ctx.uma.classes.iter().any(|c| c.fields.iter().any(|f| f.is_collection != 0)) {
+        model.note("Attributes whose declared type is a collection or array show that type as written; their element multiplicity is shown on the association end when the element type is a declared classifier.");
     }
     apply_focus(ctx, &mut model);
     settle_provenance(&mut model);
@@ -315,14 +324,44 @@ pub fn object_view(ctx: &DiagramContext) -> ViewModel {
 
 // ── 3. PACKAGE DIAGRAM ───────────────────────────────────────────────────────
 
-fn package_name(ctx: &DiagramContext, pkg_sym: u32, name_id: u32) -> String {
-    ctx.sta
-        .custom_package_names
-        .get(&pkg_sym)
-        .cloned()
-        .or_else(|| ctx.text(name_id))
-        .or_else(|| ctx.simple_name(pkg_sym))
-        .unwrap_or_else(|| format!("<package #{}>", pkg_sym))
+/// Upper bound on package parent chains followed through UMA package records.
+const MAX_PACKAGE_DEPTH: usize = 64;
+
+/// Fully qualified name of a package record: the canonical Phase 3 name, else the segment
+/// names of the record's parent chain joined from the root. A lone segment name is never
+/// used for a nested package, so `a.b.c` yields one tree with one root.
+fn package_name(
+    ctx: &DiagramContext,
+    pkg: &PackageRecord,
+    by_sym: &HashMap<u32, &PackageRecord>,
+) -> String {
+    if let Some(name) = ctx.package_name(pkg.package_sym_id) {
+        return name;
+    }
+    let mut segments: Vec<String> = Vec::new();
+    let mut curr = Some(pkg);
+    let mut seen: HashSet<u32> = HashSet::new();
+    while let Some(p) = curr {
+        if !seen.insert(p.package_sym_id) || segments.len() >= MAX_PACKAGE_DEPTH {
+            break;
+        }
+        if let Some(full) = ctx.package_name(p.package_sym_id) {
+            segments.push(full);
+            break;
+        }
+        let segment = ctx
+            .text(p.name_id)
+            .or_else(|| ctx.simple_name(p.package_sym_id))
+            .unwrap_or_else(|| format!("<package #{}>", p.package_sym_id));
+        segments.push(segment);
+        curr = if p.parent_package_sym == UNKNOWN_SYM {
+            None
+        } else {
+            by_sym.get(&p.parent_package_sym).copied()
+        };
+    }
+    segments.reverse();
+    segments.join(".")
 }
 
 pub fn package_view(ctx: &DiagramContext) -> ViewModel {
@@ -352,11 +391,17 @@ pub fn package_view(ctx: &DiagramContext) -> ViewModel {
         return model;
     }
 
+    let by_sym: HashMap<u32, &PackageRecord> = ctx
+        .uma
+        .packages
+        .iter()
+        .map(|p| (p.package_sym_id, p))
+        .collect();
     let mut named: Vec<(String, &PackageRecord)> = ctx
         .uma
         .packages
         .iter()
-        .map(|p| (package_name(ctx, p.package_sym_id, p.name_id), p))
+        .map(|p| (package_name(ctx, p, &by_sym), p))
         .collect();
     named.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -407,11 +452,15 @@ pub fn package_view(ctx: &DiagramContext) -> ViewModel {
             (Some(s), Some(d)) if s != d => (s.clone(), d.clone()),
             _ => continue,
         };
-        let mut label = format!("«import» {}", dep.reference_count);
+        let mut label = format!("«use» ×{}", dep.reference_count);
         if dep.in_cycle != 0 {
             label.push_str(" (cycle)");
         }
-        model.add_edge(ViewEdge::new(&src, &dst, EdgeKind::Import, "").with_label(Some(label)));
+        model.add_edge(
+            ViewEdge::new(&src, &dst, EdgeKind::Dependency, "")
+                .with_label(Some(label))
+                .with_property("references", dep.reference_count.to_string()),
+        );
     }
 
     if !cycles.is_empty() {
@@ -419,6 +468,9 @@ pub fn package_view(ctx: &DiagramContext) -> ViewModel {
             "{} package dependency cycle(s) detected (Tarjan SCC); packages in a cycle carry a «cycle N» stereotype.",
             cycles.len()
         ));
+    }
+    if !ctx.uma.package_dependencies.is_empty() {
+        model.note("A «use» dependency P → Q aggregates every reference from a type of P to a type of Q (inheritance, attributes, parameters, results, instantiations, calls); ×N is the reference count.");
     }
     if !ctx.uma.package_metrics.is_empty() {
         model.note("Metrics (Martin): Ca/Ce afferent/efferent coupling, I instability, A abstractness, D distance from the main sequence.");
@@ -650,11 +702,72 @@ fn ensure_metaclass(model: &mut ViewModel, name: &str) -> String {
     key
 }
 
+/// Maximum applying classifiers listed on one stereotype.
+const MAX_LISTED_APPLICATIONS: usize = 12;
+
+/// Applications of annotation types: (applying classifier names, unattributed count).
+type Applications = (BTreeSet<String>, usize);
+
+/// Classifiers that apply each annotation type in `annotations`: every type-reference
+/// occurrence of an annotation type is attributed to the innermost declared classifier whose
+/// declaration token range contains it; occurrences outside every classifier are counted.
+fn annotation_applications(
+    ctx: &DiagramContext,
+    types: &TypeIndex,
+    annotations: &HashSet<u32>,
+) -> HashMap<u32, Applications> {
+    let mut result: HashMap<u32, Applications> = HashMap::new();
+    if annotations.is_empty() {
+        return result;
+    }
+    let mut ranges: Vec<(u32, u32, u32)> = Vec::new();
+    for &sym in &types.syms {
+        if let Some(rec) = ctx.symbol(sym) {
+            if rec.first_token_id != u32::MAX && rec.last_token_id >= rec.first_token_id {
+                ranges.push((rec.first_token_id, rec.last_token_id, sym));
+            }
+        }
+    }
+    for occ in &ctx.sta.occurrences {
+        if !annotations.contains(&occ.symbol) || occ.role != OccurrenceRole::TypeReference as u8 {
+            continue;
+        }
+        let owner = ranges
+            .iter()
+            .filter(|&&(first, last, sym)| {
+                first <= occ.token && occ.token <= last && sym != occ.symbol
+            })
+            .min_by_key(|&&(first, last, _)| last - first)
+            .map(|&(_, _, sym)| sym);
+        let entry = result.entry(occ.symbol).or_default();
+        match owner.and_then(|s| ctx.nested_type_name(s)) {
+            Some(name) => {
+                entry.0.insert(name);
+            }
+            None => entry.1 += 1,
+        }
+    }
+    result
+}
+
 pub fn profile_view(ctx: &DiagramContext) -> ViewModel {
     let types = TypeIndex::build(ctx);
     let mut model = ViewModel::new(ViewKind::Profile);
     model.source("uma");
+    model.source("sta");
     let mut aliases = AliasTable::default();
+    let annotation_types: HashSet<u32> = types
+        .syms
+        .iter()
+        .copied()
+        .filter(|&s| {
+            ctx.class_record(s)
+                .map(|c| c.stereotype == STEREOTYPE_ANNOTATION)
+                .unwrap_or(false)
+        })
+        .collect();
+    let applications = annotation_applications(ctx, &types, &annotation_types);
+    let no_applications: Applications = (BTreeSet::new(), 0);
 
     for &sym in &types.syms {
         let class_rec = match ctx.class_record(sym) {
@@ -665,12 +778,33 @@ pub fn profile_view(ctx: &DiagramContext) -> ViewModel {
         let key = format!("st:{}", types.key(sym).unwrap_or(fqn.as_str()));
         let alias = aliases.alias("st_", &fqn, &key);
         let label = ctx.nested_type_name(sym).unwrap_or_else(|| fqn.clone());
+        let mut details = vec!["declared annotation type".to_string()];
+        let (applied, unattributed) = applications.get(&sym).unwrap_or(&no_applications);
+        let unattributed = *unattributed;
+        if !applied.is_empty() {
+            let listed: Vec<&str> = applied
+                .iter()
+                .take(MAX_LISTED_APPLICATIONS)
+                .map(|s| s.as_str())
+                .collect();
+            let mut text = format!("applied in: {}", listed.join(", "));
+            if applied.len() > listed.len() {
+                text.push_str(&format!(" and {} more", applied.len() - listed.len()));
+            }
+            details.push(text);
+        }
+        if unattributed > 0 {
+            details.push(format!(
+                "{} application(s) outside declared classifiers",
+                unattributed
+            ));
+        }
         model.add_node(
             ViewNode::new(key.clone(), alias, label, NodeKind::Stereotype)
                 .with_qualified_name(Some(fqn))
                 .with_span(ctx.span_of_link(&class_rec.uml_link).or_else(|| ctx.symbol_span(sym)))
                 .with_sym(sym)
-                .with_details(vec!["declared annotation type".to_string()]),
+                .with_details(details),
         );
         let meta = ensure_metaclass(&mut model, "Element");
         model.add_edge(
@@ -720,7 +854,7 @@ pub fn profile_view(ctx: &DiagramContext) -> ViewModel {
             "The analyzed sources declare no annotation types and Phase 9 detected no design-pattern instances, so no stereotypes are applied.",
         );
     }
-    model.note("Annotation types extend the root metaclass Element because their @Target is not recorded; pattern stereotypes come from Phase 9 structural-evidence detection (scores are uncalibrated).");
+    model.note("Annotation types extend the root metaclass Element because their @Target is not recorded; each application is attributed to the innermost declared classifier containing the annotation. Pattern stereotypes come from Phase 9 structural-evidence detection (scores are uncalibrated).");
     settle_provenance(&mut model);
     model
 }

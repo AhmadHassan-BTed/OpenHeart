@@ -117,7 +117,7 @@ export function cardFromNodeData(data) {
   return {
     id: data.id,
     kind: data.kind,
-    name: data.leafPackage ? (data.rawName || data.name) : data.name,
+    name: data.isLeafPackage ? (data.rawName || data.name) : data.name,
     label: data.cardLabel || data.name,
     stereotype: data.stereotype,
     fields: data.fields || [],

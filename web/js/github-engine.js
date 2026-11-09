@@ -274,14 +274,21 @@ function isProbablyMinified(code) {
 
 async function runPool(items, limit, signal, worker) {
   let next = 0;
+  let stopped = false;
   const runners = [];
   const count = Math.min(limit, items.length);
   for (let r = 0; r < count; r++) {
     runners.push((async () => {
-      while (next < items.length) {
+      while (!stopped && next < items.length) {
         throwIfAborted(signal);
         const idx = next++;
-        await worker(items[idx], idx);
+        try {
+          await worker(items[idx], idx);
+        } catch (err) {
+          // One fatal error (cancellation, exhausted rate limit) stops every runner.
+          stopped = true;
+          throw err;
+        }
       }
     })());
   }
@@ -441,7 +448,7 @@ async function analyzeSelection({ selected, readText, onProgress, signal, title,
       try {
         code = await readText(file);
       } catch (err) {
-        if (err && err.name === 'AbortError') throw err;
+        if (err && (err.name === 'AbortError' || err.code === 'rate-limit' || err.code === 'auth')) throw err;
         failures.read_failed++;
         if (failureSamples.length < 8) failureSamples.push(`${file.path}: ${(err && err.message) || err}`);
         done++;

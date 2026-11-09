@@ -463,8 +463,25 @@ impl MermaidExporter {
                 FragmentKind::Loop => "repeat".to_string(),
                 FragmentKind::Par => "parallel".to_string(),
                 FragmentKind::Break => "break".to_string(),
+                FragmentKind::Critical => "critical region".to_string(),
             },
         }
+    }
+
+    /// Separator keyword and text that start the next operand of a `kind` fragment; `None`
+    /// for fragments that have a single operand in Mermaid (`opt`, `loop`, `break`).
+    fn operand_text(kind: FragmentKind, guard: &Option<String>) -> Option<(&'static str, String)> {
+        let (keyword, fallback) = match kind {
+            FragmentKind::Alt => ("else", "otherwise"),
+            FragmentKind::Par => ("and", "parallel"),
+            FragmentKind::Critical => ("option", "otherwise"),
+            FragmentKind::Opt | FragmentKind::Loop | FragmentKind::Break => return None,
+        };
+        let text = match guard {
+            Some(g) if !g.trim().is_empty() => U::mermaid_text(g),
+            _ => fallback.to_string(),
+        };
+        Some((keyword, text))
     }
 
     fn print_sequence(model: &ViewModel, out: &mut String) {
@@ -507,6 +524,8 @@ impl MermaidExporter {
                 first,
                 U::mermaid_text(&format!("Scenario: {}", interaction.title))
             ));
+            // Kinds of the currently open fragments, innermost last.
+            let mut open_fragments: Vec<FragmentKind> = Vec::new();
             for event in &interaction.events {
                 match event {
                     InteractionEvent::Call {
@@ -558,6 +577,7 @@ impl MermaidExporter {
                         ));
                     }
                     InteractionEvent::FragmentStart { kind, guard } => {
+                        open_fragments.push(*kind);
                         out.push_str(&format!(
                             "{}{} {}\n",
                             indent,
@@ -565,7 +585,30 @@ impl MermaidExporter {
                             Self::fragment_text(*kind, guard)
                         ));
                     }
-                    InteractionEvent::FragmentEnd => out.push_str(&format!("{}end\n", indent)),
+                    InteractionEvent::FragmentElse { guard } => {
+                        match open_fragments
+                            .last()
+                            .and_then(|kind| Self::operand_text(*kind, guard))
+                        {
+                            Some((keyword, text)) => {
+                                out.push_str(&format!("{}{} {}\n", indent, keyword, text))
+                            }
+                            // No operand separator for the enclosing fragment (or none is
+                            // open): keep the guard as a comment so the output stays valid.
+                            None => out.push_str(&format!(
+                                "{}%% next operand: {}\n",
+                                indent,
+                                guard
+                                    .as_deref()
+                                    .map(U::mermaid_text)
+                                    .unwrap_or_else(|| "otherwise".to_string())
+                            )),
+                        }
+                    }
+                    InteractionEvent::FragmentEnd => {
+                        open_fragments.pop();
+                        out.push_str(&format!("{}end\n", indent));
+                    }
                     InteractionEvent::Note { over, text } => {
                         out.push_str(&format!(
                             "{}Note over {}: {}\n",

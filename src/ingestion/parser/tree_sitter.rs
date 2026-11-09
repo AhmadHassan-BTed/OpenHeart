@@ -38,7 +38,7 @@ impl TreeSitterParser {
         old_tree: Option<&Tree>,
     ) -> Result<Tree, ParseError> {
         self.parser
-            .set_language(language)
+            .set_language(&language)
             .map_err(|e| ParseError::Language(format!("{:?}", e)))?;
         match self.parser.parse(source, old_tree) {
             Some(tree) => Ok(tree),

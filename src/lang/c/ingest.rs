@@ -23,9 +23,11 @@ use crate::core::types::token::{LangId, TokenType};
 use crate::ingestion::adapter::LanguageAdapter;
 use crate::lang::c::Dialect;
 
+/// Phase 1 adapter for C sources (tree-sitter-c).
 pub struct CLanguageAdapter;
 
 impl CLanguageAdapter {
+    /// Creates the adapter.
     pub fn new() -> Self {
         Self
     }

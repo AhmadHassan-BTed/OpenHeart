@@ -1,0 +1,84 @@
+[
+ {
+  "id": "HO-fix_UML_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:UML:1: Render generalization_syms (multiple super-interfaces) and dependency_syms («use»/«create»). Use Fie",
+  "files": [
+   "src/scpg/diagram/export/{plantuml",
+   "mermaid",
+   "json",
+   "xmi}.rs"
+  ],
+  "evidence": "Render generalization_syms (multiple super-interfaces) and dependency_syms («use»/«create»). Use FieldRecord.assoc_kind/mult_min/mult_max/element_type_sym_id instead of final/name heuristics. Print signatures from MethodRecord.param_syms/param_type_syms. Key elements by the qualified_name_id label. Emit null file/lines when !uml_link_is_known(&link) and drop the fabricated file/lines/compiler_hash/verified. Use pattern_kind_name() for kinds 12-23. Render states/transitions (TRANSITION_FROM_ANY, INITIAL_STATE_UNKNOWN), objects/object_links, component provided/required lists, activity edge guards via uma.label(), and sequence fragments/reply/async/create messages, one diagram per SequenceDiagramRecord. Declare the actor lifeline with the same id (EXTERNAL_ACTOR_ID) used in its messages. Emit a 'no data' note when there are no records.",
+  "impact": "SCPG-03/SCPG-05/SCPG-18/UML-07/UML-08/UML-12/UML-14: UMA now carries the modeled facts and explicit unknowns.",
+  "recommendation": "Render generalization_syms (multiple super-interfaces) and dependency_syms («use»/«create»). Use FieldRecord.assoc_kind/mult_min/mult_max/element_type_sym_id instead of final/name heuristics. Print signatures from MethodRecord.param_syms/param_type_syms. Key elements by the qualified_name_id label. Emit null file/lines when !uml_link_is_known(&link) and drop the fabricated file/lines/compiler_hash/verified. Use pattern_kind_name() for kinds 12-23. Render states/transitions (TRANSITION_FROM_ANY, INITIAL_STATE_UNKNOWN), objects/object_links, component provided/required lists, activity edge guards via uma.label(), and sequence fragments/reply/async/create messages, one diagram per SequenceDiagramRecord. Declare the actor lifeline with the same id (EXTERNAL_ACTOR_ID) used in its messages. Emit a 'no data' note when there are no records.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: Iterate BTreeMap or sort by sym_id/FQN before emitting nodes and edges; derive edge ids from hash(sr",
+  "files": [
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "Iterate BTreeMap or sort by sym_id/FQN before emitting nodes and edges; derive edge ids from hash(src, kind, dst); emit real spans via ScpgSnapshot.navigation.location(sym, &snapshot.files, snapshot.scpg_hash) instead of '<Name>.java' / [1,5,10]. Same ordering fix in mermaid.rs (call sort_children_and_edges, sort nested packages) and plantuml.rs.",
+  "impact": "SCPG-13 determinism and COMP-10 real UMLLink spans; diagram paths are not mine.",
+  "recommendation": "Iterate BTreeMap or sort by sym_id/FQN before emitting nodes and edges; derive edge ids from hash(src, kind, dst); emit real spans via ScpgSnapshot.navigation.location(sym, &snapshot.files, snapshot.scpg_hash) instead of '<Name>.java' / [1,5,10]. Same ordering fix in mermaid.rs (call sort_children_and_edges, sort nested packages) and plantuml.rs.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-cfam_MEM-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from cfam:MEM: Sequence and communication diagrams: lifelines are abstract objects (`LocationTable`, and `PointsToR",
+  "files": [
+   "src/scpg/diagram/model.rs",
+   "src/scpg/diagram/context.rs",
+   "src/derive/*"
+  ],
+  "evidence": "Sequence and communication diagrams: lifelines are abstract objects (`LocationTable`, and `PointsToResult::points_to_in` for receivers per instance); messages come from `CallGraph::context_edges`, `SiteResolution` with its spans, and `callbacks`. Object diagrams come from `slot_points_to`. Map Derivation tags: `EdgePrecision::Exact` → Exact; `OverApproximate(reason)` → OverApproximate; `SolveStatus::Truncated`, `EscapeResult.partial` and `OwnershipPrecision::Partial` → Partial { reason }; `UnresolvedReason::*` and `OwnershipKind::NotDerivable` → NotDerivable { reason }. Spans come from `ObjectInfo.span`, `SiteResolution.span`, `StoreFact.span`, `ReleaseFact.span` and `EscapeReason` spans.",
+  "impact": "Lets diagrams carry Span provenance and explicit Derivation tags taken from the memory facts.",
+  "recommendation": "Sequence and communication diagrams: lifelines are abstract objects (`LocationTable`, and `PointsToResult::points_to_in` for receivers per instance); messages come from `CallGraph::context_edges`, `SiteResolution` with its spans, and `callbacks`. Object diagrams come from `slot_points_to`. Map Derivation tags: `EdgePrecision::Exact` → Exact; `OverApproximate(reason)` → OverApproximate; `SolveStatus::Truncated`, `EscapeResult.partial` and `OwnershipPrecision::Partial` → Partial { reason }; `UnresolvedReason::*` and `OwnershipKind::NotDerivable` → NotDerivable { reason }. Spans come from `ObjectInfo.span`, `SiteResolution.span`, `StoreFact.span`, `ReleaseFact.span` and `EscapeReason` spans.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-4",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: On every node emit anchor {path (root-relative from tca.file_records), start_line, start_col, end_li",
+  "files": [
+   "src/scpg/diagram/export/json.rs"
+  ],
+  "evidence": "On every node emit anchor {path (root-relative from tca.file_records), start_line, start_col, end_line, end_col} from ClassRecord.uml_link, plus qualified_name, and ids = FQN. Emit file:null and lines:[] when unknown instead of '<Name>.java' and [1,5,10]. Replace constant compiler_hash/verified with a real digest or remove them. Add schema:'openheart.graph-ir', schema_version:1.",
+  "impact": "E2E-06, SCPG-05, SCPG-04, COMP-10 and AUTO-04. The studio loader reads anchor, qualified_name, file, lines, raw_url, sat_count, idom_rank, cyclomatic and predicate.",
+  "recommendation": "On every node emit anchor {path (root-relative from tca.file_records), start_line, start_col, end_line, end_col} from ClassRecord.uml_link, plus qualified_name, and ids = FQN. Emit file:null and lines:[] when unknown instead of '<Name>.java' and [1,5,10]. Replace constant compiler_hash/verified with a real digest or remove them. Add schema:'openheart.graph-ir', schema_version:1.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-15",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Render CFG/DFG/CDG/CG/ROBDD from .cfa/.ssa/.cga/.psa through a diagram context, or report 'unavailab",
+  "files": [
+   "src/scpg/diagram/export/{json",
+   "plantuml",
+   "mermaid}.rs"
+  ],
+  "evidence": "Render CFG/DFG/CDG/CG/ROBDD from .cfa/.ssa/.cga/.psa through a diagram context, or report 'unavailable'; never emit the fixed templates",
+  "impact": "SCPG-01, FLOW-06. README and status.md list these as templates until fixed",
+  "recommendation": "Render CFG/DFG/CDG/CG/ROBDD from .cfa/.ssa/.cga/.psa through a diagram context, or report 'unavailable'; never emit the fixed templates",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

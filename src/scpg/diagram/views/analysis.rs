@@ -13,8 +13,16 @@ use crate::core::types::ssa::{
     SSA_FLAG_IS_RETURN_VAL,
 };
 use crate::psa::bdd::node::{FALSE_ID, FLAG_FALSE_TERMINAL, FLAG_TRUE_TERMINAL, TRUE_ID};
+use crate::psa::ordering::VarKey;
+use crate::psa::types::{
+    PathSummaryArtifact, PSA_FLAG_COUNT_SATURATED, PSA_FLAG_EMPTY_CFG,
+    PSA_FLAG_FEASIBILITY_FILTERED, PSA_FLAG_HAS_LOOPS, PSA_FLAG_MAX_PATH_SATURATED,
+    PSA_FLAG_RECURSIVE_SCC, PSA_FLAG_SIFTED,
+};
 use crate::scpg::diagram::context::DiagramContext;
-use crate::scpg::diagram::model::{EdgeKind, NodeKind, ViewEdge, ViewKind, ViewModel, ViewNode};
+use crate::scpg::diagram::model::{
+    EdgeKind, NodeKind, Provenance, ViewEdge, ViewKind, ViewModel, ViewNode,
+};
 use crate::scpg::diagram::views::{
     function_fqn, function_label, ordered_functions, FunctionBudget,
 };
@@ -647,7 +655,7 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
         let mut details = Vec::new();
         if let (Some(psa), Some(idx)) = (ctx.psa, ctx.robdd_index(f)) {
             if let Some(h) = psa.function_dir.get(idx) {
-                details.push(format!("V(G)={} | #paths={}", h.cyclomatic, h.sat_count));
+                details.push(format!("V(G)={} | {}", h.cyclomatic, path_count_text(psa, idx)));
             }
         }
         model.add_node(
@@ -683,20 +691,67 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
 
 // ── 19. ROBDD PATH SUMMARIES ─────────────────────────────────────────────────
 
+/// Path count of a PSA function with its exact meaning: feasible or structural paths, whole
+/// paths or Ball-Larus acyclic segments (loops), exact or above 2⁶⁴ (`log2` estimate).
+pub fn path_count_text(psa: &PathSummaryArtifact, idx: usize) -> String {
+    let header = match psa.function_dir.get(idx) {
+        Some(h) => h,
+        None => return "path count not recorded".to_string(),
+    };
+    let count = if header.has_flag(PSA_FLAG_COUNT_SATURATED) {
+        match psa.metrics.get(idx).map(|m| m.log2_paths) {
+            Some(l) if l.is_finite() => format!("≈2^{:.1}", l),
+            _ => "more than 2^64".to_string(),
+        }
+    } else {
+        header.sat_count.to_string()
+    };
+    let feasible = if header.has_flag(PSA_FLAG_FEASIBILITY_FILTERED) {
+        "feasible "
+    } else {
+        ""
+    };
+    let unit = if header.has_flag(PSA_FLAG_HAS_LOOPS) {
+        "acyclic path segments"
+    } else {
+        "paths"
+    };
+    format!("{} {}{}", count, feasible, unit)
+}
+
+/// Approximation flags of a PSA function, one phrase each.
+fn summary_flags(flags: u16) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    if flags & PSA_FLAG_RECURSIVE_SCC != 0 {
+        out.push("recursive SCC: intraprocedural summary");
+    }
+    if flags & PSA_FLAG_MAX_PATH_SATURATED != 0 {
+        out.push("longest path exceeds 65535 blocks");
+    }
+    if flags & PSA_FLAG_SIFTED != 0 {
+        out.push("variable order improved by sifting");
+    }
+    out
+}
+
+/// Label of a BDD variable: the ordering-table code of its level decoded as a path variable
+/// (`VarKey`): a CFA edge id, or the loop-entry variable of a header block.
 fn variable_label(cfg: Option<&FunctionCFGData>, ordering: Option<&Vec<u32>>, var: u16) -> String {
-    let edge_idx = ordering.and_then(|o| o.get(var as usize)).copied();
-    match (edge_idx, cfg) {
-        (Some(e), Some(c)) => match c.edges.get(e as usize) {
+    let code = match ordering.and_then(|o| o.get(var as usize)) {
+        Some(&c) => c,
+        None => return format!("x{} (level not in the ordering table)", var),
+    };
+    match VarKey::from_code(code) {
+        VarKey::Edge(e) => match cfg.and_then(|c| c.edges.get(e as usize)) {
             Some(&(u, v, t)) => {
                 let kind = edge_type_label(t)
                     .map(|l| format!(" [{}]", l))
                     .unwrap_or_default();
                 format!("x{}: B{}→B{}{}", var, u, v, kind)
             }
-            None => format!("x{} (CFG edge #{})", var, e),
+            None => format!("x{}: CFG edge #{}", var, e),
         },
-        (Some(e), None) => format!("x{} (CFG edge #{})", var, e),
-        (None, _) => format!("x{}", var),
+        VarKey::LoopEntry(block) => format!("x{}: loop entry at B{}", var, block),
     }
 }
 
@@ -714,14 +769,49 @@ pub fn robdd_view(ctx: &DiagramContext) -> ViewModel {
         model.source("cfa");
     }
     let mut budget = FunctionBudget::new(ctx.options.max_nodes);
+    let mut unavailable = 0usize;
     for (fqn, sym) in ordered_functions(ctx, psa.function_dir.iter().map(|h| h.sym_id)) {
         let idx = match ctx.robdd_index(sym) {
             Some(i) => i,
             None => continue,
         };
-        let (header, nodes) = match (psa.function_dir.get(idx), psa.node_arrays.get(idx)) {
-            (Some(h), Some(n)) => (h, n),
-            _ => continue,
+        let header = match psa.function_dir.get(idx) {
+            Some(h) => h,
+            None => continue,
+        };
+        let mut group_details = vec![format!(
+            "{} | V(G)={} | longest path {} blocks",
+            path_count_text(psa, idx),
+            header.cyclomatic,
+            header.max_path_len
+        )];
+        group_details.extend(summary_flags(header.flags).into_iter().map(str::to_string));
+        let nodes = match psa.node_arrays.get(idx) {
+            Some(n) if header.has_bdd() => n,
+            _ => {
+                if !budget.admit(&fqn, 2) {
+                    continue;
+                }
+                unavailable += 1;
+                let reason = if header.has_flag(PSA_FLAG_EMPTY_CFG) {
+                    "the CFG has no blocks, so there is no path formula"
+                } else {
+                    "no ROBDD is stored: the node or time budget was exhausted, the formula needs more than 65535 variables, or a consistency check failed; the path count above is exact"
+                };
+                let group = function_group(ctx, &mut model, sym, group_details);
+                model.add_node(
+                    ViewNode::new(
+                        format!("bdd:{}:unavailable", sym),
+                        format!("bddna_{}", sym),
+                        "summary unavailable",
+                        NodeKind::Action,
+                    )
+                    .with_parent(Some(group))
+                    .with_details(vec![reason.to_string()])
+                    .with_provenance(Provenance::Unavailable),
+                );
+                continue;
+            }
         };
         let ordering = psa.ordering_tables.get(idx);
 
@@ -747,19 +837,12 @@ pub fn robdd_view(ctx: &DiagramContext) -> ViewModel {
             continue;
         }
 
-        let group = function_group(
-            ctx,
-            &mut model,
-            sym,
-            vec![format!(
-                "#SAT paths={} | V(G)={} | {} of {} ROBDD nodes reachable | longest path {} blocks",
-                header.sat_count,
-                header.cyclomatic,
-                reachable.len(),
-                nodes.len(),
-                header.max_path_len
-            )],
-        );
+        group_details.push(format!(
+            "{} of {} ROBDD nodes reachable",
+            reachable.len(),
+            nodes.len()
+        ));
+        let group = function_group(ctx, &mut model, sym, group_details);
         let cfg = ctx.function_cfg(sym);
         let key = |id: u32| format!("bdd:{}:{}", sym, id);
         for &id in &reachable {
@@ -795,9 +878,16 @@ pub fn robdd_view(ctx: &DiagramContext) -> ViewModel {
         }
     }
     budget.finish(&mut model, "function(s)");
-    if ctx.cfa.is_none() {
-        model.note("Variables map to CFG edges; their endpoints need the CFA artifact.");
+    if unavailable > 0 {
+        model.provenance = model.provenance.weakest(Provenance::Partial);
+        model.note(format!(
+            "{} function(s) have no stored ROBDD and are labelled 'summary unavailable'; their path counts come from the exact path-count dynamic program.",
+            unavailable
+        ));
     }
-    model.note("Each variable xᵢ is one CFG edge; solid edges are the 1 (taken) branch, dashed edges the 0 branch.");
+    if ctx.cfa.is_none() {
+        model.note("Edge variables are labelled by CFA edge id; their endpoints need the CFA artifact.");
+    }
+    model.note("Each variable xᵢ is one CFG edge or one loop entry (the Ball-Larus segment that starts at a loop header); solid edges are the 1 (taken) branch, dashed edges the 0 branch.");
     model
 }

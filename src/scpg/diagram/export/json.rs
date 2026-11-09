@@ -171,7 +171,8 @@ pub struct GraphEdgeIR {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InteractionEventIR {
-    /// "call", "reply", "deactivate", "fragment_start", "fragment_end" or "note".
+    /// "call", "reply", "deactivate", "fragment_start", "fragment_else", "fragment_end" or
+    /// "note".
     pub event: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
@@ -354,7 +355,7 @@ impl JSONExporter {
             params_known: member.params.is_some(),
             param_count: member.param_count,
             span: member.span.clone(),
-            sym_id: Some(member.sym_id),
+            sym_id: member.sym_id,
         }
     }
 
@@ -475,6 +476,10 @@ impl JSONExporter {
             InteractionEvent::FragmentStart { kind, guard } => {
                 ir.event = "fragment_start".to_string();
                 ir.fragment = Some(kind.as_str().to_string());
+                ir.guard = guard.clone();
+            }
+            InteractionEvent::FragmentElse { guard } => {
+                ir.event = "fragment_else".to_string();
                 ir.guard = guard.clone();
             }
             InteractionEvent::FragmentEnd => {
@@ -622,7 +627,7 @@ impl JSONExporter {
                                     "type": "object",
                                     "required": ["event"],
                                     "properties": {
-                                        "event": { "enum": ["call", "reply", "deactivate", "fragment_start", "fragment_end", "note"] }
+                                        "event": { "enum": ["call", "reply", "deactivate", "fragment_start", "fragment_else", "fragment_end", "note"] }
                                     }
                                 }
                             },

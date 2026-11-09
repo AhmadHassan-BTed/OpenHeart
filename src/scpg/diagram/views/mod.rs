@@ -13,16 +13,50 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::core::types::symbol::SymbolModifiers;
 use crate::scpg::diagram::common::DiagramUtils;
-use crate::scpg::diagram::context::DiagramContext;
+use crate::scpg::diagram::context::{is_void_type_id, primitive_type_name, DiagramContext};
 use crate::scpg::diagram::model::{
     AliasTable, MemberKind, MemberView, NodeKind, ParamView, Provenance, ViewKind, ViewModel,
     ViewNode,
 };
 use crate::uma::types::*;
 
-/// Builds and finalizes the view of `kind`.
+/// Artifacts every view reads (names, spans and UMA records).
+const BASE_ARTIFACTS: [&str; 3] = ["tca", "sta", "uma"];
+
+/// Builds and finalizes the view of `kind`. When the attached artifacts come from different
+/// analysis runs (their hash links disagree, see [`DiagramContext::consistency_issues`]) and
+/// the view reads one of the disagreeing artifacts, the view is returned unavailable with
+/// the mismatch as its reason instead of mixing symbol ids of different generations.
 pub fn build(kind: ViewKind, ctx: &DiagramContext) -> ViewModel {
-    let mut model = match kind {
+    let mut model = build_unchecked(kind, ctx);
+    let issues = ctx.consistency_issues();
+    if !issues.is_empty() {
+        let affected: Vec<String> = issues
+            .iter()
+            .filter(|m| {
+                BASE_ARTIFACTS.iter().any(|a| m.involves(a))
+                    || model.sources.iter().any(|s| m.involves(s))
+            })
+            .map(|m| m.detail.clone())
+            .collect();
+        if !affected.is_empty() {
+            let mut stale = ViewModel::unavailable(
+                kind,
+                "The attached artifacts come from different analysis runs; re-run the analysis so every artifact belongs to one snapshot.",
+            );
+            for detail in affected {
+                stale.note(format!("Hash link mismatch: {}.", detail));
+            }
+            stale.sources = model.sources.clone();
+            return stale;
+        }
+    }
+    model.finalize(&ctx.options, kind.allows_degree_pruning());
+    model
+}
+
+fn build_unchecked(kind: ViewKind, ctx: &DiagramContext) -> ViewModel {
+    match kind {
         ViewKind::Class => structural::class_view(ctx),
         ViewKind::Object => structural::object_view(ctx),
         ViewKind::Package => structural::package_view(ctx),
@@ -42,9 +76,7 @@ pub fn build(kind: ViewKind, ctx: &DiagramContext) -> ViewModel {
         ViewKind::Cdg => analysis::cdg_view(ctx),
         ViewKind::CallGraph => analysis::callgraph_view(ctx),
         ViewKind::Robdd => analysis::robdd_view(ctx),
-    };
-    model.finalize(&ctx.options, kind.allows_degree_pruning());
-    model
+    }
 }
 
 /// Declared classifiers of the analyzed sources, keyed by symbol id (never by name).
@@ -141,22 +173,30 @@ pub fn package_key(package: &str) -> String {
     format!("pkg:{}", package)
 }
 
+/// Segments of a package, namespace or module path written with `.`, `::` or `/`
+/// separators (empty segments dropped).
+pub fn package_segments(package: &str) -> Vec<&str> {
+    package
+        .split("::")
+        .flat_map(|s| s.split(|c| c == '.' || c == '/'))
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 /// Ensures package nodes exist for every prefix of `package` (nested by prefix) and returns
-/// the key of the innermost one.
+/// the key of the innermost one. Prefixes keep the separator style of the input (`::` for
+/// C++ namespaces, `.` otherwise), so one package has one key in every view.
 pub fn ensure_package_chain(
     model: &mut ViewModel,
     aliases: &mut AliasTable,
     package: &str,
 ) -> Option<String> {
-    let parts: Vec<&str> = package
-        .split(|c| c == '.' || c == '/')
-        .filter(|s| !s.is_empty())
-        .collect();
+    let separator = if package.contains("::") { "::" } else { "." };
     let mut path = String::new();
     let mut parent: Option<String> = None;
-    for part in parts {
+    for part in package_segments(package) {
         if !path.is_empty() {
-            path.push('.');
+            path.push_str(separator);
         }
         path.push_str(part);
         let key = package_key(&path);
@@ -191,33 +231,55 @@ pub fn multiplicity(min: u16, max: u16) -> Option<String> {
 }
 
 /// Pattern stereotypes of a class from the design-pattern participant records, with the
-/// extractor's structural-evidence score. One entry per pattern kind (highest score).
+/// extractor's structural-evidence score. One entry per pattern kind (highest score); kinds
+/// outside the known pattern range and detections below `ViewOptions::min_pattern_score`
+/// are left out.
 pub fn pattern_stereotypes(ctx: &DiagramContext, sym_id: u32) -> Vec<String> {
-    let mut best: BTreeMap<u16, u16> = BTreeMap::new();
+    let mut best: BTreeMap<u8, u16> = BTreeMap::new();
     for dp in &ctx.uma.design_patterns {
-        if dp.class_sym == sym_id {
-            let entry = best.entry(dp.pattern_kind).or_insert(0);
-            *entry = (*entry).max(dp.confidence);
+        if dp.class_sym != sym_id {
+            continue;
         }
+        let kind = match u8::try_from(dp.pattern_kind) {
+            Ok(k) => k,
+            Err(_) => continue,
+        };
+        let entry = best.entry(kind).or_insert(0);
+        *entry = (*entry).max(dp.confidence);
     }
     best.into_iter()
+        .filter(|&(_, score)| score >= ctx.options.min_pattern_score)
         .filter_map(|(kind, score)| {
-            let name = pattern_kind_name(kind.min(u8::MAX as u16) as u8);
+            let name = pattern_kind_name(kind);
             if name.is_empty() {
                 None
             } else {
-                Some(format!("{} (evidence {}%)", name, score.min(100)))
+                Some(format!("{} {}%", name, score.min(100)))
             }
         })
         .collect()
 }
 
-/// Display name of a referenced type (`None` when unresolved).
+/// Display name of a referenced type symbol (`None` when unresolved or `void`). Primitive
+/// pseudo-ids of the symbol table are named by the primitive they stand for.
 pub fn type_display(ctx: &DiagramContext, type_sym: u32) -> Option<String> {
-    if type_sym == UNKNOWN_SYM {
+    if type_sym == UNKNOWN_SYM || is_void_type_id(type_sym) {
         return None;
     }
+    if let Some(primitive) = primitive_type_name(type_sym) {
+        return Some(primitive.to_string());
+    }
     ctx.nested_type_name(type_sym)
+}
+
+/// Declared type text of a member symbol, else the display name of the type symbol UMA
+/// recorded for it. `void` results are `None` (an operation without a return type).
+fn member_type(ctx: &DiagramContext, member_sym: u32, recorded_type: u32) -> Option<String> {
+    if ctx.declared_type_is_void(member_sym) {
+        return None;
+    }
+    ctx.declared_type(member_sym)
+        .or_else(|| type_display(ctx, recorded_type))
 }
 
 /// Members of a classifier record, in record order.
@@ -233,32 +295,28 @@ pub fn class_members(ctx: &DiagramContext, class_rec: &ClassRecord) -> Vec<Membe
         } else {
             MemberKind::Field
         };
-        let element = type_display(ctx, f.element_type_sym_id);
-        let declared = type_display(ctx, f.type_sym_id);
-        let type_name = match (&declared, &element) {
-            (Some(d), Some(e)) if f.is_collection != 0 && d != e => Some(format!("{}<{}>", d, e)),
-            _ => declared.clone().or(element.clone()),
-        };
+        let is_literal = kind == MemberKind::Literal;
         members.push(MemberView {
             kind,
             visibility: DiagramUtils::visibility_symbol(f.visibility),
             name,
-            type_name: if kind == MemberKind::Literal {
+            type_name: if is_literal {
                 None
             } else {
-                type_name
+                member_type(ctx, f.field_sym_id, f.type_sym_id)
             },
             params: None,
             param_count: 0,
             is_static: f.modifiers & SymbolModifiers::STATIC != 0,
             is_abstract: false,
             is_final: f.modifiers & SymbolModifiers::FINAL != 0,
-            multiplicity: if kind == MemberKind::Literal {
+            multiplicity: if is_literal {
                 None
             } else {
                 multiplicity(f.mult_min, f.mult_max)
             },
-            sym_id: f.field_sym_id,
+            is_collection: f.is_collection != 0,
+            sym_id: Some(f.field_sym_id),
             span: ctx.symbol_span(f.field_sym_id),
         });
     }
@@ -274,10 +332,11 @@ pub fn class_members(ctx: &DiagramContext, class_rec: &ClassRecord) -> Vec<Membe
                     .enumerate()
                     .map(|(i, &p)| ParamView {
                         name: ctx.simple_name(p),
-                        type_name: m
-                            .param_type_syms
-                            .get(i)
-                            .and_then(|&t| type_display(ctx, t)),
+                        type_name: member_type(
+                            ctx,
+                            p,
+                            m.param_type_syms.get(i).copied().unwrap_or(UNKNOWN_SYM),
+                        ),
                     })
                     .collect(),
             )
@@ -296,7 +355,7 @@ pub fn class_members(ctx: &DiagramContext, class_rec: &ClassRecord) -> Vec<Membe
             type_name: if is_constructor {
                 None
             } else {
-                type_display(ctx, m.return_type_sym_id)
+                member_type(ctx, m.method_sym_id, m.return_type_sym_id)
             },
             params,
             param_count: m.param_count,
@@ -304,7 +363,8 @@ pub fn class_members(ctx: &DiagramContext, class_rec: &ClassRecord) -> Vec<Membe
             is_abstract: m.modifiers & SymbolModifiers::ABSTRACT != 0,
             is_final: m.modifiers & SymbolModifiers::FINAL != 0,
             multiplicity: None,
-            sym_id: m.method_sym_id,
+            is_collection: false,
+            sym_id: Some(m.method_sym_id),
             span: ctx.symbol_span(m.method_sym_id),
         });
     }
@@ -321,9 +381,19 @@ pub fn classifier_node(
 ) -> Option<ViewNode> {
     let key = types.key(class_rec.sym_id)?.to_string();
     let fqn = types.fqn(class_rec.sym_id).map(str::to_string);
-    let label = ctx
+    let mut label = ctx
         .nested_type_name(class_rec.sym_id)
         .unwrap_or_else(|| key.clone());
+    let type_params = ctx.type_parameters(class_rec.sym_id);
+    let mut details = Vec::new();
+    if !type_params.is_empty() {
+        label = format!("{}<{}>", label, type_params.join(", "));
+    } else if class_rec.type_param_count > 0 {
+        details.push(format!(
+            "{} type parameter(s); their names are not recorded",
+            class_rec.type_param_count
+        ));
+    }
     let alias = aliases.alias("cls_", fqn.as_deref().unwrap_or(key.as_str()), &key);
     let span = ctx
         .span_of_link(&class_rec.uml_link)
@@ -332,6 +402,7 @@ pub fn classifier_node(
         .with_parent(parent)
         .with_qualified_name(fqn)
         .with_span(span)
+        .with_details(details)
         .with_sym(class_rec.sym_id);
     if class_rec.stereotype == STEREOTYPE_RECORD {
         node = node.with_stereotype("record");

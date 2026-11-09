@@ -252,17 +252,19 @@ async function boot() {
     return Object.entries(failed || {}).filter(([, n]) => n > 0).map(([k, n]) => `${n.toLocaleString()} ${k.replace(/_/g, ' ')}`).join(', ');
   }
 
+  const fmt = (n) => (Number.isFinite(n) ? n.toLocaleString() : '?');
+
   function inBrowserDisclosure(stats) {
     if (!stats) return [];
     const lines = [];
-    lines.push(`Parsed ${stats.files_parsed.toLocaleString()} of ${stats.files_eligible.toLocaleString()} eligible source files (${stats.files_listed.toLocaleString()} files listed)${stats.sample_budget && stats.sample_budget.hit ? `; the in-browser budget is ${stats.sample_budget.max_files.toLocaleString()} files, sampled across ${stats.module_groups.toLocaleString()} top-level modules` : ''}.`);
+    lines.push(`Parsed ${fmt(stats.files_parsed)} of ${fmt(stats.files_eligible)} eligible source files (${fmt(stats.files_listed)} files listed)${stats.sample_budget && stats.sample_budget.hit ? `; the in-browser budget is ${fmt(stats.sample_budget.max_files)} files, sampled across ${fmt(stats.module_groups)} top-level modules` : ''}.`);
     const skipped = describeSkipped(stats.files_skipped);
     if (skipped) lines.push(`Skipped before parsing: ${skipped}.`);
     const failed = describeFailures(stats.files_failed);
     if (failed) lines.push(`Not parsed: ${failed}.`);
     if (stats.tree_truncated) lines.push(stats.tree_walk_incomplete ? 'GitHub truncated the file listing and the directory walk hit its request budget; some directories were never listed.' : 'GitHub truncated the recursive listing; directories were walked individually.');
     if (stats.unresolved_references || stats.ambiguous_references) {
-      lines.push(`${(stats.unresolved_references || 0).toLocaleString()} type references could not be resolved and ${(stats.ambiguous_references || 0).toLocaleString()} were ambiguous; those relations are omitted.`);
+      lines.push(`${fmt(stats.unresolved_references || 0)} type references could not be resolved and ${fmt(stats.ambiguous_references || 0)} were ambiguous; those relations are omitted.`);
     }
     if (stats.rate_limit && stats.rate_limit.remaining !== null && stats.rate_limit.remaining !== undefined) {
       lines.push(`GitHub API requests used: ${stats.api_requests}; remaining this hour: ${stats.rate_limit.remaining}.`);
@@ -305,10 +307,15 @@ async function boot() {
     }
     let hash = null;
     let hashReason = null;
-    if (meta && meta.ir) {
-      const result = (kind === 'github' || kind === 'folder' || kind === 'zip') && session.ir === meta.ir && session.provenance && session.provenance.content_hash
-        ? { value: session.provenance.content_hash, reason: null }
-        : await hashGraphIr(meta.ir);
+    const inBrowser = kind === 'github' || kind === 'folder' || kind === 'zip';
+    if (meta && meta.origin === 'state-file') {
+      hashReason = 'Saved state files are not hashed.';
+    } else if (inBrowser && session.provenance) {
+      // The whole in-browser class model is hashed once at analysis time.
+      hash = session.provenance.content_hash || null;
+      hashReason = session.provenance.content_hash_unavailable || null;
+    } else if (meta && meta.ir) {
+      const result = await hashGraphIr(meta.ir);
       if (seq !== provenanceSeq) return;
       hash = result.value;
       hashReason = result.reason;
@@ -352,7 +359,8 @@ async function boot() {
     fileTree.updateFromElements(elements);
     const countBadge = $('explorer-file-count');
     if (countBadge) countBadge.textContent = String(fileTree.fileCount || 0);
-    updateBreadcrumbs(null);
+    const rootLabel = $('breadcrumb-root-label');
+    if (rootLabel) rootLabel.textContent = meta.origin === 'state-file' && canvas.snapshotLabel ? canvas.snapshotLabel : studioStore.codebaseName;
     setActiveSidebar(meta.graphType);
 
     const session = studioStore.get();
@@ -377,7 +385,8 @@ async function boot() {
       title = title || 'Bundled sample diagrams';
       notices.push('These are static sample files shipped with the studio, not an analysis of your code. Analyze a repository, folder or ZIP to replace them.');
     }
-    showNotice(level, title, notices, `${session.source.kind}:${session.source.name}:${meta.graphType}:${notices.length}`);
+    // Dismissing a notice keeps it dismissed for this source until view-specific warnings appear.
+    showNotice(level, title, notices, `${session.source.kind}:${session.source.name}:${meta.warnings && meta.warnings.length ? meta.graphType : ''}`);
 
     if (meta.emptyReason) {
       setHud(strong(diagramName(meta.graphType)), `: ${meta.emptyReason}`);
@@ -1460,8 +1469,11 @@ async function boot() {
   });
 
   studioStore.subscribe(() => {
+    // A new codebase invalidates the file shown in the viewer.
     markViewAvailability();
     updateBreadcrumbs(null);
+    editor.showMessage(['Select a type in the diagram or a file in the Project Explorer to view its source.'], null);
+    editor.setSyncStatus('Idle', 'idle');
   });
 
   if (!restore.restored && !(hudText && hudText.querySelector('.hud-error'))) {

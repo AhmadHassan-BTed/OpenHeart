@@ -1,0 +1,1591 @@
+[
+ {
+  "id": "FIT-03",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "The deployed Live Studio fabricates results for user repos: regex on 30 files, template diagrams, random 'verified' hashes",
+  "files": [
+   "web/js/github-engine.js",
+   "web/js/graph-canvas.js",
+   "web/js/api.js",
+   "web/index.html"
+  ],
+  "evidence": "Without a backend, which is the GitHub Pages default (index.html:908-935), github-engine.js regex-parses only `sourceFiles.slice(0, 30)` (103, 291). When nothing matches it invents `id: String` and `execute(): void` members (144-145). It reports `execution_time_ms: 280` (164), a `Math.random()` compiler_hash with `verified: true` (576-577), and `lines: [1, 5, 10]` for every class (526). graph-canvas.js:277-575 draws 17 views from fixed templates (\"Client Workstation\", \"ResultAck\", \"Ready / Idle\", \"Administrator\", \"@0ms: Idle\", \"InitializeContext()\", \"var_isValid\"). The HUD shows \"SCPG 0x… · Verified\" built from the session id (index.html:919-920). The offline SVG draws \"+ execute()\" on every class (api.js:122-123).",
+  "impact": "Every Live Studio visitor sees the same invented behavioral and IR diagrams, labelled as compiled and verified. For an unseen repository only the class names differ, and files after the first 30 are silently ignored.",
+  "recommendation": "Either run the real pipeline in the browser (compile the crate to WASM with wasm-bindgen and use web-tree-sitter grammars) or relabel the mode \"regex class outline (preview)\" and render only the class and package views. Delete the templates, fake members, random hashes and fixed timings, and show \"requires engine\" for the other views. Done = a Playwright e2e test on a fixture repo asserting that no template strings appear and that the reported file count equals the parsed file count.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "MANDATE-CORE-ARCH-WEB",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "critical",
+  "title": "Language-neutral, compiler-grade rewiring of your paths (no hard-coding, no templates)",
+  "files": [
+   "web/"
+  ],
+  "evidence": "OpenHeart must support every language with language-agnostic algorithms, and must never hard-code, template or guess: it works the way compilers do, statically. New code is being written now (read what exists): src/lang (neutral.rs universal vocabulary, frontend.rs LanguageFrontend trait, registry.rs single list of languages, profile.rs, build/ for compile_commands, CMake and MSBuild, preprocess.rs, project_model.rs, uml_semantics.rs, idioms.rs, frontends java, kotlin, c, cpp, csharp); src/ir (typed three-address SSA IR with explicit memory operations, lowering from the AST, dominators); src/memory (abstract heap, field-sensitive points-to with on-the-fly call graph, escape, ownership, mod/ref); src/analysis (lattices, worklist solvers, SCCP, intervals, nullness, typestate, control dependence, IFDS/IDE, contexts, canonical branch conditions); src/derive (every diagram derived from those facts with provenance and a Derivation tag, NotDerivable instead of invention); src/symex (bounded static symbolic execution with a stack, heap and path-condition model producing execution traces); src/abi (C/C++ Itanium and MSVC, JVM and CLR memory layouts, lifetimes, calling conventions); src/arch (architecture recovery: dependency graph, DSM, layers, clustering, metrics, boundaries); src/memview (lifetime, ownership, heap-shape and stack-frame views plus memory-safety and data-race facts). Everything from the architectural flow down to memory-level execution must come from these facts, for every language, with semantics exactly per each language specification. Contract names: LangId::C, LangId::Cpp, LangId::CSharp; ASTNodeType additions NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_TEMPLATE_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_INCLUDE_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT, NN_YIELD_STMT.",
+  "impact": "Without this, OpenHeart stays Java-specific and heuristic instead of a universal, compiler-grade engine.",
+  "recommendation": "Wire web/js/lang/c-family.js into the in-browser engine for C, C++ and C#, keep Java and Kotlin, take the extension list from one place, make rendering language-neutral, and never show hard-coded sample diagrams as analysis results.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: POST /api/analyze with {\"repo_url\":...,\"async\":true}, drop the 2500 ms AbortController, poll GET /ap",
+  "files": [
+   "web/index.html"
+  ],
+  "evidence": "POST /api/analyze with {\"repo_url\":...,\"async\":true}, drop the 2500 ms AbortController, poll GET /api/jobs/<job_id> until state != 'running', then render. The 202 response sets an openheart_session_<port> cookie, so same-origin fetch('diagrams/<type>.json') resolves to that analysis; /api/sessions/<id>/diagrams/<type>.json also works. Show backendData.scpg_hash instead of session_id.slice(-8). Do not label GitHubEngine fallback results 'SCPG ... Verified'. Add integrity=sha384 and crossorigin=anonymous to the five CDN scripts, plus a CSP meta tag for the Pages build",
+  "impact": "COMP-R3-2 and SRV-12. The server now supports async jobs and per-session diagrams but no longer writes into web/diagrams, so the studio must poll instead of aborting",
+  "recommendation": "POST /api/analyze with {\"repo_url\":...,\"async\":true}, drop the 2500 ms AbortController, poll GET /api/jobs/<job_id> until state != 'running', then render. The 202 response sets an openheart_session_<port> cookie, so same-origin fetch('diagrams/<type>.json') resolves to that analysis; /api/sessions/<id>/diagrams/<type>.json also works. Show backendData.scpg_hash instead of session_id.slice(-8). Do not label GitHubEngine fallback results 'SCPG ... Verified'. Add integrity=sha384 and crossorigin=anonymous to the five CDN scripts, plus a CSP meta tag for the Pages build",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-2",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: Request /api/source?file=<repo-relative path>, adding &session=<id> when known. On 409, show or choo",
+  "files": [
+   "web/js/editor.js"
+  ],
+  "evidence": "Request /api/source?file=<repo-relative path>, adding &session=<id> when known. On 409, show or choose from the 'candidates' array. Remove the hardcoded examples/test_patterns_codebase candidate path list",
+  "impact": "COMP-R3-1 and COMP-10. /api/source now resolves only against the analysis manifest (exact path, unique suffix, or unique file or class name) and returns 409 when a name is ambiguous",
+  "recommendation": "Request /api/source?file=<repo-relative path>, adding &session=<id> when known. On 409, show or choose from the 'candidates' array. Remove the hardcoded examples/test_patterns_codebase candidate path list",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Regenerate every showcase file from a pinned sample with the CLI, fail CI on drift, delete the hand-",
+  "files": [
+   "web/diagrams/* and CI workflow"
+  ],
+  "evidence": "Regenerate every showcase file from a pinned sample with the CLI, fail CI on drift, delete the hand-written JSON files with fabricated hashes, and list the .mmd files in manifest.json.",
+  "impact": "AUTO-04/AUTO-08: the exporters now emit real digests and content hashes, but the committed showcase files are still hand-written.",
+  "recommendation": "Regenerate every showcase file from a pinned sample with the CLI, fail CI on drift, delete the hand-written JSON files with fabricated hashes, and list the .mmd files in manifest.json.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Navigate with `node.span.path`/`span.line_start` (or the now-real `file`/`lines`) instead of guessin",
+  "files": [
+   "web/js/editor.js",
+   "web/js/graph-loader.js",
+   "web/js/ui.js"
+  ],
+  "evidence": "Navigate with `node.span.path`/`span.line_start` (or the now-real `file`/`lines`) instead of guessing example paths. Show `metadata.provenance` and `metadata.notes`: unavailable views have zero nodes and a reason. Replace the empty XMI export stub (ui.js:123-127) with the server's XMI output.",
+  "impact": "COMP-10/SCPG-05/COMP-06: real source spans and provenance are emitted but not yet used by the studio.",
+  "recommendation": "Navigate with `node.span.path`/`span.line_start` (or the now-real `file`/`lines`) instead of guessing example paths. Show `metadata.provenance` and `metadata.notes`: unavailable views have zero nodes and a reason. Replace the empty XMI export stub (ui.js:123-127) with the server's XMI output.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Advertised language support is not backed by code",
+  "files": [
+   "README.md",
+   "src/adapters/server.rs",
+   "CHANGELOG.md",
+   "ROADMAP.md",
+   "docs/codebase-guide.md",
+   "src/main.rs",
+   "docs/openheart_research_paper.tex",
+   "web/js/github-engine.js",
+   "docs/overview.md"
+  ],
+  "evidence": "README.md:60 claims F1 = 1.0000 'across Java, Kotlin, Python, Rust, TypeScript, and C++'. src/adapters/server.rs:84 advertises python/typescript/javascript/cpp/rust/go, but not kotlin. CHANGELOG.md:32 claims multi-language support 'across all 10 compilation pipeline phases without hardcoded dependencies'. ROADMAP.md:27 ticks multi-language support while :127 leaves the C++/Rust/Go adapters open. docs/codebase-guide.md:86 cites Java/Kotlin/Rust stubs, but only java_stubs.rs exists. src/main.rs:41 says .java while :79-93 also accepts .kt/.kts. The paper (docs/openheart_research_paper.tex:735-741, 1326-1330) claims scope graphs and stubs at language boundaries. The Pages studio's 'AST parsing' (README.md:57) is a regex that requires '{' (web/js/github-engine.js:291) and invents classes from file names (:383-397). docs/overview.md:102-113 lists no Python, TS or C++ repository.",
+  "impact": "Users and reviewers are misled about what the engine can analyze. Benchmark-grade status needs a truthful statement of support derived from tests.",
+  "recommendation": "Publish a per-language capability matrix generated from conformance tests. Rows are languages; columns are parse, symbols, imports, CFG, SSA, call graph and each diagram. Use tiers: Tier 1 (full pipeline), Tier 2 (outline via tree-sitter tags.scm), unsupported. Serve /api/supported-languages from the registry. Withdraw the F1 claim until an independent benchmark exists, and label the web studio's regex mode in the UI.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-19",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: When ./target_repos/<name> is absent and the clone fails, return an error status (HTTP 4xx) and no d",
+  "files": [
+   "src/adapters/server.rs",
+   "web/index.html"
+  ],
+  "evidence": "When ./target_repos/<name> is absent and the clone fails, return an error status (HTTP 4xx) and no diagrams, instead of falling back to the first directory. Include the resolved path and commit SHA in every response. Remove or replace the payment-service preset URL.",
+  "impact": "FIT-11.",
+  "recommendation": "When ./target_repos/<name> is absent and the clone fails, return an error status (HTTP 4xx) and no diagrams, instead of falling back to the first directory. Include the resolved path and commit SHA in every response. Remove or replace the payment-service preset URL.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Traceability in the delivered UI is fabricated, and source lookup is overfit to the example corpus",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/adapters/server.rs",
+   "web/js/editor.js",
+   "web/js/graph-canvas.js"
+  ],
+  "evidence": "Every JSON class node gets `file: \"{Name}.java\"` and `lines: [1, 5, 10]` (json.rs:267-268), although ClassRecord carries a real UMLLink; other views use `lines: vec![1]` (581, 672, 734, 1394, 1472). /api/source first tries hard-coded example-pattern folders and ./target_repos/FractalAndroid (server.rs:119-198). It then returns the first basename match under ./examples before ./target_repos (207-223), so a user's Application.java can resolve to examples/big_project_src/.../Application.java. If that also fails, editor.js:209-213 synthesizes a Java file with invented method bodies (227-500) and highlights lines in it. server.rs:717 falls back to the name `file_{id}.kt`.",
+  "impact": "The \"O(1) bidirectional traceability\" claim fails in practice: Kotlin and TS files, inner classes and multi-class files jump to the wrong file or line, sometimes into example code or synthesized source.",
+  "recommendation": "Emit the real span (file path from tca, line/col start and end from tra.uml_links) on every node and edge. Serve sources only by a manifest-relative path validated against the analysed tree. Remove the example-directory probes and synthesizeSourceFromNode. Done = a property test asserting that, for every node, the cited file and line contain the declared identifier, plus e2e tests on Kotlin and TypeScript fixtures.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-11",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "A missing or failed repository is silently replaced by another repo and reported as success",
+  "files": [
+   "src/adapters/server.rs",
+   "web/index.html",
+   "scripts/verify_all_14_uml_diagrams.py"
+  ],
+  "evidence": "When ./target_repos/<name> is absent and `git clone` fails, process_analyze_request takes the first directory in ./target_repos (server.rs:467-482). It analyses that directory and returns `\"status\":\"success\"` with the log \"All 10 phases verified\" (696-699). The payment-service preset (index.html:93, 1155) points at https://github.com/example/payment-service, which can only succeed through this fallback. Benchmark scripts gate on status and syntax only (verify_all_14_uml_diagrams.py:132-149), so a missing dataset produces green results computed on the wrong code.",
+  "impact": "A typo, a private repo or an absent dataset returns another project's diagrams under the requested name. Published benchmark numbers can come from the wrong repository without any warning.",
+  "recommendation": "Fail closed: return an error status (and HTTP 4xx) when the requested repository cannot be materialized. Include the resolved path and commit SHA in every response. Benchmark scripts must assert that the analysed SHA equals the pinned SHA from a dataset manifest. Done = an integration test where an unknown repository yields an error and no diagrams.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Headline performance claims (128x, O(1), zero-copy) are unmeasured or contradicted, and no benchmark infrastructure exists",
+  "files": [
+   "README.md:48",
+   "README.md:54-55",
+   "README.md:59",
+   "docs/openheart_research_paper.tex:292-296",
+   "docs/openheart_research_paper.tex:217-220",
+   "docs/openheart_research_paper.tex:582",
+   "docs/overview.md:119",
+   "src/scpg/query/navigation.rs:9-27",
+   "src/scpg/mmap/mod.rs:17-18",
+   "examples/README.md:14",
+   "web/js/github-engine.js:164",
+   "web/js/github-engine.js:256"
+  ],
+  "evidence": "'128x compression' is the paper's theoretical gap between 32-byte pointer nodes and a 2n-bit encoding (tex:292-296), not a measurement; docs/overview.md:119 itself claims 6.9x. For 'O(1) traceability', NavigationEngine::to_source is a linear find, and from_source, documented as O(log n), is a linear filter (navigation.rs:9-27). For 'zero-copy mmap', MemoryMappedSCPG::open calls fs::read (mmap/mod.rs:18). The paper defers empirical evaluation to future work (tex:217-220) yet tabulates sizes for a '500K-LOC' project (tex:582). The repo has no benchmarks, its 'enterprise-scale benchmark' is 255 LOC (examples/README.md:14), and the web studio displays hardcoded execution_time_ms values (github-engine.js:164,256).",
+  "impact": "No performance statement can be verified. Regressions and quadratic cliffs, such as the linear external-symbol scan per type reference, stay hidden until users hit them on real repositories.",
+  "recommendation": "Add criterion or divan micro-benchmarks for rank/select, BP navigation, CRC, the interner, BDD apply and traceability queries. Add macro-benchmarks on pinned corpora measuring LOC/s, peak RSS (dhat-rs or /usr/bin/time), artifact bytes per LOC and query-latency percentiles. Track them on every PR with CodSpeed or Bencher, as ruff and Biome do. Generate BENCHMARKS.md from the harness, recording hardware and commit, and remove or footnote every README number the harness does not produce.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-5",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: Regenerate every sample from a pinned input with the CLI in CI and fail on drift. Give communication",
+  "files": [
+   "web/diagrams/*"
+  ],
+  "evidence": "Regenerate every sample from a pinned input with the CLI in CI and fail on drift. Give communication its own IR. Write one canonical file per type (drop state.json and use_case.json aliases). Ensure unique ids.",
+  "impact": "AUTO-08, AUTO-04 and E2E-02. These are generated files and are not hand-edited.",
+  "recommendation": "Regenerate every sample from a pinned input with the CLI in CI and fail on drift. Give communication its own IR. Write one canonical file per type (drop state.json and use_case.json aliases). Ensure unique ids.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_WEB_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:WEB:1: GitHubEngine.parseSourceFile and buildGraphIr no longer exist. Plug frontends into web/js/analysis/s",
+  "files": [
+   "web/js/lang/c-family.js"
+  ],
+  "evidence": "GitHubEngine.parseSourceFile and buildGraphIr no longer exist. Plug frontends into web/js/analysis/source-parser.js parseSource(path, code), which returns {language, packageDecl, fileNamespace, imports, wildcardImports, classes[{name, kind, stereotype, modifiers, visibility, outer, namespace, line, col, endLine, endCol, superTypes[{name, isCall, role}], fields, methods, constants}], extensions}. That output is consumed by analysis/model-builder.js buildClassModel. The worker (analysis/parser-worker.js) imports source-parser.js, so frontends must be imported there too.",
+  "impact": "Another owner's in-progress module targets the removed API.",
+  "recommendation": "GitHubEngine.parseSourceFile and buildGraphIr no longer exist. Plug frontends into web/js/analysis/source-parser.js parseSource(path, code), which returns {language, packageDecl, fileNamespace, imports, wildcardImports, classes[{name, kind, stereotype, modifiers, visibility, outer, namespace, line, col, endLine, endCol, superTypes[{name, isCall, role}], fields, methods, constants}], extensions}. That output is consumed by analysis/model-builder.js buildClassModel. The worker (analysis/parser-worker.js) imports source-parser.js, so frontends must be imported there too.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Show the sampling cap (30 GitHub / 80 local files) and the true processed count in the UI; replace t",
+  "files": [
+   "web/js/github-engine.js"
+  ],
+  "evidence": "Show the sampling cap (30 GitHub / 80 local files) and the true processed count in the UI; replace the hard-coded execution_time_ms (280/150) with measured time or omit it; label the result as a heuristic preview",
+  "impact": "BENCH-15, SCALE-18, ENG-08",
+  "recommendation": "Show the sampling cap (30 GitHub / 80 local files) and the true processed count in the UI; replace the hard-coded execution_time_ms (280/150) with measured time or omit it; label the result as a heuristic preview",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "PNG export always throws ReferenceError (isDarkMode not imported)",
+  "files": [
+   "web/js/graph-canvas.js:16",
+   "web/js/graph-canvas.js:1414-1422",
+   "web/index.html:1453-1468",
+   "web/index.html:1484-1488"
+  ],
+  "evidence": "exportPng calls isDarkMode() at graph-canvas.js:1416, but line 16 imports only getTheme, onThemeChange and buildCytoscapeStylesheet. ES modules are strict and isDarkMode is only exported from theme-manager.js:166, so every PNG export click, and the PNG fallback in the SVG export handler, throws.",
+  "impact": "PNG export never works. The SVG fallback path fails silently with only a console error.",
+  "recommendation": "Import isDarkMode. Wrap export handlers in try/catch and report failures in the HUD. Use cy.png({output:'blob'}) with downloadBlob instead of data URIs. Add an exportPng smoke test on a tiny graph.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Java extends/implements parsing loses or misclassifies inheritance edges",
+  "files": [
+   "web/js/github-engine.js:291",
+   "web/js/github-engine.js:304-334",
+   "web/js/github-engine.js:358-367"
+  ],
+  "evidence": "Regex group 3 starts after the first keyword, so extMatch is always null. Tested in Node: 'class A extends B implements C, D' gives parts ['B  C','D'], so B and C are dropped and D becomes generalization. 'implements Runnable' becomes generalization; 'interface X extends Y' becomes realization.",
+  "impact": "Imported Java class diagrams show wrong or missing inheritance and realization. The extends/implements fields in the AI export are empty.",
+  "recommendation": "Capture the extends and implements clauses separately and classify by keyword, not by an I-prefix heuristic. Interface-extends-interface is generalization. Add tests parseSourceFile_extendsAndImplements, _implementsOnly and _interfaceExtends.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Kotlin classes, Java records and nested generics are not detected; Kotlin packages not extracted",
+  "files": [
+   "web/js/github-engine.js:271",
+   "web/js/github-engine.js:291",
+   "web/js/github-engine.js:298",
+   "web/js/github-engine.js:384-399"
+  ],
+  "evidence": "Tested misses: 'data class User(val id: Int) : Base() {', 'class Repo(val db: Db) {', 'object S {', 'record Point(int x,int y) {', 'class Foo<T extends Comparable<T>> {'. The package regex needs ';' or '{', so a Kotlin 'package com.x' returns null and the directory path is used. 'class Q {' inside a string literal is matched. record is mapped to interface.",
+  "impact": "For Kotlin, a target language, and modern Java, classes are missing, package names are wrong and heritage is lost.",
+  "recommendation": "Strip comments and strings before matching. Allow constructor parentheses, object, data class and ':' supertypes, balance generics, make ';' optional, and map record to class. Better: use tree-sitter WASM or the Rust parser. Add tests for each case.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "ROBDD terminals both render as FALSE for engine-produced IR",
+  "files": [
+   "web/js/graph-loader.js:108-114",
+   "web/js/uml-card-renderer.js:528-544",
+   "web/diagrams/robdd.json"
+  ],
+  "evidence": "The loader passes terminalValue: node.id==='1'?1:0 and never passes id. The bundled/Rust ids are bdd_term_0 and bdd_term_1, so isTrue evaluates to 0===1 || ''==='1' || ''.includes('1'), which is false for both terminals. The id.includes('1') heuristic would also flag ids like *_10 as TRUE.",
+  "impact": "Every Rust-exported ROBDD shows no TRUE terminal, which inverts the meaning of half the paths.",
+  "recommendation": "Emit an explicit terminal value in the IR and use it, falling back to node.name. Remove the id-substring heuristics. Add test loadGraphIrToCytoscape_robddTerminals: robdd.json must yield one TRUE and one FALSE terminal.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "The adapter and registry design forces 25+ file edits per new language",
+  "files": [
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ast/mod.rs",
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "ruthless_config.json",
+   "src/uma/mod.rs",
+   "src/core/pipeline.rs",
+   "Cargo.toml"
+  ],
+  "evidence": "Two language-id registries disagree: src/ingestion/adapter/registry.rs:19-42 has Kotlin, while src/ast/adapter/registry.rs:16-31 has TS/Rust/Generic. `ext_map` is written but never read (registry.rs:46-48); detect() is a separate hardcoded match (:59-83). File selection differs yet again in src/main.rs:79-93, src/adapters/server.rs:790-881 (which drops '*test' stems such as Latest.java and any /spec package), web/js/github-engine.js:89 and ruthless_config.json. Each file is parsed twice, and Phase 2 re-reads it from disk without checking the stored SHA-256 (src/ast/mod.rs:142). PatternDetectionChain and SCPGPipelineBuilder are used only by tests, and the pipeline is copied by hand (main.rs:150-255, server.rs:526-620). tree-sitter is pinned to 0.20 (Cargo.toml:8).",
+  "impact": "Adding Python today touches 25+ files across all ten phases: Cargo.toml, both registries, the core type enums, the symbol adapter, stubs and passes 1-5, cfg/stmts, ssa/liveness, cg, uma, four exporters, main.rs, server.rs, the tests, the verifier and the web engine.",
+  "recommendation": "Make one LanguageFrontend trait and registry the single source of truth. It defines: id; dialects (ts/tsx, kts); extensions plus shebang or linguist-style detection; grammar; token classifier; lowering to the IR; LanguageSemantics; name-binding rules (TSG); and stub data. Parse each file once and hand the tree to Phase 2. Drive the CLI, the server, /api/supported-languages and the verifier from the registry, and run every entry point through SCPGPipelineBuilder. Upgrade to tree-sitter 0.25 (LanguageFn). Done = adding a language means one module plus fixtures.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-19",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Synchronous /api/analyze runs longer than the studio's 2.5 s fetch abort",
+  "files": [
+   "src/adapters/server.rs",
+   "web/index.html"
+  ],
+  "evidence": "Nothing is written until the clone and the whole pipeline finish (server.rs:241-253, 732-761). The main studio aborts the fetch after 2500 ms (web/index.html:862) and switches to the in-browser engine. The server keeps cloning and analyzing, with no cancellation, job id or progress endpoint. Differs from SRV-04: this is a protocol mismatch, not only throughput.",
+  "impact": "The main UI never uses the native backend for real repositories, yet each attempt still blocks the server.",
+  "recommendation": "Make analysis asynchronous: POST returns 202 with a job id, GET /api/jobs/{id} returns status, progress and result, and DELETE cancels. Stop the work when the client disconnects. Test the job lifecycle.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-22",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "/api/source query parsing and percent-decoding are incomplete",
+  "files": [
+   "src/adapters/server.rs",
+   "web/js/editor.js"
+  ],
+  "evidence": "Only %2F, %20 and %2B are decoded (server.rs:96-112). The editor sends encodeURIComponent output (editor.js:160), which also produces %24, %5C, %3A, %26, %25 and UTF-8 sequences, so Outer$Inner.java, Windows backslash paths and non-ASCII names never resolve. Values are cut at a second '=', '+' is not decoded to a space, and lowercase %2f is ignored. Differs from SRV-01.",
+  "impact": "Source view fails for Windows-produced paths and for many legitimate file names.",
+  "recommendation": "Decode with a real percent or form decoder (the percent-encoding or form_urlencoded crate) and split pairs with split_once('='). Tests for $, backslash, UTF-8 and '=' inside values.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-31",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Requested diagram types and branch are ignored; web_repo config is dead code",
+  "files": [
+   "src/adapters/server.rs",
+   "src/adapters/web_repo.rs",
+   "web/js/api.js"
+  ],
+  "evidence": "Clients send diagram_types (web/index.html:869, api.js:34-37), but the server reads only repo_url (server.rs:366-372) and always computes everything. WebRepoConfig {branch, selected_diagrams} and UmlDiagramType (web_repo.rs:8-90) are never used. The module doc promises fetching logic and calls a HashSet-based enum a 'Bitmask' (web_repo.rs:1-8). Differs from SRV-02 (validate_url).",
+  "impact": "Branches and tags cannot be analyzed, unrequested diagrams waste work, and the public API is misleading.",
+  "recommendation": "Parse a typed request into WebRepoConfig: pass branch to git --branch, parse diagram names with FromStr for UmlDiagramType, and export only the selected diagrams. Otherwise delete the module, and fix the docs. Test: requesting only class returns only class.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-15",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Supply-chain posture fails key OpenSSF Scorecard checks (pinning, token permissions, SRI, SAST)",
+  "files": [
+   ".github/workflows/ci.yml:21-30",
+   ".github/workflows/release.yml:13-22",
+   ".github/workflows/deploy_pages.yml:3-37",
+   "web/index.html:29-34",
+   ".github/dependabot.yml:1-13"
+  ],
+  "evidence": "Every action uses a mutable ref (checkout@v4, cache@v4, dtolnay/rust-toolchain@master, softprops/action-gh-release@v1) rather than a commit SHA, failing Pinned-Dependencies. ci.yml and release.yml declare no `permissions:` block, failing Token-Permissions. deploy_pages.yml publishes web/ on every push to main regardless of CI results. web/index.html:29-34 loads five CDN scripts with no integrity= attribute. There is no CodeQL or other SAST, no dependency review, no fuzzing and no signed releases. Dependabot does not track the CDN libraries and has no grouping configured.",
+  "impact": "A compromised action tag or CDN file can run in CI with repository tokens, or in every Studio visitor's browser. Failing Scorecard checks also signal immaturity to adopters.",
+  "recommendation": "Pin actions by full commit SHA with version comments; Dependabot will keep them updated. Set a top-level `permissions: contents: read` and grant more per job. Gate the Pages deploy on CI with needs or workflow_run. Vendor the web libraries through package.json plus a lockfile, or add SRI hashes. Enable CodeQL and actions/dependency-review-action, run the OpenSSF Scorecard action and publish its badge, and add cargo-deny source policies.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-17",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Docs and repo hygiene: a committed LLM prompt, an empty Phase 4 spec, stale paths, and false security and config statements",
+  "files": [
+   "docs/RESEARCH_PAPER_NEXT_PROMPT.txt:1",
+   "docs/README.md:29",
+   "docs/plans/phase4.md",
+   "docs/contributing.md:18",
+   "docs/security-architecture.md:11-12",
+   "docs/security-architecture.md:26",
+   "docs/security-architecture.md:34",
+   ".env.example:5-17",
+   "examples/README.md:12",
+   "examples/README.md:34",
+   "docs/codebase-guide.md:255-266",
+   "web/docs/scpg_architecture_diagram.html"
+  ],
+  "evidence": "docs/RESEARCH_PAPER_NEXT_PROMPT.txt is an LLM instruction ('MAKE SURE THE PAPER IS UNDENIABLY UNCHALLENGED AND CAN'T BE PROVEN FALSE'), yet docs/README.md:29 lists it as 'Prompt specification'. docs/plans/phase4.md is 0 bytes. contributing.md:18 and security-architecture.md:12 cite src/phase1/, which does not exist. security-architecture.md claims #![forbid(unsafe_code)] (:11), value saturation (:26) and configuration via environment variables (:34). .env.example lists five variables, but the code reads only OPENHEART_LOG. examples/README.md:12,34 point to examples/sample_project, which does not exist and is gitignored. web/docs/ duplicates the HTML in docs/, and one copy has already diverged.",
+  "impact": "Newcomers follow broken instructions, and security reviewers are misled about unsafe code and input handling. The committed prompt invites the reading that the paper was written to be unchallengeable rather than measured.",
+  "recommendation": "Delete the prompt file, and fill in or remove phase4.md. Build the docs from one source (mdBook or Docusaurus deployed through Pages) and link-check them in CI with lychee. Tie every security and configuration statement to code, or delete it. Make .env.example list only variables the code reads, ideally via clap's env feature. Pull the README into rustdoc with #![doc = include_str!(\"../README.md\")]. Record the major decisions (custom server, custom logger, file hand-off between phases, String errors) as MADR ADRs.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Final pseudo-state rendered as an initial state",
+  "files": [
+   "web/js/uml-card-renderer.js:236-246",
+   "web/js/graph-loader.js:122-129",
+   "web/diagrams/statemachine.json"
+  ],
+  "evidence": "The loader passes node.name, and statemachine.json names both state_init and state_final '[*]'. isInitial (name==='[*]') is checked first, so state_final draws as a filled initial circle. isFinal tests the name against 'state_final' and '_final', which can never match.",
+  "impact": "Bundled and engine state machines show two initial states and no final state.",
+  "recommendation": "Pass id/kind or an explicit pseudo-state type from the IR and decide initial vs final from it. Add a test that statemachine.json renders exactly one bullseye.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Zero metrics coerced to undefined: infeasible paths shown as '1 Canonical SAT'",
+  "files": [
+   "web/js/graph-loader.js:228-230",
+   "web/index.html:658-667"
+  ],
+  "evidence": "The loader uses cyclomatic: x || undefined, idomRank: node.idom_rank || undefined and bddSatCount: node.sat_count || undefined. A sat_count of 0 becomes undefined, so the inspector prints '1 Canonical SAT'. An idom_rank of 0 (entry block) prints 'Parent: …' or 'Root Tier' instead of rank 0.",
+  "impact": "Unsatisfiable paths are displayed as satisfiable, and the entry block's rank is lost.",
+  "recommendation": "Use ?? instead of ||. Show 'n/a' when a metric is absent instead of inventing a value. Add a test with sat_count: 0 and idom_rank: 0.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Bundled communication.json is a copy of sequence.json; class.json has zero edges",
+  "files": [
+   "web/diagrams/communication.json",
+   "web/diagrams/sequence.json",
+   "web/diagrams/class.json",
+   "web/js/graph-canvas.js:625-629"
+  ],
+  "evidence": "A Python check showed communication.json == sequence.json (diagram_type 'sequence', 699 message edges). class.json's metadata says total_edges 0, and none of its 120 nodes (17 interfaces) has extends/implements. WEB-10 flagged duplicate ids in class.json, not these problems.",
+  "impact": "The Communication view shows a 699-edge sequence hairball. The landing class diagram has no relationships, so the Layers panel stays hidden.",
+  "recommendation": "Regenerate the assets from the Rust exporters. Add a CI check that each file's diagram_type matches its name and that class.json contains relations.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Custom projections emit edges whose endpoints are not in the node set; edges silently dropped",
+  "files": [
+   "web/js/graph-canvas.js:180-236",
+   "web/js/graph-canvas.js:239-252",
+   "web/js/graph-canvas.js:255-274",
+   "web/js/graph-canvas.js:432-451",
+   "web/js/graph-loader.js:241-243"
+  ],
+  "evidence": "Component nodes are package ids (or comp_<id>) plus interfaces, but the edges reuse raw class-to-class endpoints. Composite, object and communication keep the first 12/12/6 classes but the first 10/10/8 raw edges, whatever their endpoints. The loader drops dangling edges without logging.",
+  "impact": "Component diagrams of imported code are nearly edgeless, and other projections lose links depending on file order.",
+  "recommendation": "Lift edges to the projected nodes (class→package/component) and filter edges to the selected nodes before slicing. Log dropped-edge counts. Add a test that projectCustomDiagram('component') keeps inter-package dependencies.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Fabrication sites not cited by WEB-02",
+  "files": [
+   "web/js/graph-canvas.js:255-274",
+   "web/js/graph-canvas.js:302-364",
+   "web/js/graph-canvas.js:386-474",
+   "web/js/github-engine.js:129-147",
+   "web/js/github-engine.js:222-241",
+   "web/js/editor.js:219",
+   "web/js/editor.js:336-338",
+   "web/js/editor.js:359",
+   "web/js/editor.js:365-368",
+   "web/js/graph-loader.js:222",
+   "web/js/puml-parser.js:279",
+   "web/js/puml-parser.js:457-458",
+   "web/js/uml-card-renderer.js:646",
+   "web/index.html:652"
+  ],
+  "evidence": "WEB-02 cites only the deployment, state-machine and 476-578 ranges. Other invented content: object slots '= [active]'; profile stereotypes; sequence messages Execute()/ResultAck; activity steps; use cases 'Manage & Use X' with fake actors; communication 'dispatch()'; interaction refs; fallback members id:String/execute(); stub classes; default entry/do/exit; saturated_paths 1; fake imports; ${name}.java file names; lines [1,5,10]; default timing slices.",
+  "impact": "Fixing only the ranges WEB-02 cites leaves most of the invented content in place.",
+  "recommendation": "Treat all of these sites as part of the WEB-02 fix. Show 'not available from in-browser analysis' empty states and never synthesize names, members, files or line numbers.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "In-browser package hierarchy flattened and every package labelled DOMAIN",
+  "files": [
+   "web/js/github-engine.js:493-510",
+   "web/js/graph-loader.js:43-47"
+  ],
+  "evidence": "buildGraphIr emits every package with is_domain_tier:true, nest_level:0 and parent:null. The loader therefore labels each one 'DOMAIN: COM.EXAMPLE.APP.SERVICE' and the layout treats all as roots. With directory-fallback names the labels become 'SRC.MAIN.JAVA…'.",
+  "impact": "Package nesting is lost and every package is mislabelled as a domain tier.",
+  "recommendation": "Build a package tree by splitting dotted names, set parent and nest_level, and mark only the top tier as domain. Add a test that buildGraphIr nests com.a.b under com.a.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-11",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Collection-typed fields never produce associations; duplicate parallel edges",
+  "files": [
+   "web/js/github-engine.js:370-380",
+   "web/js/github-engine.js:553-566"
+  ],
+  "evidence": "fieldType = type.replace(/[\\[\\]<>]/g,'') turns List<Order> into 'ListOrder' (checked in Node), which never matches a class, so aggregation edges come only from arrays. Each field of the same type adds another relation, and buildGraphIr never dedupes.",
+  "impact": "The most common relationship form, collections, is missing, and duplicate edges inflate the counts.",
+  "recommendation": "Extract generic arguments (List<Order>→Order, Map<K,V>→V), dedupe on (source,target,kind) and record multiplicity. Add tests parseSourceFile_listFieldAggregation and buildGraphIr_dedupesEdges.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Explicit /tree/<branch> in the URL is overridden by the repo default branch",
+  "files": [
+   "web/js/github-engine.js:52-61",
+   "web/js/github-engine.js:65-80"
+  ],
+  "evidence": "defaultBranch starts as the URL's branch, but the metadata fetch then always assigns meta.default_branch. So github.com/o/r/tree/dev analyzes the default branch. This is distinct from WEB-13, which covers slashed branch names and sub-paths.",
+  "impact": "Users asking for a specific branch silently get the default branch's code.",
+  "recommendation": "Consult default_branch only when the URL names no branch, and show the analyzed branch in the HUD. Add a test that /tree/dev uses dev.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-13",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "GitHub ingestion lacks the local path's ignore list; filters are inconsistent",
+  "files": [
+   "web/js/github-engine.js:89-94",
+   "web/js/github-engine.js:183-191",
+   "web/js/github-engine.js:103",
+   "web/js/github-engine.js:200"
+  ],
+  "evidence": "The local path skips node_modules, target, build, vendor and similar folders; the GitHub path does not, so vendored or minified JS and test fixtures compete for the 30-file sample, which follows alphabetical tree order. The caps differ (30 vs 80). Both accept .py/.go/.c even though only Java/Kotlin-style regexes exist. __MACOSX/._*.java entries are not ignored.",
+  "impact": "GitHub analyses often sample irrelevant files, and results differ from the same code uploaded as a ZIP.",
+  "recommendation": "Share one filter and sampling function: ignore list, an allow-list matched to what the parser supports, src/main first, and __MACOSX excluded. Unit-test it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Concurrent imports possible via Enter key, presets and history",
+  "files": [
+   "web/index.html:1119-1135",
+   "web/index.html:1137-1160",
+   "web/index.html:1240-1264",
+   "web/index.html:792-952",
+   "web/index.html:956-1020"
+  ],
+  "evidence": "Only btn-import-repo is disabled during importRepo. The Enter handler, preset chips and history items call importRepo/importCustomCodebase with no in-flight guard, and importCustomCodebase disables nothing. A second run starts a second progress interval and a second analysis, and their renderCustomGraphIr calls race.",
+  "impact": "Duplicate GitHub API usage, interleaved HUD messages, and whichever run finishes last wins the diagram.",
+  "recommendation": "Use a single import controller with an AbortController and a generation token. Cancel or ignore earlier runs and disable every import entry point while one is busy.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-17",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Folder drag-and-drop never works; ZIP drop errors are unhandled",
+  "files": [
+   "web/index.html:1088-1117"
+  ],
+  "evidence": "The folder branch relies on files[0].webkitRelativePath, which is set only for <input webkitdirectory>; dropped folders and files have '', so nothing happens. JSZip.loadAsync on drop has no try/catch, so a corrupt ZIP gives an unhandled rejection and no HUD message. The global dragover preventDefault also blocks dropping text into the URL field.",
+  "impact": "The advertised folder drop silently does nothing, and failed ZIP drops are invisible.",
+  "recommendation": "Walk directories with DataTransferItem.webkitGetAsEntry(), reuse the ZIP picker's error handling, show a drop overlay, and let inputs accept text drops.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-18",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "No size limits on ZIP or folder ingestion (zip bomb or huge file crashes the tab)",
+  "files": [
+   "web/index.html:1055-1080",
+   "web/index.html:1031-1043",
+   "web/js/github-engine.js:207-214"
+  ],
+  "evidence": "There is no cap on archive size, entry count, per-entry uncompressed size or file size. zipEntry.async('string') and File.text() load whole files into memory on the main thread. A small zip bomb or a multi-GB generated source exhausts memory.",
+  "impact": "One malicious or oversized upload crashes the tab.",
+  "recommendation": "Check file.size and each entry's uncompressed size before reading, cap total bytes, skip files above about 1 MB, and do the work in a Worker.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-19",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Unguarded localStorage access aborts the whole studio when storage is blocked",
+  "files": [
+   "web/js/graph-canvas.js:28",
+   "web/js/graph-canvas.js:72",
+   "web/js/themes/theme-manager.js:204-206",
+   "web/js/themes/theme-manager.js:227-229",
+   "web/js/minimap-navigator.js:50-51",
+   "web/js/editor.js:17-18",
+   "web/index.html:425",
+   "web/index.html:1235"
+  ],
+  "evidence": "localStorage is read and written without try/catch. The typeof guard in theme-manager still evaluates the getter, which throws. With cookies blocked or in a sandboxed iframe, the InteractiveGraphCanvas constructor (index.html:417) throws and the DOMContentLoaded handler aborts. Corrupted values also give NaN px/% labels.",
+  "impact": "The studio is blank for users who block site storage.",
+  "recommendation": "Add a safeStorage helper with an in-memory fallback and value validation. Test with a throwing localStorage stub.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-20",
+  "kind": "flaw",
+  "category": "accessibility",
+  "severity": "medium",
+  "title": "Global Space and arrow handlers swallow native keyboard behavior",
+  "files": [
+   "web/js/graph-canvas.js:1139-1152",
+   "web/js/graph-canvas.js:1180-1184",
+   "web/js/graph-canvas.js:1247-1256"
+  ],
+  "evidence": "Space keydown is preventDefault-ed whenever focus is not an INPUT/TEXTAREA, which suppresses Space activation of focused buttons. Arrow keys are preventDefault-ed to pan the canvas until a node is selected, which blocks keyboard scrolling of the tree and code panes. WEB-15 cites only the Alt and wheel handlers.",
+  "impact": "Keyboard users cannot press buttons with Space or scroll the panes with arrow keys.",
+  "recommendation": "Make the canvas focusable (tabindex=0) and handle these keys only when focus is inside it. Skip BUTTON, SELECT and scrollable targets.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-21",
+  "kind": "flaw",
+  "category": "accessibility",
+  "severity": "medium",
+  "title": "Missing ARIA roles and states on tabs, toggles and icon buttons (WCAG 4.1.2)",
+  "files": [
+   "web/index.html:317-327",
+   "web/index.html:190-198",
+   "web/index.html:286-288",
+   "web/index.html:131-166"
+  ],
+  "evidence": "The inspector tabs are plain buttons with no role=tab, aria-selected or aria-controls. The Pan Lock, Radar and Loupe toggles expose no aria-pressed. The +, − and ⊡ buttons have a title but no aria-label. The active diagram button has no aria-current. WEB-15's list does not cover name/role/value.",
+  "impact": "Screen readers cannot announce which tab, view or toggle is active.",
+  "recommendation": "Add role=tablist/tab with aria-selected, aria-pressed on the toggles, aria-label on icon buttons, and aria-current on the active diagram.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-22",
+  "kind": "flaw",
+  "category": "accessibility",
+  "severity": "medium",
+  "title": "Text colour contrast below WCAG 1.4.3 in both themes and on cards",
+  "files": [
+   "web/themes/dark.css:47",
+   "web/themes/light.css:47",
+   "web/themes/light.css:67-69",
+   "web/style.css:490-511",
+   "web/js/uml-card-renderer.js:119",
+   "web/js/uml-card-renderer.js:541"
+  ],
+  "evidence": "Computed ratios: dark --text-faint on --bg-subtle 3.46:1 and on surface 3.86:1; light faint on subtle 4.34:1; light status badge #059669 on #ECFDF5 3.58:1; card placeholder #94A3B8 on white 2.56:1; BDD TRUE white on #10B981 2.54:1. All of this text is 9-11.5px and needs 4.5:1.",
+  "impact": "Placeholders, meta text, the status badge and BDD labels are hard to read.",
+  "recommendation": "Adjust the tokens to at least 4.5:1 and add a token contrast check to CI.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-23",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "medium",
+  "title": "Word wrap makes code lines overlap and misaligns the line numbers",
+  "files": [
+   "web/style.css:1809-1820",
+   "web/style.css:1773-1782",
+   "web/js/editor.js:523-558"
+  ],
+  "evidence": ".code-line-row and .code-gutter-line have a fixed height of 20px. With .wrap-lines (pre-wrap), a wrapped line overflows into the following rows, and the separate gutter column no longer lines up with the code rows.",
+  "impact": "Wrap mode shows overlapping, unreadable code with wrong line numbers.",
+  "recommendation": "Use min-height and render each gutter cell and code line in the same grid row, or number lines with CSS counters.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-24",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Code viewer race: a slower earlier load overwrites the newer file",
+  "files": [
+   "web/js/editor.js:139-225"
+  ],
+  "evidence": "loadFile sets currentFile and then awaits up to 22 sequential fetches. A later call for another file can finish first; the earlier call then overwrites currentContent and re-renders, while the breadcrumbs show the newer file. There is no generation token or AbortController. This is distinct from WEB-12's request storm.",
+  "impact": "The viewer can show a different file from the selected node.",
+  "recommendation": "Track a load generation id or AbortController and discard stale results. Test two overlapping loadFile calls.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-26",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Project Explorer shows fabricated and duplicate files; the badge counts nodes",
+  "files": [
+   "web/js/file-tree.js:40",
+   "web/js/file-tree.js:103-119",
+   "web/js/file-tree.js:25-26",
+   "web/js/graph-loader.js:222",
+   "web/index.html:561-565"
+  ],
+  "evidence": "Every node without a file gets `${name}.java`, and the tree inserts one row per node with no dedupe. activity.json alone produces six 'start.java' rows, and CFG blocks, actors and BDD gates appear as .java files. The badge counts nodes, not files. An empty element list leaves the previous tree on screen.",
+  "impact": "The Explorer misrepresents the repository's actual files.",
+  "recommendation": "Build the tree from the real file list (fileCache or the tree API), dedupe by path, omit nodes without a real file, and clear the tree when there are no elements.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-28",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "medium",
+  "title": "Hover HUD and minimap tooltip show '<>' or '>' instead of the class name",
+  "files": [
+   "web/index.html:678-683",
+   "web/js/minimap-navigator.js:223-225",
+   "web/js/graph-loader.js:212"
+  ],
+  "evidence": "textLabel is '<<class>>\\nName' and both readers take its first line. The HUD's innerHTML of '<strong><<class>></strong>' is parsed into a '<class>' element and displays '<>'. The minimap's replace(/^<.*?>\\s*/,'') turns '<<class>>' into '>' (checked in Node). index.html:649 uses the same pattern and may already be covered by WEB-11.",
+  "impact": "Hovering any class or interface shows '<>' or '>' instead of its name.",
+  "recommendation": "Use data.name (or the last line of textLabel) and write it with textContent.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-30",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "AI export reflects the on-screen projection, not the codebase; counts are wrong",
+  "files": [
+   "web/js/graph-canvas.js:1706-1910",
+   "web/js/graph-canvas.js:1798-1808",
+   "web/js/graph-canvas.js:1871"
+  ],
+  "evidence": "getCodeStructureForAi reads this.cy, i.e. whatever is on screen: the first 12 classes on the object tab, the invented state machine, BDD gates. Every node that is not an interface, enum or abstract (actors, basic blocks, states) is counted in total_classes, and file_path defaults to `${name}.java`. Yet it promises 'complete type contracts'.",
+  "impact": "The exported LLM context is truncated or invented depending on the active tab.",
+  "recommendation": "Export from the full Graph IR regardless of the current view, count by real kind, omit unknown file paths, and state the sampling limits in the export.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-36",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Use-case actors drawn as sequence lifeline boxes",
+  "files": [
+   "web/js/graph-loader.js:174-177",
+   "web/js/uml-card-renderer.js:420-440"
+  ],
+  "evidence": "The loader sends kind 'actor' to generateSequenceLifelineSvg in every diagram, so the three actors in usecase.json render as rectangles labelled <<actor>>. The stick-figure branch of generateUseCaseSvg (isActor) is reachable only from the PUML fallback.",
+  "impact": "Use-case diagrams break UML actor notation.",
+  "recommendation": "Pass diagram_type into the loader and choose the renderer by diagram, drawing stick figures in use-case views.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-37",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Timing tracks show no states and have a non-proportional time axis",
+  "files": [
+   "web/js/uml-card-renderer.js:625-655",
+   "web/diagrams/timing.json"
+  ],
+  "evidence": "The track is a flat line at y=40. Only the first five instructions are used, only their '@Nms' prefix is printed, and ticks are spaced 80px apart whatever the times. timing.json has nine states per track up to '@280ms: READY', but only @0 to @100ms appear and no state names or level changes are shown.",
+  "impact": "Timing diagrams carry no state information and a distorted time scale.",
+  "recommendation": "Parse '@t: STATE', map states to levels, scale x by time, draw step waveforms with labels, and size the width to the time range.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-53",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Docs pages are chat-widget fragments: no document shell, undefined sendPrompt and CSS tokens",
+  "files": [
+   "web/docs/openheart_10_phase_pipeline.html:1-20",
+   "web/docs/phase1_architecture_and_bit_layout.html:32-42",
+   "web/docs/phase2_bp_architecture.html",
+   "web/docs/phase3_symbol_table_architecture.html",
+   "web/docs/phase4_cfg_dominator_analysis.html",
+   "web/docs/scpg_architecture_diagram.html:1-20"
+  ],
+  "evidence": "Six of the seven pages lack a doctype, and five also lack <head>, charset, viewport and title, so they render in quirks mode. 91 onclick='sendPrompt(…)' handlers call a function that is never defined and throw ReferenceError. Host-only variables (--surface-1, --border, --text-accent) and the .sr-only class are undefined, so borders and colours vanish and hidden headings show.",
+  "impact": "The published docs render unstyled and their interactive elements do nothing.",
+  "recommendation": "Wrap each page in a full HTML document, define the tokens and .sr-only, replace sendPrompt with local detail panels, and link the docs from the studio.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-65",
+  "kind": "enhancement",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Run in-browser ingestion in a cancellable Web Worker",
+  "files": [
+   "web/js/github-engine.js:176-261",
+   "web/js/github-engine.js:266-400",
+   "web/index.html:956-1020"
+  ],
+  "evidence": "Fetching, reading and regex-parsing up to 80 files runs on the main thread inside async loops, with no Worker, cancel button or AbortController. This differs from WEB-05: even linear-time parsing of large files blocks input and painting.",
+  "impact": "The UI freezes during imports and there is no way to cancel.",
+  "recommendation": "Move ingestion and parsing into a module Worker that posts progress and supports cancellation, and transfer the Graph IR back.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-66",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Studio cannot export PlantUML, Mermaid or XMI",
+  "files": [
+   "web/index.html:204-262",
+   "web/diagrams/class.puml",
+   "web/diagrams/class.mmd"
+  ],
+  "evidence": "The engine has PlantUML, Mermaid and XMI exporters and the site ships .puml and .mmd files per diagram, but the Export menu offers only state JSON, AI JSON/Markdown, PNG and SVG.",
+  "impact": "Users cannot take diagrams from the studio into standard UML tools.",
+  "recommendation": "Add PlantUML, Mermaid and XMI exports for the current view, using backend output or a JS serializer of the Graph IR.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-53",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Getting Started step 5 serves the studio where its API calls cannot reach the engine",
+  "files": [
+   "docs/getting_started.md",
+   "web/index.html",
+   "web/js/editor.js"
+  ],
+  "evidence": "getting_started.md:63-68 serves web/ with 'python3 -m http.server 8000' after starting the API on port 8080 (58-61). index.html:864 and editor.js:161 call the relative paths /api/analyze and /api/source, which then hit the static server and return 404. The Rust server already serves web/ on 8080.",
+  "impact": "Following the guide gives a studio that is silently disconnected from the engine.",
+  "recommendation": "Remove step 5, or document a configurable API base URL and make index.html use it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-57",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Traceability payload is truncated and mislabeled",
+  "files": [
+   "src/adapters/server.rs",
+   "web/js/viewer.js"
+  ],
+  "evidence": "Only the first 10 uml_links are returned, with no total (server.rs:710). 'tid' carries link.sym_id (server.rs:724-725), but the viewer labels the column TOKEN ID (viewer.js:114, 123). A missing file record gets an invented file_<id>.kt name (server.rs:717). Symbol name and sym_kind are left out, and the same list is shown for every projection.",
+  "impact": "Users see an incomplete and mislabeled traceability matrix.",
+  "recommendation": "Return paginated links with a total and rename the field to sym_id. Add the symbol name, kind and repo-relative path, and filter per diagram type.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-58",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "Session id is a seconds timestamp; no real SCPG hash is returned",
+  "files": [
+   "src/adapters/server.rs",
+   "web/index.html"
+  ],
+  "evidence": "session_id is sess_<unix seconds> (server.rs:376-380, 733-737), so it collides within the same second and is not tied to any stored session. The server neither runs Phase 10 nor returns any hash, so the studio shows the timestamp's last 8 digits as 'SCPG 0x... Verified' (web/index.html:890-891). This adds to SRV-13's missing Phase 10.",
+  "impact": "The UI's 'verified hash' badge is made from a clock value.",
+  "recommendation": "Use random unique ids, and return the real scpg_hash (or the TRA composite hash) as an explicit field.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-69",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Direct-file fallback cannot load the module-based studio",
+  "files": [
+   "run.sh",
+   "run.bat",
+   "web/index.html"
+  ],
+  "evidence": "When neither cargo nor Python is found, run.sh:52-54 and run.bat:51-55 open web/index.html via file://. The page uses ES modules (script type=module, web/index.html:408) and fetches diagrams/*.json, and Chromium browsers block both for file:// origins.",
+  "impact": "The last-resort launcher shows a broken or empty studio.",
+  "recommendation": "Open the hosted Pages URL instead, or ship a non-module bundle for file:// use, and print a clear message.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-14",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "files_processed reports discovered files, not parsed files",
+  "files": [
+   "web/js/github-engine.js:160-165",
+   "web/js/github-engine.js:252-257",
+   "web/index.html:922-926",
+   "web/index.html:994-998"
+  ],
+  "evidence": "stats.files_processed is sourceFiles.length (every discovered file), but only 30 (GitHub) or 80 (local) files are parsed. The HUD shows '(N files, M classes)' as if all were analyzed. WEB-02 cites the hardcoded execution_time, not this count.",
+  "impact": "Users believe the whole repository was analyzed.",
+  "recommendation": "Report discovered, sampled and parsed counts separately and warn when results are truncated.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-15",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "low",
+  "title": "Local imports get bogus raw.githubusercontent.com URLs that are fetched on cache miss",
+  "files": [
+   "web/js/github-engine.js:211",
+   "web/js/github-engine.js:267",
+   "web/js/editor.js:37-39",
+   "web/js/editor.js:143-155"
+  ],
+  "evidence": "analyzeSourceFiles passes owner=codebaseName and repo='Local', so local classes get raw_url https://raw.githubusercontent.com/<folder>/Local/main/<path>. loadFile fetches raw_url whenever the cache misses. setSource skips empty content, so empty files, or sources lost to the sessionStorage quota, send local folder and path names to GitHub.",
+  "impact": "Local project and path names leak to a third party, and the 404s add latency.",
+  "recommendation": "Leave raw_url undefined for local sources and cache empty strings (test content == null, not falsy).",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-25",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Selection feedback loop double-loads files and double-selects tree rows",
+  "files": [
+   "web/index.html:547-556",
+   "web/index.html:642-676",
+   "web/js/graph-canvas.js:728-752",
+   "web/js/file-tree.js:270-277"
+  ],
+  "evidence": "A tree click runs editor.loadFile(file,[1,5]) and canvas.focusNodeByFile. focusNodeByFile fires onNodeSelectedCallback, which calls fileTree.selectFile twice (646, 674) and loadFile again with different target lines. The two loads run concurrently.",
+  "impact": "Duplicate fetch storms, flicker and competing line highlights on every click.",
+  "recommendation": "Separate selecting from notifying. Route all selection through one function that knows its source.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-27",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "File tree selection over-matches and the folder model desyncs",
+  "files": [
+   "web/js/file-tree.js:285-324",
+   "web/js/file-tree.js:212",
+   "web/js/file-tree.js:243-249"
+  ],
+  "evidence": "selectFile highlights every row with the same base name (all Main.java or index.ts files) and smooth-scrolls to each. It expands folders in the DOM without updating node.expanded, so the next click on that folder appears to do nothing. Every diagram switch resets all folders to expanded.",
+  "impact": "Wrong rows are highlighted and folder toggling feels broken.",
+  "recommendation": "Match by nodeId or full path only, update the model and re-render, and persist expansion state.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-29",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "describeRelationSemantics labels transitions and control flow as 'association/calls'",
+  "files": [
+   "web/js/graph-canvas.js:1665-1700",
+   "web/js/graph-loader.js:253"
+  ],
+  "evidence": "The arrow checks run before the kind checks for message, transition, control_flow and data_flow. Edges default to arrow '-->', so a transition matches arrow.includes('-->') and is described as 'is associated with and calls … (Association)'. The association wording also asserts a call that may not exist.",
+  "impact": "The AI/LLM export mislabels behavioral and CFG relations.",
+  "recommendation": "Switch on kind first and fall back to the arrow only when kind is missing. Add a unit test for describeRelationSemantics(a,b,'transition','-->').",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-31",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Expanding a package re-shows filtered edges; edges without a kind ignore filters",
+  "files": [
+   "web/js/graph-canvas.js:2160-2161",
+   "web/js/graph-canvas.js:796-808",
+   "web/js/graph-canvas.js:778-794",
+   "web/js/themes/theme-manager.js:576-580"
+  ],
+  "evidence": "Expand sets children.connectedEdges().style('display','element'), which overrides the Layers filter. getActiveEdgeKinds files edges without uml_kind under 'association', but the filter selects [uml_kind=\"association\"], so those edges cannot be hidden. The edge.layer-hidden class is never used. WEB-11 cites other filter sites.",
+  "impact": "Hidden relationship layers reappear after expanding a package, and some edges cannot be filtered.",
+  "recommendation": "Drive visibility through classes (layer-hidden, collapsed-hidden) in one recompute step, and normalize uml_kind when loading.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-32",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Package collapse hides relations, uses dead sizing code and drifts labels",
+  "files": [
+   "web/js/graph-canvas.js:2142-2186",
+   "web/js/uml-layout.js:147-174"
+  ],
+  "evidence": "Expand writes data width/height from origWidth, but compound package styles never map width or height to data, so that code has no effect. The expanded label '[−] DOMAIN LAYER: X' differs from the initial 'DOMAIN: X', and 'N subpackages' is shown even when the children are classes. Collapsing hides child edges instead of rerouting them.",
+  "impact": "Collapsing a package hides all of its cross-package relations, and labels become inconsistent.",
+  "recommendation": "Reroute hidden edges to the collapsed node as aggregated meta-edges with counts, keep labels consistent, and remove the dead sizing code.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-33",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Standalone-node grid overlaps cards of different sizes",
+  "files": [
+   "web/js/uml-layout.js:259-273"
+  ],
+  "evidence": "Standalone nodes are spaced by their own size: x = c*(w+GAP)+w/2 and y = base + r*(h+GAP)+h/2. Class cards range from 290 to 950px wide with varying heights, so neighbours overlap, contradicting the file's 'zero overlapping' claim. layoutModularGridLayout already spaces by max size correctly.",
+  "impact": "Overlapping cards in package-less, composite and PUML-fallback diagrams.",
+  "recommendation": "Use the per-column max width and per-row max height. Add a property test asserting that no bounding boxes overlap.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-34",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Hierarchical layout pins any id containing 'start' or 'init' to rank 0",
+  "files": [
+   "web/js/uml-layout.js:352-361"
+  ],
+  "evidence": "isStart is true for kind 'entry' and for any id containing 'start' or 'init' (restart_handler, bb_initialize_cache), so those nodes are seeded at rank 0 even when deep in the graph. id.includes also throws for numeric ids.",
+  "impact": "CFG and state layouts place mid-graph nodes at the top.",
+  "recommendation": "Use explicit entry flags from the IR and call String(id) before string tests.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-35",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "PUML fallback parser: stereotypes swallowed, left arrows reversed, many [*] states",
+  "files": [
+   "web/js/puml-parser.js:42-44",
+   "web/js/puml-parser.js:74-76",
+   "web/js/puml-parser.js:164-171",
+   "web/js/puml-parser.js:175-185",
+   "web/js/puml-parser.js:325-336"
+  ],
+  "evidence": "Tested in Node: the name absorbs '<<Entity>>' and 'extends Bar'. <|--, --*, --o and <-- keep source→target order, so arrowheads point the wrong way. Each [*] creates a new state_init_N or state_final_N drawn as a normal state. An unquoted 'package x {' is ignored but its '}' pops the stack. Multiplicities and dotted names do not match.",
+  "impact": "When a JSON file is missing, the fallback diagrams are structurally wrong.",
+  "recommendation": "Implement a small PlantUML grammar or remove the fallback and show an error. Add tests for each arrow direction and for [*] handling.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-38",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Most card types use fixed widths; text overflows and content is silently dropped",
+  "files": [
+   "web/js/uml-card-renderer.js:42",
+   "web/js/uml-card-renderer.js:172",
+   "web/js/uml-card-renderer.js:487-525",
+   "web/js/uml-card-renderer.js:359-360",
+   "web/js/uml-card-renderer.js:578-579",
+   "web/js/uml-card-renderer.js:583-587"
+  ],
+  "evidence": "Only class cards size to content (capped at 950px, and 8.5px/char overestimates). State, action, use-case, object, CFG and package cards have fixed widths. CFG cards print 'BASIC BLOCK #<id>' and drop the label when instructions exist. Component and port shapes at x=-4 are clipped by the viewBox. Composite and profile cards silently show only 2-3 fields.",
+  "impact": "Real names are clipped and information disappears without notice.",
+  "recommendation": "Measure text (canvas measureText) for every card type, wrap or ellipsize with tooltips, keep shapes inside the viewBox, and show '+N more'.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-39",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Card SVGs request web fonts that SVG-as-image cannot load",
+  "files": [
+   "web/js/uml-card-renderer.js:86-155",
+   "web/index.html:22"
+  ],
+  "evidence": "Cards are data-URI SVG images whose text asks for JetBrains Mono and Inter. An SVG rendered as an image cannot use the page's Google web fonts, so text falls back to local fonts while card widths are estimated for JetBrains Mono.",
+  "impact": "Typography varies between machines and cards are mis-sized.",
+  "recommendation": "Embed a subset font with @font-face inside the SVG, or draw labels with Cytoscape text styles.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-40",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "A node with a null name crashes the whole render",
+  "files": [
+   "web/js/uml-card-renderer.js:10-32",
+   "web/js/uml-card-renderer.js:233-237",
+   "web/js/graph-loader.js:46"
+  ],
+  "evidence": "Destructuring defaults apply only to undefined. 'name': null reaches name.length (line 32) or name.endsWith (line 236) and throws, aborting the render. shortName.toUpperCase in graph-loader also throws when a package id or name is not a string.",
+  "impact": "One malformed node blanks the entire diagram.",
+  "recommendation": "Coerce with String(name ?? id) in the loader and wrap each card in try/catch with a placeholder card.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-41",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Magnifier loupe shows the diagram on a black background",
+  "files": [
+   "web/js/minimap-navigator.js:129",
+   "web/js/minimap-navigator.js:622-631",
+   "web/style.css:1320-1336"
+  ],
+  "evidence": "The loupe context is created with alpha:false and cleared with clearRect, which produces opaque black. Cytoscape layer canvases are transparent outside drawn shapes, so the magnified view shows the diagram on black instead of the canvas background, even in light mode.",
+  "impact": "The loupe is hard to read, especially in the light theme.",
+  "recommendation": "Fill with the theme's canvas colour before blitting, or create the context with alpha:true.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-42",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "M/L shortcuts ignore modifier keys and swallow Ctrl/Cmd+L",
+  "files": [
+   "web/js/minimap-navigator.js:272-287"
+  ],
+  "evidence": "keydown checks only e.key 'm' or 'l' and calls preventDefault, so Ctrl/Cmd+L (focus address bar) toggles the loupe and Ctrl+M toggles the minimap. WEB-15 flags these as single-key shortcuts, but blocking browser shortcuts is a separate functional bug.",
+  "impact": "Standard browser shortcuts stop working on the studio page.",
+  "recommendation": "Return early when ctrlKey, metaKey or altKey is set.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-43",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Shared HUD status line clobbers errors and results",
+  "files": [
+   "web/js/graph-canvas.js:2332-2349",
+   "web/js/graph-canvas.js:2264-2266",
+   "web/index.html:678-683",
+   "web/js/minimap-navigator.js:295-300"
+  ],
+  "evidence": "More than 15 writers set #hud-status-text. showCanvasNotification resets it to the default hint after 2.5s regardless of later writers, and every hover replaces it. 'Analysis Failed: …' or the import summary vanishes on the next hover, undo or shortcut.",
+  "impact": "Errors disappear before users can read them.",
+  "recommendation": "Separate a persistent status line from transient toasts, queue notifications, and keep errors until dismissed.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-44",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Import renders a class diagram while the sidebar still highlights another tab",
+  "files": [
+   "web/js/graph-canvas.js:98-103",
+   "web/index.html:935",
+   "web/index.html:1010",
+   "web/index.html:1391-1393"
+  ],
+  "evidence": "renderCustomGraphIr renders graphIr.diagram_type || 'class' and sets currentGraphType, but neither the sidebar highlight nor localStorage openheart_active_graph changes. Loading a saved state updates the highlight but not localStorage.",
+  "impact": "After an import the canvas shows a class diagram under an active 'Sequence' tab, and a reload reverts the view.",
+  "recommendation": "Add one setActiveDiagram(type) function that updates canvas, sidebar and storage together, or render the selected tab's projection after import.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-45",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Dead preset, inconsistent preset lists, and lossy history dedupe",
+  "files": [
+   "web/index.html:89-94",
+   "web/index.html:1137-1160",
+   "web/index.html:1208-1227",
+   "web/index.html:1171-1175"
+  ],
+  "evidence": "The payment-service chip goes to github.com/example/payment-service, a placeholder, and fails. The chips and the dropdown offer different presets. Chips clear the custom-codebase state before the import succeeds; dropdown presets do not. History dedupe drops any entry with the same name, merging different owners' repos.",
+  "impact": "One visible preset always fails, and preset behaviour depends on where it is clicked.",
+  "recommendation": "Define presets once in the manifest with verified URLs, dedupe history by id only, and clear state only after a successful import.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-46",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Startup waits on the manifest fetch; theme applied late (flash of wrong theme)",
+  "files": [
+   "web/index.html:416-421",
+   "web/index.html:778",
+   "web/js/themes/theme-manager.js:103-116",
+   "web/js/themes/theme-manager.js:225-234"
+  ],
+  "evidence": "The bootstrap awaits fetchManifest, which has no timeout, before any init, and initTheme runs only after the canvas and editor are initialized. Dark-theme users see a light flash, the UI is inert meanwhile, OS theme changes are never observed, and the first auto-detected theme is persisted as if the user had chosen it.",
+  "impact": "A flash of the wrong theme and an unresponsive UI on slow networks.",
+  "recommendation": "Set the theme in an inline head script, fetch the manifest in parallel with a timeout, listen to matchMedia changes, and persist only explicit choices.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-47",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "Static HTML placeholders present fabricated status before any analysis",
+  "files": [
+   "web/index.html:100",
+   "web/index.html:321",
+   "web/index.html:340-359",
+   "web/index.html:384",
+   "web/index.html:396-401",
+   "web/index.html:124-166"
+  ],
+  "evidence": "The page ships with 'SCPG 0x83D202B2 · Verified', a file count of 35, VideoConversionFacade.java, '3 Feasible', 'Block #0 (Entry)', a branch guard, an always-'Synchronized' pill and a 'Cooper Dominators + ROBDD Active · 2026 Production Build' footer. class.json's compiler_hash is 0x83D2D2B2, not the badge value. The static sidebar is replaced at runtime anyway.",
+  "impact": "Users see invented status before any work has happened.",
+  "recommendation": "Ship neutral empty states and derive every badge and metric from loaded data.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-48",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Empty-view placeholder node renders as an unlabelled grey dot",
+  "files": [
+   "web/js/graph-canvas.js:612-618",
+   "web/js/graph-canvas.js:650-654",
+   "web/js/themes/theme-manager.js:244-582"
+  ],
+  "evidence": "For empty projections renderGraph inserts a node with kind 'entry', a multi-line label and no svgDataUri. The stylesheet has no generic node rule mapping label to data(label), so Cytoscape draws a default dot with no text. The fallback text also claims 'Compiled Live from Source'.",
+  "impact": "Empty views show an unexplained dot instead of a message.",
+  "recommendation": "Show empty states as an HTML overlay rather than a graph node.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-49",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "Saved state embeds card SVGs: bloat, stale theme, and an image-URL load from untrusted files",
+  "files": [
+   "web/js/graph-canvas.js:1354-1381",
+   "web/js/graph-canvas.js:1383-1412",
+   "web/js/graph-canvas.js:1368",
+   "web/js/graph-canvas.js:1889",
+   "web/js/themes/theme-manager.js:247-250"
+  ],
+  "evidence": "Saved state stores every node's svgDataUri, so files are mostly encoded SVG and reload with the old theme's cards. A crafted state can set svgDataUri to any URL that Cytoscape loads as a background image, which works as a beacon; this is not WSEC-04's innerHTML or fetch sink. The $schema URLs point to schemas that are not published.",
+  "impact": "Large, theme-locked state files, and a third-party image load when opening an untrusted file.",
+  "recommendation": "Persist the IR plus positions and regenerate cards on load. Accept only data:image/svg+xml. Publish the schemas or drop the $schema fields.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-50",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Dead and misleading code, and conflicting colour sources",
+  "files": [
+   "web/js/graph-canvas.js:15",
+   "web/js/graph-canvas.js:407",
+   "web/js/graph-canvas.js:685",
+   "web/js/graph-canvas.js:707",
+   "web/js/graph-canvas.js:2360",
+   "web/js/minimap-navigator.js:511",
+   "web/js/uml-card-renderer.js:190",
+   "web/js/themes/light.js:85-98",
+   "web/index.html:1470"
+  ],
+  "evidence": "Unused import generatePackageFolderSvg. normType 'use_case' is unreachable after underscores are stripped. wheelSensitivity is set although user zooming is disabled. 'pan zoom viewport' fires the minimap twice per change. The id 'interactive-canvas' filter and kind.startsWith('cfg') can never match. Theme canvas.* and edges.<kind> tokens are unused and disagree with the manifest (aggregation #F59E0B vs #059669). Export comments are numbered 1-5 then 4.",
+  "impact": "Maintainers are misled about which values are authoritative.",
+  "recommendation": "Delete the dead branches and tokens, keep one source of edge colours, and enable ESLint no-unused-vars.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-51",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "low",
+  "title": "Manifest is not authoritative: duplicated in JS, fields ignored, relation kinds missing",
+  "files": [
+   "web/diagrams/manifest.json:16-19",
+   "web/diagrams/manifest.json:396-405",
+   "web/js/themes/theme-manager.js:8-98",
+   "web/js/graph-canvas.js:344-359"
+  ],
+  "evidence": "DEFAULT_MANIFEST hand-duplicates manifest.json. file_json, file_puml and layout_engine are never read: renderGraph hardcodes `${graphType}.json`, and the actual layouts differ from the declared ones (communication is circular). The kinds 'call', 'include' and 'extend' are missing and fall back to the default style. The assembly label '(-(0-)' is malformed.",
+  "impact": "The 'zero hardcoding' claim does not hold, and new relation kinds silently lose their styling.",
+  "recommendation": "Read file paths and layout from the manifest, generate the default copy at build time, add the missing kinds, and validate against a schema.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-52",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Unreferenced assets deployed (.mmd files, duplicate JSON, unlinked docs, garbage demo names)",
+  "files": [
+   "web/diagrams/state.json",
+   "web/diagrams/use_case.json",
+   "web/diagrams/class.mmd",
+   "web/docs/scpg_architecture_diagram.html",
+   ".github/workflows/deploy_pages.yml:30-33"
+  ],
+  "evidence": "No JS references the .mmd files, state.json or use_case.json (renderGraph fetches statemachine and usecase). Nothing links web/docs. The workflow uploads all of web/. deployment.json has exporter-garbage node names such as node_Lets and node_terface.",
+  "impact": "Larger deploys, duplicate sources of truth, and demo data that looks broken.",
+  "recommendation": "Expose the Mermaid/PlantUML sources and docs in the UI or exclude them from the artifact, and regenerate deployment.json.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-54",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "Docs claim Lengauer-Tarjan dominators; the code uses Cooper-Harvey-Kennedy",
+  "files": [
+   "web/docs/openheart_10_phase_pipeline.html:50",
+   "web/docs/scpg_architecture_diagram.html:61",
+   "web/docs/scpg_architecture_diagram.html:218",
+   "src/cfg/analysis/dominators.rs:1"
+  ],
+  "evidence": "The pipeline and architecture pages state Lengauer-Tarjan in O(m α(m,n)), but dominators.rs implements the iterative Cooper-Harvey-Kennedy algorithm, which the phase-4 doc and the studio footer also name. Only phases 1-6 have docs pages; phases 7-10 have none.",
+  "impact": "Published algorithm and complexity claims do not match the implementation.",
+  "recommendation": "Correct the algorithm and complexity text and add pages for phases 7-10.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-56",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "No content hashing, so modules can mismatch after a deploy; duplicate theme CSS",
+  "files": [
+   "web/index.html:24-26",
+   "web/index.html:408-414",
+   "web/style.css:1-2"
+  ],
+  "evidence": "ES modules and CSS are referenced by fixed names with no hash or version. After a deploy a browser can combine a new index.html with cached old modules, or the reverse; this is distinct from WEB-09's meta cache tags. style.css also @imports the two theme files that index.html already links.",
+  "impact": "Runtime errors right after deploys, and duplicate CSS requests.",
+  "recommendation": "Add a build step that emits hashed filenames or ?v=<sha> suffixes, and remove the duplicate @imports.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-57",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Spinner invisible in dark mode; no color-scheme or reduced-motion support",
+  "files": [
+   "web/style.css:547-556",
+   "web/style.css:202-223",
+   "web/themes/dark.css:5"
+  ],
+  "evidence": "The spinner is white (border-top #FFFFFF) on .btn-analyze-pill, whose background is --text-main, #F8FAFC in dark mode, so it is invisible. There is no color-scheme declaration, so native scrollbars, the range slider and checkboxes stay light in dark mode. Smooth scrolling, pulses and animated zoom ignore prefers-reduced-motion.",
+  "impact": "The progress spinner disappears in dark mode, native controls clash, and motion-sensitive users are not accommodated.",
+  "recommendation": "Draw the spinner with currentColor, set color-scheme per theme, and add a prefers-reduced-motion media query.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-58",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Head metadata issues: verification meta, apple-touch-icon, brand link",
+  "files": [
+   "web/index.html:11",
+   "web/index.html:17",
+   "web/index.html:43"
+  ],
+  "evidence": "The google-site-verification meta content is the HTML-file token name rather than a meta-method token. apple-touch-icon points to an SVG, which iOS ignores, although favicon-192.png exists. The brand link href='#' only appends a hash to the URL.",
+  "impact": "Minor SEO and home-screen icon problems.",
+  "recommendation": "Remove the meta tag (the file method is enough), use a 180x180 PNG for the touch icon, and link the brand to './'.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB2-59",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Orphaned legacy modules contain fake exports and leaks (beyond WSEC-05's security sinks)",
+  "files": [
+   "web/js/ui.js:123-129",
+   "web/js/ui.js:140-148",
+   "web/js/viewer.js:220-266",
+   "web/js/viewer.js:365",
+   "web/js/api.js:115-124",
+   "web/js/orb.js:128-129",
+   "web/js/state.js:207-211"
+  ],
+  "evidence": "The XMI export writes an empty XMI and toasts 'Exported XMI 2.5 metadata'. Object URLs are never revoked. Pan/zoom listeners are re-added on every render. The trace card picks item type.length % n. The local SVG fallback invents '+ execute()'. The orb's rAF loop never stops, and window.activeTraceabilityList leaks a global.",
+  "impact": "If revived, these modules produce fake exports and leaks; today they only add weight and confusion.",
+  "recommendation": "Delete app.js and its module graph, or move it to an archive folder excluded from deploy.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-60",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Touch pinch and pan are not 1:1",
+  "files": [
+   "web/js/graph-canvas.js:1264-1307"
+  ],
+  "evidence": "Pinch zoom is damped (1 + (ratio-1)*0.4), so fingers and content drift apart. Two-finger pan movement is multiplied by panSensitivity*10, which is 5x at the 50% setting. When Pan Lock captures mousedown, one-finger panning falls back to emulated mouse events.",
+  "impact": "Touch navigation feels inaccurate on tablets.",
+  "recommendation": "Use 1:1 pinch anchored at the midpoint, ignore the wheel sensitivity for touch, and switch to Pointer Events.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-61",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Pan Lock says 'Layout locked' but collapse and delete still edit the graph",
+  "files": [
+   "web/js/graph-canvas.js:1114-1124",
+   "web/js/graph-canvas.js:1204-1209",
+   "web/js/graph-canvas.js:2351-2392",
+   "web/index.html:1299-1301"
+  ],
+  "evidence": "The HUD announces 'Layout locked. Pure pan & inspect mode', yet taps in lock mode still collapse and expand packages, and Delete/Backspace still removes the selected nodes.",
+  "impact": "A mode labelled read-only still changes the diagram.",
+  "recommendation": "Block structural edits while locked, or rename the mode.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-62",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Serial GitHub fetches and fragile URL parsing",
+  "files": [
+   "web/js/github-engine.js:10-37",
+   "web/js/github-engine.js:109-125",
+   "web/js/github-engine.js:65-80",
+   "web/index.html:812-813"
+  ],
+  "evidence": "Raw files are fetched one by one (30 awaits), and up to six tree requests are tried sequentially. parseRepoUrl rejects git@github.com:o/r.git, keeps '?tab=readme' in the repo name, does not strip www.github.com, and treats gitlab.com/a/b as owner gitlab.com. index.html takes the last path segment as the repo name, so /tree/main yields 'main'.",
+  "impact": "Imports are slow, and common URL forms cause confusing errors or names.",
+  "recommendation": "Fetch through a concurrency pool of about 6, parse URLs with URL() and validate the host, and derive the name from the parsed owner/repo.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-64",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Copy button can stick on 'Copied'; source cache collides on base names",
+  "files": [
+   "web/js/editor.js:92-105",
+   "web/js/editor.js:37-44"
+  ],
+  "evidence": "Two Copy clicks within 1.8s capture the 'Copied' markup as orig, leaving the button permanently on 'Copied', and clipboard errors are swallowed. setSource also caches by base name, so a/Util.java and b/Util.java overwrite each other for bare-name lookups such as the fabricated ${name}.java paths.",
+  "impact": "A stuck button state, and the wrong file shown for bare-name lookups.",
+  "recommendation": "Capture the original markup once and clear any pending timer, show clipboard errors, and key the cache by full path only.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-63",
+  "kind": "enhancement",
+  "category": "performance",
+  "severity": "low",
+  "title": "Code viewer re-renders the whole file with per-line regexes and listeners",
+  "files": [
+   "web/js/editor.js:523-558",
+   "web/js/editor.js:575-589"
+  ],
+  "evidence": "render() rebuilds the full file as two HTML strings (one div per line in both gutter and code), runs five regex passes per line and attaches one listener per gutter line. It does this on every load, gutter click and theme change, with no virtualization or size cap.",
+  "impact": "Opening a multi-thousand-line file freezes the inspector.",
+  "recommendation": "Virtualize rows, delegate gutter clicks to one listener, cache highlighted lines, or adopt CodeMirror 6.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-67",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "No node search and no shareable deep links",
+  "files": [
+   "web/index.html:170-313",
+   "web/index.html:425"
+  ],
+  "evidence": "There is no search or 'find class' command for the canvas. View state (repo, diagram type, selected node) lives only in storage, never in the URL, so a view cannot be bookmarked or shared.",
+  "impact": "Large diagrams are hard to navigate and views cannot be shared.",
+  "recommendation": "Add a search box that highlights matches and zooms to them, and encode repo, diagram and node in location.hash with popstate handling.",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

@@ -1,5 +1,9 @@
 //! FunctionROBDDBuilder — the per-function Phase 8 pipeline (§8.5.2, §8.3).
 //!
+//! The input is a language-neutral CFG ([`PathCfg`]): a Phase 4 CFG through
+//! [`FunctionROBDDBuilder::build`], or any frontend's CFG with its edge guards through
+//! [`FunctionROBDDBuilder::build_neutral`]. Both run the same steps:
+//!
 //! ```text
 //! Step 1: PathGraph — edge-id CSR, DFS classification (back edges, loop headers, inactive edges)
 //! Step 2: Exact metrics by O(V+E) dynamic programs: Ball-Larus path count (unbounded integer)
@@ -12,11 +16,13 @@
 //! Step 7: Feasibility filtering and ∃-quantification of the predicate variables
 //! Step 8: Mark-compact the root's sub-DAG and drop the predicate levels
 //! Step 9: Rudell sifting (budgeted; kept only if it shrinks the ROBDD and preserves #SAT)
-//! Step 10: Assemble metrics and flags
+//! Step 10: Assemble metrics and flags; Invariant 2 (V(G) against the structural lower
+//!          bound) and Invariant 3 (canonicity, order and ids of the stored array)
 //! ```
 //!
-//! When steps 3–9 cannot complete (budget, deadline, more than 65535 variables) the
-//! function is recorded with `PSA_FLAG_BDD_UNAVAILABLE` and the step 2 metrics.
+//! When steps 3–9 cannot complete (budget, deadline, more than 65535 variables) or the
+//! stored array fails Invariant 3, the function is recorded with `PSA_FLAG_BDD_UNAVAILABLE`
+//! and the step 2 metrics; nothing panics.
 
 pub mod constraints;
 pub mod feasibility;
@@ -27,9 +33,10 @@ pub mod recursive;
 use std::collections::HashMap;
 use std::time::Instant;
 
+use crate::cfg::builder::state::CfgDiagnosticKind;
 use crate::cfg::builder::FunctionCFGData;
 use crate::psa::bdd::node::ROBDDNode;
-use crate::psa::bdd::{count_models, BDDLibrary, BddLimits, CompactBdd};
+use crate::psa::bdd::{count_models, verify_node_array, BDDLibrary, BddLimits, CompactBdd};
 use crate::psa::config::Phase8Config;
 use crate::psa::count::PathCount;
 use crate::psa::ordering::force::FORCE_MAX_ITERATIONS;
@@ -39,15 +46,54 @@ use crate::psa::ordering::{
 };
 use crate::psa::types::{
     BoolOp, FunctionROBDD, SummaryUnavailable, PSA_FLAG_BDD_UNAVAILABLE,
-    PSA_FLAG_COUNT_SATURATED, PSA_FLAG_EMPTY_CFG, PSA_FLAG_FEASIBILITY_FILTERED,
-    PSA_FLAG_HAS_LOOPS, PSA_FLAG_MAX_PATH_SATURATED, PSA_FLAG_SIFTED, PSA_NO_ROOT,
+    PSA_FLAG_COUNT_SATURATED, PSA_FLAG_CYCLOMATIC_INCONSISTENT, PSA_FLAG_CYCLOMATIC_SATURATED,
+    PSA_FLAG_EMPTY_CFG, PSA_FLAG_EXCEPTIONAL_EXCLUDED, PSA_FLAG_FEASIBILITY_FILTERED,
+    PSA_FLAG_HAS_LOOPS, PSA_FLAG_MAX_PATH_SATURATED, PSA_FLAG_NEUTRAL_CFG, PSA_FLAG_SIFTED,
+    PSA_NO_ROOT,
 };
 
 use self::constraints::build_path_formula;
-use self::feasibility::{BranchPredicate, FeasibilityFilter, UsablePredicate};
-use self::graph::PathGraph;
+use self::feasibility::{BranchPredicate, EdgeGuard, FeasibilityFilter};
+use self::graph::{ExceptionalEdges, PathCfg, PathGraph};
 use self::levels::{BuildLevels, BuildVar};
 use self::recursive::RecursiveHandler;
+
+/// One function in the language-neutral input form of Phase 8.
+///
+/// A frontend fills it from its own CFG: blocks, entry and typed edges ([`PathCfg`]), the
+/// guards its canonical branch conditions put on edges ([`EdgeGuard`]), and its V(G) when it
+/// computes one. Edge ids are positions in `cfg.edges`, for the guards and for the ordering
+/// table of the resulting summary (recorded with `PSA_FLAG_NEUTRAL_CFG`).
+#[derive(Clone, Debug)]
+pub struct NeutralPathFunction {
+    /// Symbol id the summary is recorded under.
+    pub sym_id: u32,
+    /// The function's CFG.
+    pub cfg: PathCfg,
+    /// What taking each edge implies about canonical branch predicates (may be empty).
+    pub guards: Vec<EdgeGuard>,
+    /// McCabe V(G) as defined by the producer, when it computes one. When `None`, Phase 8
+    /// stores the structural value `decision points + 1` of `cfg`.
+    pub cyclomatic: Option<u16>,
+}
+
+/// The producer's V(G), when there is one.
+#[derive(Clone, Copy, Debug)]
+struct ReportedCyclomatic {
+    value: u16,
+    /// The producer clamped the value at `u16::MAX`.
+    saturated: bool,
+}
+
+/// What the builder needs besides the graph.
+struct FunctionInput<'a> {
+    sym_id: u32,
+    cfg: &'a PathCfg,
+    graph: &'a PathGraph,
+    guards: &'a [EdgeGuard],
+    cyclomatic: Option<ReportedCyclomatic>,
+    neutral: bool,
+}
 
 /// Builds the summary for a single function.
 ///
@@ -65,12 +111,13 @@ struct BuiltSummary {
 }
 
 impl FunctionROBDDBuilder {
-    /// Build the ROBDD and path metrics for one function.
+    /// Build the ROBDD and path metrics for one Phase 4 function.
     ///
     /// # Parameters
     /// - `sym_id`: function symbol ID from STA.
     /// - `cfg`: CFG data for this function from the CFA artifact.
-    /// - `predicates`: canonical branch predicates of this function (may be empty).
+    /// - `predicates`: canonical branch predicates of this function (may be empty), keyed by
+    ///   Phase 4 block id.
     /// - `is_recursive`: true iff this function's SCC has `scc_class ≥ 1`.
     /// - `config`: budgets and tuning.
     pub fn build(
@@ -80,11 +127,72 @@ impl FunctionROBDDBuilder {
         is_recursive: bool,
         config: &Phase8Config,
     ) -> FunctionROBDD {
-        // ── Step 1: edge-indexed, classified CFG ─────────────────────────────
-        let graph = PathGraph::new(cfg);
+        let path_cfg = PathCfg::from_cfa(cfg);
+        let graph = PathGraph::new(&path_cfg, config.exceptional_edges);
+        let guards = EdgeGuard::from_branch_predicates(&graph, predicates);
+        let saturated = cfg
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == CfgDiagnosticKind::CyclomaticSaturated);
+        Self::build_graph(
+            FunctionInput {
+                sym_id,
+                cfg: &path_cfg,
+                graph: &graph,
+                guards: &guards,
+                cyclomatic: Some(ReportedCyclomatic {
+                    value: cfg.cyclomatic,
+                    saturated,
+                }),
+                neutral: false,
+            },
+            is_recursive,
+            config,
+        )
+    }
+
+    /// Build the ROBDD and path metrics for one function supplied in neutral form.
+    pub fn build_neutral(
+        function: &NeutralPathFunction,
+        is_recursive: bool,
+        config: &Phase8Config,
+    ) -> FunctionROBDD {
+        let graph = PathGraph::new(&function.cfg, config.exceptional_edges);
+        Self::build_graph(
+            FunctionInput {
+                sym_id: function.sym_id,
+                cfg: &function.cfg,
+                graph: &graph,
+                guards: &function.guards,
+                cyclomatic: function.cyclomatic.map(|value| ReportedCyclomatic {
+                    value,
+                    saturated: false,
+                }),
+                neutral: true,
+            },
+            is_recursive,
+            config,
+        )
+    }
+
+    /// Steps 1–10 over a built graph.
+    fn build_graph(
+        input: FunctionInput<'_>,
+        is_recursive: bool,
+        config: &Phase8Config,
+    ) -> FunctionROBDD {
+        let graph = input.graph;
+
+        // ── Step 1: classification flags ─────────────────────────────────────
         let (mut flags, unwind_depth) = RecursiveHandler::classify(is_recursive);
         if graph.has_loops() {
             flags |= PSA_FLAG_HAS_LOOPS;
+        }
+        if input.neutral {
+            flags |= PSA_FLAG_NEUTRAL_CFG;
+        }
+        if config.exceptional_edges == ExceptionalEdges::Exclude {
+            flags |= PSA_FLAG_EXCEPTIONAL_EXCLUDED;
         }
 
         // ── Step 2: exact metrics (no BDD needed) ────────────────────────────
@@ -96,15 +204,22 @@ impl FunctionROBDDBuilder {
         } else {
             longest as u16
         };
-        // V(G) = |E| - |B| + 2, computed by Phase 4 from CFA metadata (§8.2.5).
-        let cyclomatic = cfg.cyclomatic;
+        let (cyclomatic, cyclomatic_flags) =
+            cyclomatic_metric(input.cyclomatic, input.cfg.structural_cyclomatic());
+        flags |= cyclomatic_flags;
 
         // ── Steps 3–9: the ROBDD summary ─────────────────────────────────────
         let outcome = if graph.n_blocks() == 0 {
             flags |= PSA_FLAG_EMPTY_CFG;
             Err(SummaryUnavailable::EmptyCfg)
+        } else if !graph.entry_is_valid() {
+            Err(SummaryUnavailable::InvalidCfg(format!(
+                "entry block {} is not one of its {} blocks",
+                graph.entry(),
+                graph.n_blocks()
+            )))
         } else {
-            Self::build_summary(&graph, predicates, &structural_count, config)
+            Self::build_summary(graph, input.guards, &structural_count, config)
         };
 
         // ── Step 10: assemble ────────────────────────────────────────────────
@@ -145,23 +260,8 @@ impl FunctionROBDDBuilder {
         };
         let log2_paths = path_count.log2();
 
-        // ── Invariant 3 check (§8.8): canonicity and order of the stored array ──
-        #[cfg(debug_assertions)]
-        {
-            if root != PSA_NO_ROOT {
-                if let Err(msg) =
-                    crate::psa::bdd::verify_node_array(&nodes, Some(ordering.n_vars()))
-                {
-                    panic!(
-                        "Phase 8 Invariant 3 (Canonicity) violated for sym_id={}: {}",
-                        sym_id, msg
-                    );
-                }
-            }
-        }
-
         FunctionROBDD {
-            sym_id,
+            sym_id: input.sym_id,
             ordering,
             nodes,
             root,
@@ -179,7 +279,7 @@ impl FunctionROBDDBuilder {
     /// Steps 3–9.
     fn build_summary(
         graph: &PathGraph,
-        predicates: &[BranchPredicate],
+        guards: &[EdgeGuard],
         dp_count: &PathCount,
         config: &Phase8Config,
     ) -> Result<BuiltSummary, SummaryUnavailable> {
@@ -193,7 +293,7 @@ impl FunctionROBDDBuilder {
         let path_order: Vec<VarKey> = order.iter().map(|&i| seed[i]).collect();
 
         // ── Step 4: predicate levels ──────────────────────────────────────────
-        let usable = FeasibilityFilter::usable_predicates(graph, predicates);
+        let usable = FeasibilityFilter::usable_guards(graph, guards);
         let build_vars = interleave_predicates(&path_order, &usable);
         if build_vars.len() > MAX_BDD_VARS {
             return Err(SummaryUnavailable::TooManyVariables {
@@ -279,6 +379,18 @@ impl FunctionROBDDBuilder {
             }
         }
 
+        // ── Invariant 3 (§8.8): canonicity, order and ids of the stored array ─
+        verify_node_array(&compact.nodes, Some(n_vars)).map_err(|msg| {
+            SummaryUnavailable::InvalidBdd(format!("Invariant 3 (canonicity): {}", msg))
+        })?;
+        if compact.root as usize >= compact.nodes.len() {
+            return Err(SummaryUnavailable::InvalidBdd(format!(
+                "root {} is outside the {} stored nodes",
+                compact.root,
+                compact.nodes.len()
+            )));
+        }
+
         Ok(BuiltSummary {
             bdd: compact,
             ordering,
@@ -289,11 +401,38 @@ impl FunctionROBDDBuilder {
     }
 }
 
-/// Insert each predicate variable immediately above the first level of any of its branch
-/// edges, so the BDD needs to remember a predicate's value only while it is relevant.
-fn interleave_predicates(path_order: &[VarKey], usable: &[UsablePredicate]) -> Vec<BuildVar> {
+/// The V(G) value to store and the flags qualifying it (§8.2.5, Invariant 2 of §8.8).
+///
+/// `structural` is `decision points + 1` recomputed from the CFG's non-exceptional edges —
+/// a lower bound of every producer's value (Phase 4 adds one decision per catch clause,
+/// which the CFG's edges do not show). A producer value below it is inconsistent and
+/// flagged; without a producer value the structural one is stored.
+fn cyclomatic_metric(reported: Option<ReportedCyclomatic>, structural: u64) -> (u16, u16) {
+    let mut flags = 0u16;
+    let value = match reported {
+        Some(r) => {
+            if (r.value as u64) < structural.min(u16::MAX as u64) {
+                flags |= PSA_FLAG_CYCLOMATIC_INCONSISTENT;
+            }
+            if r.saturated {
+                flags |= PSA_FLAG_CYCLOMATIC_SATURATED;
+            }
+            r.value
+        }
+        None => u16::try_from(structural).unwrap_or(u16::MAX),
+    };
+    if structural > u16::MAX as u64 {
+        flags |= PSA_FLAG_CYCLOMATIC_SATURATED;
+    }
+    (value, flags)
+}
+
+/// Insert each predicate variable immediately above the first level of any edge it guards,
+/// so the BDD needs to remember a predicate's value only while it is relevant.
+fn interleave_predicates(path_order: &[VarKey], usable: &[EdgeGuard]) -> Vec<BuildVar> {
     let mut out: Vec<BuildVar> = Vec::with_capacity(path_order.len() + usable.len());
-    if usable.is_empty() {
+    let predicate_ids = FeasibilityFilter::predicate_ids(usable);
+    if predicate_ids.is_empty() {
         out.extend(path_order.iter().map(|&k| BuildVar::Path(k)));
         return out;
     }
@@ -305,20 +444,21 @@ fn interleave_predicates(path_order: &[VarKey], usable: &[UsablePredicate]) -> V
         }
     }
     // First position at which each predicate is needed.
-    let mut first_use: HashMap<u32, usize> = HashMap::new();
-    for u in usable {
-        let pos = [u.true_edge, u.false_edge]
-            .iter()
-            .filter_map(|e| edge_pos.get(e).copied())
-            .min()
-            .unwrap_or(0);
-        let slot = first_use.entry(u.predicate_id).or_insert(pos);
-        if pos < *slot {
-            *slot = pos;
+    let mut first_use: HashMap<u32, usize> = HashMap::with_capacity(predicate_ids.len());
+    for g in usable {
+        if let EdgeGuard::Requires { edge, literals } = g {
+            let pos = edge_pos.get(edge).copied().unwrap_or(0);
+            for lit in literals {
+                let slot = first_use.entry(lit.predicate_id).or_insert(pos);
+                if pos < *slot {
+                    *slot = pos;
+                }
+            }
         }
     }
     let mut by_pos: HashMap<usize, Vec<u32>> = HashMap::new();
-    for (&p, &pos) in &first_use {
+    for &p in &predicate_ids {
+        let pos = first_use.get(&p).copied().unwrap_or(0);
         by_pos.entry(pos).or_default().push(p);
     }
     for list in by_pos.values_mut() {

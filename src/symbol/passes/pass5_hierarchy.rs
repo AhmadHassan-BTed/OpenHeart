@@ -143,10 +143,35 @@ impl Pass5Hierarchy {
         // 2. Anonymous classes extend the instantiated class or implement the interface.
         let anonymous = builder.anonymous_classes.clone();
         for (anon, _node, new_tok) in anonymous {
-            let scope = match builder.symbol(anon) {
-                Some(s) => s.scope_id,
+            let (scope, parent) = match builder.symbol(anon) {
+                Some(s) => (s.scope_id, s.parent_sym),
                 None => continue,
             };
+            if new_tok == u32::MAX {
+                // Constant-specific class body: an anonymous subclass of the enum (JLS 8.9.1).
+                let enum_sym = builder.symbol(parent).map(|c| c.type_id).unwrap_or(u32::MAX);
+                if builder.symbol_kind(enum_sym) == Some(SymbolKind::SK_ENUM) {
+                    builder.add_th_edge(anon, enum_sym, THRelation::TH_EXTENDS);
+                    let tr = builder.add_type_ref(crate::symbol::model::TypeRef {
+                        head: enum_sym,
+                        written_name_id: u32::MAX,
+                        args: Vec::new(),
+                        array_dims: 0,
+                        wildcard: crate::symbol::model::WildcardKind::None as u8,
+                        flags: 0,
+                        status: crate::symbol::model::ResolutionStatus::Project as u8,
+                        first_token: u32::MAX,
+                        last_token: u32::MAX,
+                    });
+                    builder.supertypes.push(SupertypeRecord {
+                        sub: anon,
+                        sup: enum_sym,
+                        relation: THRelation::TH_EXTENDS,
+                        type_ref: tr,
+                    });
+                }
+                continue;
+            }
             let mut parser = TypeParser::new(&tv, file_end(new_tok), Dialect::Java);
             let ty = match parser.parse(new_tok + 1, TypeOptions::default()) {
                 Some((ty, _)) => ty,
@@ -196,7 +221,7 @@ impl Pass5Hierarchy {
         }
 
         // 4. Field associations and TH_USES (project types only).
-        AssociationDetector::detect_all(bpa, &tv, ast, builder);
+        AssociationDetector::detect_all(bpa, &tv, ast, adapter, builder);
 
         // 5. Diagnose hierarchy cycles (edges are kept and flagged).
         builder.mark_hierarchy_cycles();

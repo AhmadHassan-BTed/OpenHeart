@@ -2049,7 +2049,7 @@ impl<'m> Solver<'m> {
                 let v = self
                     .cfg
                     .hierarchy
-                    .external_entry_methods(ty, &|m| by_symbol.contains_key(&m));
+                    .external_entry_methods(ty, &|m: u32| by_symbol.contains_key(&m));
                 self.callback_cache.insert(ty, v.clone());
                 v
             }

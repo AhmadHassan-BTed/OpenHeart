@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
 
 use crate::arch::dsm::{self, component_levels, strongly_connected_components, DsmConfig};
 use crate::arch::graph::{span_key, Certainty, DependencyGraph, KindSet, Level, NodeId};
-use crate::ir::Span;
+use crate::ir::types::Span;
 
 #[derive(Debug, Clone)]
 pub struct DeclaredLayer {

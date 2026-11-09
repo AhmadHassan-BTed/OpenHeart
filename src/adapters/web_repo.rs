@@ -3,151 +3,34 @@
 //! Validates GitHub repository URLs and fetches them into the server workspace without
 //! coupling to core SCPG graph structures.
 //!
-//! Only `https://github.com/<owner>/<repo>` (optionally `/tree/<ref>/<path>`) is accepted.
-//! Clones run `git` with every transport except HTTPS disabled, no credential helpers or
-//! prompts, symlinks checked out as plain files, the URL passed after `--`, a wall-clock
-//! limit and a size limit, into a scratch directory that is renamed into place only after
-//! a complete, verified clone. Cached checkouts are reused only after their `origin` URL
-//! is verified to match the request.
+//! Only `https://github.com/<owner>/<repo>` (optionally `/tree/<ref>/<path>`) is accepted;
+//! URLs carrying credentials are refused rather than rewritten. Clones run `git` in an
+//! isolated credential context: no system or user configuration is read (so no credential
+//! helper, `insteadOf` rewrite or extra HTTP header of the operator's account applies),
+//! every transport except anonymous HTTPS is disabled, prompts and askpass programs are
+//! off, no template hooks are installed, symlinks are checked out as plain files, the URL
+//! is passed after `--`, and a wall-clock and a size limit are enforced. A clone lands in a
+//! scratch directory that is renamed into place only when complete. Cached checkouts are
+//! reused only after their `origin` URL is verified, are leased while an analysis or a
+//! session reads them, re-cloned once older than the configured age, and evicted least
+//! recently used first beyond the configured count and size.
 
 #![forbid(unsafe_code)]
 
-use std::collections::HashSet;
+use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use thiserror::Error;
 
 use crate::adapters::runner::{canonicalize_clean, unique_suffix};
-
-/// Bitmask and configuration options for selecting any of the 14 UML diagram types.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum UmlDiagramType {
-    // Structural (7)
-    /// Class diagram.
-    ClassDiagram,
-    /// Object diagram.
-    ObjectDiagram,
-    /// Component diagram.
-    ComponentDiagram,
-    /// Deployment diagram.
-    DeploymentDiagram,
-    /// Package diagram.
-    PackageDiagram,
-    /// Composite structure diagram.
-    CompositeStructure,
-    /// Profile diagram.
-    ProfileDiagram,
-    // Behavioral & Interaction (7)
-    /// Use case diagram.
-    UseCaseDiagram,
-    /// Activity diagram.
-    ActivityDiagram,
-    /// State machine diagram.
-    StateMachine,
-    /// Sequence diagram.
-    SequenceDiagram,
-    /// Communication diagram.
-    CommunicationDiagram,
-    /// Interaction overview diagram.
-    InteractionOverview,
-    /// Timing diagram.
-    TimingDiagram,
-}
-
-impl UmlDiagramType {
-    /// All 14 diagram types.
-    pub fn fill_all() -> HashSet<Self> {
-        let mut set = HashSet::new();
-        set.insert(Self::ClassDiagram);
-        set.insert(Self::ObjectDiagram);
-        set.insert(Self::ComponentDiagram);
-        set.insert(Self::DeploymentDiagram);
-        set.insert(Self::PackageDiagram);
-        set.insert(Self::CompositeStructure);
-        set.insert(Self::ProfileDiagram);
-        set.insert(Self::UseCaseDiagram);
-        set.insert(Self::ActivityDiagram);
-        set.insert(Self::StateMachine);
-        set.insert(Self::SequenceDiagram);
-        set.insert(Self::CommunicationDiagram);
-        set.insert(Self::InteractionOverview);
-        set.insert(Self::TimingDiagram);
-        set
-    }
-
-    /// Human-readable diagram name.
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::ClassDiagram => "Class Diagram",
-            Self::ObjectDiagram => "Object Diagram",
-            Self::ComponentDiagram => "Component Diagram",
-            Self::DeploymentDiagram => "Deployment Diagram",
-            Self::PackageDiagram => "Package Diagram",
-            Self::CompositeStructure => "Composite Structure Diagram",
-            Self::ProfileDiagram => "Profile Diagram",
-            Self::UseCaseDiagram => "Use Case Diagram",
-            Self::ActivityDiagram => "Activity Diagram",
-            Self::StateMachine => "State Machine Diagram",
-            Self::SequenceDiagram => "Sequence Diagram",
-            Self::CommunicationDiagram => "Communication Diagram",
-            Self::InteractionOverview => "Interaction Overview Diagram",
-            Self::TimingDiagram => "Timing Diagram",
-        }
-    }
-
-    /// Canonical diagram identifier used by the exporters and the HTTP API.
-    pub fn identifier(&self) -> &'static str {
-        match self {
-            Self::ClassDiagram => "class",
-            Self::ObjectDiagram => "object",
-            Self::ComponentDiagram => "component",
-            Self::DeploymentDiagram => "deployment",
-            Self::PackageDiagram => "package",
-            Self::CompositeStructure => "composite",
-            Self::ProfileDiagram => "profile",
-            Self::UseCaseDiagram => "usecase",
-            Self::ActivityDiagram => "activity",
-            Self::StateMachine => "statemachine",
-            Self::SequenceDiagram => "sequence",
-            Self::CommunicationDiagram => "communication",
-            Self::InteractionOverview => "interaction",
-            Self::TimingDiagram => "timing",
-        }
-    }
-}
-
-/// Web Repository Configuration for deployed portal processing.
-#[derive(Debug, Clone)]
-pub struct WebRepoConfig {
-    /// Repository URL as submitted.
-    pub repo_url: String,
-    /// Branch or tag to check out.
-    pub branch: String,
-    /// Diagrams to produce.
-    pub selected_diagrams: HashSet<UmlDiagramType>,
-}
-
-impl WebRepoConfig {
-    /// Configuration selecting all 14 diagrams.
-    pub fn new(repo_url: impl Into<String>, branch: impl Into<String>) -> Self {
-        Self {
-            repo_url: repo_url.into(),
-            branch: branch.into(),
-            selected_diagrams: UmlDiagramType::fill_all(),
-        }
-    }
-
-    /// Replaces the diagram selection.
-    pub fn with_diagrams(mut self, diagrams: HashSet<UmlDiagramType>) -> Self {
-        self.selected_diagrams = diagrams;
-        self
-    }
-}
+use crate::core::logger::{log_info, log_warn};
 
 /// A validated reference to a GitHub repository, optionally narrowed to a ref and path.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,7 +39,7 @@ pub struct GitHubRepoRef {
     pub owner: String,
     /// Repository name, without `.git`.
     pub repo: String,
-    /// Branch or tag from a `/tree/<ref>` URL.
+    /// Branch or tag from a `/tree/<ref>` URL or an explicit request field.
     pub git_ref: Option<String>,
     /// Sub-directory from a `/tree/<ref>/<path>` URL, `/`-separated.
     pub subpath: Option<String>,
@@ -171,6 +54,25 @@ impl GitHubRepoRef {
     /// `https://github.com/<owner>/<repo>.git`, the URL handed to `git clone`.
     pub fn clone_url(&self) -> String {
         format!("{}.git", self.canonical_url())
+    }
+
+    /// Applies an explicitly requested branch or tag. It must agree with a ref already
+    /// taken from a `/tree/<ref>` URL.
+    pub fn with_ref(mut self, git_ref: Option<&str>) -> Result<Self, String> {
+        let Some(requested) = git_ref.map(str::trim).filter(|value| !value.is_empty()) else {
+            return Ok(self);
+        };
+        validate_ref(requested)?;
+        match &self.git_ref {
+            Some(existing) if existing != requested => Err(format!(
+                "the URL names ref '{}' but the request asks for '{}'",
+                existing, requested
+            )),
+            _ => {
+                self.git_ref = Some(requested.to_string());
+                Ok(self)
+            }
+        }
     }
 
     /// Workspace-relative cache directory: `<owner>/<repo>/<ref-key>`, lower-cased because
@@ -223,7 +125,58 @@ fn safe_component(name: &str) -> String {
 /// Decoupled Web Repository Fetcher and SCPG Adapter.
 pub struct WebRepoFetcher;
 
-/// Where and how repositories are fetched.
+/// Directory (inside the repository cache) that git uses as its home and global
+/// configuration, so nothing of the operator's account configuration is read.
+const SANDBOX_DIR: &str = ".git-sandbox";
+/// Empty global configuration file inside [`SANDBOX_DIR`].
+const SANDBOX_CONFIG: &str = "gitconfig";
+/// Prefix of in-progress clone directories.
+const PARTIAL_PREFIX: &str = ".partial-";
+/// Extension of the per-checkout metadata file kept next to each checkout.
+const META_EXTENSION: &str = "meta";
+
+/// Leases held on cached checkouts, keyed by checkout directory.
+#[derive(Debug, Clone, Default)]
+struct LeaseTable {
+    counts: Arc<Mutex<HashMap<PathBuf, usize>>>,
+}
+
+impl LeaseTable {
+    fn lock(&self) -> MutexGuard<'_, HashMap<PathBuf, usize>> {
+        self.counts
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
+/// Keeps a cached checkout from being refreshed or evicted while it is read. Held by the
+/// analysis that checked it out and, afterwards, by the session that serves its sources.
+pub struct CheckoutLease {
+    dir: PathBuf,
+    table: LeaseTable,
+}
+
+impl fmt::Debug for CheckoutLease {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CheckoutLease")
+            .field("dir", &self.dir)
+            .finish()
+    }
+}
+
+impl Drop for CheckoutLease {
+    fn drop(&mut self) {
+        let mut counts = self.table.lock();
+        if let Some(count) = counts.get_mut(&self.dir) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                counts.remove(&self.dir);
+            }
+        }
+    }
+}
+
+/// Where and how repositories are fetched and how long they are cached.
 #[derive(Debug, Clone)]
 pub struct FetchOptions {
     /// Directory holding cached checkouts.
@@ -234,10 +187,79 @@ pub struct FetchOptions {
     pub clone_timeout: Duration,
     /// Maximum on-disk size of one clone.
     pub max_repo_bytes: u64,
+    /// Cached checkouts kept; the least recently used beyond this are removed.
+    pub max_cached_repos: usize,
+    /// Combined on-disk size of the cached checkouts kept.
+    pub max_cache_bytes: u64,
+    /// Checkouts cloned longer ago than this are re-cloned on their next use (when cloning
+    /// is allowed); `None` reuses them indefinitely.
+    pub max_checkout_age: Option<Duration>,
+    leases: LeaseTable,
 }
 
-/// A local checkout ready for analysis.
-#[derive(Debug, Clone)]
+impl FetchOptions {
+    /// Options with default cache limits (32 checkouts, 8 GiB, no age limit).
+    pub fn new(
+        repos_dir: PathBuf,
+        allow_clone: bool,
+        clone_timeout: Duration,
+        max_repo_bytes: u64,
+    ) -> Self {
+        Self {
+            repos_dir,
+            allow_clone,
+            clone_timeout,
+            max_repo_bytes,
+            max_cached_repos: 32,
+            max_cache_bytes: 8 * 1024 * 1024 * 1024,
+            max_checkout_age: None,
+            leases: LeaseTable::default(),
+        }
+    }
+
+    /// Replaces the cache limits.
+    pub fn with_cache_limits(
+        mut self,
+        max_cached_repos: usize,
+        max_cache_bytes: u64,
+        max_checkout_age: Option<Duration>,
+    ) -> Self {
+        self.max_cached_repos = max_cached_repos.max(1);
+        self.max_cache_bytes = max_cache_bytes.max(1);
+        self.max_checkout_age = max_checkout_age;
+        self
+    }
+
+    /// Creates the cache directory and the git sandbox, and removes clones left half-done
+    /// by an earlier process.
+    pub fn prepare(&self) -> Result<(), FetchError> {
+        fs::create_dir_all(&self.repos_dir).map_err(io_failure("create the repository cache"))?;
+        let sandbox = self.sandbox_dir();
+        fs::create_dir_all(&sandbox).map_err(io_failure("create the git sandbox"))?;
+        let config = sandbox.join(SANDBOX_CONFIG);
+        fs::write(&config, b"").map_err(io_failure("write the git sandbox configuration"))?;
+        let entries = fs::read_dir(&self.repos_dir).map_err(io_failure("list the cache"))?;
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with(PARTIAL_PREFIX) {
+                remove_quietly(&entry.path());
+            }
+        }
+        Ok(())
+    }
+
+    fn sandbox_dir(&self) -> PathBuf {
+        self.repos_dir.join(SANDBOX_DIR)
+    }
+
+    /// Number of checkouts currently leased.
+    pub fn leased_checkouts(&self) -> usize {
+        self.leases.lock().len()
+    }
+}
+
+/// A local checkout ready for analysis. Its lease keeps it in place until dropped.
+#[derive(Debug)]
 pub struct CheckedOutRepo {
     /// Canonical checkout directory.
     pub dir: PathBuf,
@@ -245,6 +267,10 @@ pub struct CheckedOutRepo {
     pub commit: Option<String>,
     /// Whether an existing cached checkout was reused.
     pub reused_cache: bool,
+    /// When the checkout was cloned, if recorded.
+    pub cloned_unix_secs: Option<u64>,
+    /// Lease on the cache directory.
+    pub lease: CheckoutLease,
 }
 
 /// Why a repository could not be made available. `Display` is safe to show to clients;
@@ -281,6 +307,12 @@ pub enum FetchError {
         /// What was found, for server logs only.
         detail: String,
     },
+    /// A refresh was requested while another analysis or session reads the checkout.
+    #[error(
+        "the cached checkout is in use by another analysis or session; retry the refresh \
+         once it is released"
+    )]
+    Busy,
     /// The requested sub-directory does not exist in the checkout.
     #[error("the path '{0}' does not exist in the repository")]
     SubpathMissing(String),
@@ -303,7 +335,7 @@ impl FetchError {
             Self::CloneFailed { .. } => 502,
             Self::TimedOut(_) => 504,
             Self::TooLarge { .. } => 422,
-            Self::CacheMismatch { .. } => 409,
+            Self::CacheMismatch { .. } | Self::Busy => 409,
             Self::SubpathMissing(_) => 404,
         }
     }
@@ -330,7 +362,8 @@ impl WebRepoFetcher {
     }
 
     /// Parses `https://github.com/<owner>/<repo>[.git][/]` or
-    /// `https://github.com/<owner>/<repo>/tree/<ref>[/<path>]`.
+    /// `https://github.com/<owner>/<repo>/tree/<ref>[/<path>]`. Error messages never echo
+    /// the URL, which may carry secrets.
     pub fn parse_repo_url(url: &str) -> Result<GitHubRepoRef, String> {
         let trimmed = url.trim();
         if trimmed.is_empty() {
@@ -341,6 +374,13 @@ impl WebRepoFetcher {
         }
         if trimmed.chars().any(|c| c.is_control() || c.is_whitespace()) {
             return Err("the repository URL contains whitespace or control characters".into());
+        }
+        if has_userinfo(trimmed) {
+            return Err(
+                "repository URLs with embedded credentials are not accepted; only public \
+                 repositories are cloned, anonymously"
+                    .to_string(),
+            );
         }
         let lower = trimmed.to_ascii_lowercase();
         let prefix_len = ["https://github.com/", "https://www.github.com/"]
@@ -404,26 +444,56 @@ impl WebRepoFetcher {
         })
     }
 
-    /// Makes `repo` available under `options.repos_dir`, reusing a verified cached
-    /// checkout unless `refresh` is set, and cloning when allowed.
+    /// Makes `repo` available under `options.repos_dir` and leases it. A verified cached
+    /// checkout is reused unless `refresh` is set or it is older than the configured age;
+    /// otherwise it is cloned when allowed. After a clone, the cache is pruned to its
+    /// limits (leased checkouts are never removed).
     pub fn checkout(
         repo: &GitHubRepoRef,
         options: &FetchOptions,
         refresh: bool,
     ) -> Result<CheckedOutRepo, FetchError> {
         let dir = repo.cache_dir(&options.repos_dir);
-        if dir.exists() && refresh {
-            if !options.allow_clone {
-                return Err(FetchError::CloneDisabled);
+        let meta_path = meta_path(&dir);
+        let lease = {
+            let mut counts = options.leases.lock();
+            let in_use = counts.get(&dir).copied().unwrap_or(0) > 0;
+            if dir.exists() {
+                let expired = options
+                    .max_checkout_age
+                    .is_some_and(|age| checkout_age(&meta_path).is_some_and(|actual| actual > age));
+                if refresh && !options.allow_clone {
+                    return Err(FetchError::CloneDisabled);
+                }
+                if refresh || (expired && options.allow_clone) {
+                    if in_use {
+                        return Err(FetchError::Busy);
+                    }
+                    log_info(&format!(
+                        "[REPO] Removing cached checkout of {} ({})",
+                        repo.canonical_url(),
+                        if refresh { "refresh requested" } else { "older than the age limit" }
+                    ));
+                    fs::remove_dir_all(&dir).map_err(io_failure("remove the cached checkout"))?;
+                    remove_file_quietly(&meta_path);
+                }
             }
-            fs::remove_dir_all(&dir).map_err(io_failure("remove the cached checkout"))?;
-        }
+            *counts.entry(dir.clone()).or_insert(0) += 1;
+            CheckoutLease {
+                dir: dir.clone(),
+                table: options.leases.clone(),
+            }
+        };
+
         if dir.exists() {
-            verify_origin(&dir, repo)?;
+            verify_origin(&dir, repo, options)?;
+            touch(&meta_path);
             return Ok(CheckedOutRepo {
                 dir: canonicalize_clean(&dir).map_err(io_failure("resolve the checkout"))?,
-                commit: head_commit(&dir),
+                commit: head_commit(&dir, options),
                 reused_cache: true,
+                cloned_unix_secs: read_meta(&meta_path),
+                lease,
             });
         }
         if !options.allow_clone {
@@ -434,23 +504,30 @@ impl WebRepoFetcher {
         fs::create_dir_all(parent).map_err(io_failure("create the checkout directory"))?;
         let scratch = options
             .repos_dir
-            .join(format!(".partial-{}", unique_suffix()));
+            .join(format!("{}{}", PARTIAL_PREFIX, unique_suffix()));
         if let Err(err) = clone_into(repo, &scratch, options) {
             remove_quietly(&scratch);
             return Err(err);
         }
+        let mut reused_cache = false;
         if let Err(err) = fs::rename(&scratch, &dir) {
             remove_quietly(&scratch);
             // A concurrent request may have completed the same clone first.
             if !dir.exists() {
                 return Err(io_failure("move the clone into place")(err));
             }
-            verify_origin(&dir, repo)?;
+            verify_origin(&dir, repo, options)?;
+            reused_cache = true;
+        } else {
+            write_meta(&meta_path, now_unix_secs());
         }
+        prune_cache(options, &dir);
         Ok(CheckedOutRepo {
             dir: canonicalize_clean(&dir).map_err(io_failure("resolve the checkout"))?,
-            commit: head_commit(&dir),
-            reused_cache: false,
+            commit: head_commit(&dir, options),
+            reused_cache,
+            cloned_unix_secs: read_meta(&meta_path),
+            lease,
         })
     }
 
@@ -467,6 +544,32 @@ impl WebRepoFetcher {
         }
         Ok(resolved)
     }
+
+    /// The version reported by `git --version`, or `None` when git cannot be started.
+    pub fn git_version() -> Option<String> {
+        let output = Command::new("git")
+            .arg("--version")
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Some(
+            text.strip_prefix("git version ")
+                .map(str::to_string)
+                .unwrap_or(text),
+        )
+    }
+}
+
+/// `scheme://user[:password]@host/...`: an `@` before the first `/` of the authority.
+fn has_userinfo(url: &str) -> bool {
+    let authority = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
+    let authority = authority.split(['/', '?', '#']).next().unwrap_or_default();
+    authority.contains('@')
 }
 
 fn validate_owner(owner: &str) -> Result<(), String> {
@@ -490,6 +593,7 @@ fn validate_repo(repo: &str) -> Result<(), String> {
         && repo
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        && !repo.starts_with('-')
         && !repo.ends_with('.');
     if valid {
         Ok(())
@@ -498,17 +602,21 @@ fn validate_repo(repo: &str) -> Result<(), String> {
     }
 }
 
+/// Branch and tag names under git's ref-name rules (`git check-ref-format`), restricted to
+/// a portable character set: `/`-separated components, none empty, none starting with `.`
+/// or ending with `.lock`, no `..` or `@{`, and no leading `-`.
 fn validate_ref(git_ref: &str) -> Result<(), String> {
     let valid = !git_ref.is_empty()
         && git_ref.len() <= 255
         && !git_ref.starts_with('-')
-        && !git_ref.starts_with('.')
-        && !git_ref.ends_with(".lock")
         && !git_ref.contains("..")
         && !git_ref.contains("@{")
         && git_ref
             .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"-_.+".contains(&byte));
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_.+/".contains(&byte))
+        && git_ref.split('/').all(|component| {
+            !component.is_empty() && !component.starts_with('.') && !component.ends_with(".lock")
+        });
     if valid {
         Ok(())
     } else {
@@ -531,17 +639,44 @@ fn validate_path_segment(segment: &str) -> Result<(), String> {
     }
 }
 
-/// A `git` invocation with every transport but HTTPS disabled and no interactive or
-/// credential-helper behavior.
-fn git_command() -> Command {
+/// Environment variables that could redirect git to another repository, configuration,
+/// credential source or program; they are removed from every git invocation.
+const GIT_ENV_REMOVED: [&str; 16] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_ASKPASS",
+    "SSH_ASKPASS",
+    "GIT_SSH",
+    "GIT_SSH_COMMAND",
+    "GIT_PROXY_COMMAND",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_TEMPLATE_DIR",
+];
+
+/// A `git` invocation in the credential sandbox: system and user configuration are not
+/// read, only anonymous HTTPS is allowed, and nothing can prompt.
+fn git_command(options: &FetchOptions) -> Command {
+    let sandbox = options.sandbox_dir();
     let mut command = Command::new("git");
+    for name in GIT_ENV_REMOVED {
+        command.env_remove(name);
+    }
     command
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_ALLOW_PROTOCOL", "https")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
         .env("GCM_INTERACTIVE", "never")
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", sandbox.join(SANDBOX_CONFIG))
+        .env("HOME", &sandbox)
+        .env("XDG_CONFIG_HOME", &sandbox)
         .stdin(Stdio::null())
         .args([
             "-c",
@@ -550,6 +685,10 @@ fn git_command() -> Command {
             "protocol.https.allow=always",
             "-c",
             "credential.helper=",
+            "-c",
+            "core.askPass=",
+            "-c",
+            "http.extraHeader=",
             "-c",
             "core.symlinks=false",
             "-c",
@@ -565,8 +704,16 @@ fn clone_into(
     target: &Path,
     options: &FetchOptions,
 ) -> Result<(), FetchError> {
-    let mut command = git_command();
-    command.args(["clone", "--depth", "1", "--single-branch", "--no-tags", "--quiet"]);
+    let mut command = git_command(options);
+    command.args([
+        "clone",
+        "--depth",
+        "1",
+        "--single-branch",
+        "--no-tags",
+        "--quiet",
+        "--template=",
+    ]);
     if let Some(git_ref) = &repo.git_ref {
         command.arg(format!("--branch={}", git_ref));
     }
@@ -674,12 +821,162 @@ fn dir_size(root: &Path) -> u64 {
 
 fn remove_quietly(path: &Path) {
     if path.exists() {
-        let _ = fs::remove_dir_all(path);
+        if let Err(err) = fs::remove_dir_all(path) {
+            log_warn(&format!(
+                "[REPO] Could not remove '{}': {}",
+                path.display(),
+                err
+            ));
+        }
     }
 }
 
-fn run_git(dir: &Path, args: &[&str]) -> Option<String> {
-    let output = git_command()
+fn remove_file_quietly(path: &Path) {
+    if let Err(err) = fs::remove_file(path) {
+        if err.kind() != io::ErrorKind::NotFound {
+            log_warn(&format!(
+                "[REPO] Could not remove '{}': {}",
+                path.display(),
+                err
+            ));
+        }
+    }
+}
+
+fn now_unix_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
+}
+
+/// `<checkout>.meta`, next to the checkout so it is never part of the analyzed tree.
+fn meta_path(dir: &Path) -> PathBuf {
+    dir.with_extension(META_EXTENSION)
+}
+
+/// Records the clone time; the file's modification time is the last-use time.
+fn write_meta(path: &Path, cloned_unix_secs: u64) {
+    if let Err(err) = fs::write(path, format!("cloned_unix_secs={}\n", cloned_unix_secs)) {
+        log_warn(&format!(
+            "[REPO] Could not record checkout metadata '{}': {}",
+            path.display(),
+            err
+        ));
+    }
+}
+
+/// The recorded clone time, or `None` when no metadata was recorded.
+fn read_meta(path: &Path) -> Option<u64> {
+    let text = fs::read_to_string(path).ok()?;
+    text.lines()
+        .find_map(|line| line.strip_prefix("cloned_unix_secs="))
+        .and_then(|value| value.trim().parse().ok())
+}
+
+/// Age of a checkout from its recorded clone time (`None` when unrecorded).
+fn checkout_age(meta: &Path) -> Option<Duration> {
+    let cloned = read_meta(meta)?;
+    Some(Duration::from_secs(now_unix_secs().saturating_sub(cloned)))
+}
+
+/// Marks a checkout as used now.
+fn touch(meta: &Path) {
+    let touched = fs::OpenOptions::new()
+        .write(true)
+        .open(meta)
+        .and_then(|file| file.set_modified(SystemTime::now()));
+    if let Err(err) = touched {
+        if err.kind() != io::ErrorKind::NotFound {
+            log_warn(&format!(
+                "[REPO] Could not update the last-use time of '{}': {}",
+                meta.display(),
+                err
+            ));
+        }
+    }
+}
+
+/// Last-use time of a checkout (`None` when no metadata was recorded).
+fn last_used(meta: &Path) -> Option<SystemTime> {
+    fs::metadata(meta).and_then(|meta| meta.modified()).ok()
+}
+
+/// Every cached checkout directory (`<owner>/<repo>/<ref-key>`).
+fn cached_checkouts(repos_dir: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let visible_dirs = |dir: &Path| -> Vec<PathBuf> {
+        fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                    .filter(|entry| !entry.file_name().to_string_lossy().starts_with('.'))
+                    .map(|entry| entry.path())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    for owner in visible_dirs(repos_dir) {
+        for repo in visible_dirs(&owner) {
+            found.extend(visible_dirs(&repo));
+        }
+    }
+    found
+}
+
+/// Removes least-recently-used checkouts until the cache is within its count and size
+/// limits. Leased checkouts and `keep` are never removed; checkouts without recorded
+/// metadata are treated as the least recently used.
+fn prune_cache(options: &FetchOptions, keep: &Path) {
+    let mut entries: Vec<(Option<SystemTime>, PathBuf, u64)> = cached_checkouts(&options.repos_dir)
+        .into_iter()
+        .map(|dir| {
+            let used = last_used(&meta_path(&dir));
+            let size = dir_size(&dir);
+            (used, dir, size)
+        })
+        .collect();
+    entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    let mut count = entries.len();
+    let mut total: u64 = entries.iter().map(|(_, _, size)| *size).sum();
+    for (_, dir, size) in entries {
+        if count <= options.max_cached_repos && total <= options.max_cache_bytes {
+            break;
+        }
+        if dir == keep {
+            continue;
+        }
+        let counts = options.leases.lock();
+        if counts.get(&dir).copied().unwrap_or(0) > 0 {
+            continue;
+        }
+        match fs::remove_dir_all(&dir) {
+            Ok(()) => {
+                remove_file_quietly(&meta_path(&dir));
+                count -= 1;
+                total = total.saturating_sub(size);
+                log_info(&format!("[REPO] Evicted cached checkout '{}'", dir.display()));
+            }
+            Err(err) => log_warn(&format!(
+                "[REPO] Could not evict cached checkout '{}': {}",
+                dir.display(),
+                err
+            )),
+        }
+        drop(counts);
+        for ancestor in [dir.parent(), dir.parent().and_then(Path::parent)]
+            .into_iter()
+            .flatten()
+        {
+            // Removes the owner and repository directories once they are empty.
+            let _ = fs::remove_dir(ancestor);
+        }
+    }
+}
+
+fn run_git(dir: &Path, options: &FetchOptions, args: &[&str]) -> Option<String> {
+    let output = git_command(options)
         .arg("-C")
         .arg(dir)
         .args(args)
@@ -692,8 +989,8 @@ fn run_git(dir: &Path, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn head_commit(dir: &Path) -> Option<String> {
-    run_git(dir, &["rev-parse", "HEAD"]).filter(|sha| {
+fn head_commit(dir: &Path, options: &FetchOptions) -> Option<String> {
+    run_git(dir, options, &["rev-parse", "HEAD"]).filter(|sha| {
         (sha.len() == 40 || sha.len() == 64) && sha.bytes().all(|byte| byte.is_ascii_hexdigit())
     })
 }
@@ -708,17 +1005,17 @@ fn normalize_remote(url: &str) -> String {
     trimmed.strip_suffix(".git").unwrap_or(trimmed).to_string()
 }
 
-fn verify_origin(dir: &Path, repo: &GitHubRepoRef) -> Result<(), FetchError> {
+fn verify_origin(dir: &Path, repo: &GitHubRepoRef, options: &FetchOptions) -> Result<(), FetchError> {
     if !dir.join(".git").is_dir() {
         return Err(FetchError::CacheMismatch {
             detail: format!("'{}' exists but is not a git checkout", dir.display()),
         });
     }
-    let origin = run_git(dir, &["config", "--get", "remote.origin.url"]).ok_or_else(|| {
-        FetchError::CacheMismatch {
+    let origin = run_git(dir, options, &["config", "--get", "remote.origin.url"]).ok_or_else(
+        || FetchError::CacheMismatch {
             detail: format!("cannot read remote.origin.url of '{}'", dir.display()),
-        }
-    })?;
+        },
+    )?;
     if normalize_remote(&origin) != normalize_remote(&repo.canonical_url()) {
         return Err(FetchError::CacheMismatch {
             detail: format!(
@@ -743,11 +1040,5 @@ mod tests {
         let (owner, repo) = res.unwrap();
         assert_eq!(owner, "AhmadHassan-BTed");
         assert_eq!(repo, "OpenHeart");
-    }
-
-    #[test]
-    fn test_uml_diagram_all_count() {
-        let all = UmlDiagramType::fill_all();
-        assert_eq!(all.len(), 14);
     }
 }

@@ -16,6 +16,8 @@ import { BUILTIN_TYPE_NAMES } from './source-parser.js';
 export const EXTRACTOR_ID = 'openheart-studio-declaration-extractor';
 export const EXTRACTOR_VERSION = '2.0.0';
 
+const AUTHORITATIVE_IMPORT_LANGS = new Set(['java', 'kotlin', 'scala', 'python']);
+
 const RELATION_ARROWS = {
   generalization: '--|>',
   realization: '..|>',
@@ -161,8 +163,9 @@ export function buildClassModel(parses, options = {}) {
     if (imported) {
       const hit = byFqn.get(imported);
       if (hit) return { entry: hit, via: 'import' };
-      // An explicit import to an external type wins over any same-named type in the corpus.
-      return { entry: null, via: 'external-import' };
+      // In languages whose import paths are the same fully qualified names used here, an
+      // explicit import of a type outside the corpus wins over any same-named corpus type.
+      if (AUTHORITATIVE_IMPORT_LANGS.has(ctx.language)) return { entry: null, via: 'external-import' };
     }
     const prefix = fromEntry ? fromEntry.prefix : ctx.package;
     if (prefix) {
@@ -258,6 +261,7 @@ export function buildClassModel(parses, options = {}) {
   for (const entry of entries) {
     const srcKind = entry.rec.kind;
     for (const st of entry.superTypes) {
+      if (!st.name.includes('.') && BUILTIN_TYPE_NAMES.has(st.name)) continue; // platform types are not in the corpus
       const ctx = st.ctxPath ? fileContexts.get(st.ctxPath) : entry.ctx;
       const hit = resolveName(st.name, ctx, entry);
       if (!hit.entry || hit.entry === entry) {

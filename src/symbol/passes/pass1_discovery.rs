@@ -37,7 +37,7 @@ use crate::symbol::syntax::{
     parse_trailing_dims, scan_java_modifiers, skip_annotation, ModifierScan, TokenView,
     TypeOptions, TypeParser,
 };
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 pub struct Pass1Discovery;
 
@@ -571,10 +571,42 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             ASTNodeType::NN_LAMBDA_EXPR => self.declare_lambda(b, node, scope, enclosing),
             ASTNodeType::NN_NEW_EXPR => match self.anonymous_body(node) {
                 Some((new_tok, close)) => {
-                    self.declare_anonymous(b, node, new_tok, close, scope, enclosing)
+                    let has_body_node = self
+                        .ast
+                        .first_child_of_type(self.bpa, node, ASTNodeType::NN_ANON_CLASS_BODY)
+                        .is_some();
+                    let (own, anon) =
+                        self.declare_anonymous(b, node, new_tok, close, scope, enclosing);
+                    if has_body_node {
+                        // The type and the constructor arguments are outside the class body;
+                        // the body node opens the anonymous class scope.
+                        (scope, enclosing)
+                    } else {
+                        (own, anon)
+                    }
                 }
                 None => (scope, enclosing),
             },
+            ASTNodeType::NN_ANON_CLASS_BODY => match parent_ty {
+                ASTNodeType::NN_NEW_EXPR => match b.symbol_at_node(parent) {
+                    Some(anon) if b.symbol_kind(anon) == Some(SymbolKind::SK_ANON_CLASS) => {
+                        (b.owned_scope(anon), anon)
+                    }
+                    _ => (scope, enclosing),
+                },
+                ASTNodeType::NN_ENUM_CONSTANT => {
+                    self.declare_constant_body(b, node, scope, enclosing)
+                }
+                _ => (scope, enclosing),
+            },
+            ASTNodeType::NN_ENUM_CONSTANT => self.declare_enum_constant(b, node, scope, enclosing),
+            ASTNodeType::NN_JAVA_INSTANCE_INIT => {
+                self.declare_initializer(b, node, SymbolKind::SK_INSTANCE_INIT, scope, enclosing)
+            }
+            ASTNodeType::NN_PATTERN_MATCH => {
+                self.declare_pattern_binding(b, node, scope, enclosing);
+                (scope, enclosing)
+            }
             ASTNodeType::NN_BLOCK => {
                 let declares_body = matches!(
                     parent_ty,
@@ -600,7 +632,15 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             }
             ASTNodeType::NN_CATCH_CLAUSE => {
                 let block = self.open_block(b, scope, enclosing);
-                self.declare_catch_parameter(b, node, block, enclosing);
+                // Trees that keep `catch_formal_parameter` declare it as a parameter node
+                // (handled by `declare_param`); otherwise it is recovered from the tokens.
+                if self
+                    .ast
+                    .first_child_of_type(self.bpa, node, ASTNodeType::NN_PARAM_DECL)
+                    .is_none()
+                {
+                    self.declare_catch_parameter(b, node, block, enclosing);
+                }
                 (block, enclosing)
             }
             ASTNodeType::NN_INSTANCEOF_EXPR => {
@@ -639,7 +679,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         let encl_kind = enclosing_decl_kind(b, enclosing);
         let visibility = scan
             .visibility
-            .unwrap_or_else(|| self.adapter.default_visibility(kind, encl_kind));
+            .unwrap_or_else(|| self.adapter.default_visibility_in(kind, encl_kind));
         let modifiers = scan.modifiers
             | self
                 .adapter
@@ -742,14 +782,31 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         let body = self
             .ast
             .first_child_of_type(self.bpa, node, ASTNodeType::NN_BLOCK);
-        // Phase 2 drops `constructor_body`; a constructor always has a body in Java.
+        // A constructor always has a body in Java (some trees drop `constructor_body`).
         let has_body = kind == SymbolKind::SK_CONSTRUCTOR || body.is_some();
+        // Compact canonical constructor of a record (JLS 8.10.4.2): no parameter list, the
+        // body follows the name, and its parameters are the record components.
+        let compact_body_open = if kind == SymbolKind::SK_CONSTRUCTOR && params.is_empty() {
+            name_tok
+                .and_then(|t| self.tv.next(t, self.file_end()))
+                .filter(|&o| self.tv.punct(o, "{"))
+        } else {
+            None
+        };
+        let param_count = if compact_body_open.is_some() {
+            let record = self.ast.parent(node);
+            self.ast
+                .children_of_type(self.bpa, record, ASTNodeType::NN_PARAM_DECL)
+                .count()
+        } else {
+            params.len()
+        };
 
         let scan = self.scan_modifiers(node, name_tok);
         let encl_kind = enclosing_decl_kind(b, enclosing);
         let visibility = scan
             .visibility
-            .unwrap_or_else(|| self.adapter.default_visibility(kind, encl_kind));
+            .unwrap_or_else(|| self.adapter.default_visibility_in(kind, encl_kind));
         let mut modifiers = scan.modifiers
             | self
                 .adapter
@@ -762,17 +819,21 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             modifiers |= SymbolModifiers::VARARGS;
         }
 
-        let last = match body {
-            Some(block) => {
+        let last = match (body, compact_body_open) {
+            (Some(block), _) => {
                 let open = self.bpa.token_range(block).0;
                 self.tv
                     .matching_close(open, self.file_end())
                     .unwrap_or(self.tok(lt))
             }
-            None if kind == SymbolKind::SK_CONSTRUCTOR => name_tok
+            (None, Some(open)) => self
+                .tv
+                .matching_close(open, self.file_end())
+                .unwrap_or(self.tok(lt)),
+            (None, None) if kind == SymbolKind::SK_CONSTRUCTOR => name_tok
                 .and_then(|t| self.constructor_body_close(t))
                 .unwrap_or(self.tok(lt)),
-            None => self.tok(lt),
+            (None, None) => self.tok(lt),
         };
 
         let mut rec = new_record(
@@ -785,7 +846,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             self.tok(ft),
             last,
         );
-        rec.param_count = u16::try_from(params.len()).unwrap_or(u16::MAX);
+        rec.param_count = u16::try_from(param_count).unwrap_or(u16::MAX);
         let sym = b.create_symbol(rec);
         b.set_parent(sym, enclosing);
         b.bind_name(scope, Namespace::Method, name_id, sym, name_tok.unwrap_or(0));
@@ -884,7 +945,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         let encl_kind = enclosing_decl_kind(b, enclosing);
         let visibility = if kind == SymbolKind::SK_FIELD {
             scan.visibility
-                .unwrap_or_else(|| self.adapter.default_visibility(kind, encl_kind))
+                .unwrap_or_else(|| self.adapter.default_visibility_in(kind, encl_kind))
         } else {
             SymbolVisibility::Package
         };
@@ -956,9 +1017,17 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         if record_component {
             modifiers |= SymbolModifiers::RECORD_COMPONENT;
         }
+        // An exception parameter (JLS 14.20) is a local of its catch block, not a parameter
+        // of the enclosing method.
+        let catch_parameter = parent_ty == ASTNodeType::NN_CATCH_CLAUSE;
+        let kind = if catch_parameter {
+            SymbolKind::SK_LOCAL_VAR
+        } else {
+            SymbolKind::SK_PARAM
+        };
         let (ft, lt) = self.bpa.token_range(node);
         let rec = new_record(
-            SymbolKind::SK_PARAM,
+            kind,
             name_id,
             node,
             scope,
@@ -975,7 +1044,12 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         }
         if let Some(t) = name_tok {
             if scan.end != u32::MAX {
-                if let Some(span) = self.type_span(scan.end, t, 0) {
+                let span = if catch_parameter {
+                    self.union_type_span(scan.end, t)
+                } else {
+                    self.type_span(scan.end, t, 0)
+                };
+                if let Some(span) = span {
                     b.type_spans.insert(sym, span);
                 }
             }
@@ -984,8 +1058,36 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         (scope, sym)
     }
 
-    /// One SK_TYPE_PARAM per parameter of the `type_parameters` list (Phase 2 keeps the list
-    /// node but drops its children; the parameters are parsed from the `<` token).
+    /// Type span of a catch parameter, split into the alternatives of a union type.
+    fn union_type_span(&self, start: u32, name_tok: u32) -> Option<TypeSpan> {
+        let mut span = self.type_span(start, name_tok, 0)?;
+        let mut parts = Vec::new();
+        let mut part_start = span.first;
+        let mut pos = span.first;
+        while let Some(t) = self.tv.sig(pos, span.last.saturating_add(1)) {
+            if self.tv.punct(t, "|") {
+                let part_last = self.tv.prev(t, part_start)?;
+                parts.push((part_start, part_last));
+                part_start = self.tv.next(t, name_tok)?;
+            } else if self.tv.punct(t, "<") {
+                // Type arguments may not contain `|`; skip them as a unit.
+                let mut parser = TypeParser::new(&self.tv, name_tok, Dialect::Java);
+                let (_, after) = parser.parse(part_start, TypeOptions::default())?;
+                pos = after.max(t + 1);
+                continue;
+            }
+            pos = t + 1;
+        }
+        if !parts.is_empty() {
+            parts.push((part_start, span.last));
+            span.union_parts = parts;
+        }
+        Some(span)
+    }
+
+    /// One SK_TYPE_PARAM per type parameter. A tree may keep one node per parameter (its
+    /// tokens start at the parameter) or one node for the whole `<...>` list whose children
+    /// were dropped (its tokens start at `<`); both are parsed from the tokens.
     fn declare_type_params(
         &self,
         b: &mut SymbolTableBuilder,
@@ -993,13 +1095,19 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         scope: u32,
         owner: u32,
     ) {
-        let lt = self.bpa.token_range(node).0;
-        if !self.tv.valid(lt) {
+        let first = self.bpa.token_range(node).0;
+        if !self.tv.valid(first) {
             return;
         }
         let mut parser = TypeParser::new(&self.tv, self.file_end(), Dialect::Java);
-        let params = match parser.parse_type_params(lt) {
-            Some((params, _, _)) => params,
+        let parsed = if self.tv.punct(first, "<") {
+            parser.parse_type_params(first).map(|(params, _, _)| params)
+        } else {
+            parser.parse_type_param(first).map(|(param, _)| vec![param])
+        };
+        let lt = first;
+        let params = match parsed {
+            Some(params) => params,
             None => {
                 b.add_diagnostic(
                     DiagnosticCode::MalformedDeclaration,
@@ -1357,6 +1465,126 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         define(b, name_tok, ident, sym);
     }
 
+    /// Enum constant kept as a node by the tree (JLS 8.9.1).
+    fn declare_enum_constant(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        scope: u32,
+        enclosing: u32,
+    ) -> (u32, u32) {
+        let name_tok = self.name_token_of(node);
+        let name_id = self.name_id_of(name_tok);
+        let (ft, lt) = self.bpa.token_range(node);
+        let visibility = self
+            .adapter
+            .default_visibility_in(SymbolKind::SK_ENUM_CONSTANT, Some(SymbolKind::SK_ENUM));
+        let modifiers = self.adapter.implicit_modifiers(
+            SymbolKind::SK_ENUM_CONSTANT,
+            Some(SymbolKind::SK_ENUM),
+            0,
+            None,
+            false,
+        ) | self.scan_modifiers(node, name_tok).modifiers;
+        let mut rec = new_record(
+            SymbolKind::SK_ENUM_CONSTANT,
+            name_id,
+            node,
+            scope,
+            visibility,
+            modifiers,
+            self.tok(ft),
+            self.tok(lt),
+        );
+        if b.symbol_kind(enclosing) == Some(SymbolKind::SK_ENUM) {
+            rec.type_id = enclosing;
+        }
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok.unwrap_or(0));
+        if let Some(t) = name_tok {
+            define(b, t, node, sym);
+        }
+        (scope, sym)
+    }
+
+    /// Constant-specific class body of an enum constant: an anonymous subclass of the enum.
+    fn declare_constant_body(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        scope: u32,
+        constant: u32,
+    ) -> (u32, u32) {
+        let (ft, lt) = self.bpa.token_range(node);
+        let close = if self.tv.valid(ft) && self.tv.punct(ft, "{") {
+            self.tv.matching_close(ft, self.file_end())
+        } else {
+            None
+        };
+        let rec = new_record(
+            SymbolKind::SK_ANON_CLASS,
+            u32::MAX,
+            node,
+            scope,
+            SymbolVisibility::Package,
+            SymbolModifiers::FINAL,
+            self.tok(ft),
+            close.unwrap_or(self.tok(lt)),
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, constant);
+        let own = b.create_scope(sym, scope, ScopeKind::Anon);
+        b.set_owned_scope(sym, own);
+        // The superclass is the enum itself; Pass 5 reads it from the constant's type.
+        b.anonymous_classes.push((sym, node, u32::MAX));
+        (own, sym)
+    }
+
+    /// Binding variable of a type pattern (`T name`, JLS 14.30.1).
+    fn declare_pattern_binding(
+        &self,
+        b: &mut SymbolTableBuilder,
+        node: u32,
+        scope: u32,
+        enclosing: u32,
+    ) {
+        let ident = match self.ast.children(node).last() {
+            Some(&c) if self.bpa.node_type(c) == ASTNodeType::NN_IDENTIFIER_EXPR => c,
+            _ => return,
+        };
+        if self.ast.children(node).len() < 2 || b.symbol_at_node(ident).is_some() {
+            return;
+        }
+        let name_tok = self.bpa.token_range(ident).0;
+        let (ft, _) = self.bpa.token_range(node);
+        if !self.tv.valid(name_tok) || !self.tv.valid(ft) {
+            return;
+        }
+        let mut type_start = ft;
+        if self.tv.word(ft, "final") {
+            type_start = ft + 1;
+        }
+        let name_id = self.tv.text_id(name_tok);
+        let rec = new_record(
+            SymbolKind::SK_LOCAL_VAR,
+            name_id,
+            ident,
+            scope,
+            SymbolVisibility::Package,
+            0,
+            ft,
+            name_tok,
+        );
+        let sym = b.create_symbol(rec);
+        b.set_parent(sym, enclosing);
+        b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok);
+        if let Some(span) = self.type_span(type_start, name_tok, 0) {
+            b.type_spans.insert(sym, span);
+        }
+        define(b, name_tok, ident, sym);
+    }
+
     // ── Post-processing of type bodies ───────────────────────────────────────
 
     /// Members declared directly in a type node: (kind, name_id, param_count).
@@ -1378,8 +1606,22 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             None => return,
         };
         let own = b.owned_scope(t.sym);
-        let constants = parse_enum_constants(&self.tv, open, self.file_end());
-        let mut any_body = false;
+        let constant_nodes: Vec<u32> = self
+            .ast
+            .children_of_type(self.bpa, t.node, ASTNodeType::NN_ENUM_CONSTANT)
+            .collect();
+        // Constants the tree kept were declared during the walk; otherwise Phase 2 dropped
+        // them and they are recovered from the body tokens.
+        let constants = if constant_nodes.is_empty() {
+            parse_enum_constants(&self.tv, open, self.file_end())
+        } else {
+            Vec::new()
+        };
+        let mut any_body = constant_nodes.iter().any(|&c| {
+            self.ast
+                .first_child_of_type(self.bpa, c, ASTNodeType::NN_ANON_CLASS_BODY)
+                .is_some()
+        });
         for c in &constants {
             if self.tv.punct(c.last, "}") {
                 any_body = true;
@@ -1387,7 +1629,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             let name_id = self.tv.text_id(c.name_tok);
             let visibility = self
                 .adapter
-                .default_visibility(SymbolKind::SK_ENUM_CONSTANT, Some(SymbolKind::SK_ENUM));
+                .default_visibility_in(SymbolKind::SK_ENUM_CONSTANT, Some(SymbolKind::SK_ENUM));
             let modifiers = self.adapter.implicit_modifiers(
                 SymbolKind::SK_ENUM_CONSTANT,
                 Some(SymbolKind::SK_ENUM),
@@ -1495,7 +1737,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             for decl in parse_field_declarations(&self.tv, start, end) {
                 let visibility = decl.modifiers.visibility.unwrap_or_else(|| {
                     self.adapter
-                        .default_visibility(SymbolKind::SK_FIELD, Some(SymbolKind::SK_INTERFACE))
+                        .default_visibility_in(SymbolKind::SK_FIELD, Some(SymbolKind::SK_INTERFACE))
                 });
                 let modifiers = decl.modifiers.modifiers
                     | self.adapter.implicit_modifiers(
@@ -1733,7 +1975,12 @@ impl<'a, 'u> HeuristicWalk<'a, 'u> {
                     | crate::core::types::token::TokenType::CommentLine
                     | crate::core::types::token::TokenType::CommentBlock
                     | crate::core::types::token::TokenType::CommentDoc
+                    | crate::core::types::token::TokenType::Annotation
             )
+            && !self
+                .tv
+                .prev(tok, 0)
+                .is_some_and(|p| self.tv.punct(p, "@"))
             && !HEURISTIC_KEYWORDS.contains(&text)
     }
 
@@ -1796,15 +2043,4 @@ impl<'a, 'u> HeuristicWalk<'a, 'u> {
             _ => toks.iter().copied().find(|&t| self.is_name_candidate(t)),
         }
     }
-}
-
-/// Group declarations by owner (used by later passes to look up members by name).
-pub fn members_by_owner(b: &SymbolTableBuilder) -> HashMap<u32, Vec<u32>> {
-    let mut map: HashMap<u32, Vec<u32>> = HashMap::new();
-    for s in &b.symbols {
-        if s.parent_sym != u32::MAX {
-            map.entry(s.parent_sym).or_default().push(s.symbol_id);
-        }
-    }
-    map
 }

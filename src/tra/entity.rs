@@ -24,9 +24,10 @@
 //! and file metadata are not, so a `touch` or a pure move changes no digest.
 
 use crate::core::types::symbol::SymbolKind;
-use crate::core::types::token::{unpack_sort_key, TokenType};
+use crate::core::types::token::TokenType;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::SymbolTableArtifact;
+use crate::tra::position::{clamp_span, token_end, token_start};
 use crate::tra::types::{BISymEntry, EntityRecord, UML_LINK_NO_FILE, UML_LINK_NO_LINE};
 use crate::tra::uml_link::digest::{digest_truncate_128, CanonicalHasher, Digest128};
 
@@ -111,17 +112,10 @@ impl<'a> Context<'a> {
         }
     }
 
-    /// Valid `(first, last)` token range, clamped to the corpus.
+    /// Valid `(first, last)` token range, clamped to the corpus and to the file of `first`
+    /// (a range must never hash or locate tokens of another file).
     fn clamp(&self, first: u32, last: u32) -> Option<(u32, u32)> {
-        let n = self.tca.token_records.len();
-        if first == u32::MAX || first as usize >= n || n == 0 {
-            return None;
-        }
-        let last = last.min(n as u32 - 1);
-        if last < first {
-            return None;
-        }
-        Some((first, last))
+        clamp_span(self.tca, first, last)
     }
 
     fn decl_range(&self, sym_id: u32) -> Option<(u32, u32)> {
@@ -314,12 +308,12 @@ impl<'a> Context<'a> {
     }
 
     /// `(file_id, col_start, line_start, line_end)` of the declaration span, or sentinels.
+    /// `line_end` is the line of the last token's last byte.
     fn location(&self, sym_id: u32) -> (u16, u16, u32, u32) {
         match self.decl_range(sym_id) {
             Some((first, last)) => {
-                let (file, line_start, col) =
-                    unpack_sort_key(self.tca.token_records[first as usize].sort_key);
-                let (_, line_end, _) = unpack_sort_key(self.tca.token_records[last as usize].sort_key);
+                let (file, line_start, col) = token_start(self.tca, first);
+                let (line_end, _) = token_end(self.tca, last);
                 (file, col, line_start, line_end)
             }
             None => (UML_LINK_NO_FILE, u16::MAX, UML_LINK_NO_LINE, UML_LINK_NO_LINE),

@@ -483,6 +483,66 @@ static CATALOG: &[LibraryType] = &[
     lib("kotlin.ranges.LongRange", C, 0, VAL, &[]),
 ];
 
+// ── Legacy stub pseudo-ids ──────────────────────────────────────────────────
+//
+// Earlier versions of Phase 3 bound twelve JDK types to pseudo-ids >= 0xC000_0000 that were not
+// symbols of the table. Phase 3 now materializes every library type it binds as an
+// SK_EXTERNAL symbol with its qualified name (see `SymbolTableBuilder::materialize_library`),
+// so `type_id` never holds these ids. They are kept, with their original values, for readers
+// that still recognise them.
+
+pub const BASE_STUB_SYMBOL_ID: u32 = 0xC000_0000;
+pub const OBJECT_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID;
+pub const STRING_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 1;
+pub const INTEGER_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 2;
+pub const BOOLEAN_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 3;
+pub const LIST_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 4;
+pub const MAP_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 5;
+pub const SET_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 6;
+pub const COLLECTION_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 7;
+pub const ITERABLE_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 8;
+pub const EXCEPTION_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 9;
+pub const RUNTIME_EXCEPTION_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 10;
+pub const THROWABLE_STUB_SYM_ID: u32 = BASE_STUB_SYMBOL_ID + 11;
+
+/// A legacy stub pseudo-id with the names it stood for.
+#[derive(Debug, Clone)]
+pub struct StdLibStub {
+    pub symbol_id: u32,
+    pub simple_name: &'static str,
+    pub qual_name: &'static str,
+    pub kind: SymbolKind,
+}
+
+/// The legacy stub pseudo-ids and their names (see the note above).
+pub fn get_java_stubs() -> Vec<StdLibStub> {
+    [
+        (OBJECT_STUB_SYM_ID, "java.lang.Object"),
+        (STRING_STUB_SYM_ID, "java.lang.String"),
+        (INTEGER_STUB_SYM_ID, "java.lang.Integer"),
+        (BOOLEAN_STUB_SYM_ID, "java.lang.Boolean"),
+        (LIST_STUB_SYM_ID, "java.util.List"),
+        (MAP_STUB_SYM_ID, "java.util.Map"),
+        (SET_STUB_SYM_ID, "java.util.Set"),
+        (COLLECTION_STUB_SYM_ID, "java.util.Collection"),
+        (ITERABLE_STUB_SYM_ID, "java.lang.Iterable"),
+        (EXCEPTION_STUB_SYM_ID, "java.lang.Exception"),
+        (RUNTIME_EXCEPTION_STUB_SYM_ID, "java.lang.RuntimeException"),
+        (THROWABLE_STUB_SYM_ID, "java.lang.Throwable"),
+    ]
+    .iter()
+    .filter_map(|&(symbol_id, fqn)| {
+        let lib = CATALOG.iter().find(|t| t.fqn == fqn)?;
+        Some(StdLibStub {
+            symbol_id,
+            simple_name: lib.simple_name(),
+            qual_name: lib.fqn,
+            kind: lib.kind,
+        })
+    })
+    .collect()
+}
+
 const JAVA_IMPLICIT: &[&str] = &["java.lang"];
 const KOTLIN_IMPLICIT: &[&str] = &[
     "kotlin",

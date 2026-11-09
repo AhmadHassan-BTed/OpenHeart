@@ -192,7 +192,7 @@ pub fn analyze(
             s.union_with(pts.cell_points_to(c));
         }
     }
-    let mut e = Escape {
+    let e = Escape {
         module,
         pts,
         memory,

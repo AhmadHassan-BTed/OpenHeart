@@ -1,0 +1,1798 @@
+[
+ {
+  "id": "TST-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "SSA produces no φ-functions or def-use edges for any input; the SSA tests check only counts and CSR shape",
+  "files": [
+   "src/ssa/liveness.rs",
+   "src/ssa/placement.rs",
+   "src/ssa/renaming.rs",
+   "src/ssa/mod.rs",
+   "src/cg/points_to.rs",
+   "src/uma/structural/object_diagram.rs",
+   "tests/ssa_tests.rs",
+   "tests/pipeline_accuracy_tests.rs"
+  ],
+  "evidence": "Variable identity is the AST node index: liveness.rs:134-135 does `let sym_id = node; defs.push(sym_id)`, while uses push identifier-node ids (139-141, 159-160). Phase5Stage ignores `_sta` (ssa/mod.rs:34). A def node never equals a use node, so placement.rs:45 `is_live_in(y, var_sym)` is never true (no φ), and renaming.rs:150 `vstack.top(u)` never hits (empty def-use). points_to.rs:31 and object_diagram.rs:16 then call `sta.symbol(orig_sym_id)` on that node index. ssa_tests.rs:84-92 and pipeline_accuracy_tests.rs:179-202 assert only counts and CSR shape; the uniqueness check holds by construction.",
+  "impact": "Phase 5 output (φ, def-use, versions) is empty or meaningless for every program, which corrupts points-to, slicing, DFG and object diagrams. Deleting φ placement entirely would still pass the whole suite.",
+  "recommendation": "Key SSA on resolved symbol ids, and introduce newtypes (NodeId, SymId, SsaId) so this ID-space confusion fails to compile. Add oracle tests: `int x=0; if(c) x=1; return x;` must yield exactly one φ(x) at the join, with two args, and the return's use must chain to it. A loop counter must get versions 0..2. Add proptest over generated structured programs asserting every use is dominated by its unique reaching def (Cytron et al. 1991). The φ count must equal a naive iterated-dominance-frontier reference keyed by symbol.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Call resolution returns the caller itself; the error cascades into SCCs, PSA, entry points, sequence diagrams and queries",
+  "files": [
+   "src/cg/resolution.rs",
+   "src/cg/call_sites.rs",
+   "src/cg/mod.rs",
+   "src/cg/scc.rs",
+   "src/uma/actor_identification.rs",
+   "tests/cg_tests.rs"
+  ],
+  "evidence": "resolve_method_target never compares names. Step 3 matches a declaration's first token, which is never a call token. Step 4 returns the first method whose token span encloses the call, i.e. the caller (resolution.rs:179-238). For `t.helper()` the 'name' token picked is the receiver `t` (call_sites.rs:153-163). Self-edges are kept (cg/mod.rs:88-91,114-127), so every method that makes a call becomes SELF_RECURSIVE (scc.rs:40-47) and loses entry-point status (actor_identification.rs:18-43). call_block is always 0 because blocks hold statements, not call nodes (call_sites.rs:142-151). Field-initializer calls are dropped (call_sites.rs:32-35). cg_tests.rs:79-87 checks only counts.",
+  "impact": "Every call edge is a self-loop or an override of the caller. The call graph, recursion flags, PSA unwinding, entry points, sequence and communication diagrams, slices, impact sets and reachability queries are therefore wrong for all input.",
+  "recommendation": "Resolve callees by (name_id, arity, receiver static type), using Phase 3 scopes and the receiver's type_id. Then expand with CHA (Dean et al., ECOOP'95) or RTA (Bacon-Sweeney, OOPSLA'96) over th_edges. Record call_block through a statement-to-block map built in Phase 4. Done = the cg_tests fixture yields exactly main->helper, main->recurse and recurse->recurse. Then score against the CATS/Judge suites (Reif et al., ISSTA'18/'19) and diff against Soot or OPAL output.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "The five compiler-IR diagrams and several UML views are hard-coded templates; Phase 4-8 data has no path to any exporter",
+  "files": [
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/uma/behavioral/state_machine.rs",
+   "src/uma/behavioral/communication_diagram.rs",
+   "src/uma/behavioral/interaction_overview.rs",
+   "src/uma/behavioral/timing_diagram.rs",
+   "src/uma/structural/composite_diagram.rs",
+   "web/diagrams/cfg.json"
+  ],
+  "evidence": "Exporters receive only (uma, sta, tca) (factory.rs:50-56,314-325), so .cfa, .ssa, .cga and .psa cannot reach any diagram. The JSON cfg/dfg/cdg/callgraph/robdd exporters ignore all inputs and emit OpenHeart's own pipeline ('v0 = load manifest', 'main() -> ingest_sources()') with compiler_hash 0x83D2D2B2 and verified: true (json.rs:1748-2101). PlantUML and Mermaid emit fixed 4-block CFGs, 'var_name: retries', '(amount > 0) -> repository.saveOrder()', and a call chain in HashSet order with a fake SCC loop (plantuml.rs:1253-1450; mermaid.rs:1389-1620). State machines are a 2-state template (state_machine.rs:22-50). Four extractors have empty bodies (communication_diagram.rs:9-11; interaction_overview.rs:9-15; timing_diagram.rs:8-10; composite_diagram.rs:9-11).",
+  "impact": "Every project receives fabricated CFG, DFG, CDG, CG and ROBDD views labelled verified, so README's 19 derived projections are overstated and users cannot tell real views from templates. The committed Pages demo even cites a nonexistent PipelineControlFlow.java.",
+  "recommendation": "Pass a read-only AnalysisDb holding all artifacts to every exporter. Render the CFG from cfa.functions (blocks, typed edges, idom), the DFG from the def-use CSR, the CDG from ssa.cdg, the CG from cga.callee_csr plus sccs, the ROBDD from psa.node_arrays, and state machines from type-state facts. Delete the templates; when data is absent, emit an explicit 'no data' node. Lock each diagram with insta snapshots on 3 or more fixtures, and assert that JSON, PlantUML and Mermaid share the same node and edge sets.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "MANDATE-CORE-ARCH-UML",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "critical",
+  "title": "Language-neutral, compiler-grade rewiring of your paths (no hard-coding, no templates)",
+  "files": [
+   "src/uma/"
+  ],
+  "evidence": "OpenHeart must support every language with language-agnostic algorithms, and must never hard-code, template or guess: it works the way compilers do, statically. New code is being written now (read what exists): src/lang (neutral.rs universal vocabulary, frontend.rs LanguageFrontend trait, registry.rs single list of languages, profile.rs, build/ for compile_commands, CMake and MSBuild, preprocess.rs, project_model.rs, uml_semantics.rs, idioms.rs, frontends java, kotlin, c, cpp, csharp); src/ir (typed three-address SSA IR with explicit memory operations, lowering from the AST, dominators); src/memory (abstract heap, field-sensitive points-to with on-the-fly call graph, escape, ownership, mod/ref); src/analysis (lattices, worklist solvers, SCCP, intervals, nullness, typestate, control dependence, IFDS/IDE, contexts, canonical branch conditions); src/derive (every diagram derived from those facts with provenance and a Derivation tag, NotDerivable instead of invention); src/symex (bounded static symbolic execution with a stack, heap and path-condition model producing execution traces); src/abi (C/C++ Itanium and MSVC, JVM and CLR memory layouts, lifetimes, calling conventions); src/arch (architecture recovery: dependency graph, DSM, layers, clustering, metrics, boundaries); src/memview (lifetime, ownership, heap-shape and stack-frame views plus memory-safety and data-race facts). Everything from the architectural flow down to memory-level execution must come from these facts, for every language, with semantics exactly per each language specification. Contract names: LangId::C, LangId::Cpp, LangId::CSharp; ASTNodeType additions NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_TEMPLATE_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_INCLUDE_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT, NN_YIELD_STMT.",
+  "impact": "Without this, OpenHeart stays Java-specific and heuristic instead of a universal, compiler-grade engine.",
+  "recommendation": "Produce UML records from src/derive (class, object, package, component, deployment, sequence, communication, activity, state, use case, interaction, timing) instead of heuristics and templates; use frontend ownership and multiplicity hooks and idioms; make pattern detection structural over symbol, IR and memory facts, language-neutral.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SRV_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SRV:1: If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the mat",
+  "files": [
+   "src/tra/mod.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs"
+  ],
+  "evidence": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "impact": "The runner currently contains their panic-on-write behavior via catch_unwind; a signature change will break the build at those call sites",
+  "recommendation": "If Phase7Stage, Phase8Stage, Phase9Stage or Phase10Stage::run start returning Result, update the matching closures in src/adapters/runner.rs run_pipeline: drop the Ok(...) wrapper and add .map_err(|e| e.to_string())",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-5",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Build the supertype index from TH_EXTENDS and TH_IMPLEMENTS only. Exclude primitive and external typ",
+  "files": [
+   "src/uma/patterns/decorator.rs",
+   "composite.rs",
+   "facade.rs",
+   "adapter.rs",
+   "strategy.rs",
+   "query.rs",
+   "mod.rs"
+  ],
+  "evidence": "Build the supertype index from TH_EXTENDS and TH_IMPLEMENTS only. Exclude primitive and external types from the structural predicates. Require forwarding-call evidence for Decorator, Composite and Adapter.",
+  "impact": "UML-02: the exporters display detector output as recorded, so precision has to come from the detectors.",
+  "recommendation": "Build the supertype index from TH_EXTENDS and TH_IMPLEMENTS only. Exclude primitive and external types from the structural predicates. Require forwarding-call evidence for Decorator, Composite and Adapter.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Delete the reserved-name blacklist and the lexical filters (lines ~97-166 and 346-538). Normalize pa",
+  "files": [
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Delete the reserved-name blacklist and the lexical filters (lines ~97-166 and 346-538). Normalize path separators before test-path detection.",
+  "impact": "UML-05: the exporters no longer filter classes by name, but the extractor still drops legitimate types.",
+  "recommendation": "Delete the reserved-name blacklist and the lexical filters (lines ~97-166 and 346-538). Normalize path separators before test-path detection.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPGX_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPGX:1: Line ~203: `scenario_name` stores an interner text id, while the other UMA text references (states, ",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs"
+  ],
+  "evidence": "Line ~203: `scenario_name` stores an interner text id, while the other UMA text references (states, guards, objects) are label ids. Either store a label id or document the difference.",
+  "impact": "Consistency. The exporter titles scenarios from entry_method_sym and only falls back to interner text.",
+  "recommendation": "Line ~203: `scenario_name` stores an interner text id, while the other UMA text references (states, guards, objects) are label ids. Either store a label id or document the difference.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_SCPG_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:SCPG:1: Lines ~304-308: replace the per-class `.find` over uml_links with a dense sym_id -> link slot array ",
+  "files": [
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Lines ~304-308: replace the per-class `.find` over uml_links with a dense sym_id -> link slot array built once (or binary search, since links are sorted by sym_id).",
+  "impact": "BDD-10: O(C*U) lookup.",
+  "recommendation": "Lines ~304-308: replace the per-class `.find` over uml_links with a dense sym_id -> link slot array built once (or binary search, since links are sorted by sym_id).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-4",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Replace `self.total_sat_path_count += method.sat_count` with saturating_add, and mark the total as a",
+  "files": [
+   "src/uma/visitor.rs:214"
+  ],
+  "evidence": "Replace `self.total_sat_path_count += method.sat_count` with saturating_add, and mark the total as a lower bound when any contributing FunctionPSAHeader has PSA_FLAG_COUNT_SATURATED (header.sat_count_is_exact()).",
+  "impact": "overflow-checks are off, so the plain add wraps. PSA sat_count is now clamped to u64::MAX with an explicit flag (BDD-16).",
+  "recommendation": "Replace `self.total_sat_path_count += method.sat_count` with saturating_add, and mark the total as a lower bound when any contributing FunctionPSAHeader has PSA_FLAG_COUNT_SATURATED (header.sat_count_is_exact()).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Replace tra.uml_links.iter().find(|l| l.sym_id == id) with tra.uml_link(id).copied().",
+  "files": [
+   "src/uma/structural/class_diagram.rs:304-308"
+  ],
+  "evidence": "Replace tra.uml_links.iter().find(|l| l.sym_id == id) with tra.uml_link(id).copied().",
+  "impact": "O(1) dense-slot lookup instead of O(C*U) (BDD-10).",
+  "recommendation": "Replace tra.uml_links.iter().find(|l| l.sym_id == id) with tra.uml_link(id).copied().",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_BDD_1-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:BDD:1: Parse through a bounds-checked cursor that validates every declared count against the remaining byte",
+  "files": [
+   "src/uma/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/ast/serializer.rs",
+   "src/main.rs (inspect)"
+  ],
+  "evidence": "Parse through a bounds-checked cursor that validates every declared count against the remaining bytes before Vec::with_capacity, replacing the bytes[a..b].try_into().unwrap() calls. Mirror the Cursor in src/psa/serializer.rs and src/tra/serializer.rs.",
+  "impact": "Malformed or crafted artifacts must yield InvalidData, not a panic or a huge allocation (AUTO-09, SRV-09).",
+  "recommendation": "Parse through a bounds-checked cursor that validates every declared count against the remaining bytes before Vec::with_capacity, replacing the bytes[a..b].try_into().unwrap() calls. Mirror the Cursor in src/psa/serializer.rs and src/tra/serializer.rs.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-16",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? ",
+  "files": [
+   "src/uma/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
+  "impact": "AUTO-09: these readers still panic or over-allocate on malformed input.",
+  "recommendation": "Replace bytes[a..b].try_into().unwrap() reads with crate::core::io::binary::ByteCursor (read_u32()? etc.) and call checked_count(count, elem_size) before Vec::with_capacity.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-21",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Line ~132: normalize the path (replace('\\\\', \"/\")) before matching \"/src/test/\".",
+  "files": [
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Line ~132: normalize the path (replace('\\\\', \"/\")) before matching \"/src/test/\".",
+  "impact": "UML-05: Windows paths keep test classes.",
+  "recommendation": "Line ~132: normalize the path (replace('\\\\', \"/\")) before matching \"/src/test/\".",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_CORE_1-22",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:CORE:1: Lines 22-35: node_attr is a packed attribute word, not a token index; use bpa.token_range(node) / bp",
+  "files": [
+   "src/uma/label_extraction.rs"
+  ],
+  "evidence": "Lines 22-35: node_attr is a packed attribute word, not a token index; use bpa.token_range(node) / bpa.name_token(node) for label text.",
+  "impact": "UML-12.",
+  "recommendation": "Lines 22-35: node_attr is a packed attribute word, not a token index; use bpa.token_range(node) / bpa.name_token(node) for label text.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_FLOW_1-10",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:FLOW:1: Treat SSARecord.orig_sym_id as an STA symbol id, or as ORIG_NODE_TAG | ast_node for locals Phase 3 d",
+  "files": [
+   "src/uma/structural/object_diagram.rs"
+  ],
+  "evidence": "Treat SSARecord.orig_sym_id as an STA symbol id, or as ORIG_NODE_TAG | ast_node for locals Phase 3 did not register (skip those). Look up CallGraphArtifact.points_to_table and CallSite.receiver_ssa by global SSA id = SSAArtifact::global_ssa_base()[f] + local id.",
+  "impact": "Both semantics changed (UML-03, FLOW-11).",
+  "recommendation": "Treat SSARecord.orig_sym_id as an STA symbol id, or as ORIG_NODE_TAG | ast_node for locals Phase 3 did not register (skip those). Look up CallGraphArtifact.points_to_table and CallSite.receiver_ssa by global SSA id = SSAArtifact::global_ssa_base()[f] + local id.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Phase 9 drops real classes through a repo-tuned name blocklist that the F1 oracle mirrors",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "ruthless_config.json",
+   "ruthless_verify.py"
+  ],
+  "evidence": "In src/uma/structural/class_diagram.rs:346-538, `is_reserved_keyword` (188 names, applied at :163) mixes language keywords with framework and application names: 'Context' (:468), 'Entity' (:418), 'Configuration', 'Root', 'Table', 'Error', 'Update', 'Logger', 'Singleton', 'HomeScreen' (:519), 'INVESTOR', 'OpenHeart'. The extractor also rejects names with characters outside [A-Za-z0-9_] (:98-101), ALL_CAPS names (:107), lowercase-initial names unless they equal the file stem (:157), test paths (:136) and names ending in 'Binding' (:162). Of the 119 entries that are not language keywords, 115 also appear in the ruthless_config.json 'keywords' list. ruthless_verify.py:88,172,216,232 strips that list from both the ground truth and the output.",
+  "impact": "The State/Strategy participant Context, a JPA Entity, and any class named Error, Root, Table or Logger vanish from every diagram and from pattern detection. The benchmark cannot see the loss, by construction.",
+  "recommendation": "Remove name-based rejection from Phase 9. Filter only by symbol kind and provenance (declared in an analyzed source file, versus stub, external or annotation). Annotation names are already tagged TokenType::Annotation; keep framework vocabularies in per-language data files, off by default. Decouple the oracle from the engine (no shared lists), and add fixtures with classes named Context, Entity, Error, Größe and $Proxy that must appear.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "Position and identifier model is byte- and ASCII-based; one long line aborts Phase 1",
+  "files": [
+   "src/ingestion/walker.rs",
+   "src/core/types/token.rs",
+   "src/ingestion/mod.rs",
+   "src/ingestion/builder.rs",
+   "src/ast/reducer.rs",
+   "src/adapters/server.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "src/ingestion/walker.rs:59 stores `col: start.column as u16`, which wraps, in the sort key's 16-bit column (src/core/types/token.rs:121-124). On a line longer than 65,535 bytes, a later token can collide with an earlier, non-adjacent one. The dedup handles only adjacent keys (src/ingestion/mod.rs:140-154), so finalize fails with 'Invariant 2 Violation' (src/ingestion/builder.rs:49-56). The server collects .js files from everywhere except a few directory names (src/adapters/server.rs:764-866), for example a committed javadoc jquery-*.min.js. src/ast/reducer.rs:56 saturates the column instead of wrapping it. Sources are parsed as raw bytes with no BOM or charset handling. Identifier checks need an ASCII first byte (pass1_discovery.rs:687,714,766,803), and class_diagram.rs:98-101 rejects non-ASCII and '$' names.",
+  "impact": "One minified or generated file aborts the server's analysis of a whole repository. Unicode identifiers (legal in Java, Kotlin, Python, JS, Rust and Swift) and '$' names disappear. Columns are UTF-8 bytes, not the UTF-16 units editors use.",
+  "recommendation": "Anchor tokens on u32 byte offsets and derive line/col lazily from a line index. If the packed key stays, widen columns to u32 and break ties globally by token_id. Skip and report minified or generated files using linguist-style rules (line length, .min.js, generated-file headers). Transcode non-UTF-8 input (BOM sniffing, encoding_rs), use Unicode XID rules (unicode-ident crate) for identifiers, and expose UTF-16 columns to the web studio and LSP clients.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "SYM2-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "TH_EXTENDS vs TH_IMPLEMENTS is guessed from the target's kind, so implements clauses become extends edges",
+  "files": [
+   "src/symbol/passes/pass5_hierarchy.rs:56-71",
+   "src/symbol/passes/pass5_hierarchy.rs:141-147",
+   "src/ast/adapter/java.rs:115-116",
+   "src/uma/structural/class_diagram.rs:283-289"
+  ],
+  "evidence": "The AST eliminates the superclass and super_interfaces nodes, so Pass 5 sees bare TYPE_REFs and only emits IMPLEMENTS for class-to-interface pairs. Enums and records implementing interfaces, and classes implementing external interfaces such as Runnable or Serializable, get EXTENDS. The test sample `extends BaseService implements Runnable` produces two EXTENDS edges, and class_diagram keeps the last one, so the superclass shown is Runnable. Lines 64-67 duplicate the else branch, and target kinds are never checked.",
+  "impact": "Class diagrams show the wrong superclass and apparent multiple inheritance; enums and records lose their realization edges.",
+  "recommendation": "Keep the clause information: retain the superclass and super_interfaces nodes or tag their TYPE_REFs in NodeAttr, and derive the relation from syntax. In the token scan, use the keyword actually seen. Reject targets that are not type kinds. Add tests for enum, record and external-interface cases.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Enum constants are dropped from the AST, so SK_ENUM_CONSTANT is never produced",
+  "files": [
+   "src/ast/adapter/java.rs:35",
+   "src/ast/adapter/java.rs:112-113",
+   "src/ast/adapter/java.rs:129",
+   "src/core/types/ast.rs:6-68",
+   "src/uma/structural/class_diagram.rs:209",
+   "src/tra/builder.rs:84"
+  ],
+  "evidence": "enum_body and enum_body_declarations are Eliminate, but enum_constant has no arm and falls to `_ => Drop` (java.rs:129), discarding the constant, its arguments and any constant body. ASTNodeType has no enum-constant kind. grep finds nothing that creates SK_ENUM_CONSTANT, although class_diagram.rs:209 and tra/builder.rs:84 consume it.",
+  "impact": "Enums appear in UML and traceability with no literals. Constant arguments and constant-specific bodies are missing from the CFG, SSA and call graph.",
+  "recommendation": "Add NN_ENUM_CONSTANT to ASTNodeType. Keep enum_constant with its name, argument_list and class_body, map it to SK_ENUM_CONSTANT in the semantic adapter, and add an enum golden test.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-3",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Replace the plain `+=` over sat_count values with checked_add, and record an explicit inexact/overfl",
+  "files": [
+   "src/uma/visitor.rs:214"
+  ],
+  "evidence": "Replace the plain `+=` over sat_count values with checked_add, and record an explicit inexact/overflow marker when it fails (or use saturating_add plus a flag).",
+  "impact": "BDD-16: overflow checks are now on in dev and test (Cargo.toml [profile.dev]/[profile.test]), so summing saturated u64::MAX counts panics there instead of wrapping silently.",
+  "recommendation": "Replace the plain `+=` over sat_count values with checked_add, and record an explicit inexact/overflow marker when it fails (or use saturating_add plus a flag).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-cfam_MEM-8",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from cfam:MEM: Replace `is_owned_part` (which scans tokens for `new`) and the rule that makes collection attributes",
+  "files": [
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Replace `is_owned_part` (which scans tokens for `new`) and the rule that makes collection attributes aggregations with `crate::memory::ownership::analyze(&module, &pts, &escape, &config, &hooks)`. Map `FieldOwnership.kind` to AssocKind (Composition → Composition, Aggregation → Aggregation, Association → Association, NotDerivable → an association marked as not derivable). Use `many` for mult_max, `part_types` for target symbols, the `basis` and `precision` fields for notes, and `OwnershipResult::creations()` for TH_CREATES / «create» dependencies.",
+  "impact": "The owner's no-hard-coding rule: relationships come from who allocates, holds, exposes and releases each part, not from token patterns.",
+  "recommendation": "Replace `is_owned_part` (which scans tokens for `new`) and the rule that makes collection attributes aggregations with `crate::memory::ownership::analyze(&module, &pts, &escape, &config, &hooks)`. Map `FieldOwnership.kind` to AssocKind (Composition → Composition, Aggregation → Aggregation, Association → Association, NotDerivable → an association marked as not derivable). Use `many` for mult_max, `part_types` for target symbols, the `basis` and `precision` fields for notes, and `OwnershipResult::creations()` for TH_CREATES / «create» dependencies.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_2-20",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:2: Add configurable per-scenario depth and message caps. Collapse polymorphic CHA targets into one mess",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs"
+  ],
+  "evidence": "Add configurable per-scenario depth and message caps. Collapse polymorphic CHA targets into one message to the declared type. Widen ordinal from u16 to u32 and increment it with checked_add, returning an explicit truncation marker when the cap is hit.",
+  "impact": "UML2-07: overflow checks are now on in dev and test (Cargo.toml), so the u16 wrap would panic instead of wrapping silently.",
+  "recommendation": "Add configurable per-scenario depth and message caps. Collapse polymorphic CHA targets into one message to the declared type. Widen ordinal from u16 to u32 and increment it with checked_add, returning an explicit truncation marker when the cap is hit.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-01",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "LabelExtractor slices UTF-8 labels by byte and panics on non-ASCII tokens, aborting Phase 9",
+  "files": [
+   "src/uma/label_extraction.rs:33-34",
+   "src/uma/behavioral/activity_diagram.rs:82-90",
+   "src/ast/adapter/java.rs:178",
+   "src/adapters/server.rs:40-41"
+  ],
+  "evidence": "`&label_text[..max_chars.saturating_sub(3)]` slices by byte length. It runs for every non-entry/exit block (max 30). node_attr is misused as a token index, so it reads token 0 or op<<12 (e.g. token #86016 for `==` conditions). A token such as 'Bitte geben Sie Ihr Passwört ein', or CJK text, puts byte 27 in the middle of a character (checked in Python), so the slice panics.",
+  "impact": "Phase 9 crashes on such input. The single-threaded server has no catch_unwind, so a crafted repo sent to /api/analyze is a remote DoS.",
+  "recommendation": "Truncate on char boundaries (char_indices().nth(n)) and never byte-slice a String. Add test_extract_label_multibyte_truncation with umlaut and CJK tokens. This differs from UML-12, which is about reading the wrong token.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-03",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Sequence extraction rebuilds a map of all call edges per entry point and scans all call sites per visited method",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/uma/actor_identification.rs",
+   "src/cg/call_sites.rs"
+  ],
+  "evidence": "uma/behavioral/sequence_diagram.rs:23-27 runs extract_for_entry for every entry point, meaning every public or package method with zero fan-in (actor_identification.rs:12-41). Each call rebuilds site_edges from the whole cga.site_to_edge_map (87-93). For every method popped in the DFS it iterates all cga.call_sites (109-110), although the sites are already sorted by caller (call_sites.rs:66). The DFS (99-151) has no depth or message cap and follows the full transitive closure, then truncates message_count to u16 (158).",
+  "impact": "O(EP·|E| + EP·R·C): tens of thousands of entry points × millions of edges is ~10^11 operations before any DFS work. Once call resolution is fixed, closure-sized message lists per entry point risk OOM.",
+  "recommendation": "Build a caller→sites CSR once (a binary-search slice over the sorted call_sites). Use BFS with a depth bound of 3–5 and a message cap, and memoize per-method callee summaries. Generate sequences lazily for the entry points a user requests instead of for all of them, and store counts as u32. Expected cost: O(Σ capped messages).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-06",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Fixed-width ids overflow at scale: u16 file ids, u8 block ids, u16 counts",
+  "files": [
+   "src/ingestion/mod.rs",
+   "src/core/types/token.rs",
+   "src/ingestion/builder.rs",
+   "src/core/types/ssa.rs",
+   "src/tra/backward/ssa_bi.rs",
+   "src/cg/scc.rs",
+   "src/ssa/serializer.rs",
+   "src/tra/forward/sym_span.rs",
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/uma/serializer.rs"
+  ],
+  "evidence": "ingestion/mod.rs:70,123 cast file_id with `as u16`, and token.rs:121 packs 16-bit file ids into sort keys. File 65,536 wraps onto file 0, and the key collisions trip Invariant 2 (ingestion/builder.rs:52), which aborts Phase 1. core/types/ssa.rs:25,43 stores def_block as (def_block & 0xFF) as u8, so the global block offsets in tra/backward/ssa_bi.rs:17-35 are wrong for every function after one with more than 256 blocks. Also truncated: SCC size as u16 (cg/scc.rs:38), orig_sym_id & 0xFFFF on disk (ssa/serializer.rs:113), line numbers as u16 (sym_span.rs:38-40), UMA counts as u16 (sequence_diagram.rs:158).",
+  "impact": "Phase 1 fails outright beyond 65,535 files (monorepos such as intellij-community with testData), and traceability and artifacts are silently corrupted on ordinary large code (methods over 256 blocks, files over 65,535 lines).",
+  "recommendation": "Widen ids, counts and line numbers to u32, and split sort_key into (file_id: u32, byte_offset: u32) or a u128. Replace every `as uN` on a length with uN::try_from(..)? returning a typed error. Add generated tests: 70K files, 300-block methods, 70K-line files, and .ssa/.uma round-trips.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "No typed ID discipline: ids from one space are read as another at six phase boundaries",
+  "files": [
+   "src/cg/points_to.rs",
+   "src/uma/structural/object_diagram.rs",
+   "src/ssa/renaming.rs",
+   "src/cg/mod.rs",
+   "src/cg/resolution.rs",
+   "src/psa/construction/feasibility.rs",
+   "src/ssa/ifds.rs",
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/tra/backward/ssa_bi.rs",
+   "src/tra/backward/blk_bi.rs"
+  ],
+  "evidence": "AST node ids stored in SSARecord.orig_sym_id are looked up as symbol ids by points-to (points_to.rs:31) and by the object diagram (object_diagram.rs:16,27). Per-function ssa_ids (renaming.rs:124,159) key a global points-to table (cg/mod.rs:71-78) and are matched across all functions (resolution.rs:152-154). Phase 8 reads IFDS 'taint source 1' as a block id (ifds.rs:25 vs feasibility.rs:88-93). It also uses ssa_id as a BDD variable index that collides with edge variables (feasibility.rs:122). Exporters pass scenario_name, which is a name_id, as a symbol id (sequence_diagram.rs:156; plantuml.rs:1160; mermaid.rs:1312). ssa_bi.rs:13-24,35 derives block bases from max(def_block)+1, unlike bi_blk (blk_bi.rs:12-27).",
+  "impact": "Object diagrams, points-to sets, #SAT path counts, interaction-overview titles and phi source spans silently refer to unrelated entities. The compiler cannot catch any of it because every id is a bare u32.",
+  "recommendation": "Introduce newtypes TokenIdx, NodeId, SymbolId, TextId, FuncId, BlockId{func,local} and SsaId{func,local}, with no implicit conversions. rust-analyzer does the same with la_arena::Idx<T> and salsa interned ids. Store a per-function block-offset table in .cfa and use it wherever global block ids are formed. Done = cargo check rejects the call sites above, and a test asserts that every object-diagram type_sym_id is a class symbol.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Traceability stops at Phase 9: exporters ignore UMLLink spans and fabricate file names and line numbers",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs",
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "Phase 7 computes exact (file_id, line, col) UMLLinkRecords, and Phase 9 copies them into ClassRecord.uml_link (class_diagram.rs:304-319). No exporter under src/scpg reads uml_link, uml_link_node or uml_link_token. The JSON IR the studio loads sets file to '<Name>.java' and lines to [1, 5, 10] (json.rs:267-268; also 580-581, 671-672, 733-734) and hard-codes 'OpenHeartEngine.java' (json.rs:1447). The editor requests /api/source by that guessed name (editor.js:160-161). The server then matches it by file stem across fixed example folders (server.rs:109-224). NavigationEngine::to_source and from_source are linear scans (navigation.rs:9-27).",
+  "impact": "Click-to-source is wrong for Kotlin files, files with several classes, nested classes and duplicate names, and it always highlights lines 1, 5 and 10. The O(1) source-to-diagram traceability claim therefore fails at the UI.",
+  "recommendation": "Attach a source anchor to every diagram node and edge: root-relative path, start/end line and column, and token range, taken from ClassRecord.uml_link and MessageRecord.uml_link_token. Serve sources by (session, file_id), never by name. Make to_source an O(1) index (uml_links is already sorted by sym_id) and from_source an interval-tree lookup. Done = for each fixture class, the JSON anchor equals the declaration position reported by JavaParser or javac.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "No two runs produce identical artifacts or diagrams: timestamps, mtimes, HashMap order and raw path strings leak into outputs",
+  "files": [
+   "src/ingestion/serializer.rs",
+   "src/ingestion/mod.rs",
+   "src/ast/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/scpg/serializer/mod.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/uma/behavioral/sequence_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/ssa/placement.rs"
+  ],
+  "evidence": ".tca embeds SystemTime::now() and per-file mtimes (ingestion/serializer.rs:80-84,115; ingestion/mod.rs:62-67). .bpa embeds the .tca CRC (ast/serializer.rs:31), so every later link hash changes on each run. .sta serializes two HashMaps in iteration order (symbol/serializer.rs:169,180). .scpg embeds a timestamp (scpg/serializer/mod.rs:136-140). The TRA hash is taken over Debug output that includes mtimes (hash_chain.rs:36). Iteration order also leaks: HashSet-to-Vec relations (class_diagram.rs:300-301), lifelines via into_values (sequence_diagram.rs:153), JSON packages, edges and edge ids (json.rs:148,445,518), call-graph edges in HashSet order (plantuml.rs:1432; mermaid.rs:1605), and phi order (placement.rs:37). Invocation path strings are stored verbatim (ingestion/mod.rs:137-138).",
+  "impact": "Results cannot be reproduced or diffed, golden tests are impossible, the committed web/diagrams change on every run, and all UMLLinks look stale after a rebuild. README's 'deterministically derives' claim is false.",
+  "recommendation": "Use BTreeMap or IndexMap, or sort, before every serialization and export. Drop wall-clock timestamps from artifacts (or honour SOURCE_DATE_EPOCH) and keep mtimes out of hashes. Store root-relative POSIX paths (camino, path-slash). Add a CI job that runs analyze twice, once from another working directory and with shuffled discovery order, and requires byte-identical outputs (cmp or diffoscope, as reproducible-builds.org recommends).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-09",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Most computed IR is never consumed, and the persisted artifacts cannot be reloaded: .scpg stores counts and .ssa reads back empty",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/api/mod.rs",
+   "src/ssa/serializer.rs",
+   "src/uma/behavioral/activity_diagram.rs",
+   "src/uma/types.rs",
+   "src/main.rs"
+  ],
+  "evidence": "SCPGSerializer writes a 4- or 8-byte count for 10 of 11 sections and real bytes only for strings (scpg/serializer/mod.rs:56-108). OpenHeartEngine holds a hash and an empty cache (scpg/api/mod.rs:29-45). SSASerializer::read returns no functions (ssa/serializer.rs:167-205). The CDG, def-use CSR, dominators, dominance frontiers, loop info, points_to_table and the TRA bi_ast/bi_blk/bi_ssa/bi_cs/cs_span indexes have no consumer outside their own modules except inspect printing their lengths (main.rs:397,435-439). Phase 9 computes activity labels and discards them (activity_diagram.rs:82-93), and label_texts is never filled (uma/types.rs:282). Artifact files are re-read only to compute CRCs (main.rs:154-226).",
+  "impact": "Nothing can be queried, resumed or diffed from disk. The 'unified memory-mapped SCPG' and its compression figures describe a file with no data, and most Phase 4-8 work cannot change any output.",
+  "recommendation": "Make .scpg the real database: store each section as a schema-versioned, zero-copy encoding of its artifact (rkyv, FlatBuffers or Cap'n Proto), memory-mapped, with section CRCs verified on open. OpenHeartEngine::open must answer queries with no in-memory artifacts, as a CodeQL database or Joern's persisted flatgraph CPG does. Add a test that fails when an artifact field has no consumer, plus an e2e test that analyzes, reopens the .scpg and runs a slice and a reachability query.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-10",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "Error handling is inconsistent across phases: global aborts on local faults, silent skips, panics, and invariants met by editing data",
+  "files": [
+   "src/ingestion/mod.rs",
+   "src/ast/mod.rs",
+   "src/cfg/mod.rs",
+   "src/ssa/mod.rs",
+   "src/tra/mod.rs",
+   "src/tra/builder.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs",
+   "src/adapters/server.rs",
+   "src/tra/backward/blk_bi.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/symbol/passes/pass5_hierarchy.rs",
+   "src/main.rs"
+  ],
+  "evidence": "One unreadable file or a None parse aborts Phase 1 (ingestion/mod.rs:51-54,111,117), and one odd function aborts Phases 4 and 5 (cfg/mod.rs:84; ssa/mod.rs:81). Yet Phase 2 silently skips files it cannot read or parse (ast/mod.rs:141-154). Phases 7-10 return no Result and panic or assert instead (tra/mod.rs:42-44; tra/builder.rs:67-130; psa/mod.rs:153-155; uma/mod.rs:97-99; scpg/mod.rs:53-55). The single-threaded server has no catch_unwind (server.rs:40-42). Invariants are met by editing data: empty blocks map to token 0 (blk_bi.rs:17-21), orphans are moved under symbol 0 (pass1_discovery.rs:622-627), and hierarchy cycles are deleted (pass5_hierarchy.rs:218). thiserror is a dependency but is never used, and error JSON interpolates Debug paths (server.rs:530-533).",
+  "impact": "Large repositories fail completely on one bad unit, or degrade silently. One panic stops the server for every user, and real resolution bugs stay hidden. The CLI prints 'SYSTEM PRODUCTION READY' even when diagram writes fail (main.rs:289-341).",
+  "recommendation": "Define a StageError enum with thiserror. Make every stage return Result and record per-file Diagnostics (file, phase, kind, message) in a diagnostics table, as CodeQL extractors do, continuing past local faults. Turn invariant checks into reported errors, never data patches. Run each server request under catch_unwind or in a worker pool, and build every response with serde_json. When a run is degraded, exit non-zero and report the skipped files and failed functions.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Name blocklists silently drop real user classes, and the F1 = 1.0 oracle excludes the same names",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "README.md"
+  ],
+  "evidence": "ClassDiagramExtractor drops any class named in a 188-entry list that includes Entity, Configuration, Error, Value, Root, Context, Logger, Table, Singleton and Scanner, plus repo-specific names such as HomeScreen, INVESTOR and OpenHeart (class_diagram.rs:346-538). It also drops names ending in 'Binding', ALL_CAPS names, and lowercase names that differ from the file stem (class_diagram.rs:107-164). ruthless_verify.py removes every name in ruthless_config.json 'keywords' from its regex ground truth (ruthless_verify.py:88). 184 of the engine's 188 suppressed names are in that list. The harness compares only class-name sets parsed from the server's class PUML (ruthless_verify.py:317-350).",
+  "impact": "Ordinary domain classes vanish from every diagram. The published F1 = 1.0 is partly true by construction, covers one projection (class names) on one path (the server), and says nothing about members, relations, CFGs or call graphs.",
+  "recommendation": "Delete the name blocklists and filter only by symbol kind and origin (library vs project source). Build independent oracles: javac/JDT or Spoon for classes, members and hierarchy; kotlinc PSI for Kotlin; Soot or OPAL for call edges. Report precision and recall per relation (classes, fields, methods, extends/implements, associations, call edges, CFG blocks) on a public corpus such as Qualitas.class, XCorpus or Defects4J subjects. Run it through the CLI entry point, and publish the scripts and numbers.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "GoF detection is keyed on class-name substrings; the structural detectors that exist are never called",
+  "files": [
+   "src/uma/patterns/factory.rs",
+   "src/uma/patterns/state.rs",
+   "src/uma/patterns/strategy.rs",
+   "src/uma/patterns/adapter.rs",
+   "src/uma/patterns/facade.rs",
+   "src/uma/patterns/composite.rs",
+   "src/uma/patterns/builder.rs",
+   "src/uma/patterns/mod.rs",
+   "src/uma/patterns/query.rs",
+   "src/uma/patterns/observer.rs",
+   "src/uma/patterns/template_method.rs",
+   "src/symbol/uml_meta/patterns.rs",
+   "src/scpg/diagram/export/plantuml.rs"
+  ],
+  "evidence": "factory.rs:17 is name-only (`contains(\"factory\")` gives 90). state.rs:18 fires on \"state\" or \"strategy\" (85). strategy.rs:20-21 gives 95 from the name; adapter.rs:21-22, facade.rs:18-19 and composite.rs:28-29 accept the name alone; builder.rs:33 checks `ends_with(\"Builder\")`. mod.rs runs State (101-112) before Strategy (140-151), so PaymentStrategy is rendered «State» (plantuml.rs:315-320). The query.rs:78-132 helpers and the structural detectors in symbol/uml_meta/patterns.rs:20-137 have no callers. Simulation: the name predicates label 8 example classes; after neutral renaming 6 lose their label, and only Builder and Decorator have structural fallbacks.",
+  "impact": "Labels disappear under renaming or non-English naming and appear on names like StatementParser and SessionFactoryBean. The bundled Factory Method (Logistics), Observer (NewsAgency.attach; observer.rs:25-29 requires \"listener\") and Template Method (DataMiner; template_method.rs:32 requires a protected method) examples are missed.",
+  "recommendation": "Detect roles structurally and behaviourally over SCPG facts. Options: similarity scoring on generalization/association/invocation matrices as in Tsantalis et al. (TSE 2006), or Datalog rules (Soufflé, or Rust ascent/crepe) using the call graph and points-to: Decorator forwards to a field typed as its supertype, Observer iterates an observer collection, Template Method calls abstract primitives. Names may only nudge confidence. Done = a rename-invariance test passes and P/R are reported on P-MARt.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "The structural checks that do exist are wrong: Singleton on any self-reference, Composite identical to Decorator, Facade counts primitives",
+  "files": [
+   "src/uma/patterns/singleton.rs",
+   "src/uma/patterns/composite.rs",
+   "src/uma/patterns/decorator.rs",
+   "src/uma/patterns/facade.rs",
+   "src/symbol/adapter/java.rs",
+   "src/symbol/passes/pass3_types.rs"
+  ],
+  "evidence": "singleton.rs:20-34 returns confidence 100 if any field is named \"instance\" or typed as the class itself, with no static, private-constructor or accessor check; `class Node { Node next; }` qualifies. composite.rs:22-24 is identical to decorator.rs:21-23 (a field typed as a supertype), so CondimentDecorator is also reported as Composite (75). Real composites are missed: `List<Component>` fields resolve to the erasure head List, because pass3_types.rs:26-36 resolves a type from its first token. facade.rs:11-14 counts fields whose type_id is not u32::MAX, but primitive ids are 0xB000_000x (java.rs:21-29). By static trace, Computer (4 fields) and UserAccount (3 fields) therefore become Facade (70).",
+  "impact": "Confident false positives on linked structures, trees and plain entities or DTOs, while true composites are missed. Precision on real code will be far below the reported confidences.",
+  "recommendation": "Wire in the stricter Singleton detector that already exists in symbol/uml_meta/patterns.rs:20-59 (private static self field, public static accessor, no public constructor). Keep generic type arguments in the symbol table. Require a Composite field whose element type is a supertype, plus add/remove methods and iteration delegation via CGA. Define Facade as public methods calling at least 2 distinct subsystem packages, ignoring primitives and JDK types. Done = per-detector unit tests with positive and negative fixtures (linked list, JPA entity, DTO, wrapper).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Most UML behavioral views and the XMI export are templates or empty stubs presented as derived",
+  "files": [
+   "src/uma/behavioral/state_machine.rs",
+   "src/uma/behavioral/timing_diagram.rs",
+   "src/uma/behavioral/communication_diagram.rs",
+   "src/uma/behavioral/interaction_overview.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/xmi.rs"
+  ],
+  "evidence": "state_machine.rs:10-64 claims IFDS typestate but leaves `_ssa` unused; it turns every class with a method into a 2-state machine. The exporters add invented states and actions \"Uninitialized\", \"Active\", \"onInit()\", \"executeWork()\" and \"cleanup()\" (plantuml.rs:1005-1016; json.rs:758-853). The timing, communication and interaction extractors have empty bodies. Use-case actors are classes whose names end in Controller/Client/App/Main/Service/Facade, and use cases are the first 3 methods of the first 6 classes (plantuml.rs:886-946). Fallbacks invent `execute()` chains (json.rs:656-690), an \"OpenHeartEngine\" composite (1436-1493) and `X.jar` nodes (1161-1217). Activities emit `if (eval_branch)` with no endif (plantuml.rs:972). XMI writes only `name=\"Class_{id}\"` (xmi.rs:13).",
+  "impact": "About half of the \"14 UML 2.5 diagrams\" carry no program-specific information and look structurally the same on any input. The XMI cannot be imported meaningfully into any UML tool, and invalid PlantUML (an unclosed if) gets through.",
+  "recommendation": "Ship only projections with a real derivation and mark the rest experimental. Derive state machines from enum or state fields and guarded assignments, using typestate over the existing IFDS solver. Derive use cases from framework entry points (@RestController/@*Mapping, Android components) via the call graph. Drop the timing view unless clock or thread events are modelled. Export full UML2 XMI (names, attributes, operations, generalizations) and validate it with Eclipse UML2. Done = golden tests per exporter, and PlantUML `-checkonly` passes.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-09",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Hard-coded name deny-lists and suffix rules silently drop real user classes",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/common.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/adapters/server.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/symbol/std_library/java_stubs.rs"
+  ],
+  "evidence": "class_diagram.rs:161-165 discards any class whose name ends in \"Binding\" or appears in a 188-entry list (346-538) that mixes keywords with domain names: Entity, Value, Configuration, Root, Table, Scanner, Context, Update, Insert, Error, Logger and others. The PlantUML view also skips user classes named List, Map, Set, Optional or Character (common.rs:59-91; plantuml.rs:292). The server drops any file whose stem ends in \"test\", such as Contest.java or Latest.java (server.rs:875-881). Pass 1 rejects classes named Map, Set, Array, Function or Promise (pass1_discovery.rs:356-370). The bundled examples/huge_enterprise_src/enterprise/bank/core/Entity.java, implemented by BaseModel, is dropped.",
+  "impact": "Common domain models (JPA Entity, Table and Value, Android *Binding classes, a game Map class) lose classes and edges without warning, and FIT-02 ensures the benchmark never notices.",
+  "recommendation": "Filter by origin, not by name. Library stubs already carry first_token_id and decl_node = u32::MAX (java_stubs.rs:127,140), and unresolved types are SK_EXTERNAL. Exclude generated code by configurable path globs, and identify test sources from build metadata (Gradle/Maven sourceSets, Cargo targets) instead of filename suffixes. Done = a fixture with classes named Entity, Table, Map, Contest and FooBinding appears complete in every exporter.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ROB-05",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "Byte-index slicing in LabelExtractor panics on non-ASCII text, and labels come from the wrong token",
+  "files": [
+   "src/uma/label_extraction.rs",
+   "src/uma/behavioral/activity_diagram.rs",
+   "src/ast/adapter/java.rs",
+   "src/core/types/ast.rs"
+  ],
+  "evidence": "extract_label truncates with `&label_text[..max_chars.saturating_sub(3)]` (label_extraction.rs:33-35). activity_diagram.rs:89 passes 30, so byte 27 must fall on a char boundary. The text is token_records[bpa.node_attr(stmt)] (line 23), but node_attr is the packed visibility/modifier/operator word (java.rs:177, ast.rs:209-213), which is 0 for expression and return statements. As a result, nearly every block label is token 0 of the whole corpus. If token 0 is at least 28 bytes with a multi-byte char spanning byte 27, Phase 9 panics with 'byte index 27 is not a char boundary'. Examples: the first file starts with an identifier of 16 'ç' characters, or with Cyrillic or CJK text.",
+  "impact": "A deterministic Phase 9 panic. It is rare in Java-only CLI runs (token 0 is usually `package`), plausible for non-English Python/JS files ingested by the server, and trivially crafted: a one-file repository sent to /api/analyze kills the server. Every activity label is also wrong.",
+  "recommendation": "Truncate on char boundaries (`s.char_indices().nth(n)`, str::floor_char_boundary once stable, or unicode-segmentation for graphemes), and ban raw string slicing with clippy::string_slice. Derive labels from bpa.token_range(stmt).0 instead of node_attr. Add proptest and fuzz corpora with Unicode identifiers (legal in both Java and Kotlin) and CJK or emoji literals.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ROB-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Packed u8/u16 fields silently truncate at realistic sizes, corrupting SSA, PSA, traceability and UMA data",
+  "files": [
+   "src/core/types/ssa.rs",
+   "src/psa/construction/feasibility.rs",
+   "src/tra/backward/ssa_bi.rs",
+   "src/tra/forward/sym_span.rs",
+   "src/tra/forward/cs_span.rs",
+   "src/ingestion/mod.rs",
+   "src/psa/ordering/mod.rs",
+   "src/cg/scc.rs",
+   "src/uma/serializer.rs",
+   "src/ingestion/walker.rs",
+   "src/ingestion/interner.rs"
+  ],
+  "evidence": "With overflow checks off, narrowing casts wrap silently. SSARecord.def_block is a u8 (core/types/ssa.rs:25,43), so block numbers of 256 and above alias. feasibility.rs:115-119 then matches on `block_id & 0xFF`, and ssa_bi.rs:17-35 builds global block offsets from the truncated maxima, which shifts every later function. Span lines are cast `as u16` (sym_span.rs:38-40, cs_span.rs:32), and so is file_id (ingestion/mod.rs:70,123). PSA maps edges beyond 65,535 to var 0 (psa/ordering/mod.rs:40-55), and its condition variables are ssa_id&0x3FFF, which collide with edge variables (feasibility.rs:122). SCC sizes, UMA counts and token lengths are also cast `as u16` (cg/scc.rs:38, uma/serializer.rs:39-40, walker.rs:54, interner.rs:99).",
+  "impact": "SSA, path-count, traceability and UML data come out wrong, with no error, for methods over 256 blocks, files over 65,535 lines and repositories over 65,535 files. Those are exactly the inputs a benchmark contains.",
+  "recommendation": "Widen on-disk fields to u32 (or LEB128 varints) behind a format-version bump. Replace every narrowing `as` with u16::try_from mapped to a typed error, or to an explicit saturate-and-diagnose. Deny clippy::cast_possible_truncation. Give BDD condition variables their own index space. Add CI boundary tests: a 257-block method, a 65,536-line file, 65,536 synthetic files and a 70 KB token.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "No error model: String errors, an unused thiserror, panics in Phases 7-9, silently dropped files and integer truncation",
+  "files": [
+   "Cargo.toml:13",
+   "src/core/pipeline.rs:51",
+   "src/tra/mod.rs:41-43",
+   "src/psa/mod.rs:154",
+   "src/uma/mod.rs:98",
+   "src/ast/mod.rs:140-152",
+   "src/adapters/server.rs:536-609",
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/walker.rs:59",
+   "docs/security-architecture.md:26"
+  ],
+  "evidence": "thiserror is declared (Cargo.toml:13) but never used, and src has no error enum. 27 signatures return Result<_, String>, and callers re-stringify errors with {:?}. Phases 7-9 return bare artifacts and panic! when a write fails (tra/mod.rs:43, psa/mod.rs:154, uma/mod.rs:98). Phase 2 silently skips any file it cannot read or parse (nested `if let Ok`, ast/mod.rs:140-152). The server hashes `fs::read(..).unwrap_or_default()` (server.rs:536-609). `file_id as u16` (ingestion/mod.rs:70) wraps past 65,536 files and `column as u16` (walker.rs:59) past column 65,535, although security-architecture.md:26 claims these values saturate. 291 unwraps remain.",
+  "impact": "A full disk or a permission error aborts the server. Unreadable files vanish from the results with no warning. Large monorepos and minified files get colliding sort keys and wrong traceability, all silently.",
+  "recommendation": "Define typed errors per layer with thiserror, for example ArtifactError {Truncated, BadMagic, CrcMismatch{expected, found}, Version} and IngestError {Io{path}, Parse{path}}, and use anyhow or miette only in the CLI. Make every stage return Result, and record per-file diagnostics instead of skipping files. Replace `as` casts with u16::try_from plus explicit errors, or widen the IDs. Deny clippy::unwrap_used, expect_used, panic and indexing_slicing in library code, following the Rust API Guidelines (C-GOOD-ERR).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_DOCS_1-12",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:DOCS:1: Delete the 188-name class blocklist and the Binding/ALL_CAPS/lowercase filters; filter by symbol kin",
+  "files": [
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Delete the 188-name class blocklist and the Binding/ALL_CAPS/lowercase filters; filter by symbol kind and origin only",
+  "impact": "E2E-11. Real classes such as Configuration and Logger are dropped",
+  "recommendation": "Delete the 188-name class blocklist and the Binding/ALL_CAPS/lowercase filters; filter by symbol kind and origin only",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "TST-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact loaders and the request parser are unfuzzed; malformed files with a valid CRC panic or abort",
+  "files": [
+   "src/ast/serializer.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/uma/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "The BPA reader trusts on-disk lengths. `Vec::with_capacity(words_len)` with values up to 2^32 aborts on allocation, and `buf[offset..offset+8]` panics on a short payload. bit_count is never checked against words.len(), so get_bit indexes out of bounds inside RankSelectIndex::build (ast/serializer.rs:109-127, 183). MemoryMappedSCPG::open size-checks for 11 sections but then loops over the file's own section_count (mmap/mod.rs:19-72). get_section adds offset and length without overflow checks (81-93). The serializers contain about 270 unwrap/expect calls, and there is no fuzz/ directory.",
+  "impact": "Truncated, hostile or version-skewed artifacts crash the CLI and engine instead of returning errors, and loader panics stay invisible until a user hits them.",
+  "recommendation": "Add a cargo-fuzz target per loader (tca, bpa, sta, cfa, ssa, cga, tra, psa, uma, scpg), with a harness that recomputes the trailing CRC so mutated inputs pass the checksum gate. Add structured `arbitrary` round-trip targets asserting read(write(x)) == x, a target that feeds raw source bytes through the whole pipeline, and an HTTP-parser target. Seed corpora from test outputs, run 10 minutes nightly, and apply to OSS-Fuzz. Use a bounds-checked BinaryReader that returns Err.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "The adapter and registry design forces 25+ file edits per new language",
+  "files": [
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ast/mod.rs",
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "ruthless_config.json",
+   "src/uma/mod.rs",
+   "src/core/pipeline.rs",
+   "Cargo.toml"
+  ],
+  "evidence": "Two language-id registries disagree: src/ingestion/adapter/registry.rs:19-42 has Kotlin, while src/ast/adapter/registry.rs:16-31 has TS/Rust/Generic. `ext_map` is written but never read (registry.rs:46-48); detect() is a separate hardcoded match (:59-83). File selection differs yet again in src/main.rs:79-93, src/adapters/server.rs:790-881 (which drops '*test' stems such as Latest.java and any /spec package), web/js/github-engine.js:89 and ruthless_config.json. Each file is parsed twice, and Phase 2 re-reads it from disk without checking the stored SHA-256 (src/ast/mod.rs:142). PatternDetectionChain and SCPGPipelineBuilder are used only by tests, and the pipeline is copied by hand (main.rs:150-255, server.rs:526-620). tree-sitter is pinned to 0.20 (Cargo.toml:8).",
+  "impact": "Adding Python today touches 25+ files across all ten phases: Cargo.toml, both registries, the core type enums, the symbol adapter, stubs and passes 1-5, cfg/stmts, ssa/liveness, cg, uma, four exporters, main.rs, server.rs, the tests, the verifier and the web engine.",
+  "recommendation": "Make one LanguageFrontend trait and registry the single source of truth. It defines: id; dialects (ts/tsx, kts); extensions plus shebang or linguist-style detection; grammar; token classifier; lowering to the IR; LanguageSemantics; name-binding rules (TSG); and stub data. Parse each file once and hand the tree to Phase 2. Drive the CLI, the server, /api/supported-languages and the verifier from the registry, and run every entry point through SCPGPipelineBuilder. Upgrade to tree-sitter 0.25 (LanguageFn). Done = adding a language means one module plus fixtures.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Design-pattern detection and exporters rely on Java and Spring naming habits",
+  "files": [
+   "src/uma/patterns/singleton.rs",
+   "src/uma/patterns/query.rs",
+   "src/uma/patterns/factory.rs",
+   "src/uma/patterns/observer.rs",
+   "src/uma/patterns/builder.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/common.rs",
+   "src/uma/visitor.rs",
+   "src/symbol/passes/pass1_discovery.rs"
+  ],
+  "evidence": "A Singleton is a class with a field named 'instance' or 'getinstance' (src/uma/patterns/singleton.rs:20-28). A private constructor is found by matching '<init>' (query.rs:86). A Composite is a class with a field name ending in 's' (query.rs:112). A Factory is a name containing 'factory' (factory.rs:17), an Observer has add*/register*Listener methods (observer.rs:25-29), and a Builder has the 'Builder' suffix (builder.rs:33). Use-case actors are classes ending in Controller, Service, App, Main or Facade, copied in json.rs:1246, mermaid.rs:1075, plantuml.rs:897 and visitor.rs:253. Three different Java primitive-type lists exist (src/scpg/diagram/common.rs:59, mermaid.rs:542, plantuml.rs:229). A missing return type prints 'void' (json.rs:237), and Kotlin `object` becomes a plain SK_CLASS (pass1_discovery.rs:278).",
+  "impact": "Patterns are inferred from names rather than structure. Non-Java idioms (Kotlin object, Python __new__, Rust OnceLock) are missed, and ordinary classes that happen to follow the naming convention are flagged as patterns. Diagrams print Java conventions for other languages.",
+  "recommendation": "Detect patterns from language-neutral structural facts: a static field of the class's own type, a non-public constructor, an accessor returning the class's own type, delegation through the call graph. Add per-language idiom providers (Kotlin object/companion, Python __new__, Rust static OnceLock). Put type and visibility rendering in one formatter that knows each language's semantics. Route uma/mod.rs:70 through PatternDetectionChain so rules are pluggable, and score against P-MARt or DPB ground truth.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW2-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "call_site_id no longer equals vector position after an unstable sort",
+  "files": [
+   "src/cg/call_sites.rs:45-66",
+   "src/tra/backward/cs_bi.rs:12-16",
+   "src/tra/forward/cs_span.rs:18-31",
+   "src/uma/behavioral/sequence_diagram.rs:109-136"
+  ],
+  "evidence": "Ids are assigned in AST pre-order, then `sites.sort_unstable_by_key(|s| s.caller_sym)` reorders the vector. TRA's BICsEntry, documented as indexed by call_site_id, and cs_span both use vector position as the id. The unstable sort can also put one caller's sites out of source order, and sequence diagrams take their message ordinals from that order.",
+  "impact": "TRA call-site ids point at the wrong CGA sites, and diagram message order can differ from source order.",
+  "recommendation": "Sort stably by (caller, node) and assign ids after sorting, or keep pre-order. Assert call_sites[i].call_site_id == i in assert_invariants.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Primitive-typed fields create TH_USES edges and Dependency associations to ids that are not symbols",
+  "files": [
+   "src/symbol/passes/pass5_hierarchy.rs:166-213",
+   "src/symbol/uml_meta/associations.rs:24-27",
+   "src/uma/patterns/query.rs:41-43"
+  ],
+  "evidence": "For `int count;` the type id is 0xB000_0005. builder.symbol() returns None, and unwrap_or treats it as SK_EXTERNAL, so Pass 5 adds a TH_USES edge to 0xB0000005 and writes a Dependency association to a non-symbol. The owner is never checked to be class-like. has_type_hierarchy_edge counts any relation, so an int field makes a class look like it has a supertype. This differs from SYM-08's constant-folding.",
+  "impact": ".sta gets bogus dependency edges and associations, and pattern queries misfire on ordinary classes.",
+  "recommendation": "Skip primitive ids and void before classifying, and treat an unknown symbol as no association. Require the owner to be class-like, and keep dependency edges separate from inheritance edges. Test that a class with only int fields has no TH_USES edges.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "A reloaded .tca cannot name its files: read() discards the paths and path_str_offset is reinterpreted",
+  "files": [
+   "src/ingestion/serializer.rs:31-37",
+   "src/ingestion/serializer.rs:93-98",
+   "src/ingestion/serializer.rs:228",
+   "src/ingestion/serializer.rs:247-251",
+   "src/ingestion/mod.rs:137-138",
+   "src/adapters/server.rs:714",
+   "src/uma/structural/class_diagram.rs:132-133"
+  ],
+  "evidence": "TokenCorpusArtifact has no path field. read() skips the path section (247-251) and returns the on-disk byte offset in path_str_offset. server.rs:714 and class_diagram.rs:132 resolve that field with interner.lookup_text as a text_id, its in-memory meaning (mod.rs:138), so after read() only file 0 resolves correctly. This differs from CORE-07: it is consumer-side data loss.",
+  "impact": "Any tool built on TokenCorpusSerializer::read reports wrong file names in traces and in test-file detection.",
+  "recommendation": "Add a file_paths field filled by both run() and read(), and give path_str_offset one documented meaning. Have write() take paths from the artifact; today a longer file_paths slice panics at serializer.rs:97. Add a round-trip test on resolved paths.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE2-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "SCPGPipelineBuilder::execute returns Result, but phases 7 to 10 panic on I/O errors",
+  "files": [
+   "src/core/pipeline.rs:209-225",
+   "src/tra/mod.rs:41-43",
+   "src/psa/mod.rs:154",
+   "src/uma/mod.rs:98",
+   "src/scpg/mod.rs:55"
+  ],
+  "evidence": "Phase7Stage::run through Phase10Stage::run return their artifacts directly and call panic! or expect when writing .tra, .psa, .uma or .scpg fails. execute() calls them without catch_unwind, so a full disk or a read-only output directory aborts the caller instead of yielding Err.",
+  "impact": "Library and server callers crash on ordinary write failures. The builder's error contract is false.",
+  "recommendation": "Change the four run() signatures to return Result, propagate with `?` in execute(), main.rs and server.rs, and add a test that uses a read-only output directory.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Two incompatible scpg_hash definitions (Phase 7 links vs Phase 10 header)",
+  "files": [
+   "src/scpg/serializer/integrity.rs",
+   "src/scpg/types.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "src/tra/builder.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "Every UMLLinkRecord and ClassRecord stores tra.hashes.scpg_hash, which is crc32_ieee of the XOR of 6 Phase-7 hashes (src/tra/uml_link/hash_chain.rs:43-44, src/tra/builder.rs:41, src/uma/structural/class_diagram.rs:316). The .scpg header and OpenHeartEngine::scpg_hash use an XOR-fold of 9 different inputs (src/scpg/serializer/integrity.rs:29-38). StaleDetector::is_stale tests record.scpg_hash != current (src/tra/delta/invalidation.rs:10-11).",
+  "impact": "Checking links against the engine or .scpg hash, which is the documented staleness protocol, flags every link as stale.",
+  "recommendation": "Define one canonical scpg_hash function, compute it once, and stamp it into links, class records and the header, or rename one value (for example tra_chain_hash). Add a test asserting header.scpg_hash == tra.uml_links[0].scpg_hash on a fresh build.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Sequence records mix interner name ids and symbol ids, so scenario names resolve to unrelated symbols",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:58-61",
+   "src/uma/behavioral/sequence_diagram.rs:117-120",
+   "src/uma/behavioral/sequence_diagram.rs:156",
+   "src/scpg/diagram/export/mermaid.rs:1312",
+   "src/scpg/diagram/export/plantuml.rs:1160"
+  ],
+  "evidence": "scenario_name is set to entry_sym_rec.name_id, an interner id, yet both exporters call resolve_name(sta, tca, seq.scenario_name), which looks it up as a symbol. Lifeline name_id falls back to a symbol id via unwrap_or(entry_class) and unwrap_or(callee_class), and the actor name_id is a literal 0, which is an arbitrary interned string.",
+  "impact": "Interaction-overview partitions carry another symbol's name or 'Unknown'. Consumers of .uma cannot interpret the name fields.",
+  "recommendation": "Store the entry method's sym id, keep name fields strictly interner ids (u32::MAX when unknown), and document each field's id space. Disambiguate overloads. Add test_sequence_scenario_name_is_entry_method.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "extends_sym keeps only the last TH_EXTENDS edge, so extra super-interfaces and enum/record realizations are lost",
+  "files": [
+   "src/uma/structural/class_diagram.rs:281-295",
+   "src/symbol/passes/pass5_hierarchy.rs:58-67"
+  ],
+  "evidence": "`extends_sym = edge.to_sym` is assigned for every TH_EXTENDS edge, so `interface C extends A, B` keeps only B. Pass 5 emits TH_EXTENDS, not TH_IMPLEMENTS, for enums and records that implement interfaces. So `enum E implements X, Y` gets one generalization and no realization, and which one survives depends on edge order. This differs from UML-08 (multiplicity and association kinds).",
+  "impact": "Interfaces, enums and records get wrong or missing inheritance arrows, and the result depends on edge order.",
+  "recommendation": "Keep every generalization in a Vec. Map an edge to a realization when the target is an interface and the source is not, and deduplicate. Add test_interface_multiple_extends_all_kept and test_enum_implements_two_interfaces.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Associations skip record-typed targets and all self-references",
+  "files": [
+   "src/uma/structural/class_diagram.rs:253-279"
+  ],
+  "evidence": "The field and return-type association checks match only SK_CLASS, SK_INTERFACE and SK_ENUM (lines 257-260 and 271-274), so SK_RECORD is left out even though records are extracted as classes. Both checks also require type_sym_id != sym_id, so `Node next` or `Employee manager` produce no reflexive association.",
+  "impact": "Records look disconnected, and linked lists, trees and self-referencing Composites lose their self-links.",
+  "recommendation": "Use one is_classifier() helper that includes SK_RECORD, and allow reflexive associations. Add test_record_field_association and test_self_association_kept. This differs from UML-08's multiplicity and kind issues.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "The test-source filter only matches absolute forward-slash paths, so Windows and relative runs include test classes",
+  "files": [
+   "src/uma/structural/class_diagram.rs:134-141",
+   "src/ingestion/mod.rs:137-138"
+  ],
+  "evidence": "Paths are interned with to_string_lossy(), which keeps native separators. The filter only checks contains('/src/test/'), '/src/tests/' and '/__tests__/'. So D:\\proj\\src\\test\\FooTest.java on Windows and relative 'src/test/...' paths never match. This differs from UML-05, which is about filters dropping real user types.",
+  "impact": "The same sources give different class diagrams on Windows and Linux, and for relative and absolute inputs.",
+  "recommendation": "Normalize separators, match path components (test, tests, androidTest, __tests__), and make the rule configurable. Add test_windows_and_relative_test_paths_filtered.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Activity nodes misclassify switch dispatch and exception successors",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:52-78",
+   "src/uma/behavioral/activity_diagram.rs:134",
+   "src/cfg/stmts/switch_stmt.rs:41"
+  ],
+  "evidence": "A block is a DECISION only when succs_len == 2. A switch selector gets one Switch edge per case group, plus exit, so every switch dispatch becomes an ACTION with three or more outgoing flows. succs_len also counts Except edges, so a try block with one normal and one handler successor becomes a DECISION. swimlane_count is always 1. This differs from UML-12, where guards, loops and labels are not emitted.",
+  "impact": "Switch-heavy code renders as plain fan-out actions, and try blocks look like conditionals.",
+  "recommendation": "Classify from edge types: True, False or Switch edges mean DECISION. Handle Except edges separately as exception handlers, and derive swimlanes from the owning class. Add test_switch_block_is_decision and test_try_block_not_decision.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-07",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "Sequence extraction has no size bound, and its u16 ordinals wrap",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:42",
+   "src/uma/behavioral/sequence_diagram.rs:84",
+   "src/uma/behavioral/sequence_diagram.rs:96-151",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "For each entry point, a DFS over the entire reachable call graph emits one message per (site, target) pair, with no cap on depth, messages or lifelines. A polymorphic CHA site emits one message per target. ordinal is a u16 incremented with `+= 1`, and the HEAD dev profile sets overflow-checks=false, so after 65,535 messages ordinals wrap silently. This differs from UML-09 (scan cost) and UML-07 (ordering).",
+  "impact": "Large apps produce scenarios with huge message lists and duplicate ordinals, and memory grows as entry points times call edges.",
+  "recommendation": "Add configurable per-scenario depth and message caps, collapse polymorphic targets into one message to the declared type, and use u32 ordinals. Add test_sequence_message_cap_respected.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Entry-point detection drops protected framework callbacks and promotes bodyless and dead methods",
+  "files": [
+   "src/uma/actor_identification.rs:24-45",
+   "src/cg/resolution.rs:82-90"
+  ],
+  "evidence": "An entry point is a Public or Package method with no distinct callers. That excludes protected callbacks such as Android onCreate and onResume and Servlet doGet and doPost. It includes package-private methods and every unused getter. CHA skips abstract targets, so abstract and interface methods have no callers and become one-message scenarios. A self-recursive method is never an entry point. There is no handling for main or annotations.",
+  "impact": "The main framework flows are missing while thousands of trivial scenarios are produced. This differs from UML-07.",
+  "recommendation": "Rank entry points in this order: main, annotated handlers, overridden framework callbacks of any visibility, then public API with no external callers, ignoring self-loops. Skip bodyless methods. Add test_protected_on_create_is_entry.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-09",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Call sites with no in-project target are left out of sequence diagrams",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:109-149",
+   "src/cg/resolution.rs:49-55"
+  ],
+  "evidence": "Messages come only from site_to_edge_map entries. Calls into libraries, the JDK or frameworks (JDBC, HTTP, Android) resolve to no symbol, so site_edges.get(..) returns None and nothing is emitted. The only lifeline outside the project is the single caller actor.",
+  "impact": "Interactions with databases, networks and frameworks, often the point of a sequence diagram, never appear.",
+  "recommendation": "Emit unresolved sites as messages to an external lifeline per receiver type or package (from call_token or the receiver's SSA type). Add test_library_call_creates_external_lifeline.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Composite detection copies the Decorator predicate and never checks for a collection",
+  "files": [
+   "src/uma/patterns/composite.rs:15-34",
+   "src/uma/patterns/decorator.rs:14-33",
+   "src/uma/patterns/query.rs:103-121"
+  ],
+  "evidence": "Both detectors build parent_types from th_edges and test whether any field's type_id is in it. So any class with a supertype-typed field is reported as both Decorator (85) and Composite (75). has_collection_field_of is never called, and its own test matches any field name ending in 's' or any type name containing 'Set' (Settings, Offset, Asset). This differs from UML-02, which concerns TH_USES edges.",
+  "impact": "Even after UML-02 is fixed, Decorator and Composite cannot be told apart.",
+  "recommendation": "Composite: require a collection or array field whose element type is a supertype, plus add/remove/iterate-children methods. Decorator: require a single wrapped field plus delegating overrides. Add tests that tell the two apart.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-11",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Phase9Stage::run panics when the .uma write fails and cannot return an error",
+  "files": [
+   "src/uma/mod.rs:45-56",
+   "src/uma/mod.rs:97-99",
+   "src/core/pipeline.rs:217-220"
+  ],
+  "evidence": "run() returns a bare UMLMetadataArtifact and calls panic! when UMASerializer::write fails (disk full, permissions, missing directory). SCPGPipelineBuilder::execute returns a Result but cannot pass this error on, and the server process dies. Phases 3 to 6 return Result.",
+  "impact": "An ordinary I/O error crashes the CLI or server instead of being reported.",
+  "recommendation": "Return Result<UMLMetadataArtifact, io::Error> and map the error at each call site. Add a test that writes to an unwritable path and expects Err.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-12",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "UMASerializer::read trusts every count and offset, so malformed files panic or abort",
+  "files": [
+   "src/uma/serializer.rs:259-274",
+   "src/uma/serializer.rs:650-679",
+   "src/main.rs:459-466"
+  ],
+  "evidence": "After the CRC check, every read is an unchecked slice (bytes[offset..offset+4]). Vec::with_capacity takes the u32 header counts as-is, so a count of 0xFFFFFFFF overflows capacity or aborts on OOM. format_version is read but never validated, offset is never compared with data_end (which is why UML-10's misparse goes unnoticed), and tra_hash is never checked.",
+  "impact": "`openheart inspect` crashes on an old-version, truncated or crafted .uma with a recomputed CRC, instead of returning an error. This differs from UML-10's layout bugs.",
+  "recommendation": "Read through a bounds-checked cursor that returns io::Error, reject unknown versions, cap capacities by the remaining bytes, and require offset == data_end. Add a fuzz test fuzz_uma_read.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-13",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Much of the .uma schema is write-only: source links, confidence, counts and fragments are never read",
+  "files": [
+   "src/uma/types.rs:51-267",
+   "src/scpg/diagram/export/json.rs:580-581"
+  ],
+  "evidence": "Grepping src/scpg, src/adapters, src/core and main.rs finds no reads of ClassRecord.uml_link, uml_link_node, type_param_count, loop_depth, guard_text_id, is_back_edge, start_node, end_node_count, swimlane_count, combined_fragments, ordinal, uml_link_token, objects, label_texts, the package and component counts and parents, or DesignPatternRecord.confidence. The JSON exporter writes file '<Name>.java' and lines [1] instead of the real uml_link.",
+  "impact": "Traceability and confidence data never reach users, and the effort spent computing them is wasted and untested.",
+  "recommendation": "Wire these fields into the exporters and query API (source links, confidence badges, back-edge styling), or remove them from the schema. Add an exporter test asserting that file and line come from uml_link.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-14",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Logger writes every level, including trace, to two unbuffered files from hot loops",
+  "files": [
+   "src/core/logger.rs",
+   "src/cg/call_sites.rs",
+   "src/cfg/mod.rs",
+   "src/ssa/mod.rs",
+   "src/psa/mod.rs",
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/uma/structural/class_diagram.rs"
+  ],
+  "evidence": "core/logger.rs:124-159 gates only the console output by level (136). Every call still takes a global Mutex (145), formats a timestamped line (147), and write_all+flushes it to two unbuffered File handles (149-157); callers' format! arguments are built eagerly. Hot callers: a trace per call site (cg/call_sites.rs:57); per-function trace and debug lines (cfg/mod.rs:78,86; ssa/mod.rs:47,83,114; placement, renaming, liveness, cdg, ifds); INFO per function in Phase 8 (psa/mod.rs:131); INFO per class (pass1_discovery.rs:151; class_diagram.rs:56). The persistent log is append-only and never rotated.",
+  "impact": "At 1M LOC this produces millions of lines, roughly 0.5–1 GB of logs and tens of seconds of syscalls per run, heavy console output on Windows, and a persistent log that grows without bound.",
+  "recommendation": "Use tracing with EnvFilter, whose macros check the level before formatting, and tracing-appender non_blocking with rolling, size-capped files. Downgrade per-element INFO and DIAG lines to trace, or aggregate them into per-phase counters. Open the session and persistent logs only when requested.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-17",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Remaining quadratic helpers: per-function CSR builds, adjacency dedup, per-class TH scans, O(depth) node closes",
+  "files": [
+   "src/cfg/builder/mod.rs",
+   "src/cg/mod.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/uma/patterns/query.rs",
+   "src/uma/patterns/strategy.rs",
+   "src/uma/patterns/composite.rs",
+   "src/uma/patterns/decorator.rs",
+   "src/cfg/analysis/loops.rs",
+   "src/cfg/analysis/frontier.rs",
+   "src/ssa/cdg.rs",
+   "src/ast/builder.rs"
+  ],
+  "evidence": "cfg/builder/mod.rs:150-151 and 165-166 build the successor and predecessor CSRs by scanning all edges for every block, O(B·E) per function. cg/mod.rs:118-124 deduplicates adjacency with .any/.contains, O(Σdeg²), and sizes the CSR and Tarjan by all symbols (110). class_diagram.rs:283 and the pattern detectors (query.rs:42, strategy.rs:15, composite.rs:16, decorator.rs:15) scan all th_edges for each class. loops.rs:63-81 allocates and sweeps n entries per back edge. frontier.rs:25 and cdg.rs:77 deduplicate with Vec::contains. ast/builder.rs:166 walks the open stack on every close.",
+  "impact": "Each is tolerable on small inputs but superlinear on giant generated methods, hub methods and 10^5-edge hierarchies, costing seconds to minutes each at 1M LOC.",
+  "recommendation": "Build CSRs by counting sort (degree count, prefix sum, fill) in O(B+E). Deduplicate with sort+dedup or a HashSet, and size arrays by method count. Build one TH out-edge CSR shared by all extractors. Mark loop bodies with bitsets in a single pass, use bitsets for DF/CDG membership, and delete close_node's ancestor loop, since the reducer already returns merged ranges.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ROB-11",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact readers trust header counts and offsets, and inspect reports integrity it never checks",
+  "files": [
+   "src/tra/serializer.rs",
+   "src/psa/serializer.rs",
+   "src/uma/serializer.rs",
+   "src/ast/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/cg/serializer.rs",
+   "src/ingestion/serializer.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/main.rs"
+  ],
+  "evidence": "The readers check a CRC-64, which any attacker can recompute. After that they index `buf[offset..offset+4]` without checking how many bytes remain: TRA (tra/serializer.rs:174-280), PSA (psa/serializer.rs:201-245, including `pos = metrics_offset` taken from the file), UMA (uma/serializer.rs:272 onward) and BPA (ast/serializer.rs:118-171). Short files therefore panic. Counts from u32 headers go straight into Vec::with_capacity (symbol/serializer.rs:240, cg/serializer.rs:158, ingestion/serializer.rs:254,296), so large counts abort on a multi-GiB allocation. scpg/mmap/mod.rs:52-62 reads section_count entries unchecked, and get_section computes `start + byte_length` (86-90), which can wrap. inspect prints 'CRC-64 Check : VERIFIED VALID' for .tca and .bpa files without checking anything (main.rs:373-389).",
+  "impact": "`openheart inspect`, the documented validation tool, panics or aborts on small crafted files and claims integrity it never verified. Library users who load artifacts inherit the same crashes.",
+  "recommendation": "Parse through one bounds-checked cursor: a Reader that returns Err on short reads, or zerocopy, binrw or scroll. Check `count <= remaining / record_size` before allocating, and use try_reserve and checked_add for offsets. Make inspect verify the CRC for every artifact type and report the real error. Add cargo-fuzz targets for each format, seeded with real artifacts. Done when 24 hours of libFuzzer finds no crash.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ROB-14",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Error model is panic or abort-the-run: I/O panics, release-mode asserts, and per-unit failures that fail everything",
+  "files": [
+   "src/tra/mod.rs",
+   "src/psa/mod.rs",
+   "src/uma/mod.rs",
+   "src/scpg/mod.rs",
+   "src/tra/builder.rs",
+   "src/ast/builder.rs",
+   "src/ast/jump_table.rs",
+   "src/cfg/mod.rs",
+   "src/ssa/mod.rs",
+   "src/core/logger.rs"
+  ],
+  "evidence": "Phases 7-10 return artifacts rather than Result, and they panic on I/O failure (tra/mod.rs:42-43, psa/mod.rs:153-154, uma/mod.rs:97-98, and an expect at scpg/mod.rs:53-55). Invariants are enforced with release-mode assert!/assert_eq! (tra/builder.rs:66-131, ast/builder.rs:180-207, jump_table.rs:23-29). In the other direction, one function that fails a CFG or SSA invariant aborts the whole run through `?` (cfg/mod.rs:84, ssa/mod.rs:81), and so does one unreadable file (ingestion/mod.rs:51-54). Locks are taken with lock().unwrap() (logger.rs:82,145; ingestion/mod.rs:136,174).",
+  "impact": "A full disk or a read-only output directory crashes the CLI with a backtrace and kills the server. One unusual function or file throws away the results for the entire repository.",
+  "recommendation": "Thread one thiserror enum (already a dependency) through every Phase*Stage::run. Turn per-function and per-file invariant failures into a diagnostic plus a skipped unit, optionally wrapped in catch_unwind per unit, and keep the partial artifacts. Reserve assert! for genuinely impossible states. Enforce clippy deny(unwrap_used, expect_used, panic, indexing_slicing) on non-test code in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Ten-phase orchestration is hand-wired at 18 call sites through positional raw-hash parameters, and has already broken the hash chain",
+  "files": [
+   "src/main.rs:150-255",
+   "src/core/pipeline.rs:34-78",
+   "src/core/pipeline.rs:100-168",
+   "src/adapters/server.rs:527-615",
+   "src/cg/mod.rs:32-40",
+   "src/uma/mod.rs:45-56",
+   "src/psa/mod.rs:78",
+   "src/psa/serializer.rs:37"
+  ],
+  "evidence": "The ten-phase wiring is hand-copied at 18 IngestionStage::run call sites: main.rs:150-255, core/pipeline.rs:170-225, adapters/server.rs:527-615 and 13 test files. PipelineStageTemplate (pipeline.rs:34-78) has no implementors. SCPGPipelineBuilder never reads its diagram_formats field and defaults to the shared temp directory with fixed file names (pipeline.rs:113,159-168). Stages take long positional argument lists with adjacent raw `&[u8]` hash inputs (cg/mod.rs:37-38; Phase 9 takes 10 arguments). That plumbing has already broken the chain: psa/mod.rs:78 stores `cfa.sta_hash` in the PSA's 'CRC-64 of the SSA artifact' field (psa/serializer.rs:37).",
+  "impact": "Every fix must be repeated at 18 sites, and the copies drift: the server ignores errors the CLI reports. Swapped hashes compile without complaint, and concurrent runs with default settings overwrite each other's artifacts.",
+  "recommendation": "Make one orchestrator the only entry point for the CLI, the server and tests: a typed stage DAG in which each artifact is a newtype carrying its own content digest (for example Artifact<Tca> with .digest()), so hashes cannot be swapped. Default to a per-run tempfile::TempDir. For incremental runs, use Salsa queries (as rust-analyzer and Astral's ty do) instead of re-running every phase. Provide a test helper such as analyze_fixture(src) returning PipelineArtifacts.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-16",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "UMA has no use-case, actor or profile records",
+  "files": [
+   "src/uma/types.rs:254-267",
+   "src/uma/mod.rs:3-5",
+   "src/uma/actor_identification.rs:6"
+  ],
+  "evidence": "The artifact holds classes, objects, activities, state machines, sequences, packages, components and patterns only. Actors are a single EXTERNAL_ACTOR_ID constant, and there is no record for use cases, actor-to-use-case links or profiles, although mod.rs claims to drive all 14 UML diagrams. This differs from UML-03 (stub extractors) and UML-01 (templated exporters).",
+  "impact": "Use-case and profile diagrams can only be made up downstream.",
+  "recommendation": "Add a UseCaseRecord derived from ranked entry points and annotations, an ActorRecord for roles and external systems, and a ProfileRecord built from annotation types and stereotypes.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM2-38",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "A second, unused PatternDetector shares the uma type's name and has wrong rules",
+  "files": [
+   "src/symbol/uml_meta/patterns.rs:13-98",
+   "src/symbol/mod.rs:20",
+   "src/uma/patterns/mod.rs:37"
+  ],
+  "evidence": "symbol::uml_meta::PatternDetector is never called, yet `pub use uml_meta::*` re-exports it under the same name as uma::patterns::PatternDetector. Its is_singleton treats a class with no declared constructor, which has an implicit public one, as having no public constructor. Its is_factory flags any method returning an interface, including the List, Map and Set stubs. SYM-17 covers only is_observer's name lookup.",
+  "impact": "The duplicate name makes the API confusing, and switching this detector on would mislabel most classes.",
+  "recommendation": "Delete the module, since uma owns pattern detection, or rename it and fix the implicit-constructor and interface-return rules.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-17",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "Annotation types never reach the class diagram, and the STEREOTYPE_ANNOTATION and SK_LAMBDA arms are unreachable",
+  "files": [
+   "src/uma/structural/class_diagram.rs:79-87",
+   "src/uma/structural/class_diagram.rs:180-193",
+   "src/uma/types.rs:20"
+  ],
+  "evidence": "The kind filter admits only CLASS, INTERFACE, ENUM and RECORD and skips everything else. The stereotype match below it still handles SK_ANNOTATION_TYPE as STEREOTYPE_ANNOTATION and SK_LAMBDA, so those arms and `_ => continue` can never run. User-declared @interface types are always missing.",
+  "impact": "Custom annotations, common in Spring and Jakarta code, are absent, and the dead branches mislead maintainers.",
+  "recommendation": "Let SK_ANNOTATION_TYPE through the filter, drop the SK_LAMBDA arm, and add test_annotation_type_has_annotation_stereotype.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-18",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "The local-type filter is inconsistent: local classes are kept but local records, enums and interfaces are dropped",
+  "files": [
+   "src/uma/structural/class_diagram.rs:64-77"
+  ],
+  "evidence": "A type is skipped when its parent is a METHOD, FIELD, PARAM or LOCAL_VAR unless it is SK_CLASS or SK_LAMBDA. Method-local classes therefore become ClassRecords that no inner_classes list references, while Java 16 local records, enums and interfaces are dropped. Types declared inside lambdas or initializers skip the check entirely.",
+  "impact": "Class diagrams show stray method-local helper classes and omit equivalent local records.",
+  "recommendation": "Pick one policy (exclude all local types, or include them flagged as local) and implement it with one is_local_scope check that also covers lambda and initializer parents. Add tests for each local kind.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-19",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "A missing UML link is replaced with a made-up file 0, line 1 location that the tests cannot detect",
+  "files": [
+   "src/uma/structural/class_diagram.rs:304-319",
+   "src/tra/uml_link/mod.rs:49-51",
+   "tests/uma_tests.rs:139-145"
+  ],
+  "evidence": "When no TRA link exists, the extractor emits file_id 0, lines 1..1 and columns 1..1 with the real scpg_hash. TRA marks an unknown span with (0,0,0,0,0) instead. Invariant 3 in uma_tests only compares scpg_hash, which the fallback copies, so the test passes even when every link is made up.",
+  "impact": "Traceability points at the first line of the first file instead of saying 'unknown', and the invariant can never fail.",
+  "recommendation": "Share an explicit sentinel with TRA (file_id u16::MAX, line 0), count fallbacks, and assert in tests that file and line match the class declaration.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-20",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Methods without a PSA summary get an invented cyclomatic=1 and sat_count=1",
+  "files": [
+   "src/uma/structural/class_diagram.rs:222-227",
+   "src/uma/visitor.rs:205-215"
+  ],
+  "evidence": "When psa.function_header returns None, the extractor falls back to (1, 1). That happens for abstract and interface methods and for constructors, which have no CFG. The defaults look like real values and flow into the ArchitecturalMetricsVisitor totals and mean_cyclomatic_complexity.",
+  "impact": "Complexity metrics come out too low, and bodyless methods look like trivial real methods.",
+  "recommendation": "Mark the value as unknown (a sentinel, or 0 plus a has_body flag) and leave such methods out of averages. Add test_abstract_method_has_no_metrics.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-21",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Field and method modifiers are truncated from u16 to u8",
+  "files": [
+   "src/uma/structural/class_diagram.rs:214",
+   "src/uma/structural/class_diagram.rs:233",
+   "src/uma/types.rs:57",
+   "src/uma/types.rs:70",
+   "src/core/types/symbol.rs:66-73"
+  ],
+  "evidence": "`modifiers: child.modifiers as u8` drops bits 8 to 15: DEFAULT, SEALED, NON_SEALED, VARARGS, BRIDGE, SYNTHETIC, DEPRECATED and RECORD_COMPONENT. Today only SEALED is ever set (pass1_discovery.rs:940), so nothing is lost yet, but ClassRecord keeps the full u16 while member records cannot.",
+  "impact": "Default methods, varargs and deprecation can never be shown once Phase 3 starts setting them, and the loss is silent.",
+  "recommendation": "Widen FieldRecord and MethodRecord modifiers to u16 and bump the format version, or debug_assert that the high byte is zero.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-23",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Debug diagnostics are logged at INFO, and the kind check is written three times",
+  "files": [
+   "src/uma/structural/class_diagram.rs:20-23",
+   "src/uma/structural/class_diagram.rs:44-62",
+   "src/uma/structural/class_diagram.rs:167-178"
+  ],
+  "evidence": "'[DIAG-CD]' lines for symbol_count and for every class-like symbol, before any filtering, go through log_info. That is the default console level, and the persistent log is append-only. The same CLASS/INTERFACE/ENUM/RECORD matches! appears at lines 44, 79 and 167, and the third is always true. This differs from UML-09, which is about speed.",
+  "impact": "Every run floods the console and the persistent log with one line per class, and the redundant code hides the real filter.",
+  "recommendation": "Demote these lines to trace level or remove them. Compute is_classifier once and delete the redundant block.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-24",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Activity node indices and counts are truncated to u16",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:68",
+   "src/uma/behavioral/activity_diagram.rs:113-114",
+   "src/uma/behavioral/activity_diagram.rs:130-131",
+   "src/uma/types.rs:113-114"
+  ],
+  "evidence": "start_node, from_node and to_node are u32 block ids cast with `as u16`, and node_count and edge_count are `len() as u16`. Past 65,535 blocks, edges wrap silently to the wrong nodes. JVM method-size limits make this rare, but generated or non-JVM code can exceed it. This differs from UML-10, which covers serializer lengths.",
+  "impact": "Giant functions get corrupt activity graphs instead of an error.",
+  "recommendation": "Use u32 indices in ActivityEdge and ActivityRecord, or u16::try_from with a logged skip.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-25",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Activity labels come from a block's first statement, not the branch condition, and always end in '()'",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:80-90",
+   "src/cfg/stmts/if_stmt.rs:27",
+   "src/uma/label_extraction.rs:28"
+  ],
+  "evidence": "stmt_node is taken from blk.stmts.first(). For an if, the CFG appends cond_node after the statements before it, so the condition is the last statement of the decision block. LabelExtractor also appends '()' to every label, so assignments and returns would read like calls. The computed label is then thrown away, which wastes one extraction per block.",
+  "impact": "Once labels are wired up, decision nodes will show unrelated text, formatted as a call.",
+  "recommendation": "Label DECISION nodes from the last statement (the condition) and actions from their statement kinds. Add '()' only for call nodes, and store the result in label_texts.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-26",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "message_kind stores raw call-graph edge codes, and the entry message reuses call_site_id 0",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:74-83",
+   "src/uma/behavioral/sequence_diagram.rs:137",
+   "src/core/types/cg.rs:7-13",
+   "src/uma/types.rs:187",
+   "src/uma/types.rs:196"
+  ],
+  "evidence": "message_kind = site.call_type, which holds DIRECT 0, VIRTUAL 2, CONSTRUCTOR 4 and so on, not UML message sorts. The actor message hard-codes kind 0 and call_site_id 0, and 0 is also the first real call site's id. There are no MESSAGE_KIND_* or fragment-kind constants, and no exporter reads message_kind.",
+  "impact": "Create and async messages cannot be told apart, and call_site_id 0 is ambiguous.",
+  "recommendation": "Define MESSAGE_KIND sync/async/create/reply and FRAGMENT_KIND constants, map CG_EDGE_CONSTRUCTOR to create, and use u32::MAX for the synthetic entry call site.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-27",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Behavioral views ignore the class-diagram filters and cover test and excluded classes",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:24-28",
+   "src/uma/actor_identification.rs:24-45",
+   "src/uma/behavioral/state_machine.rs:13-18",
+   "src/uma/structural/class_diagram.rs:153-166"
+  ],
+  "evidence": "Activities are built for every CFG function, including lambdas and static initializers that have no owning class record. Entry points and state machines are built for every symbol. None of them applies the test-path, blacklist or keyword filters used for ClassRecords.",
+  "impact": "Lifelines and activities refer to classes the class diagram does not show, and test methods appear as scenarios.",
+  "recommendation": "Compute the included-class set once in Phase 9, filter every extractor by owning class, and attach the owner sym id to lambda and initializer activities.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-28",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "ClassRecords refer to sym ids that have no ClassRecord of their own",
+  "files": [
+   "src/uma/structural/class_diagram.rs:239-244",
+   "src/uma/structural/class_diagram.rs:253-279",
+   "src/uma/structural/class_diagram.rs:283-301"
+  ],
+  "evidence": "inner_classes, association_syms, extends_sym and implements_syms keep any child or target of class kind, even when the blacklist, keyword, Binding or test filters dropped that type.",
+  "impact": "Consumers meet dangling references, so diagrams either draw edges to undefined nodes or silently drop them.",
+  "recommendation": "After extraction, prune or flag references to types outside the class set, or emit stub records marked external, and check this in finalize().",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-29",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "The Builder heuristic counts static self-returning methods, so Singletons and static factories become Builders",
+  "files": [
+   "src/uma/patterns/builder.rs:21-45",
+   "tests/uma_tests.rs:27-48"
+  ],
+  "evidence": "self_returning counts every SK_METHOD whose type_id is the class, with no STATIC check. In uma_tests, UmlMetadataTest has getInstance() (static, returns its own type) and processData(), which gives a ratio of 0.5 > 0.4. It should therefore also be reported as a Builder at confidence 75, next to Singleton.",
+  "impact": "Classic Singletons and value classes with static of() or valueOf() factories are reported as Builders.",
+  "recommendation": "Leave static methods out of the fluent ratio, and require two or more instance setters returning this plus a build() method. Assert in uma_tests that UmlMetadataTest is not a Builder.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "UML2-30",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Facade and Adapter count primitive-typed and stub-typed fields as subsystems or adaptees",
+  "files": [
+   "src/uma/patterns/facade.rs:11-14",
+   "src/uma/patterns/adapter.rs:15-17",
+   "src/symbol/adapter/java.rs:90-98"
+  ],
+  "evidence": "The check is `type_id != u32::MAX && type_id != sym_id`. Primitive fields resolve to sentinel ids 0xB000_0000 to 0xB000_0008 and JDK types to stub ids at 0xC000_0000 and above, so they pass. Three separately declared int fields therefore give a Facade at confidence 70. This differs from UML-02, which is about TH_USES edges.",
+  "impact": "Plain data classes are reported as Facades.",
+  "recommendation": "Count only fields whose type is an in-project classifier (sta.symbol(type_id) returns a class or interface), ideally one in another package. Add test_primitive_fields_not_facade.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-31",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Four PatternInspector helpers are never called, and their doc comments do not match the code",
+  "files": [
+   "src/uma/patterns/query.rs:29-38",
+   "src/uma/patterns/query.rs:77-132"
+  ],
+  "evidence": "has_private_constructor, has_static_self_reference, has_collection_field_of and has_interprocedural_delegation have no callers anywhere in src or tests. name_matches is documented as 'contains or ends with' but only checks contains. has_collection_field_of promises 'of a given component type' but takes no type. has_interprocedural_delegation is O(E×M) because it uses Vec::contains.",
+  "impact": "Readers assume structural checks run that never do, and wiring them in later would bring their bugs along.",
+  "recommendation": "Fix the helpers and wire them into the detectors, or delete them. Correct the doc comments, and use a HashSet for the caller set.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-32",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "low",
+  "title": "Three separate pattern-detection paths, and the pattern-name tables are duplicated",
+  "files": [
+   "src/uma/patterns/mod.rs:40-194",
+   "src/uma/patterns/chain.rs:297-353",
+   "src/symbol/uml_meta/patterns.rs:1-25",
+   "src/scpg/diagram/export/mermaid.rs:1021-1034",
+   "src/scpg/diagram/export/plantuml.rs:837-850"
+  ],
+  "evidence": "detect_all hard-codes 11 detector calls. PatternDetectionChain registers the same 11 rules but only a test uses it, so add_rule has no effect on the pipeline. It is named a Chain of Responsibility but runs every rule. Phase 3 has its own, stricter PatternDetector that Phase 9 ignores. Each exporter keeps its own copy of the kind-to-name table.",
+  "impact": "Results depend on which path is used, the extension point does nothing, and pattern names can drift apart.",
+  "recommendation": "Make detect_all iterate a PatternDetectionChain, merge or delete the Phase 3 detector, and give all exporters one pattern_name(kind) function in uma::types.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-33",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": ".uma writes are not atomic",
+  "files": [
+   "src/uma/serializer.rs:14-15",
+   "src/uma/serializer.rs:224"
+  ],
+  "evidence": "The whole file is built in a Vec with no capacity reserved and then written with fs::write straight to the final path. A crash or a full disk mid-write truncates the previous good artifact, and the reader then fails the CRC.",
+  "impact": "An interrupted run destroys the last valid .uma.",
+  "recommendation": "Write to a temporary file, fsync, then rename it over the target, and reserve the exact capacity up front.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-34",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Record size comments disagree with the serialized layout, and the layout is unaligned",
+  "files": [
+   "src/uma/types.rs:51",
+   "src/uma/types.rs:64",
+   "src/uma/types.rs:180",
+   "src/uma/types.rs:193",
+   "src/uma/serializer.rs:52-57",
+   "src/uma/serializer.rs:174-191"
+  ],
+  "evidence": "The comments give FieldRecord as 16 bytes but it is serialized as 20. MethodRecord is 20 vs 22, MessageRecord 24 vs 25 and CombinedFragment 12 vs 11. Class headers take 26 bytes, so every later record is misaligned for memory-mapping, and UMLLink line numbers are cut to 24 bits.",
+  "impact": "A reader written from the comments misparses the file, and zero-copy memory-mapping is impossible.",
+  "recommendation": "Drive sizes from one layout table (a SIZE constant per record plus static assertions), pad records to 4- or 8-byte alignment, and keep full u32 line numbers. Bump the format version.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-35",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "UMA records use inconsistent id widths, carry redundant fields and lack equality derives",
+  "files": [
+   "src/uma/types.rs:78-97",
+   "src/uma/types.rs:101-108",
+   "src/uma/types.rs:172-178",
+   "src/uma/types.rs:246-252",
+   "src/uma/patterns/chain.rs:17-28"
+  ],
+  "evidence": "ActivityNode.guard_text_id is a u16 while every other text id is a u32. Pattern kind is a u8 on ClassRecord and on rules but a u16 in DesignPatternRecord, and evaluate() returns the kind again. ClassRecord has field, method and inner counts that the writer ignores. LifelineRecord.type_sym_id always equals sym_id. Records lack PartialEq, and the artifact lacks Debug and Clone.",
+  "impact": "Values can disagree or overflow silently, and tests cannot assert_eq records.",
+  "recommendation": "Use u32 for all ids, derive counts from Vec lengths, derive Debug, Clone and PartialEq, and add a full round-trip equality test.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-36",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Package records inherit a wrong parent and corrupted sibling chains from Phase 3",
+  "files": [
+   "src/uma/structural/package_diagram.rs:29-53",
+   "src/uma/structural/component_diagram.rs:18-27",
+   "src/symbol/passes/pass1_discovery.rs:549",
+   "src/symbol/passes/pass1_discovery.rs:614-615",
+   "src/symbol/passes/pass1_discovery.rs:622-627"
+  ],
+  "evidence": "Root packages start with parent u32::MAX, and Pass 1's final sweep reparents them to symbol 0, which is file 0's module. So parent_package_sym of 'com' points at a module. The same sweep appends to symbol 0's chain, whose last child, file 0's last class, is already linked into its package. That package's sibling walk then continues into the root packages and can lose later classes. Phase 9 copies both without checking.",
+  "impact": "Package hierarchy roots are wrong, and class and subpackage counts are off.",
+  "recommendation": "Set parent_package_sym to u32::MAX unless the parent is SK_PACKAGE, and count children through parent_sym, as class_diagram does, instead of sibling chains. Add a multi-file package test.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "UML2-37",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Package and component counts disagree with the class diagram and miscount interfaces",
+  "files": [
+   "src/uma/structural/package_diagram.rs:19-45",
+   "src/uma/structural/component_diagram.rs:10-42",
+   "src/uma/structural/mod.rs:41-42"
+  ],
+  "evidence": "class_count includes types the class diagram filtered out. The skip test at lines 19-24 can never fire, because every package has a custom name, and name_id holds only the last name segment. required_interface_count counts raw TH edges of every relation, not distinct interfaces (despite the TH_USES comment), and only for direct children. provided counts every interface, public or not. The counters are u16, and packages are extracted twice. This differs from UML-14.",
+  "impact": "The counts are unreliable even as plain containment metrics.",
+  "recommendation": "Count distinct interface sym ids, treat only public ones as provided, reuse the packages and the filtered class set already extracted, and use u32 counters.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-38",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "The metrics visitor reports an inheritance depth it never computes, and its path-count sum wraps",
+  "files": [
+   "src/uma/visitor.rs:144-225",
+   "src/psa/bdd/sat_count.rs:79-92"
+  ],
+  "evidence": "inheritance_depth_max is declared and never assigned, so it is always 0. total_sat_path_count adds method.sat_count with +=, while PSA saturates each function's count at u64::MAX, so two saturated methods wrap the total. There are no DIT, NOC, CBO, RFC, LCOM or WMC metrics, despite the 'formal architectural metrics' description.",
+  "impact": "Metrics offered for research use are wrong or missing.",
+  "recommendation": "Compute DIT from the extends chains, use saturating_add or u128 for the sum, and add the standard CK metrics, each with a unit test.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-40",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Doc comments in Phase 9 promise behavior that does not exist",
+  "files": [
+   "src/uma/actor_identification.rs:1",
+   "src/uma/actor_identification.rs:11",
+   "src/uma/label_extraction.rs:10",
+   "src/uma/builder.rs:49-55",
+   "src/uma/patterns/chain.rs:1-4",
+   "src/uma/structural/component_diagram.rs:29"
+  ],
+  "evidence": "The actor module claims to identify 'external actors', but only a constant exists, and it says 'public methods' while also including package-private ones. extract_label says it interns the label but just returns a String. finalize claims every ClassRecord is valid but only checks sym_id in debug builds. chain.rs calls an evaluate-every-rule loop a Chain of Responsibility. The component comment names TH_USES but the code counts every relation.",
+  "impact": "Maintainers rely on guarantees the code does not give.",
+  "recommendation": "Correct each comment, or implement the behavior it describes.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-42",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "EXTERNAL_ACTOR_ID is redefined as a literal in the exporters",
+  "files": [
+   "src/uma/actor_identification.rs:6",
+   "src/scpg/diagram/export/mermaid.rs:11",
+   "src/scpg/diagram/export/plantuml.rs:10",
+   "src/scpg/diagram/export/plantuml.rs:1047"
+  ],
+  "evidence": "Phase 9 defines EXTERNAL_ACTOR_ID = 0xFFFF_FFFE. The exporters redefine it as u32::MAX - 1 and also hard-code `u32::MAX - 1 || u32::MAX` checks in message rendering.",
+  "impact": "Changing the sentinel in one place silently breaks actor rendering in the others.",
+  "recommendation": "Export the constant once from uma::types and use it everywhere.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-49",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "The class extractor treats path_str_offset as an interner id, which a disk-loaded TCA does not hold",
+  "files": [
+   "src/uma/structural/class_diagram.rs:131-134",
+   "src/ingestion/serializer.rs:97",
+   "src/ingestion/serializer.rs:228",
+   "src/ingestion/serializer.rs:247-252"
+  ],
+  "evidence": "The test-file and filename-stem checks look up tca.interner.lookup_text(file_records[fid].path_str_offset). The TCA writer replaces that field with a byte offset into the path section, and the reader skips the path bytes without interning them. Phase 9 currently always receives the in-memory TCA, so the problem is latent.",
+  "impact": "Running Phase 9 on a reloaded .tca would apply the test and stem filters to unrelated strings.",
+  "recommendation": "Give TokenCorpusArtifact a file_path(fid) accessor that works in both modes, and use it in class_diagram. Add a test that runs Phase 9 on a reloaded .tca.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "UML2-22",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "ClassRecord.type_param_count is always 0, and type parameters are never captured",
+  "files": [
+   "src/uma/structural/class_diagram.rs:332",
+   "src/symbol/passes/pass1_discovery.rs:176",
+   "src/symbol/passes/pass3_types.rs:135",
+   "src/uma/types.rs:89"
+  ],
+  "evidence": "The extractor copies sym.type_param_count, but every place that creates a SymbolRecord sets it to 0 and nothing updates it. UMA has no field for parameter names or bounds, and no consumer reads type_param_count.",
+  "impact": "Generic types such as Repository<T> render as plain classes, so UML template parameters are impossible.",
+  "recommendation": "Count the SK_TYPE_PARAM children in Phase 3, store their sym ids in ClassRecord, and render them as UML template parameters. Add test_generic_class_type_params.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-39",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "The attack-surface visitor only matches name suffixes, and neither visitor is wired into the product",
+  "files": [
+   "src/uma/visitor.rs:89-140",
+   "src/uma/visitor.rs:227-288"
+  ],
+  "evidence": "A class counts as a controller only if its name ends in Controller, Endpoint or Resource; @RestController, @Path and @WebServlet are ignored. Protected members are excluded, while members of private nested classes are counted. There is no visit_object, so objects are never visited. Both visitors are used only in design_pattern_architecture_tests.",
+  "impact": "The attack-surface output is unreliable, and users cannot reach it from the CLI or the server.",
+  "recommendation": "Use annotation symbols and effective visibility (class and member together), add visit_object, and expose the metrics through the CLI or the query API.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-41",
+  "kind": "enhancement",
+  "category": "robustness",
+  "severity": "low",
+  "title": "UMABuilder::finalize checks no invariants in release builds",
+  "files": [
+   "src/uma/builder.rs:48-57"
+  ],
+  "evidence": "The only check is assert!(sym_id != u32::MAX), and it runs only under cfg(debug_assertions). Nothing checks for unique class ids, references to existing records, activity edge endpoints below node_count, increasing message ordinals, or that a pattern's class_sym exists.",
+  "impact": "Corrupt records like those in UML2-07, UML2-24 and UML2-28 reach disk and the exporters unnoticed.",
+  "recommendation": "Add an always-on validate() that returns errors and mirrors the §9.7 invariants, and call it from finalize().",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-46",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "low",
+  "title": "UMA records have no identity that stays stable across runs",
+  "files": [
+   "src/uma/types.rs:78-97",
+   "src/uma/types.rs:246-252"
+  ],
+  "evidence": "Every record is keyed by dense Phase 3 symbol ids, which shift whenever files are added or reordered. No qualified-name id or content hash is stored. This differs from UML-08, which is about simple-name collisions within a single run.",
+  "impact": "Diagrams and pattern results cannot be compared across commits or linked from external tools.",
+  "recommendation": "Store qual_name_id, or a stable hash of the qualified name plus signature, in class, method and pattern records.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML2-47",
+  "kind": "enhancement",
+  "category": "performance",
+  "severity": "low",
+  "title": "Phase 9 runs on one thread although the per-class and per-function work is independent",
+  "files": [
+   "src/uma/mod.rs:61-70",
+   "src/uma/behavioral/mod.rs:44-46",
+   "src/uma/structural/mod.rs:39-44"
+  ],
+  "evidence": "Classes, activities, sequences and patterns are each extracted in a sequential loop, and the only shared mutation is the final design_pattern assignment. Nothing parallel is used, and there is no rayon dependency.",
+  "impact": "On large codebases Phase 9 runs on a single core.",
+  "recommendation": "Parallelize extraction per class, per function and per entry point with rayon's par_iter, then sort the results to keep the output deterministic.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "UML2-48",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "low",
+  "title": "The stereotype field cannot express sealed, data, object, companion or value types",
+  "files": [
+   "src/uma/types.rs:14-20",
+   "src/uma/structural/class_diagram.rs:180-193"
+  ],
+  "evidence": "stereotype is a single exclusive u8 with the values NONE, ABSTRACT, INTERFACE, ENUM, RECORD and ANNOTATION. SEALED exists in modifiers but is never mapped, and Kotlin data, object, companion and value classes have no representation.",
+  "impact": "Kotlin designs render as plain classes, and combinations such as abstract plus sealed are lost.",
+  "recommendation": "Use a stereotype bitset or list, and map sealed, data, object, companion and value from the modifiers and declaration keywords.",
+  "effort": "M",
+  "confidence": "high"
+ }
+]

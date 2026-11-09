@@ -19,8 +19,12 @@ const MAX_OMITTED_NAMES: usize = 200;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Provenance {
-    /// Every element maps to an artifact entity.
+    /// Every element maps to an artifact entity and follows from it exactly.
     Derived,
+    /// Sound may-information: everything that can occur is shown, possibly more.
+    OverApproximate,
+    /// Derived from incomplete facts or cut off by a limit; the reason is in the notes.
+    Partial,
     /// Elements are inferred by a documented heuristic over artifact data.
     Heuristic,
     /// The projection cannot be derived from the available artifacts.
@@ -28,15 +32,31 @@ pub enum Provenance {
 }
 
 impl Provenance {
+    /// Serialized name of the tier (JSON, GraphML, text-format headers).
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Derived => "derived",
+            Self::OverApproximate => "over_approximate",
+            Self::Partial => "partial",
             Self::Heuristic => "heuristic",
             Self::Unavailable => "unavailable",
         }
     }
 
-    /// The weaker of two tiers (`Derived` < `Heuristic` < `Unavailable`).
+    /// Stereotype text marking an element of this tier in the text formats (`None` for
+    /// exactly derived elements).
+    pub fn element_marker(&self) -> Option<&'static str> {
+        match self {
+            Self::Derived => None,
+            Self::OverApproximate => Some("may"),
+            Self::Partial => Some("partial"),
+            Self::Heuristic => Some("heuristic"),
+            Self::Unavailable => Some("not derivable"),
+        }
+    }
+
+    /// The weaker of two tiers (`Derived` < `OverApproximate` < `Partial` < `Heuristic` <
+    /// `Unavailable`).
     pub fn weakest(self, other: Self) -> Self {
         if self >= other {
             self
@@ -48,6 +68,7 @@ impl Provenance {
 
 /// The diagram projections OpenHeart can print.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum ViewKind {
     Class,
     Object,
@@ -118,40 +139,50 @@ impl ViewKind {
         }
     }
 
-    /// `diagram_type` value of the JSON Graph IR (historical names kept for the studio).
+    /// `diagram_type` value of the JSON Graph IR: the canonical key, so JSON, PlantUML and
+    /// Mermaid outputs of one view share one name.
     pub fn json_type(self) -> &'static str {
-        match self {
-            Self::StateMachine => "state",
-            other => other.key(),
-        }
+        self.key()
     }
 
-    /// Parses a diagram type name, accepting the historical aliases.
+    /// Parses a diagram type name: the canonical key or one of the accepted aliases
+    /// (`state`, `use_case`, `cg`, `composite_structure`, `interaction_overview`, ...).
+    /// Separators (`_`, `-`, blanks) and case are ignored. `None` for unknown names.
     pub fn parse(name: &str) -> Option<Self> {
-        let lower = name.trim().to_ascii_lowercase();
-        let kind = match lower.as_str() {
+        let normalized: String = name
+            .trim()
+            .chars()
+            .filter(|c| !matches!(c, '_' | '-' | ' '))
+            .flat_map(|c| c.to_lowercase())
+            .collect();
+        let kind = match normalized.as_str() {
             "class" => Self::Class,
             "object" => Self::Object,
             "package" => Self::Package,
             "component" => Self::Component,
-            "composite" | "composite_structure" | "compositestructure" => Self::CompositeStructure,
+            "composite" | "compositestructure" => Self::CompositeStructure,
             "deployment" => Self::Deployment,
             "profile" => Self::Profile,
-            "usecase" | "use_case" => Self::UseCase,
+            "usecase" => Self::UseCase,
             "activity" => Self::Activity,
-            "statemachine" | "state" | "state_machine" => Self::StateMachine,
+            "statemachine" | "state" => Self::StateMachine,
             "sequence" => Self::Sequence,
             "communication" => Self::Communication,
-            "interaction" | "interaction_overview" => Self::InteractionOverview,
+            "interaction" | "interactionoverview" => Self::InteractionOverview,
             "timing" => Self::Timing,
-            "cfg" => Self::Cfg,
-            "dfg" => Self::Dfg,
-            "cdg" => Self::Cdg,
-            "callgraph" | "cg" | "call_graph" => Self::CallGraph,
+            "cfg" | "controlflow" | "controlflowgraph" => Self::Cfg,
+            "dfg" | "dataflow" | "dataflowgraph" => Self::Dfg,
+            "cdg" | "controldependence" | "controldependencegraph" => Self::Cdg,
+            "callgraph" | "cg" => Self::CallGraph,
             "robdd" | "bdd" => Self::Robdd,
             _ => return None,
         };
         Some(kind)
+    }
+
+    /// Canonical keys of every view kind, in `ALL` order.
+    pub fn keys() -> Vec<&'static str> {
+        Self::ALL.iter().map(|k| k.key()).collect()
     }
 
     pub fn title(self) -> &'static str {
@@ -207,6 +238,8 @@ pub enum NodeKind {
     Enum,
     Record,
     Annotation,
+    /// Value-semantics classifier (struct, union, primitive or other data type).
+    DataType,
     Object,
     Component,
     ProvidedInterface,
@@ -215,11 +248,22 @@ pub enum NodeKind {
     Part,
     Stereotype,
     Metaclass,
+    /// Deployable artifact (build output, archive, executable).
+    Artifact,
+    /// Execution environment or device of a deployment (container of artifacts).
+    ExecutionNode,
     Actor,
+    UseCase,
+    /// System boundary of a use case diagram (container of use cases).
+    Subject,
     Lifeline,
+    /// Diagram gate: source of found messages and target of lost messages.
+    Gate,
     InteractionUse,
     Initial,
     Final,
+    /// Flow final node: ends one flow, not the whole activity.
+    FlowFinal,
     Action,
     Decision,
     Merge,
@@ -248,6 +292,7 @@ impl NodeKind {
             Self::Enum => "enum",
             Self::Record => "record",
             Self::Annotation => "annotation",
+            Self::DataType => "datatype",
             Self::Object => "object",
             Self::Component => "component",
             Self::ProvidedInterface => "provided_interface",
@@ -255,11 +300,17 @@ impl NodeKind {
             Self::Part => "part",
             Self::Stereotype => "stereotype",
             Self::Metaclass => "metaclass",
+            Self::Artifact => "artifact",
+            Self::ExecutionNode => "execution_node",
             Self::Actor => "actor",
+            Self::UseCase => "use_case",
+            Self::Subject => "subject",
             Self::Lifeline => "lifeline",
+            Self::Gate => "gate",
             Self::InteractionUse => "interaction_use",
             Self::Initial => "initial",
             Self::Final => "final",
+            Self::FlowFinal => "flow_final",
             Self::Action => "action",
             Self::Decision => "decision",
             Self::Merge => "merge",
@@ -280,7 +331,10 @@ impl NodeKind {
 
     /// Kinds that group other nodes.
     pub fn is_container(&self) -> bool {
-        matches!(self, Self::Package | Self::Group | Self::StructuredClass)
+        matches!(
+            self,
+            Self::Package | Self::Group | Self::StructuredClass | Self::ExecutionNode | Self::Subject
+        )
     }
 
     /// Classifier kinds printed with a member compartment.
@@ -293,6 +347,7 @@ impl NodeKind {
                 | Self::Enum
                 | Self::Record
                 | Self::Annotation
+                | Self::DataType
                 | Self::Stereotype
                 | Self::Metaclass
                 | Self::Object
@@ -309,12 +364,19 @@ pub enum EdgeKind {
     Aggregation,
     Composition,
     Dependency,
+    /// Nested classifier owned by its enclosing classifier (UML containment, `+--`).
     Nesting,
     Import,
     Provides,
     Requires,
     Connector,
     Extension,
+    /// Artifact manifesting a model element (deployment).
+    Manifestation,
+    /// Communication path between execution nodes (deployment).
+    CommunicationPath,
+    /// Use case inclusion.
+    Include,
     Link,
     Message,
     ControlFlow,
@@ -339,12 +401,15 @@ impl EdgeKind {
             Self::Aggregation => "aggregation",
             Self::Composition => "composition",
             Self::Dependency => "dependency",
-            Self::Nesting => "nesting",
+            Self::Nesting => "containment",
             Self::Import => "import",
             Self::Provides => "provides",
             Self::Requires => "requires",
             Self::Connector => "connector",
             Self::Extension => "extension",
+            Self::Manifestation => "manifestation",
+            Self::CommunicationPath => "communication_path",
+            Self::Include => "include",
             Self::Link => "link",
             Self::Message => "message",
             Self::ControlFlow => "control_flow",
@@ -369,6 +434,8 @@ impl EdgeKind {
                 | Self::Dependency
                 | Self::Import
                 | Self::Requires
+                | Self::Manifestation
+                | Self::Include
                 | Self::DominatorTree
                 | Self::ExceptionFlow
                 | Self::PhiArgument
@@ -378,7 +445,10 @@ impl EdgeKind {
 
     /// Edges without an arrowhead.
     pub fn is_undirected(&self) -> bool {
-        matches!(self, Self::Link | Self::Connector | Self::Provides)
+        matches!(
+            self,
+            Self::Link | Self::Connector | Self::Provides | Self::CommunicationPath
+        )
     }
 
     /// Budget priority: lower values survive edge pruning first.
@@ -391,9 +461,17 @@ impl EdgeKind {
             | Self::Message
             | Self::BddLow
             | Self::BddHigh => 1,
-            Self::Composition | Self::Aggregation | Self::Association | Self::Connector => 2,
-            Self::Call | Self::ControlDependence | Self::DataUse | Self::DataDef => 3,
-            Self::PhiArgument | Self::Provides | Self::Requires | Self::Link => 4,
+            Self::Composition
+            | Self::Aggregation
+            | Self::Association
+            | Self::Connector
+            | Self::CommunicationPath => 2,
+            Self::Call | Self::ControlDependence | Self::DataUse | Self::DataDef | Self::Include => 3,
+            Self::PhiArgument
+            | Self::Provides
+            | Self::Requires
+            | Self::Link
+            | Self::Manifestation => 4,
             Self::Import | Self::Dependency => 5,
             Self::DominatorTree => 6,
         }
@@ -431,7 +509,11 @@ pub struct MemberView {
     pub is_final: bool,
     /// UML multiplicity of an attribute (`0..*`, `1`, ...), `None` when not derivable.
     pub multiplicity: Option<String>,
-    pub sym_id: u32,
+    /// True when the declared attribute type is itself a collection or array; its element
+    /// multiplicity is then carried by the association end, not by the attribute text.
+    pub is_collection: bool,
+    /// Declaring symbol (`None` for members that come from a model without symbol ids).
+    pub sym_id: Option<u32>,
     pub span: Option<SourceSpan>,
 }
 
@@ -469,7 +551,7 @@ impl MemberView {
                     text.push_str(" : ");
                     text.push_str(t);
                 }
-                if let Some(m) = &self.multiplicity {
+                if let (Some(m), false) = (&self.multiplicity, self.is_collection) {
                     text.push_str(&format!(" [{}]", m));
                 }
                 text
@@ -584,6 +666,10 @@ pub struct ViewEdge {
     pub role: Option<String>,
     /// Message order within an interaction.
     pub order: Option<u32>,
+    /// Key of the interaction (sequence scenario) a message belongs to.
+    pub scenario: Option<String>,
+    /// Tagged values that have no dedicated field (`key`, `value`).
+    pub properties: Vec<(String, String)>,
     pub span: Option<SourceSpan>,
     pub provenance: Provenance,
 }
@@ -604,6 +690,8 @@ impl ViewEdge {
             target_multiplicity: None,
             role: None,
             order: None,
+            scenario: None,
+            properties: Vec::new(),
             span: None,
             provenance: Provenance::Derived,
         }
@@ -611,6 +699,16 @@ impl ViewEdge {
 
     pub fn with_label(mut self, label: Option<String>) -> Self {
         self.label = label.filter(|l| !l.is_empty());
+        self
+    }
+
+    pub fn with_scenario(mut self, scenario: impl Into<String>) -> Self {
+        self.scenario = Some(scenario.into());
+        self
+    }
+
+    pub fn with_property(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.properties.push((key.into(), value.into()));
         self
     }
 
@@ -649,6 +747,7 @@ pub enum FragmentKind {
     Loop,
     Par,
     Break,
+    Critical,
 }
 
 impl FragmentKind {
@@ -659,6 +758,7 @@ impl FragmentKind {
             Self::Loop => "loop",
             Self::Par => "par",
             Self::Break => "break",
+            Self::Critical => "critical",
         }
     }
 }
@@ -691,6 +791,9 @@ pub enum InteractionEvent {
         kind: FragmentKind,
         guard: Option<String>,
     },
+    /// Starts the next operand of the innermost open fragment (`else` of an `alt`, `and`
+    /// of a `par`).
+    FragmentElse { guard: Option<String> },
     FragmentEnd,
     Note { over: String, text: String },
 }

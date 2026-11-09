@@ -9,8 +9,8 @@
 //! Canonicalisation, applied to the branch operand:
 //!
 //! 1. **Copies** are followed to the producing value (`Assign` chains).
-//! 2. **Boolean negation** (`Not` of a Boolean) flips the polarity; `b == true`, `b != false`
-//!    reduce to `b`, `b == false`, `b != true` to `¬b`.
+//! 2. **Boolean negation** (`Not`, which the IR defines on Booleans) flips the polarity;
+//!    `b == true`, `b != false` reduce to `b`, `b == false`, `b != true` to `¬b`.
 //! 3. **Orientation.** A constant operand goes to the right; two values are ordered by id.
 //!    Mirroring the operands mirrors the predicate (`a > b ≡ b < a`).
 //! 4. **Negation normal form.** `≠` is `¬(=)` in every domain. In a totally ordered domain
@@ -32,10 +32,12 @@ use std::collections::HashMap;
 
 use crate::analysis::controldep::ControlDependence;
 use crate::analysis::solver::{
-    def_points, defining_inst, resolve_copies, CmpOp, ConstKey, DefPoint, EdgeKind, IrCfg,
-    OperandView, ResolvedOperand, ScalarKind, TypeFacts, UnaryOp,
+    def_points, defining_inst, pred_holds, resolve_copies, ConstKey, DefPoint, EdgeKind, IrCfg,
+    OperandView, ResolvedOperand, ScalarKind, TypeFacts,
 };
-use crate::ir::{FuncIr, Inst, Terminator, TypeId, ValueId};
+use crate::ir::func::FuncIr;
+use crate::ir::inst::{ComparePred, Inst, Terminator, UnaryOp};
+use crate::ir::types::{TypeId, ValueId};
 use crate::psa::construction::feasibility::{BranchPredicate, BranchPredicateTable};
 
 // ── Atoms ────────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ pub enum Atom {
     Truth(ValueId),
     /// `lhs op rhs`, oriented and normalised as described in the module documentation.
     Compare {
-        op: CmpOp,
+        op: ComparePred,
         lhs: AtomOperand,
         rhs: AtomOperand,
         domain: CmpDomain,
@@ -239,7 +241,7 @@ impl FunctionConditions {
                             continue;
                         };
                         let c = canon.compare(
-                            CmpOp::Eq,
+                            ComparePred::Eq,
                             scrut,
                             AtomOperand::Const(ConstKey::from_ir(value)),
                             true,
@@ -498,26 +500,16 @@ impl Canonicaliser<'_> {
                 ResolvedOperand::Const(ConstKey::Bool(b)) => return Cond::Const(b == positive),
                 ResolvedOperand::Const(_) | ResolvedOperand::Undef => return Cond::Opaque,
                 ResolvedOperand::Value(v) => match defining_inst(self.func, self.defs, v) {
-                    Some(Inst::Unary { op: uop, src, .. })
-                        if UnaryOp::from_ir(uop) == Some(UnaryOp::Not) =>
-                    {
-                        let inner = self.resolve(src);
-                        let boolean = match inner {
-                            ResolvedOperand::Value(x) => self.is_boolean(x),
-                            ResolvedOperand::Const(ConstKey::Bool(_)) => true,
-                            _ => false,
-                        };
-                        if boolean || self.types.value_kind(self.func, v) == ScalarKind::Bool {
-                            positive = !positive;
-                            cur = inner;
-                        } else {
-                            return self.truth(v, positive, fc);
-                        }
+                    Some(Inst::Unary {
+                        op: UnaryOp::Not,
+                        src,
+                        ..
+                    }) => {
+                        positive = !positive;
+                        cur = self.resolve(src);
                     }
                     Some(Inst::Compare { pred, lhs, rhs, .. }) => {
-                        let Some(op) = CmpOp::from_ir(pred) else {
-                            return self.truth(v, positive, fc);
-                        };
+                        let op = *pred;
                         let l = self.resolve(lhs);
                         let r = self.resolve(rhs);
                         let (l, r) = match (atom_operand(l), atom_operand(r)) {
@@ -562,7 +554,7 @@ impl Canonicaliser<'_> {
     /// Canonical literal of `positive ⇔ (l op r)`.
     fn compare(
         &self,
-        op: CmpOp,
+        op: ComparePred,
         l: AtomOperand,
         r: AtomOperand,
         positive: bool,
@@ -591,26 +583,26 @@ impl Canonicaliser<'_> {
             _ => CmpDomain::Unknown,
         };
         let mut positive = positive;
-        if op == CmpOp::Ne {
-            op = CmpOp::Eq;
+        if op == ComparePred::Ne {
+            op = ComparePred::Eq;
             positive = !positive;
         }
         if domain == CmpDomain::Total {
             match op {
-                CmpOp::Ge => {
-                    op = CmpOp::Lt;
+                ComparePred::Ge => {
+                    op = ComparePred::Lt;
                     positive = !positive;
                 }
-                CmpOp::Gt => {
-                    op = CmpOp::Le;
+                ComparePred::Gt => {
+                    op = ComparePred::Le;
                     positive = !positive;
                 }
                 _ => {}
             }
-            if op == CmpOp::Le {
+            if op == ComparePred::Le {
                 if let AtomOperand::Const(ConstKey::Int(c)) = r {
                     if let Some(c1) = c.checked_add(1) {
-                        op = CmpOp::Lt;
+                        op = ComparePred::Lt;
                         r = AtomOperand::Const(ConstKey::Int(c1));
                     }
                 }
@@ -636,15 +628,15 @@ fn atom_operand(r: ResolvedOperand) -> Option<AtomOperand> {
 
 /// For `x op c` / `c op x` with a Boolean constant `c` and `op ∈ {=, ≠}`: the value `x` and
 /// whether the test negates it.
-fn boolean_constant_test(op: CmpOp, l: AtomOperand, r: AtomOperand) -> Option<(ValueId, bool)> {
+fn boolean_constant_test(op: ComparePred, l: AtomOperand, r: AtomOperand) -> Option<(ValueId, bool)> {
     let (x, c) = match (l, r) {
         (AtomOperand::Value(x), AtomOperand::Const(ConstKey::Bool(c)))
         | (AtomOperand::Const(ConstKey::Bool(c)), AtomOperand::Value(x)) => (x, c),
         _ => return None,
     };
     match op {
-        CmpOp::Eq => Some((x, !c)),
-        CmpOp::Ne => Some((x, c)),
+        ComparePred::Eq => Some((x, !c)),
+        ComparePred::Ne => Some((x, c)),
         _ => None,
     }
 }
@@ -653,21 +645,22 @@ fn boolean_constant_test(op: CmpOp, l: AtomOperand, r: AtomOperand) -> Option<(V
 /// numbers and Booleans by value, `null` against `null` or a string literal by identity.
 /// String literals against each other are not folded (identity versus content equality is a
 /// language property).
-pub fn fold_const_compare(op: CmpOp, a: ConstKey, b: ConstKey) -> Option<bool> {
+pub fn fold_const_compare(op: ComparePred, a: ConstKey, b: ConstKey) -> Option<bool> {
     match (a, b) {
-        (ConstKey::Int(x), ConstKey::Int(y)) => Some(op.eval(Some(x.cmp(&y)))),
-        (ConstKey::Bool(x), ConstKey::Bool(y)) => Some(op.eval(Some(x.cmp(&y)))),
-        (ConstKey::Float(x), ConstKey::Float(y)) => {
-            Some(op.eval(f64::from_bits(x).partial_cmp(&f64::from_bits(y))))
-        }
+        (ConstKey::Int(x), ConstKey::Int(y)) => Some(pred_holds(op, Some(x.cmp(&y)))),
+        (ConstKey::Bool(x), ConstKey::Bool(y)) => Some(pred_holds(op, Some(x.cmp(&y)))),
+        (ConstKey::Float(x), ConstKey::Float(y)) => Some(pred_holds(
+            op,
+            f64::from_bits(x).partial_cmp(&f64::from_bits(y)),
+        )),
         (ConstKey::Null, ConstKey::Null) => match op {
-            CmpOp::Eq => Some(true),
-            CmpOp::Ne => Some(false),
+            ComparePred::Eq => Some(true),
+            ComparePred::Ne => Some(false),
             _ => None,
         },
         (ConstKey::Null, ConstKey::Str(_)) | (ConstKey::Str(_), ConstKey::Null) => match op {
-            CmpOp::Eq => Some(false),
-            CmpOp::Ne => Some(true),
+            ComparePred::Eq => Some(false),
+            ComparePred::Ne => Some(true),
             _ => None,
         },
         _ => None,

@@ -482,7 +482,8 @@ fn tokenize(src: &str) -> Result<Vec<Spanned>, QueryLangError> {
         }
         if c == '%' || (c == '/' && next == Some('/')) {
             while i < chars.len() && chars[i] != '\n' {
-                advance(&mut i, &mut line, &mut col, chars[i]);
+                let ch = chars[i];
+                advance(&mut i, &mut line, &mut col, ch);
             }
             continue;
         }
@@ -504,7 +505,8 @@ fn tokenize(src: &str) -> Result<Vec<Spanned>, QueryLangError> {
         };
         if let Some((tok, width)) = simple {
             for _ in 0..width {
-                advance(&mut i, &mut line, &mut col, chars[i]);
+                let ch = chars[i];
+                advance(&mut i, &mut line, &mut col, ch);
             }
             toks.push(Spanned { tok, line: tl, col: tc });
             continue;

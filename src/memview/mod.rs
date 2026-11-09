@@ -121,6 +121,12 @@ impl Derivation {
     }
 }
 
+impl Default for Derivation {
+    fn default() -> Self {
+        Derivation::Exact
+    }
+}
+
 /// An instruction position: `index == insts.len()` addresses the block terminator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ProgramPoint {
@@ -750,14 +756,29 @@ impl FuncIndex {
     }
 }
 
-/// Marks every node that lies on a cycle of the graph (iterative Tarjan SCC).
+/// Marks every node that lies on a cycle of the graph.
 pub(crate) fn blocks_on_cycles(succs: &[Vec<usize>]) -> Vec<bool> {
+    let mut result = vec![false; succs.len()];
+    for comp in sccs(succs) {
+        let cyclic = comp.len() > 1 || succs[comp[0]].contains(&comp[0]);
+        if cyclic {
+            for m in comp {
+                result[m] = true;
+            }
+        }
+    }
+    result
+}
+
+/// Strongly connected components (iterative Tarjan), each non-empty, in reverse
+/// topological order (a component precedes the components that reach it).
+pub(crate) fn sccs(succs: &[Vec<usize>]) -> Vec<Vec<usize>> {
     let n = succs.len();
     let mut index = vec![usize::MAX; n];
     let mut low = vec![0usize; n];
     let mut on_stack = vec![false; n];
     let mut stack: Vec<usize> = Vec::new();
-    let mut result = vec![false; n];
+    let mut result: Vec<Vec<usize>> = Vec::new();
     let mut counter = 0usize;
     for root in 0..n {
         if index[root] != usize::MAX {
@@ -797,12 +818,7 @@ pub(crate) fn blocks_on_cycles(succs: &[Vec<usize>]) -> Vec<bool> {
                             break;
                         }
                     }
-                    let cyclic = members.len() > 1 || succs[v].contains(&v);
-                    if cyclic {
-                        for m in members {
-                            result[m] = true;
-                        }
-                    }
+                    result.push(members);
                 }
             }
         }

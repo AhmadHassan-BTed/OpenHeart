@@ -275,6 +275,7 @@ impl ModRefSummaries {
     }
 
     /// Effect of the instruction at (`block`, `index`) of `func` on `cell`.
+    #[allow(clippy::too_many_arguments)]
     pub fn mod_ref_of_inst(
         &self,
         module: &ModuleIr,

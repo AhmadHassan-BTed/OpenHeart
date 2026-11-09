@@ -116,20 +116,31 @@ impl<'a> TokenView<'a> {
         matches!(
             self.kind(tok),
             TokenType::Keyword
+                | TokenType::SoftKeyword
                 | TokenType::Identifier
                 | TokenType::JavaVarKeyword
                 | TokenType::JavaSealedKeyword
         ) && self.text(tok) == s.as_bytes()
     }
 
-    pub fn is_ident(&self, tok: u32) -> bool {
-        if self.kind(tok) != TokenType::Identifier {
-            return false;
-        }
+    fn identifier_text(&self, tok: u32) -> bool {
         match self.text(tok).first() {
-            Some(&b) => b.is_ascii_alphabetic() || b == b'_' || b == b'$' || b >= 0x80,
+            Some(&b) => b.is_ascii_alphabetic() || b == b'_' || b == b'$' || b == b'`' || b >= 0x80,
             None => false,
         }
+    }
+
+    /// Identifier token (contextual keywords that are valid identifiers included).
+    pub fn is_ident(&self, tok: u32) -> bool {
+        matches!(
+            self.kind(tok),
+            TokenType::Identifier | TokenType::SoftKeyword
+        ) && self.identifier_text(tok)
+    }
+
+    /// Identifier token, including annotation names (which Phase 1 types `Annotation`).
+    pub fn is_name(&self, tok: u32) -> bool {
+        (self.is_ident(tok) || self.kind(tok) == TokenType::Annotation) && self.identifier_text(tok)
     }
 
     /// First significant (non-comment) token at or after `pos` and before `limit`.
@@ -283,14 +294,14 @@ pub fn skip_annotation(tv: &TokenView, at: u32, limit: u32) -> Option<(u32, u32)
         return None;
     }
     let mut name = tv.next(at, limit)?;
-    if !tv.is_ident(name) {
+    if !tv.is_name(name) {
         return None;
     }
     // Kotlin use-site target: `@field:Json(...)`.
     if let Some(colon) = tv.next(name, limit) {
-        if tv.punct(colon, ":") {
+        if tv.punct(colon, ":") && tv.line(colon) == tv.line(name) {
             if let Some(target) = tv.next(colon, limit) {
-                if tv.is_ident(target) {
+                if tv.is_name(target) {
                     name = target;
                 }
             }
@@ -302,7 +313,7 @@ pub fn skip_annotation(tv: &TokenView, at: u32, limit: u32) -> Option<(u32, u32)
             break;
         }
         match tv.next(dot, limit) {
-            Some(seg) if tv.is_ident(seg) => {
+            Some(seg) if tv.is_name(seg) => {
                 name = seg;
                 pos = seg + 1;
             }
@@ -506,6 +517,75 @@ impl<'v, 'a> TypeParser<'v, 'a> {
 
     /// Parses a type parameter list starting at its `<` token. Returns the parameters, the
     /// position after the list and the closing token.
+    /// Parses a single type parameter (annotations, name, bounds) starting at `pos`, as the
+    /// node of one `type_parameter` covers it. Returns the parameter and the position after
+    /// it; a closing `>>` consumed by a bound is left pending.
+    pub fn parse_type_param(&mut self, pos: u32) -> Option<(TypeParamSyntax, u32)> {
+        let tv = self.tv;
+        let mut first = u32::MAX;
+        let mut p = pos;
+        loop {
+            let t = tv.sig(p, self.limit)?;
+            if tv.punct(t, "@") {
+                let (_, next) = skip_annotation(tv, t, self.limit)?;
+                if first == u32::MAX {
+                    first = t;
+                }
+                p = next;
+            } else if self.dialect == Dialect::Kotlin
+                && (tv.word(t, "reified") || tv.word(t, "in") || tv.word(t, "out"))
+            {
+                if first == u32::MAX {
+                    first = t;
+                }
+                p = t + 1;
+            } else {
+                break;
+            }
+        }
+        let name = tv.sig(p, self.limit)?;
+        if !tv.is_ident(name) {
+            return None;
+        }
+        if first == u32::MAX {
+            first = name;
+        }
+        let mut bounds = Vec::new();
+        let mut last = name;
+        let mut pos = name + 1;
+        if let Some(t) = tv.sig(pos, self.limit) {
+            let opens_bound = match self.dialect {
+                Dialect::Kotlin => tv.punct(t, ":"),
+                _ => tv.word(t, "extends"),
+            };
+            if opens_bound {
+                let mut bp = t + 1;
+                loop {
+                    let (bound, next) = self.parse_type(bp, TypeOptions::default())?;
+                    last = bound.last;
+                    bounds.push(bound);
+                    pos = next;
+                    if self.pending_gt > 0 {
+                        break;
+                    }
+                    match tv.sig(pos, self.limit) {
+                        Some(amp) if tv.punct(amp, "&") => bp = amp + 1,
+                        _ => break,
+                    }
+                }
+            }
+        }
+        Some((
+            TypeParamSyntax {
+                name_tok: name,
+                bounds,
+                first,
+                last,
+            },
+            pos,
+        ))
+    }
+
     pub fn parse_type_params(&mut self, lt: u32) -> Option<(Vec<TypeParamSyntax>, u32, u32)> {
         let tv = self.tv;
         self.pending_gt = 0;
@@ -515,65 +595,9 @@ impl<'v, 'a> TypeParser<'v, 'a> {
         let mut params = Vec::new();
         let mut pos = lt + 1;
         loop {
-            let mut first = u32::MAX;
-            let mut p = pos;
-            loop {
-                let t = tv.sig(p, self.limit)?;
-                if tv.punct(t, "@") {
-                    let (_, next) = skip_annotation(tv, t, self.limit)?;
-                    if first == u32::MAX {
-                        first = t;
-                    }
-                    p = next;
-                } else if self.dialect == Dialect::Kotlin
-                    && (tv.word(t, "reified") || tv.word(t, "in") || tv.word(t, "out"))
-                {
-                    if first == u32::MAX {
-                        first = t;
-                    }
-                    p = t + 1;
-                } else {
-                    break;
-                }
-            }
-            let name = tv.sig(p, self.limit)?;
-            if !tv.is_ident(name) {
-                return None;
-            }
-            if first == u32::MAX {
-                first = name;
-            }
-            let mut bounds = Vec::new();
-            let mut last = name;
-            pos = name + 1;
-            if let Some(t) = tv.sig(pos, self.limit) {
-                let opens_bound = match self.dialect {
-                    Dialect::Kotlin => tv.punct(t, ":"),
-                    _ => tv.word(t, "extends"),
-                };
-                if opens_bound {
-                    let mut bp = t + 1;
-                    loop {
-                        let (bound, next) = self.parse_type(bp, TypeOptions::default())?;
-                        last = bound.last;
-                        bounds.push(bound);
-                        pos = next;
-                        if self.pending_gt > 0 {
-                            break;
-                        }
-                        match tv.sig(pos, self.limit) {
-                            Some(amp) if tv.punct(amp, "&") => bp = amp + 1,
-                            _ => break,
-                        }
-                    }
-                }
-            }
-            params.push(TypeParamSyntax {
-                name_tok: name,
-                bounds,
-                first,
-                last,
-            });
+            let (param, next) = self.parse_type_param(pos)?;
+            pos = next;
+            params.push(param);
             if self.pending_gt > 0 {
                 self.pending_gt -= 1;
                 if self.pending_gt != 0 {

@@ -233,7 +233,12 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         let mut pos = kw;
         while let Some(p) = self.tv.prev(pos, self.start) {
             let text = self.tv.text_str(p);
-            if self.tv.is_ident(p) || matches!(self.tv.kind(p), crate::core::types::token::TokenType::Keyword) {
+            if self.tv.is_name(p)
+                || matches!(
+                    self.tv.kind(p),
+                    crate::core::types::token::TokenType::Keyword
+                )
+            {
                 if let Some(at) = self.tv.prev(p, self.start) {
                     if self.tv.punct(at, "@") {
                         m.first = at;
@@ -256,7 +261,7 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
                     None => break,
                 };
                 let name = match self.tv.prev(open, self.start) {
-                    Some(n) if self.tv.is_ident(n) => n,
+                    Some(n) if self.tv.is_name(n) => n,
                     _ => break,
                 };
                 match self.tv.prev(name, self.start) {

@@ -236,7 +236,7 @@ impl ForEachParts {
 pub fn call_name(bpa: &BPASTArtifact, src: &SourceText<'_>, call: u32) -> Option<u32> {
     let mut cur = bpa.first_child(call);
     while let Some(c) = cur {
-        if bpa.node_type(c) == NN_IDENTIFIER_EXPR && src.text_after(bpa, c) == Some(b"(") {
+        if bpa.node_type(c) == NN_IDENTIFIER_EXPR && src.text_after(bpa, c) == Some(&b"("[..]) {
             return Some(c);
         }
         cur = bpa.next_sibling(c);
@@ -263,7 +263,7 @@ pub fn call_shape(bpa: &BPASTArtifact, src: &SourceText<'_>, call: u32) -> Optio
     let kids = children(bpa, call);
     if let Some(&first) = kids.first() {
         let t = bpa.node_type(first);
-        if (t == NN_THIS_EXPR || t == NN_SUPER_EXPR) && src.text_after(bpa, first) == Some(b"(") {
+        if (t == NN_THIS_EXPR || t == NN_SUPER_EXPR) && src.text_after(bpa, first) == Some(&b"("[..]) {
             return Some(CallShape::ConstructorChain {
                 is_super: t == NN_SUPER_EXPR,
                 args: kids[1..].to_vec(),
@@ -400,7 +400,7 @@ pub fn is_logical_not(bpa: &BPASTArtifact, src: &SourceText<'_>, node: u32) -> b
     if bpa.node_type(node) != NN_UNARY_EXPR {
         return false;
     }
-    src.node_text(bpa, node) == Some(b"!")
+    src.node_text(bpa, node) == Some(&b"!"[..])
 }
 
 /// Literal text, when the node is a literal and token text is available.

@@ -597,12 +597,14 @@ fn cmd_analyze(args: AnalyzeArgs) -> Result<(), String> {
         limits,
         include_tests: args.include_tests,
         respect_ignore_files: !args.no_ignore,
+        ..DiscoveryOptions::default()
     };
     let pipeline = PipelineOptions {
         diagram_types: args.diagram_types.unwrap_or_else(all_diagram_types),
         formats: args
             .formats
             .unwrap_or_else(|| DEFAULT_DIAGRAM_FORMATS.to_vec()),
+        ..PipelineOptions::default()
     };
     let out_dir = args
         .output
