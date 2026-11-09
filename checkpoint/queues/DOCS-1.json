@@ -1,0 +1,1420 @@
+[
+ {
+  "id": "BENCH-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "'F1 = 1.0000 across six languages' compares the engine against a near-copy of itself",
+  "files": [
+   "README.md",
+   "docs/overview.md",
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "src/uma/structural/class_diagram.rs",
+   "src/symbol/passes/pass1_discovery.rs"
+  ],
+  "evidence": "README.md:60 and docs/overview.md:102-111 claim F1 = 1.0000. The ground truth is Oracle 1 alone, a keyword regex (ruthless_verify.py:61-100). The cross-validation described at :299 is never implemented (:303). The tool side is simple class names regex-parsed from PlantUML, stored in a dict keyed by simple name (:95, :225-234). The engine finds classes with the same keyword-plus-identifier heuristic (pass1_discovery.rs:249-349). 184 of the engine's 188 denylisted names (class_diagram.rs:163, 346-537) also appear in ruthless_config.json:59-92, which is applied to both sides (ruthless_verify.py:88, 232). Examples: Configuration, Root, Table, Logger, HomeScreen.",
+  "impact": "The metric cannot detect wrong packages, nesting errors, duplicate simple names, or any error in the semantic phases. A real class named Configuration or Logger is removed from both truth and output, so recall is 1.0 by construction. The number cannot be falsified and will not survive external review.",
+  "recommendation": "Withdraw the claim until it is re-measured. Score fully-qualified declarations against javac with SemanticDB, and against compiler-backed SCIP indexers for other languages, on pinned corpora with bootstrap CIs (suites S3, S13). Move the oracles into a separately reviewed package that is not allowed to share lists, filters or heuristics with the engine.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "#SAT(f_paths) is not the path count: Phi_b leaves unreached edges free, so paths are overstated exponentially",
+  "files": [
+   "src/psa/construction/constraints.rs:41-86",
+   "src/psa/construction/mod.rs:84-109",
+   "src/psa/bdd/sat_count.rs:1-20",
+   "docs/openheart_research_paper.tex:969-983",
+   "tests/research_paper_theorems_tests.rs:82-84"
+  ],
+  "evidence": "Phi_b only encodes reach(b) -> out-constraint (constraints.rs:64,82,131). Nothing forces the edges of unreached blocks to 0, there is no C_exit (the paper's definition includes one), and the entry variable is restricted away (mod.rs:95) yet still counted as free by sat_count(f_paths, n_vars) (mod.rs:109). In a faithful Python port, whose sat_count equals brute-force model counts: one if/else gives 8 instead of 2; k sequential if/else give 2*4^k instead of 2^k; 20 guard clauses give 8,667,850,491,898 instead of 21. The theorem test itself counts (1,1,1) as a path.",
+  "impact": "Phase 8's headline metric is wrong for essentially every branching function, and it is published in PlantUML/Mermaid annotations, UMA records and Phase 9 aggregates.",
+  "recommendation": "Count acyclic paths exactly with Ball-Larus path numbering (MICRO 1996): an O(V+E) dynamic program after back edges are replaced by dummy entry/exit edges, using num-bigint BigUint, with loops reported separately. If a decision-diagram path set is needed, build a ZDD of s-t paths with Knuth's Simpath / frontier-based search (Kawahara et al. 2017). Done means a proptest differential test against brute-force path enumeration on random structured CFGs.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Compiler-IR diagrams (CFG/DFG/CDG/call graph/ROBDD) and several views are hard-coded templates, not analysis output",
+  "files": [
+   "src/scpg/diagram/export/json.rs:1748-1830",
+   "src/scpg/diagram/export/json.rs:1833-2100",
+   "src/scpg/diagram/export/json.rs:1511-1745",
+   "src/scpg/diagram/export/plantuml.rs:1271-1283",
+   "src/scpg/diagram/export/plantuml.rs:1355-1398",
+   "src/scpg/diagram/export/plantuml.rs:1432-1446",
+   "src/scpg/diagram/export/mermaid.rs:1527-1572",
+   "src/scpg/diagram/export/mermaid.rs:1605-1619",
+   "src/scpg/diagram/export/plantuml.rs:18-23",
+   "README.md:66"
+  ],
+  "evidence": "The JSON CFG, DFG, CDG, call-graph, ROBDD, timing, interaction and profile builders take `_uma,_sta,_tca` and emit constants that describe OpenHeart itself (\"v0 = load manifest\", \"v3 = compute_idom(v2)\", \"x2: ASTAcyclic\", \"@60ms: 8 Threads\"). The PlantUML and Mermaid CDGs ignore their inputs and print \"(amount > 0)\" and \"repository.saveOrder()\". Every function gets the same fixed 4-block CFG diamond. The DFG is a φ template with \"var_name: retries\". The call graph chains methods in HashSet order with invented \"CHA/1-CFA dispatch\" edges and a fake SCC self-loop. Exporters never receive .cfa/.ssa/.cga/.psa.",
+  "impact": "Every analyzed program gets identical or invented control-flow, data-flow, dependence, call and BDD graphs. The README claim of \"19 projections derived from binary graph layers\" is false, and users can be misled about their own code.",
+  "recommendation": "Pass exporters a DiagramContext: CFA CSR with idom, SSA DefUseCSR/CDGCSR/phis, CGA callee_csr with SCCs, PSA ROBDD node tables and TRA spans. Use it to render the real graphs (CFG with back-edges and dominator tree, def-use with φ, CDG, SCC-clustered call graph, actual BDD nodes). Until then, drop these types from the registry and the README. Done means golden tests on fixture methods whose expected CFG and CDG were checked by hand.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Only Java has a real grammar: Kotlin is parsed as Java then JavaScript; Python/Rust/TS/C++ as JavaScript",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs:29-31",
+   "src/ingestion/adapter/registry.rs:34-39",
+   "src/ingestion/adapter/registry.rs:52-57",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ast/adapter/registry.rs:37-42",
+   "src/ingestion/adapter/mod.rs:14-16",
+   "src/ingestion/adapter/generic.rs:52-58",
+   "src/adapters/server.rs:805-830",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "KotlinLanguageAdapter::ts_language() returns tree_sitter_java::language(), and Cargo.toml has only the java and javascript grammars. AdapterRegistry::get falls back to a LangId::Unknown adapter built on tree_sitter_javascript, so .py/.rs/.ts/.cpp/.go files, all of which the server collects, are lexed as JavaScript. Phase 2 registers no Kotlin adapter, so Kotlin is reduced by the generic JS reducer. The generic Phase-1 adapter keeps include_anonymous()=false, so it emits no keywords, operators or punctuation, and it types any alphabetic named leaf as Keyword. No test ingests a .kt file.",
+  "impact": "Every non-Java file produces error-ridden CSTs and meaningless ASTs, so later phases fall back to token heuristics. The README's 'F1 = 1.0000 across Java, Kotlin, Python, Rust, TypeScript, C++' is not supported by Phases 1 and 2.",
+  "recommendation": "Upgrade to tree-sitter 0.25 and add real grammars (tree-sitter-kotlin-ng, -python, -typescript, -rust, -cpp, -go). For each language, write Phase 1/2 adapters whose classification tables are generated from or tested against the grammar's node-types.json, with a test that fails on any unclassified kind. Skip unsupported extensions with a diagnostic instead of re-parsing them with another grammar. Done = per-language golden AST snapshot tests and published per-language accuracy on a public corpus.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Cross-file type resolution does not work: import declarations never reach Pass 2 and same-package lookup is missing",
+  "files": [
+   "src/ast/adapter/java.rs:129",
+   "src/ast/reducer.rs:17",
+   "src/symbol/passes/pass2_imports.rs:15-18",
+   "src/symbol/passes/pass2_imports.rs:28-43",
+   "src/symbol/passes/pass2_imports.rs:63",
+   "src/symbol/passes/pass3_types.rs:71-89",
+   "src/symbol/scope_graph/resolver.rs:57-73",
+   "docs/plans/phase3.md:429"
+  ],
+  "evidence": "The Java adapter has no arm for import_declaration, so `_ => Drop` (java.rs:129) discards it, and Drop returns None without visiting children (reducer.rs:17). Pass 2 therefore never fires. If imports did arrive, Pass 2 joins tokens with spaces (pass2:63), so `.*` never matches and simple names become ' List'. It also files every import under the module's declared-in scope, which is the global root (15-18). Pass 3 maps imported FQNs to new SK_EXTERNALs, never to project symbols (pass3:71-78). Same-package lookup, promised in phase3.md:429, does not exist, and wildcard_imports is never called.",
+  "impact": "Every reference to a type declared in another file becomes an SK_EXTERNAL keyed by simple name. Exporters then re-match by simple name (plantuml.rs:443-477), which is wrong whenever simple names collide across packages.",
+  "recommendation": "Emit package and import nodes from Phase 2. In Pass 1, build a global FQN→SymId index and one package scope shared by all compilation units of a package. Resolve per JLS 6.4.1 and 7.5: local and member types, then single-type imports, then same package, then on-demand imports, then java.lang; static imports for members. Encode this as scope-graph import edges with path ordering (Neron et al. 2015; Statix). Done when a 3-file, 2-package fixture with clashing simple names matches javac's bindings.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "User-facing CFG, DFG, CDG and call-graph diagrams are hard-coded templates, not analysis output",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:1253-1297",
+   "src/scpg/diagram/export/plantuml.rs:1339-1398",
+   "src/scpg/diagram/export/mermaid.rs:1575-1621",
+   "src/scpg/diagram/export/mermaid.rs:1536",
+   "src/scpg/diagram/export/json.rs:1748-1760",
+   "src/scpg/diagram/export/json.rs:1970-1986",
+   "README.md:88-90"
+  ],
+  "evidence": "Every exporter for diagrams 15-19 takes only (uma, sta, tca) and never reads .cfa/.ssa/.cga. The PlantUML/Mermaid CFG is a fixed Entry→Gate→Then/Else→Exit template. The DFG prints `var_name: retries` v0/v1/φ for the first three classes. The CDG always shows `(amount > 0)` → `repository.saveOrder()`. The call graph chains methods in HashSet order, labelled `CHA/1-CFA dispatch`, plus a fake `Tarjan SCC cycle` self-edge. The JSON CFG and CG describe OpenHeart's own pipeline (`v0 = load manifest`, `cooper_dominators()`). The code is in src/scpg (Phase 10).",
+  "impact": "Users see fabricated flow diagrams for every input, contradicting README lines 88-90, and the fabrication hid the Phase 4-6 defects in this report.",
+  "recommendation": "Render these diagrams from the artifacts (blocks, edges and idom; φ and def-use; the CDG CSR; CG edges and SCCs) with deterministic ordering and per-function selection. Add snapshot tests that check every rendered node and edge against an artifact entity. Show 'not available' instead of a placeholder when an analysis did not run.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Kotlin and 'six-language' support is illusory: Kotlin goes through the Java and JavaScript grammars, everything else through JavaScript",
+  "files": [
+   "README.md:60",
+   "src/ingestion/adapter/kotlin.rs:29-31",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ingestion/adapter/registry.rs:24-39",
+   "src/main.rs:76-99",
+   "src/adapters/server.rs:805-840",
+   "Cargo.toml:9-11",
+   "ROADMAP.md:127",
+   "CHANGELOG.md:32",
+   "docs/overview.md:102-111"
+  ],
+  "evidence": "KotlinLanguageAdapter::ts_language() returns tree_sitter_java::language() (ingestion/adapter/kotlin.rs:29-31). Phase 2's registry has no Kotlin entry, so .kt falls back to the JavaScript grammar (ast/adapter/registry.rs:19-28). Kotlin is therefore tokenized as Java and reduced as JavaScript. Python, TypeScript, Rust and C++ have no adapters and also fall back to JavaScript (ingestion/adapter/registry.rs:34-39). The only grammar dependencies are java and javascript (Cargo.toml:9-11). The CLI ingests only .java/.kt/.kts (main.rs:76-99). Tests and examples contain zero non-Java fixtures, and ROADMAP.md:127 still lists C++/Rust/Go adapters as future work.",
+  "impact": "Every Kotlin file yields wrong tokens and an AST that disagrees with Phase 1. Python, TypeScript, Rust and C++ input silently produces garbage. The README's F1 = 1.0000 claim is false for five of the six languages it names.",
+  "recommendation": "Scope the README to Java now and label every other language experimental. Upgrade to tree-sitter 0.25+/0.26 with a current tree-sitter-java and a real Kotlin grammar (tree-sitter-kotlin-ng). Register one adapter per language for both Phase 1 and Phase 2 from a single table, and return an error instead of falling back to JavaScript for unknown extensions. Add per-language fixture suites in tree-sitter corpus style, and have CI track the rate of ERROR/MISSING nodes per file.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-01",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Genuine Kotlin and multi-language frontends with a versioned support matrix",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "Cargo.toml",
+   "README.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The Kotlin adapter returns tree_sitter_java::language() (src/ingestion/adapter/kotlin.rs:29-31). The AST registry maps JavaScript, TypeScript, Rust, Generic and Unknown to one JavaScript-grammar adapter, and Kotlin falls through to it (src/ast/adapter/registry.rs:19-28,37-42). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Cargo.toml:9-11 pulls in only the tree-sitter 0.20 Java and JavaScript grammars. Yet README.md:60 claims six languages and src/adapters/server.rs:83-85 advertises seven. Tests and examples contain no lambdas, sealed types or switch patterns.",
+  "impact": "Kotlin and every non-Java input produce Java parses full of errors or JavaScript-shaped ASTs, so multi-language results cannot be trusted. CodeQL and Joern publish support per language and per version. Without that, OpenHeart cannot be compared even on Java and Kotlin, its stated core.",
+  "recommendation": "Upgrade to a current tree-sitter release. Add tree-sitter-kotlin-ng with Kotlin AST and semantic adapters. Gate Java 8-25 and Kotlin 1.9-2.x features behind conformance fixtures, and publish a support matrix. Reject unsupported files instead of silently using the JavaScript grammar. Drop unimplemented languages from the README and /api/supported-languages until they pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-03",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Real interprocedural analyses: constraint-based points-to, RTA/VTA, IFDS/IDE and taint specs",
+  "files": [
+   "src/cg/points_to.rs",
+   "src/cg/resolution.rs",
+   "src/ssa/ifds.rs",
+   "ROADMAP.md"
+  ],
+  "evidence": "Points-to seeds only NN_NEW_EXPR definitions and propagates through phi copies; it has no assign, field, parameter or return constraints (src/cg/points_to.rs:24-79). '1-CFA' looks up receiver types and has no call-string context (src/cg/resolution.rs:115-166). src contains no RTA, VTA or XTA. IFDS flags definitions by AST shape with a fixed source id of 1 and has no sinks, propagation or summaries (src/ssa/ifds.rs:17-37,58-67). This contradicts ROADMAP.md:71 and 80.",
+  "impact": "No result can answer security, nullness or precise-dispatch questions, which are the core value of every static-analysis competitor. Behavioural UML built on this call graph inherits its imprecision.",
+  "recommendation": "Implement field-sensitive Andersen over assign/load/store/call/return constraints, with SCC collapsing and on-the-fly call-graph construction. Add RTA and VTA. Replace ifds.rs with Reps-Horwitz-Sagiv tabulation over an ICFG with summary edges, then IDE. Ship a format for specifying sources, sinks and sanitizers, with Java framework models. Validate against SootUp and OPAL output.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "TST-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The README's F1 = 1.0000 claim comes from a circular, hand-tuned Python harness that never runs in CI",
+  "files": [
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/benchmark_all_java_design_patterns.py",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "README.md"
+  ],
+  "evidence": "The ground truth is a regex line scanner keyed by simple name (ruthless_verify.py:95), and only sets of class names are compared. Real names such as HomeScreen, INVESTOR, JFrame, Logger, Root, Table and Scanner are excluded from both sides via KEYWORDS (ruthless_config.json:73-91; ruthless_verify.py:232). The dataset script renames GHobbits to GenHobbits (test_ruthless_popular_datasets.py:63-64), passes its PlantUCD batches unconditionally (259) and accepts `or \"Artifact Type\" in out` (113). The benchmark exits 0 on failure (benchmark_all_java_design_patterns.py:212-215). Kotlin is parsed with the Java grammar (kotlin.rs:30); TS, Rust and other languages fall back to tree-sitter-javascript (registry.rs:27-38).",
+  "impact": "The multi-language F1 = 1.0 cannot be reproduced from the repository and is partly an artifact of the exclusion list. Nothing in CI measures accuracy.",
+  "recommendation": "Replace it with a nightly CI evaluation on pinned commits (spring-petclinic, java-design-patterns, commons-lang, one Kotlin repo). Use independent oracles: the JavaParser symbol solver or Eclipse JDT for Java, and the Kotlin Analysis API for Kotlin. Compare fully-qualified names and score classes, members, supertypes and call edges with no exclusion lists. Publish per-repo P/R/F1 JSON with commit SHAs. Add per-language tests asserting `!root_node().has_error()` on fixtures, and drop claims for languages without a real grammar.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Advertised language support is not backed by code",
+  "files": [
+   "README.md",
+   "src/adapters/server.rs",
+   "CHANGELOG.md",
+   "ROADMAP.md",
+   "docs/codebase-guide.md",
+   "src/main.rs",
+   "docs/openheart_research_paper.tex",
+   "web/js/github-engine.js",
+   "docs/overview.md"
+  ],
+  "evidence": "README.md:60 claims F1 = 1.0000 'across Java, Kotlin, Python, Rust, TypeScript, and C++'. src/adapters/server.rs:84 advertises python/typescript/javascript/cpp/rust/go, but not kotlin. CHANGELOG.md:32 claims multi-language support 'across all 10 compilation pipeline phases without hardcoded dependencies'. ROADMAP.md:27 ticks multi-language support while :127 leaves the C++/Rust/Go adapters open. docs/codebase-guide.md:86 cites Java/Kotlin/Rust stubs, but only java_stubs.rs exists. src/main.rs:41 says .java while :79-93 also accepts .kt/.kts. The paper (docs/openheart_research_paper.tex:735-741, 1326-1330) claims scope graphs and stubs at language boundaries. The Pages studio's 'AST parsing' (README.md:57) is a regex that requires '{' (web/js/github-engine.js:291) and invents classes from file names (:383-397). docs/overview.md:102-113 lists no Python, TS or C++ repository.",
+  "impact": "Users and reviewers are misled about what the engine can analyze. Benchmark-grade status needs a truthful statement of support derived from tests.",
+  "recommendation": "Publish a per-language capability matrix generated from conformance tests. Rows are languages; columns are parse, symbols, imports, CFG, SSA, call graph and each diagram. Use tiers: Tier 1 (full pipeline), Tier 2 (outline via tree-sitter tags.scm), unsupported. Serve /api/supported-languages from the registry. Withdraw the F1 claim until an independent benchmark exists, and label the web studio's regex mode in the UI.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-05",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Only Java and JavaScript grammars exist; Kotlin, TypeScript and Rust use the wrong grammar",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/adapters/server.rs",
+   "README.md"
+  ],
+  "evidence": "Cargo.toml lists only tree-sitter-java and tree-sitter-javascript. The Kotlin adapter returns tree_sitter_java::language() (kotlin.rs:30). TypeScript, Rust, Generic and Unknown are reduced with the JavaScript grammar (ast/adapter/registry.rs:21-28), and files with any other extension are parsed as JavaScript (ingestion/adapter/registry.rs:34-38). The API advertises java, python, typescript, javascript, cpp, rust and go (server.rs:84). README.md:60 claims F1 = 1.0000 across six languages.",
+  "impact": "Non-Java input quietly produces CSTs full of parse errors. Any outside benchmark will disprove the multi-language accuracy claims.",
+  "recommendation": "Either add real grammars and adapters (kotlin, python, rust, typescript, cpp) with tests, or narrow the README and API claims to Java and JS. Reject unsupported extensions instead of falling back to JavaScript.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-07",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "high",
+  "title": "Docker image cannot build or start; minimum Rust version is undeclared and misdocumented",
+  "files": [
+   "Dockerfile",
+   "Cargo.toml",
+   "src/main.rs",
+   "README.md",
+   "docs/getting_started.md"
+  ],
+  "evidence": "Dockerfile:49 runs 'openheart serve --port 8080', but the CLI only accepts 'server [PORT]' (main.rs:532) and exits with code 1 on unknown subcommands (main.rs:544-548). Dockerfile:2 uses rust:1.80-slim, while the locked sha2 0.11.1 requires Rust 1.88 and edition 2024 according to crates.io. README.md:7 and getting_started.md:19 say Rust 1.75+. Cargo.toml has no rust-version, and the HOST/PORT environment variables are never read.",
+  "impact": "The documented container path is broken at both build and start. Users on the advertised Rust version get build failures. CI only tests stable and beta, so it cannot catch either problem.",
+  "recommendation": "Change CMD to [\"openheart\",\"server\",\"8080\"] or add a serve alias. Move the base image to rust:1.88 or later. Declare rust-version in Cargo.toml and the docs. Add CI jobs for the minimum Rust version and a Docker build plus smoke run.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The six-language claim rests on only two linked grammars",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/registry.rs",
+   "src/ingestion/adapter/kotlin.rs",
+   "README.md"
+  ],
+  "evidence": "Only tree-sitter-java and tree-sitter-javascript are dependencies (Cargo.toml:9-11). Kotlin is parsed with the Java grammar (kotlin.rs:30). Python, TypeScript, Rust, C++ and Go are detected (registry.rs:60-79), then routed to an Unknown adapter that uses the JavaScript grammar (registry.rs:34-38, 52-56). README.md:60 nevertheless claims validation across Java, Kotlin, Python, Rust, TypeScript and C++.",
+  "impact": "Results for non-Java languages come from tree-sitter error recovery under the wrong grammar. CFG, SSA and call graphs built from them cannot be meaningful, and any comparison with a real multi-language tool will show this.",
+  "recommendation": "Limit claims to Java (and JavaScript) for now. Add suite S13, which measures the per-language ERROR/MISSING node rate under the correct grammar and FQN precision/recall against SCIP indexers. Publish a result for each language before claiming it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-03",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The code's own data structures contradict the 128x and 4.65 MB per 1M AST nodes claims",
+  "files": [
+   "README.md",
+   "docs/overview.md",
+   "docs/architecture.md",
+   "docs/succinct_structures.md",
+   "docs/openheart_research_paper.tex",
+   "src/ast/rmq.rs",
+   "src/ast/jump_table.rs",
+   "src/ast/preorder.rs",
+   "src/ast/rank_select.rs",
+   "src/ast/serializer.rs"
+  ],
+  "evidence": "Claims: README.md:48,54; overview.md:119; architecture.md:107; succinct_structures.md:39-47. The 128x figure is the information-theoretic gap (paper .tex:292-296), not a measurement. Per node, the code stores: an 8 B u32 jump table over 2n bits (jump_table.rs:15-16); 17 B of preorder arrays (preorder.rs:4-8); u16 rank blocks for every 8 bits (rank_select.rs:8, 15-16); and a sparse-table RMQ over 2n positions times 21 u32 levels plus i32/usize side arrays (rmq.rs:24-54). Estimated from field sizes at 1M nodes: about 25 MB serialized (serializer.rs:34-61) and about 210 MB in RAM.",
+  "impact": "The flagship number is about 5x too optimistic on disk and about 45x in memory. In RAM the structure is larger than the 32 MB pointer tree the docs compare it against. Any reviewer who measures RSS will refute the claim.",
+  "recommendation": "Add suite S15: per-structure byte accounting plus dhat max-live heap for n = 10^3 to 10^7, published as bits per node. Drop the 128x claim until S15 supports it. To earn a succinct-structure claim, replace the jump table and sparse table with an o(n)-bit range-min-max tree, and derive parent from the BP sequence instead of parent_map.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-05",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The paper's tables cannot be reproduced, and its space theorem relies on structures the code lacks",
+  "files": [
+   "docs/openheart_research_paper.tex",
+   "docs/architecture.md",
+   "Cargo.toml"
+  ],
+  "evidence": "The paper gives per-phase sizes for an unnamed 'representative 500K-LOC Java project' (tex:581-613) and says it is '~305 MB compressing to ~82 MB with LZ4' (:608, :816-818). There is no LZ4 dependency (Cargo.toml:8-16) and no script that produces the table. The space theorem (tex:874-895) relies on wavelet trees (tex:311-319, 853-867; architecture.md:110-111) and complement edges (architecture.md:119). No file in src/ mentions wavelet, complement or lz4.",
+  "impact": "Submitting the paper as written risks failing artifact evaluation. The theorems describe a different system from the code that ships.",
+  "recommendation": "Name the corpus and commit behind each number. Generate every table in the paper from bench results.jsonl with a script. Either mark wavelet trees, complement edges and LZ4 as future work, or implement them and back them with S14/S15 measurements.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The advertised IFDS solvers and Andersen points-to analysis are local marking passes",
+  "files": [
+   "src/ssa/ifds.rs",
+   "src/cg/points_to.rs",
+   "README.md",
+   "docs/architecture.md",
+   "docs/openheart_research_paper.tex"
+  ],
+  "evidence": "Claims: README.md:100,119,142; architecture.md:17; paper tex:754-756, 785-786. ifds.rs:12-37 makes one pass per function, marking definitions. A 'taint source' or 'type-state' fact just means the defining statement has a method-declaration child (:58-67, :80-89). 'Nullable' means any literal child (:69-78). Nothing propagates. points_to.rs:24-80 seeds sets at new-expressions keyed by the declared type of the defined symbol. It propagates only along phi copies, not through assignments, fields, parameters or returns.",
+  "impact": "Standard benchmarks (PointerBench, SecuriBench Micro, OWASP Benchmark) will score near-zero recall on any flow through an assignment, field or call. Calling these analyses IFDS and Andersen misleads users.",
+  "recommendation": "Until real solvers exist, rename these passes after what they compute. Make suites S2 and S6 a precondition for any future IFDS or points-to claim, starting with PointerBench and SecuriBench Micro in the PR tier.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-08",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "The 'succinct' AST costs about 210–236 B/node, roughly 45× the documented 4.65 B, and select1 scans bit by bit",
+  "files": [
+   "src/ast/rmq.rs",
+   "src/ast/jump_table.rs",
+   "src/ast/rank_select.rs",
+   "src/ast/serializer.rs",
+   "src/ast/builder.rs",
+   "docs/overview.md",
+   "docs/architecture.md",
+   "README.md"
+  ],
+  "evidence": "ast/rmq.rs:24-51 builds a full sparse table (Vec<Vec<u32>>, log n levels over 2N bits) plus excess as Vec<i32> and log2 as Vec<usize>. jump_table.rs:16 stores one u32 per bit, and the preorder arrays add 17 B/node. A model of these formulas (scratchpad lens/scale_model.py) gives 209 B/node at 1M nodes and 1.09 GiB at 5M nodes (≈1M LOC), of which 852 MiB is the RMQ table. serializer.rs:183-184 rebuilds the table on every read, and rank_select.rs:100 implements select1 as a get_bit loop. docs/overview.md:119 and architecture.md:107 claim 4.65 MB per 1M nodes.",
+  "impact": "The AST alone exceeds 1 GB at 1M LOC. Every first_child/next_sibling call (10^7–10^8 calls across Phases 3–6) costs hundreds of cycles. The README's 128× compression and O(1) navigation claims are contradicted.",
+  "recommendation": "Add a subtree_size (or close-position-by-preorder) array beside parent_map so navigation is O(1) without select. Replace the sparse table with a Navarro–Sadakane range-min-max tree, or Fischer–Heun block RMQ in 2n+o(n) bits. Use Rank9/Select9 or Elias–Fano from the sucds or vers-vecs crates. Publish B/node figures measured with dhat or peak-RSS benchmarks.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-11",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "No incremental or persistent reuse: .scpg is a stub, the delta engine is a no-op, and global ids renumber on every edit",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/scpg/mmap/mod.rs",
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/mod.rs",
+   "src/main.rs",
+   "ROADMAP.md"
+  ],
+  "evidence": "scpg/serializer/mod.rs:56-108 writes 4-byte counts for 10 of 11 sections (e.g. line 59); only StringTable (62) carries data. MemoryMappedSCPG::open (scpg/mmap/mod.rs:18) uses fs::read rather than mmap, and no query can be served from the file. scpg/incremental/mod.rs:28 'applies' a delta by XOR-ing the hash. Token, preorder and symbol ids are corpus-global, so tra/delta/mod.rs:28-39 invalidates every symbol after the first changed token. main.rs keeps nine artifacts plus six raw byte copies alive until exit.",
+  "impact": "Every run and every server request is a cold full rebuild, and peak RSS is the sum of all phases (several GB at 1M LOC). The 'O(1) incremental delta update' marked done in ROADMAP.md:116 does not exist.",
+  "recommendation": "Use stable file-local ids such as (file_id, local_idx) or rust-analyzer-style AstIds. Cache per-file Phase 1–5 outputs keyed by BLAKE3(content + config), as ruff's cache does, and express cross-file phases as Salsa queries. Persist real CSR sections with zero-copy views (rkyv, zerocopy or bytemuck over memmap2) so open() can answer queries. Drop each phase's inputs once they are consumed.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Name blocklists silently drop real user classes, and the F1 = 1.0 oracle excludes the same names",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "ruthless_verify.py",
+   "ruthless_config.json",
+   "README.md"
+  ],
+  "evidence": "ClassDiagramExtractor drops any class named in a 188-entry list that includes Entity, Configuration, Error, Value, Root, Context, Logger, Table, Singleton and Scanner, plus repo-specific names such as HomeScreen, INVESTOR and OpenHeart (class_diagram.rs:346-538). It also drops names ending in 'Binding', ALL_CAPS names, and lowercase names that differ from the file stem (class_diagram.rs:107-164). ruthless_verify.py removes every name in ruthless_config.json 'keywords' from its regex ground truth (ruthless_verify.py:88). 184 of the engine's 188 suppressed names are in that list. The harness compares only class-name sets parsed from the server's class PUML (ruthless_verify.py:317-350).",
+  "impact": "Ordinary domain classes vanish from every diagram. The published F1 = 1.0 is partly true by construction, covers one projection (class names) on one path (the server), and says nothing about members, relations, CFGs or call graphs.",
+  "recommendation": "Delete the name blocklists and filter only by symbol kind and origin (library vs project source). Build independent oracles: javac/JDT or Spoon for classes, members and hierarchy; kotlinc PSI for Kotlin; Soot or OPAL for call edges. Report precision and recall per relation (classes, fields, methods, extends/implements, associations, call edges, CFG blocks) on a public corpus such as Qualitas.class, XCorpus or Defects4J subjects. Run it through the CLI entry point, and publish the scripts and numbers.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'Rudell sifting' is a no-op: only the ordering table is permuted, never the BDD",
+  "files": [
+   "src/psa/ordering/sifting.rs:44-82",
+   "src/psa/ordering/mod.rs:116-129",
+   "src/psa/construction/mod.rs:103",
+   "docs/openheart_research_paper.tex:799-802",
+   "docs/plans/phase8.md:189-194"
+  ],
+  "evidence": "sift_variable calls ordering.swap_adjacent() but never rewrites any node, and it measures size with bdd.node_count() (sifting.rs:51,59,70), which cannot change. As a result `sz < best_size` never fires, best_pos stays at the starting position, and the final loop returns the variable home. A simulated full pass leaves the ordering identical for n=2..39. `_root` is unused. If a swap ever did stick, var_to_edge would no longer match the node.var labels. The paper and phase8.md both claim Rudell sifting with in-place swaps.",
+  "impact": "No dynamic reordering exists to rescue the bad static orders behind BDD-03, O(n^2) swaps per function are wasted, and a published algorithmic claim is false.",
+  "recommendation": "Implement Rudell sifting (ICCAD 1993): per-level unique subtables, in-place adjacent-level swaps that touch only levels i and i+1, reference counts for live size, a max-growth cutoff of about 1.2x, and CUDD-style perm/invperm level indirection. Alternatively, adopt oxidd, which already ships reordering. Done means a test where sifting shrinks a deliberately bad interleaved order to linear size.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-08",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Incremental invalidation is dead code and unsound; the documented 5-stage protocol does not exist",
+  "files": [
+   "src/tra/delta/mod.rs:20-47",
+   "src/tra/delta/invalidation.rs:7-20",
+   "src/scpg/incremental/mod.rs:25-34",
+   "docs/traceability_and_incremental.md:41-82"
+  ],
+  "evidence": "DeltaApplicator::compute_delta and StaleDetector have no callers outside their own module and its re-export. compute_delta compares BI_sym by positional sym_id and global token ids (delta/mod.rs:28-38). Inserting one token or symbol early shifts every later id and invalidates nearly everything. An edit that keeps a declaration's token span is missed, deletions are never reported, and nothing propagates dependencies. IncrementalEngine::apply_delta just returns `current_hash ^ 0x0101_0101` with stale_link_count 0. The rope buffer, tree-sitter incremental reparse and Merkle diff described in the doc do not exist.",
+  "impact": "The paper's incremental-update theorem (thm:incr) and the README's incremental claims have no implementation. Every edit means a full 10-phase rebuild.",
+  "recommendation": "Model the phases as Salsa queries (salsa crate: revisions, durability, early cutoff/backdating) keyed by stable ids (qualified name plus signature; file path plus byte offset). Use tree-sitter Tree::edit and changed_ranges to find dirty functions, rerun Phases 4-8 only for those, and diff per-entity hashes to decide UMLLink staleness. Done means an edit-replay benchmark over real commit histories that reports the recomputed fraction and latency.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The unified .scpg stores only element counts; the 'memory-mapped' open is a full copy, and no query uses it",
+  "files": [
+   "src/scpg/serializer/mod.rs:56-108",
+   "src/scpg/mmap/mod.rs:13-18",
+   "src/scpg/api/mod.rs:22-45",
+   "src/scpg/query/mod.rs:39-83",
+   "src/core/io/mmap.rs:12-17",
+   "README.md:59",
+   "README.md:124",
+   "docs/plans/phase10.md:532-542"
+  ],
+  "evidence": "Ten of the eleven sections hold a single LE count (`tca.token_records.len() as u32`, `sta.symbol_count`, `cga.call_site_count`, `psa.total_nodes`). Only StringTable carries real bytes, and no section deserializer exists. `MemoryMappedSCPG::open` calls `fs::read` into a Vec, although a memmap2 wrapper exists in core/io/mmap.rs. `OpenHeartEngine.mmap` is never read, and every query takes in-memory artifacts as arguments. Sections are unaligned (4-byte payloads, directory u64 fields at offsets ≡4 mod 8), so zero-copy views are impossible.",
+  "impact": "Phase 10's main output carries no analysis data, and a .scpg cannot be reopened to answer a query. The claims of \"<1 ms mmap open\", an \"82 MB LZ4\" file and hot/cold paging are not backed by code.",
+  "recommendation": "Make each section hold the full canonical artifact (or columnar CSR arrays, as in Joern flatgraph), aligned to 64 B or 4 KiB, with a per-section zstd/LZ4 codec and checksum. Map it with memmap2 from an immutable, atomically renamed file, expose typed views through zerocopy or bytemuck (or rkyv with bytecheck), and run QueryEngine over that view. Done means opening and querying a 500 KLOC .scpg without re-running phases 1-9, with latency measured by criterion.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": ".scpg loader never verifies CRC or version and panics or aborts on corrupt or hostile files",
+  "files": [
+   "src/scpg/mmap/mod.rs:34-35",
+   "src/scpg/mmap/mod.rs:52-72",
+   "src/scpg/mmap/mod.rs:86-89",
+   "src/scpg/serializer/integrity.rs:3-16",
+   "src/scpg/serializer/mod.rs:111",
+   "src/scpg/serializer/mod.rs:167",
+   "src/main.rs:469-474",
+   "docs/plans/phase10.md:548-549"
+  ],
+  "evidence": "The writer uses a bitwise CRC-32/IEEE (0xEDB88320), not the CRC-64 the README claims. `open` reads the CRC and `format_version` but checks neither. `section_count` comes straight from the file into `Vec::with_capacity`: 0xFFFFFFFF asks for about 103 GB and aborts, and count 12 on a 392-byte file panics on an out-of-range slice. `get_section` computes `start + byte_length` unchecked, so it can wrap and then panic on slicing. There is no header checksum, duplicate sections are accepted, and `fs::write` is not atomic. `inspect` prints \"SYSTEM PRODUCTION READY\" without verifying anything.",
+  "impact": "Truncated, corrupted or version-skewed files are silently accepted or crash the process. A 392-byte crafted file kills the CLI.",
+  "recommendation": "Validate before allocating: magic, a known major version, section_count up to a fixed maximum, checked_add offsets that stay inside the file, and unique, non-overlapping sections. Verify a header CRC and a per-section CRC-64/NVME or xxh3 checksum (crc64fast or xxhash-rust) lazily, and return Err on mismatch. Write via temp file, fsync and rename. Add a cargo-fuzz target for open. Done means a clean fuzz run of 24 hours and corruption tests that return Err.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'CFL-reachability' is plain call-graph reachability with an O(V·E) inner loop",
+  "files": [
+   "src/scpg/query/cfl.rs:1-35",
+   "src/core/types/cg.rs:150-153",
+   "src/core/types/cg.rs:126-138",
+   "docs/plans/phase10.md:90-104",
+   "docs/plans/phase10.md:536"
+  ],
+  "evidence": "The \"cubic worklist tabulation\" stores pairs `(source,u)` with a fixed source, which is just a BFS visited set. There are no call/return labels, summary edges or ICFG, so it cannot express realizable (matched-parenthesis) paths. For every dequeued node it scans the whole `site_to_edge_map`. A port on a 2,000-node chain made 3,998,000 edge visits, even though `callee_csr`, `caller_csr` and `edges_of()` already exist.",
+  "impact": "The query is mislabeled, and its run time collapses on large codebases: about 1e9 edge scans at 15K methods and 60K edges. That contradicts the claim \"sub-second for 15K methods\".",
+  "recommendation": "For method reachability, use CSR adjacency plus SCC condensation (the .cga already has Tarjan SCCs) and a reachability index: bitset closure for small graphs, GRAIL or pruned landmark labeling for large ones. For true CFL reachability, implement IFDS tabulation (Reps-Horwitz-Sagiv) or Dyck reachability (Reps 1998) over the ICFG with summary edges. Done means criterion benchmarks on 100K-edge graphs, cross-checked against a Soufflé reference.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Incremental engine is a stub, and its hash update undoes itself, so cached results can go stale",
+  "files": [
+   "src/scpg/incremental/mod.rs:10-34",
+   "src/scpg/incremental/delta.rs:11-24",
+   "src/scpg/query/cache.rs:21-28",
+   "docs/plans/phase10.md:343-395",
+   "docs/plans/phase10.md:538"
+  ],
+  "evidence": "`SourceDelta` holds only a file_id and three booleans the caller asserts; there is no byte range or text. `classify` tests comment-only first, so a delta flagged both body-only and type-changed is classified as Behavioral. `apply_delta` rebuilds nothing, always returns `stale_link_count: 0`, and sets `new_scpg_hash = current_hash ^ 0x0101_0101`. Two deltas restore the original hash (port: 83D2D2B2 → 82D3D3B3 → 83D2D2B2), and that hash is the key the cache uses to decide validity. Nothing calls this code.",
+  "impact": "The documented 'O(|delta|), 80-200 ms' updates do not exist. If this code were wired in as is, alternating edits would serve stale reachability and slice results.",
+  "recommendation": "Derive deltas from tree-sitter incremental parsing (Tree::edit plus changed_ranges) and an AST diff (GumTree). Track per-file content hashes and phase dependencies in a demand-driven engine (salsa-style red/green as in rust-analyzer; compare Glean stacked DBs and CodeQL overlay databases). Version snapshots with strong digests. Done means an edit-replay benchmark proving incremental results equal a clean rebuild.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "XMI export is a placeholder: class shells with numbered names and obsolete namespaces, unreachable from CLI and server",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs:8-19",
+   "src/scpg/diagram/factory.rs:140-148",
+   "src/main.rs:281-309",
+   "docs/plans/phase10.md:560"
+  ],
+  "evidence": "The output is `<uml:Model xmi:version=\"2.1\" xmlns:xmi=\"http://schema.omg.org/spec/XMI/2.1\" xmlns:uml=\"http://www.eclipse.org/uml2/3.0.0/UML\">` with one `<packagedElement xmi:type=\"uml:Class\" xmi:id=\"sym_N\" name=\"Class_N\"/>` per class. It has no real names, packages, attributes, operations, generalizations, realizations or associations, and the Model itself has no xmi:id. `XMIFactory` ignores the diagram type. The CLI and server write only .puml, .mmd and .json files.",
+  "impact": "Nothing useful can be imported into Papyrus, Enterprise Architect or MagicDraw, so the 'Eclipse-compatible XMI / UML 2.x' interchange claim is not backed by code.",
+  "recommendation": "Emit a full model through quick-xml, with proper escaping. Target XMI 2.5.1 (http://www.omg.org/spec/XMI/20131001) with UML 2.5.1 (http://www.omg.org/spec/UML/20161101), or Eclipse UML2 5.0.0 for Papyrus. Include nested packages, ownedAttribute with type refs, multiplicity and aggregation, ownedOperation/ownedParameter, generalization, interfaceRealization and Association memberEnds, with stable FQN-hash ids. Done means a round-trip import into headless Eclipse UML2 and an EA import check.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-03",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Phase 9 has no working extractor for six diagram types: the state machine is a fixed template, four extractors are empty, and the object extractor misreads AST ids",
+  "files": [
+   "src/uma/behavioral/state_machine.rs:10-69",
+   "src/uma/structural/composite_diagram.rs:9-11",
+   "src/uma/behavioral/communication_diagram.rs:9-11",
+   "src/uma/behavioral/interaction_overview.rs:9-15",
+   "src/uma/behavioral/timing_diagram.rs:8-10",
+   "src/uma/behavioral/mod.rs:48-50",
+   "src/uma/structural/object_diagram.rs:15-30",
+   "src/ssa/liveness.rs:134",
+   "src/uma/serializer.rs:666-678",
+   "docs/openheart_research_paper.tex:811-812",
+   "docs/openheart_research_paper.tex:1158-1162",
+   "ROADMAP.md:107"
+  ],
+  "evidence": "StateMachineExtractor ignores `_ssa` and emits, for every class, states {0 initial, 1 final} plus one 0→1 transition per method. The composite, communication, interaction-overview and timing extractors have empty bodies and return (); behavioral/mod.rs:48-50 calls them for no output. ObjectDiagramExtractor calls `sta.symbol(ssa_rec.orig_sym_id)`, but SSA's orig_sym_id is an AST node index (`let sym_id = node;`), so objects are arbitrary symbol hits, and it stores ssa_id as label_text_id. No exporter reads `uma.objects`; objects and label_texts are never serialized. The paper and ROADMAP claim IFDS type-state state machines and thread-analysis timing.",
+  "impact": "Object, composite-structure, state-machine, communication, interaction-overview and timing diagrams have no analysis behind them (deployment, use case and profile have no extractor at all), so the paper's tab:uml and the 14-diagram claim are not backed by code.",
+  "recommendation": "Implement real extractors or drop the types. Object diagrams: Andersen allocation sites plus field points-to links (Tonella and Potrich, Reverse Engineering of Object Oriented Code, 2005). State machines: enum- or int-typed state fields with guarded assignments via SSA, CDG and ROBDD guards (Sen and Mall, SoSyM 2016), emitting nothing when no state variable exists. Communication diagrams: sequence records plus object naming (Rountev and Connell, ICSE 2005). Persist ObjectRecords and labels in .uma, and correct the paper and ROADMAP.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The 'F1 = 1.0000' validation is circular and measures class names only; tests assert no ground truth for patterns or behavior",
+  "files": [
+   "README.md:60",
+   "ruthless_verify.py:88",
+   "ruthless_verify.py:232",
+   "ruthless_verify.py:247-260",
+   "ruthless_config.json:59-92",
+   "tests/design_pattern_architecture_tests.rs:104-114",
+   "tests/adversarial_trick_tests.rs:259-307",
+   "tests/uma_tests.rs:104-163",
+   "docs/codebase-guide.md:263"
+  ],
+  "evidence": "ruthless_verify.py removes every config 'keywords' name from the ground truth (lines 88/172/216/232). That list repeats 184 of the extractor's 188 blacklisted names (Entity, Configuration, Root, Singleton, HomeScreen, INVESTOR) plus engine placeholders (SystemNode, Node_0-2, MB), so dropped classes cannot lower the score, and only class-name sets are compared. design_pattern_architecture_tests.rs only prints pattern counts. The adversarial test passes if any of four kinds appears (`has_decorator || has_strategy || ...`), and its diagram checks require only @startuml/@enduml and no 'SystemNode'. uma_tests asserts non-emptiness. examples/ carries no role labels.",
+  "impact": "The published F1 says nothing about members, relationships, behavioral diagrams or patterns, regressions in all of them pass CI, and docs/codebase-guide.md:263 overstates what the tests cover.",
+  "recommendation": "Use an independent oracle (JavaParser, Spoon or javac -Xprint) with no shared exclusions, and score members, relationship kinds and multiplicities, not just names. Add a harness over P-MARt (Guéhéneuc 2007) and DPB (Arcelli Fontana et al., CSMR 2012) that reports per-pattern, role-level precision/recall/F1 with CI thresholds. Add golden-file tests per diagram, negative fixtures, and metamorphic tests (consistent renaming must not change detection).",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Sequence diagrams list messages in the wrong order with no nesting, returns or fragments, and all scenarios merge into one diagram",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:86-163",
+   "src/uma/actor_identification.rs:24-45",
+   "src/scpg/diagram/export/plantuml.rs:1033-1066",
+   "src/scpg/diagram/export/mermaid.rs:1198-1234",
+   "docs/uml_derivation.md:86-89"
+  ],
+  "evidence": "Callers are expanded from a LIFO stack after all of a method's calls are emitted, so for A→B, A→C the sub-calls of C print before those of B, and each method is expanded once, wherever it is popped. `combined_fragments` is always empty, although `_cfa` is passed and docs/uml_derivation.md:89 promises ROBDD-derived alt/loop/opt. There is no depth bound or library filter. PlantUML emits activate/return/deactivate right after each call, so activations never nest. The actor is declared `act_Actor` but its messages come from `part_Actor`, creating a phantom participant. Every entry-point scenario is concatenated into one diagram.",
+  "impact": "Sequence diagrams misstate call order and nesting, the core semantics of the notation, and become unreadable walls of messages on any non-trivial project.",
+  "recommendation": "Emit one diagram per scenario by ordered, depth-bounded inlining of call sites in CFG order (Rountev, Volgin and Reddoch, PASTE 2005). Map branch and loop regions to alt/opt/loop/break fragments with guards, emit replies and nested activations, and mark async calls (Thread.start, Executor.submit, CompletableFuture). Name lifelines by receiver object via points-to (Rountev and Connell, ICSE 2005), and choose entry points from framework semantics (main, @RequestMapping, JUnit, Android lifecycle).",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-04",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The 'succinct' AST costs ~209 B/node in memory and ~25 B/node on disk, against the documented 4.65-9.65 MB per 1M nodes and the 128x claim",
+  "files": [
+   "src/ast/rmq.rs:24-54",
+   "src/ast/jump_table.rs:14-31",
+   "src/ast/rank_select.rs:23-52",
+   "src/ast/serializer.rs:33-62",
+   "src/ingestion/serializer.rs:126-142",
+   "docs/succinct_structures.md:37-47",
+   "docs/succinct_structures.md:117",
+   "docs/overview.md:119",
+   "README.md:48",
+   "README.md:54"
+  ],
+  "evidence": "Per BP bit the code keeps a u32 match_pos, an i32 excess, a usize log2 entry and a Vec<Vec<u32>> sparse table of about log2(2N) levels. The rank directory stores a u16 per 8 bits, which is 200% overhead, not o(n). From the code, N=1M nodes needs BP 0.25 MB, sparse table 160 MB, match_pos 8 MB, log2 16 MB, excess 8 MB and preorder arrays 17 MB: about 209 MB in total. The docs claim 4.65-9.65 MB, and the 32 MB pointer tree they claim to beat is smaller. The .tca also stores two byte-identical 16-byte-per-token arrays.",
+  "impact": "Memory grows as n log n (about 2.4 GB for 10M nodes), so large codebases run out of RAM in Phase 2. The headline compression and O(1)-navigation claims are false.",
+  "recommendation": "Replace match_pos, SparseTableRMQ and the hand-rolled rank with a range min-max tree (Navarro & Sadakane, ACM TALG 2014; Arroyuelo et al., ALENEX 2010): for example vers-vecs RsVec with its BP tree, or a port of sdsl-lite bp_support_sada with rank_support_v5/select_support_mcl. Use rank9 or poppy for rank. Keep a single token array. Done = a measured topology overhead of at most 3 bits/node in a criterion+RSS benchmark, with the docs regenerated from measurements.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Scope lookup ignores symbol kind and Java scope rules: self references bind to constructors, parameter types bind to the parameter",
+  "files": [
+   "src/symbol/scope_graph/resolver.rs:9-32",
+   "src/symbol/passes/pass3_types.rs:47-63",
+   "src/symbol/passes/pass3_types.rs:93-106",
+   "src/symbol/passes/pass1_discovery.rs:185-189",
+   "docs/plans/phase3.md:54-61"
+  ],
+  "evidence": "resolve_lexical returns the first declaration of any kind whose name matches (resolver.rs:20-23; predicate at pass3:51-62). Constructors sit in the class scope, which is searched before the file scope holding the class. So with an explicit constructor, `static Singleton instance;` and `Node next;` bind to the SK_CONSTRUCTOR. Parameters carry their type's name (SYM-02) and live in the method scope, so in `f(Order order)` the parameter's type ref resolves to the parameter itself, and `Order` locals bind to it. Scopes open per declaration (pass1:185-189), never per block, for or catch (contrary to phase3.md:54-61).",
+  "impact": "type_id is wrong for self-typed fields and returns (Singleton, Builder, Composite, linked nodes), for most reference-typed parameters, and for many locals. Pass 4/5 and the pattern heuristics read these wrong bindings.",
+  "recommendation": "Make lookup kind-directed per JLS 6.5, as javac's Resolve does with KindSelector. Give each scope separate type, variable, method and package namespaces, and let type contexts see only type declarations and type parameters. Open scopes per JLS 6.3 (block, for, catch, lambda, switch rule), respect local declaration order, and index scopes as HashMap<(ns, name_id), SmallVec<SymId>>. Add tests for Singleton, a linked-list Node and `void f(Order o){Order p=o;}`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Type references are bare identifiers: generic, array, qualified and wildcard types are dropped, and type parameters are unnamed",
+  "files": [
+   "src/ast/adapter/java.rs:83-91",
+   "src/ast/adapter/java.rs:129",
+   "src/symbol/passes/pass3_types.rs:26-36",
+   "src/symbol/passes/pass3_types.rs:86-89",
+   "src/symbol/passes/pass4_members.rs:46-57",
+   "docs/plans/phase3.md:453"
+  ],
+  "evidence": "generic_type, array_type, scoped_type_identifier, type_parameter and wildcard have no adapter arm, so they are dropped with their subtrees. As a result `List<Order> xs`, `Order[] xs`, `Map.Entry e`, `java.util.Date d` and `Optional<User> find()` have no NN_TYPE_REF, and type_id stays u32::MAX (pass4:46-57). type_parameters survives as one NN_TYPE_PARAM whose range is just '<', so it is unnamed, and every `T` becomes one global SK_EXTERNAL 'T' (pass3:86-89). Pass 3 reads only the first token (26-36). type_param_count and the array flag are never set. phase3.md:453 claims type arguments are resolved.",
+  "impact": "Collection, array and Optional fields and generic return types, the main source of 0..* associations, carry no type at all. Generics are invisible to UML and signatures, and no erasure exists for overloads.",
+  "recommendation": "Add a TypeRef table {head SymId, args[TypeRefId], array_dims, wildcard kind and bound, annotations}. Create one SK_TYPE_PARAM per type_parameter, with bounds, scoped to its class or method. Implement erasure (JLS 4.6) and basic subtyping. For `var` (JLS 14.4.1), infer from `new T(..)` or a typed call, otherwise mark UNKNOWN. Persist TypeRefs in .sta. Done when field and return-type tests over generic, array, nested and qualified types pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-09",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Quadratic loops (O(R·S), O(E²), O(C·S)) contradict the O(n_a) claim and expose the serial server to CPU exhaustion",
+  "files": [
+   "src/symbol/passes/pass3_types.rs:108-118",
+   "src/symbol/builder.rs:112-130",
+   "src/symbol/passes/pass1_discovery.rs:373-382",
+   "src/symbol/passes/pass3_types.rs:51-62",
+   "src/symbol/passes/pass1_discovery.rs:274-276",
+   "src/symbol/scope_graph/mod.rs:40-66",
+   "docs/openheart_research_paper.tex:599",
+   "src/adapters/server.rs:31-41"
+  ],
+  "evidence": "get_or_create_external scans every symbol for each unresolved type ref (pass3:113-117), which is O(R·S). add_th_edge scans every edge on each insert (builder.rs:117-123), and there is one TH_USES per field, so O(E²). The sweep calls position() over all symbols per class keyword (pass1:373-382). resolve_lexical UTF-8-decodes each candidate (pass3:56-58) and reaches a root scope holding every file's module. There are three interner lookups per token (274-276), and each declaration allocates a scope plus three HashMap entries. The paper claims O(n_a) (tex:599). The server runs the pipeline inside a serial accept loop bound to 0.0.0.0 (server.rs:31-41).",
+  "impact": "Phase 3 is super-linear: roughly 10^11 record visits for a ~1M-LOC repository, an estimated tens of minutes. A crafted repository with many distinct field types can stall the single-threaded server.",
+  "recommendation": "Key externals by FQN in a HashMap. Deduplicate TH edges with a HashSet<(from,to,rel)>, then build CSR. Give each scope a name_id→decls index and compare interned ids only. Use dense Vecs for node_to_symbol and type_ref_resolutions, open scopes only for scope-forming constructs, and parallelize per-file passes with rayon. Add criterion benchmarks at 10K, 100K and 1M LOC with a log-log slope gate of 1.1, and give the server a per-request time and size budget.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-10",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The advertised IFDS solver is a three-predicate syntactic stub",
+  "files": [
+   "src/ssa/ifds.rs:11-89",
+   "src/ssa/mod.rs:66",
+   "README.md:100",
+   "docs/plans/phase5.md:156-250"
+  ],
+  "evidence": "IFDSAnalyzer::analyze visits each SSA record once. A 'taint source' is a defining statement with a direct NN_METHOD_DECL child (ifds.rs:58-67). 'Nullable' means any direct NN_LITERAL child, so a for-init `i = 0` counts as nullable while `String s = null;` does not. Type-state reuses the method-declaration test (80-89). There is no supergraph, flow function, path edge, summary edge or worklist, so it is not even intraprocedural dataflow. README.md:100 advertises an 'IFDS Solver', and phase5.md describes RHS tabulation in supergraph.rs/tabulation.rs files that do not exist.",
+  "impact": "Taint, nullness and type-state facts are noise; any security or null-safety use of them is unsupported.",
+  "recommendation": "Implement Reps-Horwitz-Sagiv 1995 tabulation over an ICFG, which needs call nodes in the CFG and a correct call graph. Add the Naeem-Lhoták-Rodriguez 2010 extensions, and IDE (Sagiv-Reps-Horwitz 1996) for typestate and constant propagation, using Heros, PhASAR and FlowDroid as references. Make sources, sinks and sanitizers configurable, and benchmark on SecuriBench Micro and the OWASP Benchmark. Until then, drop the claim.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'Andersen' points-to has no real constraints and merges SSA ids across methods",
+  "files": [
+   "src/cg/points_to.rs:25-79",
+   "src/ssa/renaming.rs:124",
+   "src/ssa/renaming.rs:159",
+   "docs/plans/phase6.md:141-197"
+  ],
+  "evidence": "Seeds fire only when an SSA def_stmt is itself an NN_NEW_EXPR (points_to.rs:28-30), but def_stmt is the enclosing declaration or expression statement, so allocations are virtually never seen. The only constraints are copy edges from φ arguments (46-53), and no φ is ever placed (FLOW-04). There are no assign, load, store, call or return constraints, no fields and no cycle detection. The allocation 'type' looks up sta.symbol() with an AST node index (31). pts is keyed by ssa_id, which restarts at 0 in every function (renaming.rs:124,159), so facts from different methods merge.",
+  "impact": "Points-to sets are empty or wrong, so no precision reaches dispatch or alias queries. The spec's BDD-based Andersen with O(n^1.5) empirical cost (phase6.md:549) is not implemented.",
+  "recommendation": "Number variables globally (a per-function base offset) and model allocation sites as abstract objects, with field-sensitive address/copy/load/store/call/return constraints and an on-the-fly call graph. Use a worklist with difference propagation (Pearce et al. 2004), lazy and hybrid cycle detection (Hardekopf & Lin, PLDI 2007) and sparse bitsets (roaring), or write it in Datalog (Doop's rules on Soufflé, or Rust ascent). Benchmark against Doop and SootUp/Spark on DaCapo.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Use-after-free from unsafe aliasing in BDDLibrary on the production Phase 8 path; no Miri, and the docs claim forbid(unsafe_code)",
+  "files": [
+   "src/psa/bdd/mod.rs:78-96",
+   "src/psa/bdd/mod.rs:99-110",
+   "src/psa/bdd/mod.rs:119-132",
+   "src/psa/bdd/apply.rs:103-104",
+   "src/psa/bdd/unique_table.rs:65",
+   "src/psa/construction/mod.rs:53",
+   "docs/security-architecture.md:11"
+  ],
+  "evidence": "apply, apply_not and restrict each build `read = from_raw_parts(self.nodes.as_ptr(), len)` and also pass `&mut self.nodes` (psa/bdd/mod.rs:86,102,122). The recursion pushes new nodes (unique_table.rs:65), and the second recursive call reads through the stale slice (apply.rs:103-104). The SAFETY comment says the Vec 'never reallocates', but it starts at capacity 2 and doubles as it grows, so any growth frees the buffer that `read` points into. Phase 8 uses BDDLibrary for every function (construction/mod.rs:53). No #![forbid(unsafe_code)] appears anywhere in src, contrary to security-architecture.md:11.",
+  "impact": "This is undefined behaviour: depending on allocator state, path summaries and #SAT counts can be silently wrong or the process can crash. The tests pass by luck, because freed memory usually still holds the old nodes.",
+  "recommendation": "Remove the unsafe code: after each recursive call, read nodes by index through `all_nodes`, or use an append-only arena (elsa::FrozenVec, or index-based storage plus a read-only snapshot). Add a nightly `cargo miri test` job over psa and an AddressSanitizer job. Deny unsafe_op_in_unsafe_fn and clippy::undocumented_unsafe_blocks, and put #![forbid(unsafe_code)] on every module that needs no unsafe. Correct security-architecture.md.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "No error model: String errors, an unused thiserror, panics in Phases 7-9, silently dropped files and integer truncation",
+  "files": [
+   "Cargo.toml:13",
+   "src/core/pipeline.rs:51",
+   "src/tra/mod.rs:41-43",
+   "src/psa/mod.rs:154",
+   "src/uma/mod.rs:98",
+   "src/ast/mod.rs:140-152",
+   "src/adapters/server.rs:536-609",
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/walker.rs:59",
+   "docs/security-architecture.md:26"
+  ],
+  "evidence": "thiserror is declared (Cargo.toml:13) but never used, and src has no error enum. 27 signatures return Result<_, String>, and callers re-stringify errors with {:?}. Phases 7-9 return bare artifacts and panic! when a write fails (tra/mod.rs:43, psa/mod.rs:154, uma/mod.rs:98). Phase 2 silently skips any file it cannot read or parse (nested `if let Ok`, ast/mod.rs:140-152). The server hashes `fs::read(..).unwrap_or_default()` (server.rs:536-609). `file_id as u16` (ingestion/mod.rs:70) wraps past 65,536 files and `column as u16` (walker.rs:59) past column 65,535, although security-architecture.md:26 claims these values saturate. 291 unwraps remain.",
+  "impact": "A full disk or a permission error aborts the server. Unreadable files vanish from the results with no warning. Large monorepos and minified files get colliding sort keys and wrong traceability, all silently.",
+  "recommendation": "Define typed errors per layer with thiserror, for example ArtifactError {Truncated, BadMagic, CrcMismatch{expected, found}, Version} and IngestError {Io{path}, Parse{path}}, and use anyhow or miette only in the CLI. Make every stage return Result, and record per-file diagnostics instead of skipping files. Replace `as` casts with u16::try_from plus explicit errors, or widen the IDs. Deny clippy::unwrap_used, expect_used, panic and indexing_slicing in library code, following the Rust API Guidelines (C-GOOD-ERR).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Headline performance claims (128x, O(1), zero-copy) are unmeasured or contradicted, and no benchmark infrastructure exists",
+  "files": [
+   "README.md:48",
+   "README.md:54-55",
+   "README.md:59",
+   "docs/openheart_research_paper.tex:292-296",
+   "docs/openheart_research_paper.tex:217-220",
+   "docs/openheart_research_paper.tex:582",
+   "docs/overview.md:119",
+   "src/scpg/query/navigation.rs:9-27",
+   "src/scpg/mmap/mod.rs:17-18",
+   "examples/README.md:14",
+   "web/js/github-engine.js:164",
+   "web/js/github-engine.js:256"
+  ],
+  "evidence": "'128x compression' is the paper's theoretical gap between 32-byte pointer nodes and a 2n-bit encoding (tex:292-296), not a measurement; docs/overview.md:119 itself claims 6.9x. For 'O(1) traceability', NavigationEngine::to_source is a linear find, and from_source, documented as O(log n), is a linear filter (navigation.rs:9-27). For 'zero-copy mmap', MemoryMappedSCPG::open calls fs::read (mmap/mod.rs:18). The paper defers empirical evaluation to future work (tex:217-220) yet tabulates sizes for a '500K-LOC' project (tex:582). The repo has no benchmarks, its 'enterprise-scale benchmark' is 255 LOC (examples/README.md:14), and the web studio displays hardcoded execution_time_ms values (github-engine.js:164,256).",
+  "impact": "No performance statement can be verified. Regressions and quadratic cliffs, such as the linear external-symbol scan per type reference, stay hidden until users hit them on real repositories.",
+  "recommendation": "Add criterion or divan micro-benchmarks for rank/select, BP navigation, CRC, the interner, BDD apply and traceability queries. Add macro-benchmarks on pinned corpora measuring LOC/s, peak RSS (dhat-rs or /usr/bin/time), artifact bytes per LOC and query-latency percentiles. Track them on every PR with CodSpeed or Bencher, as ruff and Biome do. Generate BENCHMARKS.md from the harness, recording hardware and commit, and remove or footnote every README number the harness does not produce.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'All 10 phases COMPLETED' and the Phase 10 readiness checklist mark stubs and missing features as done",
+  "files": [
+   "README.md:98-106",
+   "ROADMAP.md:71",
+   "ROADMAP.md:115-116",
+   "docs/plans/phase10.md:532-566",
+   "src/scpg/incremental/mod.rs:27-33",
+   "src/ssa/ifds.rs:12-37",
+   "src/scpg/query/cfl.rs:21-31",
+   "src/scpg/diagram/export/xmi.rs:8-19",
+   "src/scpg/serializer/mod.rs:146",
+   "docs/plans/phase4.md"
+  ],
+  "evidence": "IncrementalEngine::apply_delta only XORs the hash with 0x01010101 and returns stale_link_count 0 (incremental/mod.rs:27-33), so two edits restore the old hash. The ROADMAP's 'Reps-Horwitz-Sagiv IFDS' (ROADMAP.md:71) is per-statement pattern marking with no propagation (ifds.rs:12-37). 'CFL-reachability' is a plain BFS that rescans every call edge (cfl.rs:21-31). The XMI exporter emits only 'Class_{id}' names (xmi.rs:13). The checklist ticks mmap, LZ4, per-section CRC verification, SHA-256 staleness detection, an LSP bridge and a FileWatcher (phase10.md:532-566); none exist in code. source_hash is written as zeros (scpg/serializer/mod.rs:146), and docs/plans/phase4.md is empty.",
+  "impact": "Status markers cannot be trusted. Integrators who rely on incremental updates, IFDS taint, CFL queries or XMI interchange get stubs that return plausible-looking wrong answers.",
+  "recommendation": "Adopt a status rule: each roadmap or spec item links to the module and the test that prove it, and anything lacking either is marked 'planned'. Mark incremental, IFDS, CFL, XMI and LSP experimental now. Then implement them against reference designs: Salsa for incremental recomputation (as in rust-analyzer), a real IFDS/IDE tabulation solver modelled on Heros or PhASAR, Reps-style CFL-reachability with call/return matching, and XMI 2.5.1 validated by loading it into Eclipse UML2 or Papyrus.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-10",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "high",
+  "title": "CI runs only check/fmt/test on Linux: no lint, MSRV, coverage, Miri, audit or docs gates, and the CI badge is static",
+  "files": [
+   ".github/workflows/ci.yml:14-47",
+   "README.md:7",
+   "README.md:10-11",
+   "docs/contributing.md:17",
+   "Cargo.lock:3",
+   "Makefile:20-21"
+  ],
+  "evidence": "ci.yml runs cargo check, fmt and `test --all-targets` (which skips doctests), on ubuntu-latest only. There is no clippy or RUSTFLAGS=-D warnings, though contributing.md:17 demands zero warnings. There is no MSRV job: README.md:7 claims Rust 1.75+, but lockfile v4 needs Cargo 1.78 and sha2 0.11 needs Rust 1.85 ([manifest](https://docs.rs/crate/sha2/0.11.0/source/Cargo.toml)). There is no rust-toolchain.toml. CI also lacks llvm-cov, Miri, cargo-deny/audit/machete, nextest timeouts, rustdoc, Docker, Python and JS checks, and never runs on Windows. The cache key uses only Cargo.lock, with no restore-keys. README.md:10-11 shows hardcoded 'passing' and 'enforced' badges.",
+  "impact": "Real defects merge unnoticed: an MSRV break, undefined behaviour, an unused dependency, warnings. Neither the badge nor the documented toolchain can be trusted, which blocks benchmark-grade status.",
+  "recommendation": "Add these jobs: clippy --all-targets -D warnings; RUSTDOCFLAGS=-D warnings cargo doc; an MSRV check via `rust-version` with cargo +1.85 check (or cargo-hack); cargo-nextest with slow-timeout and JUnit output; cargo-llvm-cov to Codecov with coverage floors; nightly Miri on psa; cargo-deny for advisories, licenses, bans and sources; and cargo-machete. Extend the matrix to Windows and macOS, use Swatinem/rust-cache, build the Docker image, run ruff on scripts and Biome on web/, and replace the static badge with the real workflow badge.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-07",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Real incremental, commit-aware analysis",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/ingestion/parser/tree_sitter.rs",
+   "src/main.rs",
+   "docs/traceability_and_incremental.md",
+   "ROADMAP.md"
+  ],
+  "evidence": "apply_delta classifies a delta and returns current_hash ^ 0x0101_0101 (src/scpg/incremental/mod.rs:26-34). Staleness is a hash comparison (src/tra/delta/invalidation.rs:10-21). Parsing passes no old tree (src/ingestion/parser/tree_sitter.rs:21-23), and analyze reruns all ten phases (src/main.rs:150-254). Neither the five-stage Merkle protocol (docs/traceability_and_incremental.md:71-80) nor ROADMAP's 'O(1) incremental delta update' (ROADMAP.md:116) is implemented.",
+  "impact": "Every edit or PR forces a full rebuild. That rules out IDE-level latency and PR-time use, where CodeQL overlay databases, Infer's compositional diff analysis and Semgrep baselines compete.",
+  "recommendation": "Content-hash files and functions, and persist per-file artifacts. Reparse using tree-sitter edits and the old tree. Track dependencies between phases (salsa-style) so CFG, SSA and PSA are recomputed only for touched functions and their callers. Add --baseline <commit> to produce findings and diagrams for the diff only.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-14",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "CI has no accuracy or performance gate, the badge is static, and the test count is stale",
+  "files": [
+   ".github/workflows/ci.yml",
+   "README.md",
+   "scripts/ci_check.sh"
+  ],
+  "evidence": "CI runs only cargo check, fmt and test (ci.yml:40-47; ci_check.sh:9-16); none of the accuracy scripts runs in CI. README.md:10 is a static shields.io image that always reads 'CI-passing'. README.md:164 says there are 47 unit and 22 integration tests; the tree has 47 #[test] in src/ and 29 in tests/.",
+  "impact": "Headline numbers can go stale without anyone noticing, and the badge shows green whatever the real CI state is.",
+  "recommendation": "Add the PR smoke tier and the nightly full tier with the thresholds described in the harness design. Switch to the workflow's real status badge. Generate test and benchmark counts in the docs from CI output.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-15",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "The web studio uses a separate regex extractor capped at 80 files",
+  "files": [
+   "web/js/github-engine.js",
+   "README.md",
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The GitHub Pages studio finds classes with a regex (github-engine.js:291), falls back to classes derived from file names (:383-392), and parses only the first 80 files (:199-200). README.md:57 calls this client-side AST parsing. The CLI scans only .java/.kt/.kts files and does not exclude tests (main.rs:76-99). The server, which every script uses, accepts about 60 extensions and skips tests (server.rs:790-884).",
+  "impact": "What most users see is not produced by the engine being benchmarked, and results differ by entry point. Any number given without naming the entry point is ambiguous.",
+  "recommendation": "Benchmark the browser extractor, the CLI and the server as separate systems, and record each one's input-selection rules in every result. Disclose the 80-file cap in the UI. Longer term, compile the Rust engine to WASM so a single extractor serves every entry point.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-16",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "'Zero-copy' artifacts are copied and re-indexed on load",
+  "files": [
+   "README.md",
+   "src/ast/serializer.rs"
+  ],
+  "evidence": "README.md:59 claims every phase artifact is mapped directly into page memory. In fact the .bpa reader copies each array element into new Vecs and rebuilds rank/select and the sparse-table RMQ on every load (serializer.rs:120-184).",
+  "impact": "Opening an artifact costs O(n log n) time and temporarily doubles memory. The load-time and query-latency claims for a mapped .scpg do not hold for the reader that ships.",
+  "recommendation": "Add artifact-open latency and RSS benchmarks, with cold and warm page cache, to S14/S15. Move to aligned sections that are mapped directly (for example zerocopy or bytemuck slices), and persist the auxiliary indexes instead of rebuilding them.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-17",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "UML 2.5 claims have no conformance checks, and timing diagrams use a made-up clock",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "docs/uml_derivation.md",
+   "README.md"
+  ],
+  "evidence": "XMI is emitted as XMI 2.1 in the Eclipse UML2 3.0.0 namespace (xmi.rs:10), not as OMG UML 2.5.1 XMI. Timing diagrams advance a fixed clock by 50 per message, using only the first sequence. When there is none they fall back to the first 3 classes times 2 methods (plantuml.rs:1196-1240; uml_derivation.md:113). README.md:56,64-91 claims all 14 UML 2.5 diagrams, yet no test loads the XMI or checks any behavioural diagram against what the program does.",
+  "impact": "The interoperability and 'all 14 diagrams' claims cannot be verified. Some projections are invented rather than derived from program semantics.",
+  "recommendation": "Validate XMI by loading it in a pinned Eclipse UML2 5.x with EMF validation. Score behavioural diagrams against dynamic traces (S11). Label projections that have no oracle, such as timing and interaction overview, as illustrative.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Header source_hash is always zero, so a stale .scpg cannot be detected",
+  "files": [
+   "src/scpg/serializer/mod.rs",
+   "src/ingestion/mod.rs",
+   "docs/plans/phase10.md"
+  ],
+  "evidence": "src/scpg/serializer/mod.rs:146 writes [0u8; 32] as source_hash. The spec defines it as SHA-256 of sorted per-file SHA-256s (docs/plans/phase10.md:24) and claims it 'detects out-of-date SCPG' (:549). Ingestion already computes per-file content_sha256 (src/ingestion/mod.rs:55-58) and a source_tree_hash (:93-97) that it writes into the .tca. Nothing reads the field.",
+  "impact": "Consumers cannot tell whether a .scpg matches the current sources, so they may serve a stale graph.",
+  "recommendation": "Compute SHA-256 over the sorted (relative path, content_sha256) pairs from tca.file_records, write it at offset 16, and add an is_up_to_date(sources) check that OpenHeartEngine::open and the CLI can use.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Comment and whitespace edits are classified as needing no rebuild, which leaves positions stale",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "docs/plans/phase10.md"
+  ],
+  "evidence": "RebuildPlanner::classify returns RebuildScope::None when is_comment_or_ws_only is set (src/scpg/incremental/mod.rs:11-12), following docs/plans/phase10.md:384 'token positions unchanged'. Adding a blank line or a comment shifts the line/col of every later token (TCA sort keys) and of the TRA spans. apply_delta still changes the hash for None (:28), contradicting phase10.md:400.",
+  "impact": "Once this is wired up, navigation and click-to-source point at wrong lines after any comment edit, and no-op edits flush the caches.",
+  "recommendation": "Add a PositionsOnly scope that re-lexes the file and re-indexes TCA/TRA spans without rerunning the semantic phases. Keep None only for edits that move no offsets, and leave the hash unchanged for None. Fix the spec as well.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-18",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Web studio's in-browser ingestion samples 30–80 files sequentially and reports them as the whole repo",
+  "files": [
+   "web/js/github-engine.js",
+   "web/js/graph-canvas.js",
+   "web/js/uml-layout.js",
+   "README.md"
+  ],
+  "evidence": "web/js/github-engine.js:103 takes sourceFiles.slice(0, 30) (local folders: slice(0, 80) at line 200) and fetches them one at a time with await (112). It then reports files_processed: sourceFiles.length (161, 253) and a hard-coded execution_time_ms: 280 (164). The api.github.com calls (54, 71) are unauthenticated, so they hit the 60-requests-per-hour limit, and the truncated flag of the recursive=1 tree is ignored. graph-canvas.js:681-684 disables textureOnViewport and hideEdgesOnViewport. uml-layout.js:373,382 runs nodes.find per component and a queue.shift BFS, O(N²) in the worst case.",
+  "impact": "For a 1M-LOC repo the browser analyzes under 1% of the files while reporting all of them, and large graphs render without any level of detail.",
+  "recommendation": "Ship the Rust engine as WASM in a Web Worker, using web-tree-sitter grammars. Fetch a single codeload tarball, stream-decompress it with fflate, cache it in OPFS, and report true counts and timings. For large graphs, add package-collapsed level of detail, worker-side ELK.js layout, and Cytoscape's viewport texture and edge hiding, or switch to a WebGL renderer such as sigma.js above 10K nodes.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-15",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Headline numbers are unmeasured or unreproducible (128×, the F1 table, the CI badge, test counts)",
+  "files": [
+   "README.md",
+   "docs/succinct_structures.md",
+   "docs/overview.md",
+   ".gitignore",
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "\"128× Memory Compression\" (README.md:54) divides 32 MB of pointers by the 250 KB topology bitstring only; the same derivation totals 9.65 MB, which is 3.3× (docs/succinct_structures.md:37-47). There is no benches/ directory and no criterion harness. The F1 table (docs/overview.md:100-111) cannot be reproduced: target_repos/ is gitignored, no URLs, commit SHAs or result files are committed, and CI (ci.yml) runs only cargo test. The \"CI passing\" badge is a static shields.io image (README.md:10). README.md:164 claims 22 integration tests; tests/ contains 29.",
+  "impact": "Readers cannot check any headline claim, and the badge stays green even when CI fails.",
+  "recommendation": "Publish a benchmark manifest (repo URL, commit SHA, licence) and commit machine-readable results. Add criterion benches that measure serialized artifact bytes and resident memory against a pointer baseline (for example a tree-sitter Tree or a JavaParser AST heap) and report the measured ratio. Use the workflow status badge and generate README numbers from CI artefacts. Done = `make bench` reproduces every README number.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-10",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "'O(1) bidirectional traceability' is not delivered: forward and navigation queries are scans",
+  "files": [
+   "src/tra/forward/sym_span.rs:50-71",
+   "src/tra/forward/cs_span.rs:41-62",
+   "src/tra/uml_link/mod.rs:67-68",
+   "src/scpg/query/navigation.rs:9-27",
+   "src/uma/structural/class_diagram.rs:304-308",
+   "README.md:48"
+  ],
+  "evidence": "forward_sym_query walks backward from the partition point and breaks only when the file changes (sym_span.rs:60-70). That costs O(log N + symbols before the token in the file), not the documented O(log N + k). forward_cs_query never stops once first_token_id < token_id (cs_span.rs:51-60). UMLLinks are 'sorted for O(1) array index access', but they cover only UML kinds, so they cannot be indexed by sym_id. NavigationEngine::to_source does a linear .find and from_source a full filter, and class diagrams run a .find per class (O(C*U)).",
+  "impact": "Query latency grows with file and repository size, and the README's headline O(1) traceability claim is false for every forward and navigation query.",
+  "recommendation": "Exploit span nesting: store each span's enclosing-span index (or reuse the BP AST's parent/LCA), binary-search the innermost span, then walk parents for O(log N + k). Use an interval tree such as rust-lapper for non-nested data. Give UMLLinks a dense sym_id-to-slot array, break cs queries early, and add CSR offset tables for blocks and SSA. Done means criterion p50/p99 latency benchmarks at 1M symbols.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-13",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Diagram and .scpg output differ from run to run",
+  "files": [
+   "src/scpg/diagram/export/json.rs:131-148",
+   "src/scpg/diagram/export/json.rs:433-530",
+   "src/scpg/diagram/export/mermaid.rs:600-622",
+   "src/scpg/diagram/export/mermaid.rs:174-186",
+   "src/scpg/diagram/export/mermaid.rs:799",
+   "src/scpg/diagram/export/plantuml.rs:1410-1439",
+   "src/scpg/diagram/export/mermaid.rs:1583-1612",
+   "src/scpg/serializer/mod.rs:136-147",
+   "README.md:66"
+  ],
+  "evidence": "The JSON class and package diagrams iterate a HashMap or HashSet with RandomState when emitting nodes, edges and sequential `edge_{n}` ids, so ids and order change per process. Mermaid inserts nested packages from a HashSet and sorts only the root's children; `sort_children_and_edges` is never called. Call-graph views chain nodes in `HashSet::into_iter` order. The .scpg header embeds `creation_ts_ns`.",
+  "impact": "Diffs are noisy, web layouts shift, and golden tests and content-addressed caching are impossible. This contradicts the README's 'deterministically derives' claim.",
+  "recommendation": "Use BTreeMap or IndexMap, or sort by stable keys (FQN, sym_id) before emitting. Derive edge ids by hashing (src, kind, dst). Call the recursive sort. Keep timestamps out of hashed bytes and honor SOURCE_DATE_EPOCH. Done means a test that runs each exporter in two separate processes and asserts byte-equal output.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Activity diagrams discard CFG guards, exception edges, loops and labels; the label extractor reads the wrong token",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:66-134",
+   "src/core/types/cfg.rs:7-15",
+   "src/uma/label_extraction.rs:22-35",
+   "src/core/types/ast.rs:202-213",
+   "src/scpg/diagram/export/mermaid.rs:1131-1162",
+   "docs/openheart_research_paper.tex:806-810"
+  ],
+  "evidence": "Every edge becomes EDGE_KIND_CONTROL with guard_text_id 0, although the CFG labels edges True/False/Except/Switch/LoopBack. loop_depth is always 0 despite `cfg.loop_info`; swimlane_count and end_node_count are hard-coded to 1; switch blocks with more than two successors become ACTION; FORK/JOIN/EXCEPTION nodes are never produced. The label is computed then discarded (`_label_text`; label_text_id = block_id). LabelExtractor treats `bpa.node_attr` (packed visibility/modifier/operator bits) as a token index, so plain statements read token #0. Its byte slice at max_chars-3 can panic mid-character on long non-ASCII tokens (latent). Exporters show only the first 6-8 functions, as 'Block_N' rectangles.",
+  "impact": "Activity diagrams are unlabeled block graphs without decision guards or exception paths, short of the decision/merge semantics the paper claims.",
+  "recommendation": "Map edge types to guards ([cond]/[else], case labels) using the branch condition's TRA token span, and render exception edges as UML exception handlers or interruptible regions. Emit explicit decision/merge nodes, fork/join for thread and async starts, and partitions for inlined callees. Build labels from statement token spans, truncate on char boundaries (`char_indices`), store them in label_texts, and render each node kind with its UML shape.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-13",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Phase 9 output is nondeterministic across runs because HashSet/HashMap iteration order leaks into records",
+  "files": [
+   "src/uma/structural/class_diagram.rs:250-251",
+   "src/uma/structural/class_diagram.rs:300-301",
+   "src/uma/behavioral/sequence_diagram.rs:40",
+   "src/uma/behavioral/sequence_diagram.rs:153",
+   "CHANGELOG.md:13"
+  ],
+  "evidence": "`implements_syms` and `association_syms` come from `HashSet::into_iter()`, and sequence lifelines from `HashMap::into_values()`. Both use std's randomly seeded RandomState, so element order varies per process. That order is serialized into .uma (changing its CRC) and drives exporter edge and participant order, despite CHANGELOG 'Deterministic generation for all 14'.",
+  "impact": "Identical inputs yield different .uma bytes and diagram layouts, defeating reproducible builds, hash-chain caching, golden-file tests and diagram diffs.",
+  "recommendation": "Use BTreeSet/BTreeMap or sort before emission (by symbol id or qualified name). Add a test that runs Phase 9 twice on the same input and compares bytes, and audit the exporters for the same HashMap ordering.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact readers trust file-supplied lengths; Phase 2 never checks the .tca's magic, version or CRC; `inspect` claims 'VERIFIED VALID' without checking",
+  "files": [
+   "src/ast/mod.rs:40-60",
+   "src/ast/serializer.rs:105-142",
+   "src/ingestion/serializer.rs:212-300",
+   "src/ingestion/serializer.rs:247-251",
+   "src/ingestion/mod.rs:136-138",
+   "src/ingestion/serializer.rs:93-98",
+   "src/main.rs:373-388",
+   "README.md:59"
+  ],
+  "evidence": "ASTStage::run parses the mmapped .tca at fixed offsets without checking TCA_MAGIC, the version or the stored CRC. BPASTSerializer::read slices buf[offset..offset+8] using lengths taken from the file, so a CRC-valid file with inconsistent lengths panics. It also ignores _format_ver, never checks bit_count against words.len() (get_bit then panics), and passes file-controlled u32 counts to with_capacity, which can abort on a multi-GB allocation. CRC-64 is not a MAC. path_str_offset holds a text_id in memory but a byte offset on disk, and read() discards the paths. cmd_inspect prints 'VERIFIED VALID' after matching only the magic.",
+  "impact": "Corrupt, stale or crafted artifacts are either consumed silently or crash the process. The README's 'zero-copy, CRC-64 verified' format is neither: sections are unaligned and get copied (the BP words start at offset 68).",
+  "recommendation": "Define one versioned container with magic, version, a section table (offset, length, alignment) and 8- or 64-byte-aligned sections, all validated before use. Read it through zerocopy/bytemuck try_from_bytes for real mmap views, or adopt rkyv with validation, FlatBuffers or Arrow IPC. Use checked arithmetic, cap allocations by the bytes remaining, and give each field one meaning. Make inspect actually verify, and add cargo-fuzz targets for every reader.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "No syntax-error model, no parse timeout, recursive CST walks on the caller's stack, and a 2023-era grammar",
+  "files": [
+   "src/ingestion/walker.rs:32-77",
+   "src/ast/reducer.rs:8-93",
+   "src/ast/adapter/java.rs:129",
+   "src/ingestion/parser/tree_sitter.rs:17-24",
+   "src/ingestion/mod.rs:69-72",
+   "Cargo.toml:9-11",
+   "docs/plans/phase1_ingestion_spec.md:298"
+  ],
+  "evidence": "Neither walker checks is_error/is_missing/has_error. Zero-width MISSING leaves such as ';' become empty-text Punctuation tokens, while the Java reducer's `_ => Drop` discards ERROR subtrees, which tree-sitter's recovery can make large. SourceFileRecord.flags is always 0, although the spec reserves bits for has_bom and crlf. parse() sets no timeout or cancellation flag. walk_recursive and reduce_and_encode recurse once per CST level and allocate a TreeCursor per internal node, so input nested thousands of levels deep can overflow the stack (Windows' main thread has 1 MB). The grammars are tree-sitter 0.20.10 and tree-sitter-java 0.20.2.",
+  "impact": "Files that contain errors or newer Java syntax silently lose code, and adversarial or generated input can hang or abort the CLI and the single-threaded server.",
+  "recommendation": "Traverse iteratively with a single TreeCursor (goto_first_child, goto_next_sibling, goto_parent). Treat ERROR as Eliminate, skip MISSING leaves, and record per-file diagnostics in the .tca: error and missing counts, byte ranges, BOM, CRLF. Use Parser::set_timeout_micros plus a cancellation flag. Upgrade to tree-sitter 0.25 and tree-sitter-java 0.23.x. Fuzz ingestion with cargo-fuzz, seeded from tree-sitter corpus tests.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": ".sta drops resolution results, is byte-nondeterministic, and uses positional symbol ids",
+  "files": [
+   "src/symbol/serializer.rs:165-185",
+   "src/symbol/serializer.rs:138-143",
+   "src/symbol/builder.rs:30",
+   "src/symbol/builder.rs:68",
+   "src/symbol/scope_graph/mod.rs:15-16",
+   "src/cfg/mod.rs:30",
+   "src/cg/mod.rs:46",
+   "docs/openheart_research_paper.tex:1126-1127"
+  ],
+  "evidence": "type_ref_resolutions (builder.rs:30) and the import edges and mappings (scope_graph/mod.rs:15-16) are never serialized, and import_table_off is always 0. Project symbols never get a qual_name_id. Package maps are written in HashMap order (serializer.rs:165-185), so the bytes and CRC vary between runs, and that CRC is embedded in .cfa and .cga (cfg/mod.rs:30, cg/mod.rs:46). Symbol ids are pre-order positions (builder.rs:68), so adding one local renumbers every later file, contradicting the paper's incremental theorem (tex:1126-1127). TH edges are written as a flat list despite the 'CSR' doc (serializer.rs:2).",
+  "impact": "Downstream phases must re-resolve by name, artifacts are not reproducible, and incremental or cross-build diffing is impossible.",
+  "recommendation": "Persist an occurrence section and per-file import tables, writing every map sorted (BTreeMap). Give each symbol a stable SemanticDB/SCIP descriptor (e.g. com/acme/User#find(+1).) and keep the dense id only as an index; consider stack-graphs-style per-file partial results for incrementality. Store TH edges as CSR and check format_version on read. Add tests that two runs are byte-identical and that a body edit keeps other files' symbol keys unchanged.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-20",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Kotlin (and the other advertised languages) get no CFG, SSA or call graph",
+  "files": [
+   "src/ast/adapter/registry.rs:19-41",
+   "src/symbol/passes/pass1_discovery.rs:439-447",
+   "src/cfg/mod.rs:55-58",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "Only Java has an AST adapter. Kotlin falls back to the generic adapter bound to tree_sitter_javascript (registry.rs:19-41), so .kt files are parsed as JavaScript. Kotlin `fun` symbols come from a token sweep that leaves decl_node = u32::MAX (SymbolRecord::UNINIT, pass1_discovery.rs:439-447), and Phase 4 skips such symbols (cfg/mod.rs:55-58); their call sites have no enclosing method and are dropped. Cargo.toml has no Kotlin, Python or C++ grammar.",
+  "impact": "The Java/Kotlin flow-analysis claim, and the multi-language F1 claim as applied to Phases 4-6, hold for nothing except Java.",
+  "recommendation": "Add tree-sitter-kotlin (or analyze kotlinc bytecode) with a dedicated reduction adapter and a Kotlin lowering for when, expression-bodied functions, ?., !!, inline lambdas and suspend state machines. Scope README claims per phase and language until golden tests cover them.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-14",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Security/config docs describe controls the code does not implement (env knobs, forbid(unsafe_code), module paths, supported versions)",
+  "files": [
+   ".env.example:1-17",
+   "docs/security-architecture.md:9-34",
+   "src/core/logger.rs:97-108",
+   "SECURITY.md:9-13"
+  ],
+  "evidence": "security-architecture.md states env vars `OPENHEART_MAX_MEMORY_MB`, `OPENHEART_NUM_THREADS`, `OPENHEART_ARTIFACT_DIR` are 'managed via .env with safe fallback defaults' and that ingestion modules carry `#![forbid(unsafe_code)]`. grep finds no code reading those vars (logger reads only `OPENHEART_LOG`, logger.rs:98; .env.example advertises `RUST_LOG`, which is unused), `forbid(unsafe_code)` appears in no source file, and the cited `src/phase1/parser/tree_sitter.rs` path does not exist (it is src/ingestion/parser/…). SECURITY.md lists supported versions 1.0.x/1.1.x though the crate is 0.1.0.",
+  "impact": "The advertised memory cap (a DoS mitigation) and unsafe-code guarantee are fictional, and the version-support table is false — misleading for a project positioned as benchmark-grade and auditable.",
+  "recommendation": "Either implement the knobs (read and enforce OPENHEART_MAX_MEMORY_MB as a real cap, honor OPENHEART_NUM_THREADS/ARTIFACT_DIR, support RUST_LOG) or delete them from docs and .env.example. Add `#![forbid(unsafe_code)]` to the modules that truly contain none, fix the module paths, and correct SECURITY.md to the versions that exist. Add a doc-lint/test asserting every documented env var is referenced in code.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-13",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "Distribution is broken: the release workflow has never run and ships an .rlib; the Docker image can neither build nor start",
+  "files": [
+   ".github/workflows/release.yml:3-28",
+   "Dockerfile:2",
+   "Dockerfile:49",
+   "src/main.rs:32",
+   "src/main.rs:532",
+   "CHANGELOG.md:10",
+   "SECURITY.md:9-13",
+   "Cargo.toml:3"
+  ],
+  "evidence": "`git tag -l` is empty, so the tag-triggered release.yml has never run. It sets no `permissions: contents: write` and would likely get a 403 under the read-only default token. It uploads target/release/libopenheart.rlib (release.yml:26), which only the exact rustc version that built it can use. Dockerfile:2 builds with rust:1.80, but the locked sha2 0.11 needs Rust 1.85 ([manifest](https://docs.rs/crate/sha2/0.11.0/source/Cargo.toml)). Dockerfile:49 runs `openheart serve --port 8080`, but the CLI only knows `server [PORT]` (main.rs:532). Versions disagree: 0.1.0 in Cargo.toml and the CLI banner (main.rs:32), 2.0.0 in CHANGELOG.md:10, and SECURITY.md:9-13 lists 1.1.x, 1.0.x and 0.1.x as supported.",
+  "impact": "Users and anyone reproducing benchmarks have no usable binaries or containers. Version numbers cannot be mapped to code, so bug reports and published results have no anchor.",
+  "recommendation": "Use cargo-dist (or taiki-e/upload-rust-binary-action) to build Linux, macOS and Windows binaries with SHA-256 checksums, attest them with actions/attest-build-provenance, and attach a CycloneDX SBOM; publish the crate to crates.io. Drive versions and the CHANGELOG with release-plz from conventional commits so tags, Cargo.toml and the CHANGELOG agree. Fix the Dockerfile: rust:1.85+, an exec-form CMD running `openheart server 8080`, a non-root USER and a healthcheck. Build the image in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG-17",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Docs and repo hygiene: a committed LLM prompt, an empty Phase 4 spec, stale paths, and false security and config statements",
+  "files": [
+   "docs/RESEARCH_PAPER_NEXT_PROMPT.txt:1",
+   "docs/README.md:29",
+   "docs/plans/phase4.md",
+   "docs/contributing.md:18",
+   "docs/security-architecture.md:11-12",
+   "docs/security-architecture.md:26",
+   "docs/security-architecture.md:34",
+   ".env.example:5-17",
+   "examples/README.md:12",
+   "examples/README.md:34",
+   "docs/codebase-guide.md:255-266",
+   "web/docs/scpg_architecture_diagram.html"
+  ],
+  "evidence": "docs/RESEARCH_PAPER_NEXT_PROMPT.txt is an LLM instruction ('MAKE SURE THE PAPER IS UNDENIABLY UNCHALLENGED AND CAN'T BE PROVEN FALSE'), yet docs/README.md:29 lists it as 'Prompt specification'. docs/plans/phase4.md is 0 bytes. contributing.md:18 and security-architecture.md:12 cite src/phase1/, which does not exist. security-architecture.md claims #![forbid(unsafe_code)] (:11), value saturation (:26) and configuration via environment variables (:34). .env.example lists five variables, but the code reads only OPENHEART_LOG. examples/README.md:12,34 point to examples/sample_project, which does not exist and is gitignored. web/docs/ duplicates the HTML in docs/, and one copy has already diverged.",
+  "impact": "Newcomers follow broken instructions, and security reviewers are misled about unsafe code and input handling. The committed prompt invites the reading that the paper was written to be unchallengeable rather than measured.",
+  "recommendation": "Delete the prompt file, and fill in or remove phase4.md. Build the docs from one source (mdBook or Docusaurus deployed through Pages) and link-check them in CI with lychee. Tie every security and configuration statement to code, or delete it. Make .env.example list only variables the code reads, ideally via clap's env feature. Pull the README into rustdoc with #![doc = include_str!(\"../README.md\")]. Record the major decisions (custom server, custom logger, file hand-off between phases, String errors) as MADR ADRs.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "LANG-13",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No polyglot model: Java-Kotlin interop and language boundaries are not represented",
+  "files": [
+   "src/core/types/symbol.rs",
+   "src/cg/resolution.rs",
+   "src/ast/adapter/java.rs",
+   "docs/openheart_research_paper.tex"
+  ],
+  "evidence": "Android and other JVM repos mix Java and Kotlin in one module, yet SymbolRecord has no language, binary name or JVM descriptor (src/core/types/symbol.rs:96-117). Kotlin file facades (FooKt), @JvmName/@JvmStatic, and the mapping from properties to getters (`user.getName()` calls Kotlin `name`) are not modelled. Call targets are matched by token position (src/cg/resolution.rs:178-239). Java `native` is never recorded (src/ast/adapter/java.rs:149-157 sets only static, final and abstract), so the JNI boundary stubs the paper promises (docs/openheart_research_paper.tex:1326-1330) cannot exist.",
+  "impact": "In mixed JVM projects, the most common real polyglot case, cross-language calls and type uses are lost or bound only through coincidental simple names.",
+  "recommendation": "Model the JVM languages in one namespace keyed by binary names and descriptors, as CodeQL does (its Kotlin extractor writes into the Java database schema) and Joern does (kotlin2cpg emits the same CPG as javasrc2cpg). Synthesize Kotlin facade classes and accessor aliases. Add explicit boundary nodes for JNI native, Kotlin external, FFI/ctypes and gRPC/OpenAPI stubs. Done = a mixed Java/Kotlin fixture with call and type edges in both directions.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-15",
+  "kind": "enhancement",
+  "category": "documentation",
+  "severity": "medium",
+  "title": "Claims ledger, docs-code alignment and contributor community",
+  "files": [
+   "README.md",
+   "ROADMAP.md",
+   "docs/overview.md",
+   "docs/traceability_and_incremental.md"
+  ],
+  "evidence": "The README advertises 128x compression, O(1) traceability and F1=1.0 across six languages (README.md:48,54-60) with no reproducible scripts. ROADMAP marks every phase complete (ROADMAP.md:9-120) while incremental analysis and IFDS are stubs. The competitive section faults Joern's 32-byte node records from before flatgraph (docs/overview.md:15-16). git log shows 147 of 154 commits by one author since 2026-08-08.",
+  "impact": "Expert evaluators check claims first, and mismatches cost more trust than missing features. A bus factor of one also deters adopters and contributors.",
+  "recommendation": "Keep a claims ledger that links each headline number to a benchmark artifact produced in CI, and label experimental features. Update the competitive section against current Joern, CodeQL and SootUp. Publish docs.rs API docs, a support matrix, ADRs, good-first issues and a discussion forum, and recruit co-maintainers.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-19",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No standard interop or query surface (SCIP/LSIF, a query language, LSP) and no stable symbol ids",
+  "files": [
+   "src/scpg/query/mod.rs:22-84",
+   "src/scpg/types.rs:44-59",
+   "src/main.rs:508-548",
+   "docs/plans/phase10.md:562-567"
+  ],
+  "evidence": "QueryEngine offers just two hard-coded Rust calls, reachability and backward slice, and the u8 `query_type` field is not extensible. The CLI has only analyze, inspect, server and help. The LSPBridge, FileWatcher and didChange-to-SourceDelta pieces described in the docs do not exist. Entities are positional u32 sym_ids that change between builds, so cross-build diffs and external links are impossible.",
+  "impact": "OpenHeart cannot plug into Sourcegraph, IDEs or CI, and users cannot write their own analyses. Joern (CPGQL), CodeQL (QL), Glean (Angle) and Kythe/SCIP all support this.",
+  "recommendation": "Assign stable SCIP-style symbol strings or Kythe VNames, and export SCIP using the scip crate. Add a query layer, for example Datalog via ascent or crepe, a Trustfall adapter, or a Gremlin-like DSL. Add a tower-lsp server for definition, references and hover backed by TRA. Done means `scip lint` passes and an LSP smoke test works in VS Code.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-14",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Package, component and deployment views are containment counts with no dependency or build-metadata grounding",
+  "files": [
+   "src/uma/structural/package_diagram.rs:10-58",
+   "src/uma/structural/component_diagram.rs:10-54",
+   "src/scpg/diagram/export/mermaid.rs:834-898",
+   "docs/uml_derivation.md:58-76"
+  ],
+  "evidence": "PackageRecord holds only class and subpackage counts, with no inter-package dependencies, although docs/uml_derivation.md:60 promises them. Components are exactly packages and `_cga` is unused. 'Provided' counts interfaces declared in the package, 'required' counts TH edges (duplicates included) to outside interfaces, and exporters render neither (bare boxes). Deployment reuses packages. No build or deployment metadata is read: pom.xml, build.gradle, module-info.java, DI annotations, Dockerfile or Kubernetes manifests.",
+  "impact": "Architecture views carry no information beyond the directory tree, whereas Structure101, jQAssistant/ArchUnit-based views or Enterprise Architect show dependency structure, cycles and layering.",
+  "recommendation": "Compute package dependency edges from type references and call edges, with cycle detection (Tarjan SCC) and Martin's metrics (Ca, Ce, I, A, D). Derive components from Maven/Gradle modules, JPMS modules and Spring @Component/@Service beans, with implemented interfaces as provided and injected interface-typed fields as required. Derive deployment from Dockerfile, compose, Kubernetes or Helm manifests, and mark it unavailable when they are absent.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-19",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Broken relative links and duplicated HTML docs",
+  "files": [
+   "SUPPORT.md",
+   "examples/README.md",
+   "docs/ast/phase2_bp_architecture.html",
+   "web/docs/phase2_bp_architecture.html"
+  ],
+  "evidence": "Across 32 Markdown files with 81 links (49 relative), 3 are broken. SUPPORT.md:32 points to ../README.md, outside the repo. SUPPORT.md:36 points to CONTRIBUTING.md, but the file is docs/contributing.md. examples/README.md:12 points to ./sample_project/, which does not exist. No heading anchors are broken. Five HTML docs are byte-identical copies in docs/ and web/docs/.",
+  "impact": "New users hit dead links, and the duplicated docs will drift apart.",
+  "recommendation": "Fix the three links. Add a link checker such as lychee to CI. Generate web/docs from docs/ during the Pages deploy.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-22",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "low",
+  "title": "A prompt written for an AI assistant is committed under docs/",
+  "files": [
+   "docs/RESEARCH_PAPER_NEXT_PROMPT.txt"
+  ],
+  "evidence": "docs/RESEARCH_PAPER_NEXT_PROMPT.txt:1 tells an assistant to make the paper 'undeniably unchallenged'. It sits next to docs/openheart_research_paper.tex and is not documentation.",
+  "impact": "It suggests the claims were written to resist challenge rather than measured, which hurts credibility with benchmark reviewers.",
+  "recommendation": "Remove the file. Back each claim in the paper with a script that reproduces it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-18",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Competitor comparisons use unsourced figures that published data contradicts",
+  "files": [
+   "docs/overview.md"
+  ],
+  "evidence": "docs/overview.md:16-25 asserts, without citations, that: Joern uses 32 B per node and 34 B per edge; EMF emits 100-150 MB per 1,000 classes; WALA/Soot need 8-16 GB per 1M LOC; and k=2 points-to runs out of memory above 500K LOC. overview.md:120 also compares against an uncited 170 MB Neo4j store. By contrast, Tai-e's paper (Table 1) reports Doop and Qilin finishing 2-obj on findbugs in 638 s and 2,033 s, and context-insensitive runs in 15-46 s.",
+  "impact": "Unsourced claims of superiority invite rebuttal and erode trust in the rest of the documentation.",
+  "recommendation": "Replace these with numbers the harness reproduces on the same corpus and hardware, or cite primary sources. Always label each number as 'published' or 'reproduced'.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SCPG2-29",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "Bitwise CRC-32 is duplicated and slow, and breaks the CRC-64 convention",
+  "files": [
+   "src/scpg/serializer/integrity.rs",
+   "src/tra/uml_link/hash_chain.rs",
+   "README.md"
+  ],
+  "evidence": "src/scpg/serializer/integrity.rs:3-16 and src/tra/uml_link/hash_chain.rs:12-25 are identical bit-at-a-time CRC-32 loops (8 iterations per byte). The output is correct (0xCBF43926 for '123456789'). Every other artifact uses crc64_ecma, and README.md:59 says all phases produce 'CRC-64 verified binary artifacts'.",
+  "impact": "There are two copies to maintain, and both run about 8x slower than a table-driven CRC on full-size sections.",
+  "recommendation": "Keep one table-driven (or slicing-by-8) CRC in core and reuse it in TRA and SCPG. Either switch the .scpg sections to CRC-64 or correct the README.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG2-31",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Documented SCPG magic number disagrees with the constant, and the magic embeds a version",
+  "files": [
+   "src/scpg/types.rs",
+   "src/scpg/mmap/mod.rs",
+   "docs/plans/phase10.md"
+  ],
+  "evidence": "SCPG_MAGIC = u64::from_le_bytes(*b\"SCPG\\x00\\x01\\x00\\x00\") = 0x0000010047504353 (src/scpg/types.rs:3), but docs/plans/phase10.md:21 documents 0x5343504700010000. The mismatch error prints the little-endian value (src/scpg/mmap/mod.rs:30). The 0x01 byte in the magic duplicates format_version.",
+  "impact": "Readers implemented from the spec reject valid files, and any version bump forces a change to the magic.",
+  "recommendation": "Document the on-disk bytes ('SCPG\\0\\x01\\0\\0') rather than a u64 literal, print the magic as bytes in the error, and keep versioning in format_version only.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-21",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "low",
+  "title": "Per-function phases are sequential and never incremental",
+  "files": [
+   "src/cfg/mod.rs:39-95",
+   "src/ssa/mod.rs:46-93",
+   "docs/traceability_and_incremental.md:79"
+  ],
+  "evidence": "Phases 4 and 5 loop over functions sequentially, although each function is independent, and no parallelism crate is a dependency. There is no per-function fingerprint or cache: SSA ids are per-run positions and the call graph is rebuilt from scratch, while the incremental-sync doc promises to 'Recompute CFG, SSA, and ROBDD summaries only for affected functions'.",
+  "impact": "Wall-clock time grows linearly with codebase size even for one-line edits, and extra cores sit idle.",
+  "recommendation": "Use rayon par_iter over functions in Phases 4-5 with a deterministic merge order. Cache CFG and SSA per function, keyed by an AST-subtree hash. Update the call graph incrementally (re-resolve sites in changed methods plus a CHA delta), and use incremental dominator updates (Georgiadis et al.) for small edits.",
+  "effort": "M",
+  "confidence": "medium"
+ }
+]

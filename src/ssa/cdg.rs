@@ -1,87 +1,83 @@
 //! Control Dependence Graph (CDG) Construction (§5.2.5).
 //! Authored by Ahmad Hassan (B-Ted).
+//!
+//! Ferrante–Ottenstein–Warren (1987): `y` is control dependent on `x` through edge
+//! `x -> s` iff `y` lies on the post-dominator-tree path from `s` up to, but excluding,
+//! `ipdom(x)`. Post-dominators are computed on the CFG augmented with a virtual exit
+//! (fed by EXIT, by every sink and by one block per infinite-loop region) and with the
+//! FOW edge `ENTRY -> virtual exit`, so that blocks executed unconditionally are control
+//! dependent on ENTRY and every block has a post-dominator.
 
-use crate::cfg::analysis::dominators::compute_idom_cooper;
+use crate::cfg::analysis::compute_post_idom_augmented;
+use crate::cfg::analysis::dominators::UNDEFINED_IDOM;
 use crate::cfg::builder::FunctionCFGData;
+use crate::core::types::cfg::CFGEdgeType;
 use crate::core::types::ssa::{CDGCSR, CD_EDGE_FALSE, CD_EDGE_TRUE};
+
+/// Dependence through a switch selector edge.
+pub const CD_EDGE_SWITCH: u8 = 0x03;
+/// Dependence through an exceptional edge (the guarded statement may throw).
+pub const CD_EDGE_EXCEPT: u8 = 0x04;
+/// Dependence on ENTRY (the block executes whenever the function runs).
+pub const CD_EDGE_ENTRY: u8 = 0x05;
+/// Dependence through an unconditional edge out of a multi-successor block.
+pub const CD_EDGE_UNCOND: u8 = 0x06;
+
+fn label_of(edge_type: u8, from_entry: bool) -> u8 {
+    if from_entry {
+        return CD_EDGE_ENTRY;
+    }
+    match CFGEdgeType::from(edge_type) {
+        // A do-while back edge is the true branch of its condition.
+        CFGEdgeType::True | CFGEdgeType::LoopBack => CD_EDGE_TRUE,
+        CFGEdgeType::False => CD_EDGE_FALSE,
+        CFGEdgeType::Switch => CD_EDGE_SWITCH,
+        CFGEdgeType::Except => CD_EDGE_EXCEPT,
+        CFGEdgeType::Uncond | CFGEdgeType::Return => CD_EDGE_UNCOND,
+    }
+}
 
 pub struct CDGBuilder;
 
 impl CDGBuilder {
+    /// Returns `(ipdom, cdg)`. `ipdom[b] == u32::MAX` means `b` is post-dominated only by
+    /// the virtual exit.
     pub fn build(cfg: &FunctionCFGData) -> (Vec<u32>, CDGCSR) {
         let n = cfg.blocks.len();
         if n == 0 {
             return (Vec::new(), CDGCSR::default());
         }
 
-        let exit_block = cfg
-            .blocks
-            .iter()
-            .find(|b| b.is_exit)
-            .map(|b| b.id)
-            .unwrap_or(0);
-
-        let mut rev_preds = vec![Vec::new(); n]; // reversed predecessors = forward successors
-        let mut rev_succs = vec![Vec::new(); n]; // reversed successors = forward predecessors
-
-        for &(u, v, _) in &cfg.edges {
-            if (u as usize) < n && (v as usize) < n {
-                rev_succs[v as usize].push(u);
-                rev_preds[u as usize].push(v);
-            }
-        }
-
-        let mut visited = vec![false; n];
-        let mut post_order = Vec::with_capacity(n);
-
-        fn dfs(u: u32, rev_preds: &[Vec<u32>], visited: &mut [bool], post_order: &mut Vec<u32>) {
-            let u_idx = u as usize;
-            if u_idx >= visited.len() || visited[u_idx] {
-                return;
-            }
-            visited[u_idx] = true;
-            if let Some(succs) = rev_preds.get(u_idx) {
-                for &v in succs {
-                    dfs(v, rev_preds, visited, post_order);
-                }
-            }
-            post_order.push(u);
-        }
-
-        dfs(exit_block, &rev_preds, &mut visited, &mut post_order);
-
-        for b in 0..n as u32 {
-            if !visited[b as usize] {
-                dfs(b, &rev_preds, &mut visited, &mut post_order);
-            }
-        }
-
-        post_order.reverse();
-        let rev_rpo = post_order;
-        let ipdom = compute_idom_cooper(n, &rev_preds, &rev_rpo);
+        let succs: Vec<Vec<u32>> = (0..n as u32).map(|b| cfg.succs_of(b).to_vec()).collect();
+        let pdom = compute_post_idom_augmented(n, &succs, cfg.exit_block, Some(0));
+        let ipdom = &pdom.ipdom;
+        let virtual_exit = pdom.virtual_exit;
 
         let mut cdg_adj: Vec<Vec<(u32, u8)>> = vec![Vec::new(); n];
+        // stamp[y] == x + 1 once y has been recorded as dependent on x.
+        let mut stamp = vec![0u32; n];
 
-        for &(x, s, etype) in &cfg.edges {
-            let cd_type = if etype == crate::core::types::cfg::CFGEdgeType::False {
-                CD_EDGE_FALSE
-            } else {
-                CD_EDGE_TRUE
-            };
-
-            let ipdom_x = ipdom.get(x as usize).copied().unwrap_or(u32::MAX);
-            let mut runner = s;
-
-            while runner != u32::MAX && runner != ipdom_x {
-                let list = &mut cdg_adj[x as usize];
-                if !list.iter().any(|&(y, _)| y == runner) {
-                    list.push((runner, cd_type));
+        for x in 0..n as u32 {
+            let stop = ipdom[x as usize];
+            for k in cfg.succ_edge_range(x) {
+                let s = cfg.succ_adj[k];
+                let label = label_of(cfg.edge_types[k], x == 0);
+                let mut runner = s;
+                while runner != stop && runner != virtual_exit && runner != UNDEFINED_IDOM {
+                    let ri = runner as usize;
+                    if ri >= n {
+                        break;
+                    }
+                    if stamp[ri] != x + 1 {
+                        stamp[ri] = x + 1;
+                        cdg_adj[x as usize].push((runner, label));
+                    }
+                    let next = ipdom[ri];
+                    if next == runner {
+                        break;
+                    }
+                    runner = next;
                 }
-                let next_runner = ipdom.get(runner as usize).copied().unwrap_or(u32::MAX);
-                if next_runner == runner {
-                    break;
-                }
-                runner = next_runner;
             }
         }
 
@@ -98,14 +94,22 @@ impl CDGBuilder {
             cd_offsets.push(cd_adj.len() as u32);
         }
 
-        crate::core::logger::log_trace(&format!(
-            "CDG Construction complete: constructed {} control dependence edges across {} basic blocks",
-            cd_adj.len(),
-            n
-        ));
+        if crate::core::logger::get_log_level() >= crate::core::logger::LogLevel::Trace {
+            crate::core::logger::log_trace(&format!(
+                "CDG Construction complete: constructed {} control dependence edges across {} basic blocks ({} infinite-loop roots)",
+                cd_adj.len(),
+                n,
+                pdom.infinite_loop_roots.len()
+            ));
+        }
+
+        let real_ipdom: Vec<u32> = ipdom[..n]
+            .iter()
+            .map(|&p| if p == virtual_exit { u32::MAX } else { p })
+            .collect();
 
         (
-            ipdom,
+            real_ipdom,
             CDGCSR {
                 cd_offsets,
                 cd_adj,

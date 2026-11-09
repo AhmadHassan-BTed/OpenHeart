@@ -1,6 +1,11 @@
 # ==============================================================================
 # OpenHeart (.gitignore) — Comprehensive Workspace Configuration
 # ==============================================================================
+# A leading `/` anchors a pattern to the repository root. Build and output
+# directories are anchored so that source and fixture trees which contain a
+# directory of the same name stay visible to git: `src/lang/build/` (the
+# compile_commands / CMake / MSBuild readers), a CMake fixture's `build/`, a Java
+# package named `out` or `env`.
 
 # ── 1. Rust / Cargo Build Targets & Artifacts ──
 /target/
@@ -15,8 +20,7 @@ yarn-error.log*
 pnpm-debug.log*
 .parcel-cache/
 .next/
-dist/
-build/
+/build/
 
 # ── 3. Python Bytecode, Caches & Virtual Environments ──
 __pycache__/
@@ -31,8 +35,8 @@ __pycache__/
 htmlcov/
 .venv/
 venv/
-ENV/
-env/
+/ENV/
+/env/
 *.egg-info/
 
 # ── 4. SCPG Compiler Pipeline Binary Artifacts (Phases 1–10) ──
@@ -48,23 +52,18 @@ env/
 *.scpg
 
 # ── 5. Output & Benchmark Cache Directories ──
-tmp/
-temp/
-out/
-out_*/
+# Analysis output written next to the repository root by the CLI, the examples
+# (`openheart analyze ... ./output_patterns`) and the Python harnesses.
+/tmp/
+/temp/
+/out/
+/out_*/
+/output_*/
 *_output/
 *_output_answer/
-output_diagrams/
-target_repos/
-sample_project/
-sample_projects/
-sample_codebase/*
-!sample_codebase/.gitkeep
-big_project_output/
-huge_output/
-scpg_output/
-fractal_android_output/
-fractal_android_output_answer/
+/target_repos/
+/sample_project/
+/sample_projects/
 
 # ── 6. Logs & Temporary Dump Files ──
 *.log
@@ -73,9 +72,29 @@ fractal_android_output_answer/
 *.bin.png.txt
 *.png.txt
 
+# ── 6b. Quality Gates, Profiling & Release Packaging (see Makefile) ──
+# cargo-llvm-cov / -Cinstrument-coverage output
+lcov.info
+*.profraw
+*.profdata
+# cargo-mutants
+mutants.out/
+mutants.out.old/
+# cargo-fuzz build output, generated corpora and crash reproducers
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/coverage/
+# perf, samply and cargo-flamegraph captures from `make profile-build` binaries
+perf.data
+perf.data.old
+/flamegraph.svg
+# `make dist` release archives and their SHA-256 files
+/dist/
+
 # ── 7. Media Storage & Scratch Workspaces ──
 .tempmediaStorage/
-scratch/
+/scratch/
 docs/assets/*.webp
 docs/assets/*.mp4
 
@@ -89,13 +108,17 @@ ehthumbs.db
 Thumbs.db
 
 # ── 9. IDE & Editor Configurations ──
-.vscode/
+# Ignore the directory's contents, not the directory itself: git never descends
+# into an excluded directory, so negations below `.vscode/` would have no effect.
+.vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 .idea/
 *.iml
+.vs/
+cmake-build-*/
 *.sublime-project
 *.sublime-workspace
 *.swp

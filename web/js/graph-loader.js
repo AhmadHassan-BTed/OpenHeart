@@ -1,7 +1,8 @@
 /**
- * OpenHeart Official Direct Typed Graph IR Ingestion Engine
- * Ingests typed JSON Graph IR directly from the Rust compiler with ZERO intermediate text parsing.
- * Supports all 19 diagram types with authentic vector card generation and styling.
+ * OpenHeart Typed Graph IR Ingestion Engine
+ * Converts a validated Graph IR (see graph-ir-validate.js) into Cytoscape elements with
+ * vector card images. Source provenance is copied as-is: a node without a file or source
+ * anchor in the IR has none here (no file name or line number is ever invented).
  */
 
 import {
@@ -23,236 +24,247 @@ import {
 } from './uml-card-renderer.js';
 import { isDarkMode } from './themes/index.js';
 
-export function loadGraphIrToCytoscape(graphIr) {
-  if (!graphIr || !graphIr.nodes) return [];
+function formatMember(m, fallbackVisibility, isMethod) {
+  if (typeof m === 'string') return m;
+  if (!m || typeof m !== 'object') return '';
+  const vis = m.visibility || fallbackVisibility;
+  if (m.signature) return `${vis} ${m.signature}`;
+  if (isMethod) return `${vis} ${m.name ? `${m.name}()` : '?()'}`;
+  return `${vis} ${m.name || '?'}`;
+}
 
-  const isDark = isDarkMode();
-  const elements = [];
-  const nodeMap = new Map();
-
-  // 1. Identify packages with children
-  const parentIds = new Set(graphIr.nodes.map(n => n.parent).filter(Boolean));
-
-  // 2. Ingest Nodes Directly from Typed Schema
-  graphIr.nodes.forEach(node => {
-    let svgData = null;
-
-    if (node.is_package) {
-      const shortName = node.name || (node.label ? node.label.replace(/^package\s*\[?/, '').replace(/\]?$/, '') : node.id);
-      const isParent = parentIds.has(node.id);
-      const isDomainTier = node.is_domain_tier || (node.nest_level === 0);
-
-      const displayLabel = isDomainTier
-        ? `DOMAIN: ${shortName.toUpperCase()}`
-        : `package [${shortName}]`;
-
-      if (isParent) {
-        const pkgNode = {
-          data: {
-            id: node.id,
-            label: displayLabel,
-            rawName: node.name || shortName,
-            textLabel: displayLabel,
-            kind: 'package',
-            isPackage: true,
-            isDomainTier: isDomainTier,
-            parent: node.parent || undefined,
-            nestLevel: node.nest_level || 0
-          },
-          classes: `compound-package ${isDomainTier ? 'pkg-domain-tier' : 'pkg-subpackage'} nest-level-${Math.min(5, node.nest_level || 0)}`
-        };
-        nodeMap.set(node.id, pkgNode);
-        elements.push(pkgNode);
-      } else {
-        const svgData = generatePackageFolderSvg({
-          name: shortName,
-          nestLevel: node.nest_level || 0,
-          width: 240,
-          height: 100,
-          isDark
-        });
-
-        const pkgNode = {
-          data: {
-            id: node.id,
-            label: '',
-            rawName: node.name || shortName,
-            textLabel: displayLabel,
-            kind: 'package',
-            isPackage: false,
-            isLeafPackage: true,
-            isDomainTier: isDomainTier,
-            parent: node.parent || undefined,
-            nestLevel: node.nest_level || 0,
-            width: svgData.width,
-            height: svgData.height,
-            svgDataUri: svgData.dataUri
-          },
-          classes: `leaf-package nest-level-${Math.min(5, node.nest_level || 0)}`
-        };
-        nodeMap.set(node.id, pkgNode);
-        elements.push(pkgNode);
-      }
-      return;
-    }
-
-    // Leaf Vector Card generation based on typed kind
-    if (node.kind === 'bb') {
-      svgData = generateCfgBlockSvg({
-        id: node.id,
-        label: node.label,
-        instructions: node.instructions || [],
-        width: 280,
-        isDark
-      });
-    } else if (node.kind === 'bdd_gate' || node.kind === 'bdd_terminal') {
-      svgData = generateBddGateSvg({
-        varName: node.name,
-        isTerminal: node.kind === 'bdd_terminal',
-        terminalValue: node.id === '1' ? 1 : 0,
-        isDark
-      });
-    } else if (node.kind === 'state') {
-      let entry = null, doAct = null, exit = null;
-      (node.instructions || []).forEach(inst => {
+/**
+ * Renders the card image for a node. `card` carries only presentation inputs:
+ * { kind, name, label, stereotype, fields, methods, instructions, leafPackage, nestLevel, id }
+ */
+export function renderCardSvg(card, isDark) {
+  const kind = card.kind || 'class';
+  if (card.leafPackage) {
+    return generatePackageFolderSvg({ name: card.name, nestLevel: card.nestLevel || 0, width: 240, height: 100, isDark });
+  }
+  switch (kind) {
+    case 'bb':
+      return generateCfgBlockSvg({ id: card.id, label: card.label, instructions: card.instructions || [], width: 280, isDark });
+    case 'bdd_gate':
+    case 'bdd_terminal':
+      return generateBddGateSvg({ varName: card.name, isTerminal: kind === 'bdd_terminal', terminalValue: card.id === '1' ? 1 : 0, isDark });
+    case 'state': {
+      let entry = null;
+      let doAct = null;
+      let exit = null;
+      (card.instructions || []).forEach(inst => {
+        if (typeof inst !== 'string') return;
         if (inst.startsWith('entry /')) entry = inst.replace('entry /', '').trim();
         if (inst.startsWith('do /')) doAct = inst.replace('do /', '').trim();
         if (inst.startsWith('exit /')) exit = inst.replace('exit /', '').trim();
       });
-      svgData = generateStateNodeSvg({
-        name: node.name,
-        entryAction: entry,
-        doActivity: doAct,
-        exitAction: exit,
-        width: 240,
-        isDark
-      });
-    } else if (node.kind === 'action') {
-      if (node.stereotype === '<<interaction_use>>') {
-        svgData = generateInteractionFrameSvg({
-          name: node.label || node.name,
-          instructions: node.instructions || [],
-          width: 280,
-          isDark
-        });
-      } else {
-        svgData = generateActionNodeSvg({
-          name: node.label || node.name,
-          isStart: node.name === 'start' || node.name === '[*]',
-          isStop: node.name === 'stop',
-          width: 230,
-          isDark
-        });
+      return generateStateNodeSvg({ name: card.name, entryAction: entry, doActivity: doAct, exitAction: exit, width: 240, isDark });
+    }
+    case 'action':
+      if (card.stereotype === '<<interaction_use>>') {
+        return generateInteractionFrameSvg({ name: card.label || card.name, instructions: card.instructions || [], width: 280, isDark });
       }
-    } else if (node.kind === 'timing_track') {
-      svgData = generateTimingTrackSvg({
-        name: node.label || node.name,
-        instructions: node.instructions || [],
-        width: 600,
+      return generateActionNodeSvg({
+        name: card.label || card.name,
+        isStart: card.name === 'start' || card.name === '[*]',
+        isStop: card.name === 'stop',
+        width: 230,
         isDark
       });
-    } else if (node.kind === 'part' || node.kind === 'composite_classifier') {
-      svgData = generateCompositeCardSvg({
-        name: node.label || node.name,
-        fields: node.fields || [],
-        methods: node.methods || [],
-        width: 270,
-        isDark
-      });
-    } else if (node.kind === 'metaclass' || node.kind === 'stereotype') {
-      svgData = generateProfileCardSvg({
-        name: node.name,
-        stereotype: node.stereotype || `<<${node.kind}>>`,
-        fields: node.fields || [],
-        width: 270,
-        isDark
-      });
-    } else if (node.kind === 'component') {
-      svgData = generateComponentNodeSvg({ name: node.name, width: 230, isDark });
-    } else if (node.kind === 'device' || node.kind === 'artifact') {
-      svgData = generateDeploymentNodeSvg({ name: node.name, isArtifact: node.kind === 'artifact', width: 230, isDark });
-    } else if (node.kind === 'participant' || node.kind === 'actor') {
-      svgData = generateSequenceLifelineSvg({ name: node.name, isActor: node.kind === 'actor', width: 200, isDark });
-    } else if (node.kind === 'usecase') {
-      svgData = generateUseCaseSvg({ name: node.label || node.name, width: 220, isDark });
-    } else if (node.kind === 'object' || node.kind === 'data_node') {
-      svgData = generateObjectCardSvg({
-        name: node.label || node.name,
-        fields: (node.fields || []).map(f => typeof f === 'string' ? f : (f.signature || f.name)),
+    case 'timing_track':
+      return generateTimingTrackSvg({ name: card.label || card.name, instructions: card.instructions || [], width: 600, isDark });
+    case 'part':
+    case 'composite_classifier':
+      return generateCompositeCardSvg({ name: card.label || card.name, fields: card.fields || [], methods: card.methods || [], width: 270, isDark });
+    case 'metaclass':
+    case 'stereotype':
+      return generateProfileCardSvg({ name: card.name, stereotype: card.stereotype || `<<${kind}>>`, fields: card.fields || [], width: 270, isDark });
+    case 'component':
+      return generateComponentNodeSvg({ name: card.name, width: 230, isDark });
+    case 'device':
+    case 'artifact':
+      return generateDeploymentNodeSvg({ name: card.name, isArtifact: kind === 'artifact', width: 230, isDark });
+    case 'participant':
+    case 'actor':
+      return generateSequenceLifelineSvg({ name: card.name, isActor: kind === 'actor', width: 200, isDark });
+    case 'usecase':
+      return generateUseCaseSvg({ name: card.label || card.name, width: 220, isDark });
+    case 'object':
+    case 'data_node':
+      return generateObjectCardSvg({
+        name: card.label || card.name,
+        fields: (card.fields || []).map(f => (typeof f === 'string' ? f : (f.signature || f.name || ''))),
         width: 260,
         isDark
       });
-    } else {
-      // UML Class / Interface / Abstract / Enum Card
-      const fieldsFormatted = (node.fields || []).map(f => {
-        if (typeof f === 'string') return f;
-        return `${f.visibility || '-'} ${f.signature || f.name || 'field'}`;
-      });
-      const methodsFormatted = (node.methods || []).map(m => {
-        if (typeof m === 'string') return m;
-        return `${m.visibility || '+'} ${m.signature || (m.name ? `${m.name}()` : 'method()')}`;
-      });
-
-      svgData = generateUmlClassCardSvg({
-        name: node.name,
-        kind: node.kind || 'class',
-        stereotype: node.stereotype || `<<${node.kind || 'class'}>>`,
-        fields: fieldsFormatted,
-        methods: methodsFormatted,
+    default:
+      return generateUmlClassCardSvg({
+        name: card.name,
+        kind,
+        stereotype: card.stereotype || `<<${kind}>>`,
+        fields: (card.fields || []).map(f => formatMember(f, '-', false)),
+        methods: (card.methods || []).map(m => formatMember(m, '+', true)),
         width: 290,
         isDark
       });
+  }
+}
+
+/**
+ * Rebuilds the card inputs from Cytoscape node data (used for in-place theme restyling).
+ */
+export function cardFromNodeData(data) {
+  return {
+    id: data.id,
+    kind: data.kind,
+    name: data.leafPackage ? (data.rawName || data.name) : data.name,
+    label: data.cardLabel || data.name,
+    stereotype: data.stereotype,
+    fields: data.fields || [],
+    methods: data.methods || [],
+    instructions: data.instructions || [],
+    leafPackage: Boolean(data.isLeafPackage),
+    nestLevel: data.nestLevel || 0
+  };
+}
+
+export function loadGraphIrToCytoscape(graphIr) {
+  if (!graphIr || !Array.isArray(graphIr.nodes)) return [];
+
+  const isDark = isDarkMode();
+  const elements = [];
+  const nodeIds = new Set();
+  const parentIds = new Set(graphIr.nodes.map(n => n && n.parent).filter(Boolean));
+
+  graphIr.nodes.forEach(node => {
+    if (!node || node.id === undefined || node.id === null) return;
+    const id = String(node.id);
+    if (nodeIds.has(id)) return; // duplicates are reported by the validator before loading
+    nodeIds.add(id);
+
+    if (node.is_package) {
+      const shortName = node.name || (node.label ? String(node.label).replace(/^package\s*\[?/, '').replace(/\]?$/, '') : id);
+      const isDomainTier = Boolean(node.is_domain_tier || node.nest_level === 0);
+      const displayLabel = isDomainTier ? `DOMAIN: ${String(shortName).toUpperCase()}` : `package [${shortName}]`;
+
+      if (parentIds.has(id)) {
+        elements.push({
+          data: {
+            id,
+            label: displayLabel,
+            rawName: node.name || shortName,
+            name: node.name || shortName,
+            textLabel: displayLabel,
+            kind: 'package',
+            isPackage: true,
+            isDomainTier,
+            parent: node.parent || undefined,
+            nestLevel: node.nest_level || 0,
+            file: null,
+            lines: []
+          },
+          classes: `compound-package ${isDomainTier ? 'pkg-domain-tier' : 'pkg-subpackage'} nest-level-${Math.min(5, node.nest_level || 0)}`
+        });
+      } else {
+        const card = { id, kind: 'package', name: shortName, leafPackage: true, nestLevel: node.nest_level || 0 };
+        const svgData = renderCardSvg(card, isDark);
+        elements.push({
+          data: {
+            id,
+            label: '',
+            rawName: node.name || shortName,
+            name: node.name || shortName,
+            textLabel: displayLabel,
+            kind: 'package',
+            isPackage: false,
+            isLeafPackage: true,
+            isDomainTier,
+            parent: node.parent || undefined,
+            nestLevel: node.nest_level || 0,
+            width: svgData.width,
+            height: svgData.height,
+            svgDataUri: svgData.dataUri,
+            cardSource: 'ir',
+            file: null,
+            lines: []
+          },
+          classes: `leaf-package nest-level-${Math.min(5, node.nest_level || 0)}`
+        });
+      }
+      return;
     }
 
-    const cytoscapeNode = {
+    const card = {
+      id,
+      kind: node.kind || 'class',
+      name: node.name || id,
+      label: node.label || node.name || id,
+      stereotype: node.stereotype || `<<${node.kind || 'class'}>>`,
+      fields: node.fields || [],
+      methods: node.methods || [],
+      instructions: node.instructions || [],
+      leafPackage: false,
+      nestLevel: node.nest_level || 0
+    };
+    const svgData = renderCardSvg(card, isDark);
+    const anchor = node.anchor && typeof node.anchor === 'object' ? node.anchor : null;
+    const file = typeof node.file === 'string' && node.file ? node.file : (anchor && typeof anchor.path === 'string' ? anchor.path : null);
+    let lines = Array.isArray(node.lines) ? node.lines.filter(l => Number.isInteger(l) && l > 0) : [];
+    if (lines.length === 0 && anchor && Number.isInteger(anchor.start_line)) lines = [anchor.start_line];
+
+    elements.push({
       data: {
-        id: node.id,
-        name: node.name || node.id,
+        id,
+        name: node.name || id,
+        qualifiedName: node.qualified_name || null,
         label: '',
-        textLabel: `${node.stereotype || '<<class>>'}\n${node.name}`,
-        kind: node.kind || 'class',
-        stereotype: node.stereotype || `<<${node.kind || 'class'}>>`,
-        fields: node.fields || [],
-        methods: node.methods || [],
+        cardLabel: node.label || null,
+        textLabel: `${card.stereotype}\n${card.name}`,
+        kind: card.kind,
+        stereotype: card.stereotype,
+        fields: card.fields,
+        methods: card.methods,
+        instructions: card.instructions,
         extends: node.extends || undefined,
         implements: node.implements || undefined,
         width: svgData.width,
         height: svgData.height,
         svgDataUri: svgData.dataUri,
-        file: node.file || `${node.name}.java`,
+        cardSource: 'ir',
+        file,
+        anchor,
+        language: node.language || null,
         raw_url: node.raw_url || undefined,
-        rawUrl: node.raw_url || undefined,
-        lines: node.lines || [1],
+        lines,
         parent: node.parent || undefined,
+        outer: node.outer || undefined,
         nestLevel: node.nest_level || 0,
-        cyclomatic: node.cyclomatic || undefined,
-        idomRank: node.idom_rank || undefined,
-        bddSatCount: node.sat_count || undefined
+        cyclomatic: node.cyclomatic !== undefined ? node.cyclomatic : undefined,
+        idomRank: node.idom_rank !== undefined ? node.idom_rank : undefined,
+        bddSatCount: node.sat_count !== undefined ? node.sat_count : undefined,
+        branchPredicate: typeof node.predicate === 'string' ? node.predicate : undefined
       },
-      classes: `class-card kind-${node.kind || 'class'}`
-    };
-
-    nodeMap.set(node.id, cytoscapeNode);
-    elements.push(cytoscapeNode);
+      classes: `class-card kind-${String(card.kind).replace(/[^A-Za-z0-9_-]/g, '_')}`
+    });
   });
 
-  // 3. Ingest Directed Strongly-Typed Edges
-  (graphIr.edges || []).forEach(edge => {
-    if (!nodeMap.has(edge.source) || !nodeMap.has(edge.target)) {
-      return;
-    }
-
-    const edgeKind = edge.kind || edge.uml_kind || 'association';
+  (graphIr.edges || []).forEach((edge, idx) => {
+    if (!edge) return;
+    const source = edge.source !== undefined ? String(edge.source) : null;
+    const target = edge.target !== undefined ? String(edge.target) : null;
+    if (!source || !target || !nodeIds.has(source) || !nodeIds.has(target)) return;
+    const edgeKind = String(edge.kind || edge.uml_kind || 'association');
     elements.push({
       data: {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
+        id: edge.id !== undefined ? String(edge.id) : `edge_${idx}_${source}_${target}`,
+        source,
+        target,
         uml_kind: edgeKind,
-        label: edge.label || '',
-        arrow: edge.arrow || '-->'
+        label: typeof edge.label === 'string' ? edge.label : '',
+        arrow: edge.arrow || '-->',
+        resolution: edge.resolution || undefined
       },
-      classes: `edge-${edgeKind}`
+      classes: `edge-${edgeKind.replace(/[^A-Za-z0-9_-]/g, '_')}`
     });
   });
 

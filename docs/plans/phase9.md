@@ -2,6 +2,10 @@
 
 ## Phase 9: UML Semantic Metadata Extraction
 
+> **Status: design specification.** This plan describes the target design of Phase 9. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
+> *Implementation summary (audited baseline `fc218cd`):* the class, package, component, sequence, activity and use-case extractors run with known gaps; the state-machine extractor emits a fixed two-state template per class; the composite, communication, interaction-overview and timing extractors have empty bodies; the object extractor misreads AST ids as symbol ids. Per-view details are in the [diagram provenance matrix](../status.md#5-diagram-provenance-matrix).
+
 ### 9.1 Phase Mandate & Exact Boundaries
 
 Phase 9 is the only phase in the pipeline that speaks UML. It ingests all eight prior artifacts and applies a suite of structural transformation rules and graph pattern queries to produce the semantic metadata records that drive generation of all 14 UML diagram types. It does not perform any new program analysis — every fact it outputs is derived from facts already computed in Phases 1–8.
@@ -46,6 +50,8 @@ f\_D: P × S₁ × ... × Sₙ → UMLRecord\_D
 Each f\_D is a total function — every SCPG sub-graph produces zero or more UML records. A sub-graph producing zero records means no UML element is generated for that entity (e.g. a private nested utility class produces no class diagram entry if configured to exclude private types).
 
 #### 9.2.2 CFG → Activity Diagram Transformation
+
+> *Implementation (audited baseline `fc218cd`):* every CFG edge becomes a plain control edge with guard 0 (the True/False/Except/Switch/LoopBack labels are discarded), loop depth is always 0, swimlane and end-node counts are hard-coded to 1, switch blocks with more than two successors become actions, and no fork, join or exception node is produced. Labels are computed and then discarded; the label extractor reads packed attribute bits as a token index.
 
 The activity diagram transformation maps each CFA basic block to exactly one UML activity node type, using the following classification function:
 
@@ -107,6 +113,8 @@ fn merge_sequential_actions(
 
 #### 9.2.3 Type-State IFDS → State Machine Transformation
 
+> *Implementation (audited baseline `fc218cd`): not implemented.* There is no IFDS type-state analysis (see Phase 5). `src/uma/behavioral/state_machine.rs` ignores its SSA input and emits, for every class, an initial and a final state with one transition per method.
+
 The SSA artifact's IFDS type-state results (Section 5: `IFDS_TYPE_STATE`) store (ssa\_id, state\_id) pairs. Phase 9 extracts state machines by grouping these results per class type:
 
 **Step 1 — Group by class type:** For each (ssa\_id, state\_id) pair in the IFDS results, look up `ssa.record(ssa_id).orig_sym_id` → `sta.symbol(sym_id).type_id` → the class type sym_id. Group all (ssa\_id, state\_id, containing\_method) triples by class type.
@@ -166,6 +174,8 @@ fn extract_state_machine(
 ```
 
 #### 9.2.4 Call Graph → Sequence Diagram Transformation
+
+> *Implementation (audited baseline `fc218cd`):* callers are expanded from a LIFO stack after all of a method's calls are emitted, so for A→B, A→C the sub-calls of C print before those of B, and each method is expanded only once. `combined_fragments` is always empty; there is no depth bound, library filter, reply or nesting, and all entry-point scenarios are merged into one diagram.
 
 A sequence diagram represents a specific execution scenario. Phase 9 generates one sequence diagram per **entry point** — a public method with call-graph fan-in of zero (no in-codebase callers).
 

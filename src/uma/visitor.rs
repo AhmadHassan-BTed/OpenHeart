@@ -151,8 +151,13 @@ pub struct ArchitecturalMetricsVisitor {
     pub total_methods: usize,
     pub total_cyclomatic_complexity: u64,
     pub total_sat_path_count: u64,
+    /// True when `total_sat_path_count` hit u64::MAX and is a lower bound, not exact.
+    pub sat_path_count_saturated: bool,
+    /// Methods whose cyclomatic complexity was computed (bodied methods).
+    pub methods_with_metrics: usize,
     pub pattern_frequency: HashMap<u16, usize>,
     pub inheritance_depth_max: usize,
+    seen_pattern_instances: HashSet<u32>,
 }
 
 impl ArchitecturalMetricsVisitor {
@@ -168,11 +173,12 @@ impl ArchitecturalMetricsVisitor {
         }
     }
 
+    /// Mean cyclomatic complexity over methods with an analyzed body.
     pub fn mean_cyclomatic_complexity(&self) -> f64 {
-        if self.total_methods == 0 {
+        if self.methods_with_metrics == 0 {
             0.0
         } else {
-            self.total_cyclomatic_complexity as f64 / self.total_methods as f64
+            self.total_cyclomatic_complexity as f64 / self.methods_with_metrics as f64
         }
     }
 }
@@ -210,8 +216,23 @@ impl UMAVisitor for ArchitecturalMetricsVisitor {
         _tca: &TokenCorpusArtifact,
     ) {
         self.total_methods += 1;
-        self.total_cyclomatic_complexity += method.cyclomatic as u64;
-        self.total_sat_path_count += method.sat_count;
+        if (method.metrics_known & METRIC_CYCLOMATIC_KNOWN) != 0 {
+            self.total_cyclomatic_complexity = self
+                .total_cyclomatic_complexity
+                .saturating_add(u64::from(method.cyclomatic));
+            self.methods_with_metrics += 1;
+        }
+        if (method.metrics_known & METRIC_SAT_COUNT_KNOWN) != 0 {
+            // PSA saturates path counts at u64::MAX; keep the aggregate saturating
+            // and flag it so consumers do not read a clamped total as exact.
+            match self.total_sat_path_count.checked_add(method.sat_count) {
+                Some(total) if method.sat_count != u64::MAX => self.total_sat_path_count = total,
+                _ => {
+                    self.total_sat_path_count = u64::MAX;
+                    self.sat_path_count_saturated = true;
+                }
+            }
+        }
     }
 
     fn visit_design_pattern(
@@ -220,7 +241,10 @@ impl UMAVisitor for ArchitecturalMetricsVisitor {
         _sta: &SymbolTableArtifact,
         _tca: &TokenCorpusArtifact,
     ) {
-        *self.pattern_frequency.entry(dp.pattern_kind).or_insert(0) += 1;
+        // Count pattern instances, not participant rows.
+        if self.seen_pattern_instances.insert(dp.instance_id) {
+            *self.pattern_frequency.entry(dp.pattern_kind).or_insert(0) += 1;
+        }
     }
 }
 

@@ -1,8 +1,10 @@
-Here is the complete Phase 2 specification.
-
 ---
 
 ## Phase 2: CST Reduction & Balanced Parentheses AST Encoding
+
+> **Status: design specification.** This plan describes the target design of Phase 2. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
+> *Implementation (audited baseline `fc218cd`):* the navigation indexes are a `u32` jump-table entry per BP position, a rank directory, preorder arrays with `parent_map`, and a full sparse-table RMQ of O(n log n) words; `select1` scans bit by bit. The structure is therefore not succinct, and no bits-per-node figure has been measured (see [succinct_structures.md §1.3](../succinct_structures.md#13-space-textbook-bound-versus-the-implemented-layout)). The Java reduction adapter has no arm for `import_declaration`, generic, array, scoped-type, type-parameter or wildcard nodes, so they are dropped with their subtrees, and `ERROR` subtrees are dropped silently.
 
 ### 2.1 Phase Mandate & Exact Boundaries
 

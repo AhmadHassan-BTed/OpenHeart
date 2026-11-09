@@ -10,18 +10,35 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
+# rustfmt's default width; editors draw the ruler where `cargo fmt` wraps.
 [*.rs]
 indent_style = space
 indent_size = 4
+max_line_length = 100
 
 [*.md]
 trim_trailing_whitespace = false
 
-[*.yml]
-[*.yaml]
+# GitHub workflows, dependabot and other YAML. A single glob is required: two
+# consecutive section headers leave the first one empty.
+[*.{yml,yaml}]
 indent_style = space
 indent_size = 2
 
 [*.toml]
 indent_style = space
 indent_size = 2
+
+# The web studio and the generated diagram JSON use two-space indentation.
+[*.{js,mjs,cjs,html,css,json}]
+indent_style = space
+indent_size = 2
+
+# make only accepts recipe lines that start with a hard tab.
+[{Makefile,makefile,GNUmakefile,*.mk}]
+indent_style = tab
+indent_size = 4
+
+# cmd.exe misparses labels and `goto` targets in LF-only batch files.
+[*.{bat,cmd}]
+end_of_line = crlf

@@ -9,7 +9,9 @@ use std::io::{Read, Result as IoResult, Write};
 use std::path::Path;
 
 pub const CGA_MAGIC: u64 = 0x4347410001000000; // "CGA\0\x01\0\0\0"
-pub const CGA_FORMAT_VERSION: u32 = 1;
+/// Version 2: `receiver_ssa` and points-to `ssa_id` are global SSA ids, `call_block` is
+/// `u32::MAX` for calls outside any CFG block, and SCCs cover only call-graph nodes.
+pub const CGA_FORMAT_VERSION: u32 = 2;
 
 pub struct CGASerializer;
 
@@ -64,6 +66,9 @@ impl CGASerializer {
             w.write_u32(artifact.caller_csr.adj.len() as u32)?;
             for &a in &artifact.caller_csr.adj {
                 w.write_u32(a)?;
+            }
+            for i in 0..artifact.caller_csr.adj.len() {
+                w.write_u8(artifact.caller_csr.edge_types.get(i).copied().unwrap_or(0))?;
             }
 
             // 4. Site-to-Edge Map
@@ -145,6 +150,15 @@ impl CGASerializer {
         }
 
         let format_version = r.read_u32()?;
+        if format_version != CGA_FORMAT_VERSION {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "Unsupported CGA format version {} (expected {})",
+                    format_version, CGA_FORMAT_VERSION
+                ),
+            ));
+        }
         let method_count = r.read_u32()?;
         let call_site_count = r.read_u32()?;
         let call_edge_count = r.read_u32()?;
@@ -207,10 +221,15 @@ impl CGASerializer {
             caller_adj.push(r.read_u32()?);
         }
 
+        let mut caller_edge_types = Vec::with_capacity(caller_adj_len);
+        for _ in 0..caller_adj_len {
+            caller_edge_types.push(r.read_u8()?);
+        }
+
         let caller_csr = CGCSR {
             offsets: caller_offsets,
             adj: caller_adj,
-            edge_types: Vec::new(),
+            edge_types: caller_edge_types,
         };
 
         // 4. Site-to-Edge Map

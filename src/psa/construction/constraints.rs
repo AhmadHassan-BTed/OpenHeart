@@ -1,132 +1,154 @@
-//! Structural constraint Φ_b for each CFG block (§8.2.3, §8.5.3).
+//! Exact path formula `f_paths` over the Ball-Larus DAG (§8.2.3, §8.5.3).
 //!
-//! For function f with CFG (B, E), assign Boolean variable xₑ to each CFG edge e ∈ E.
-//! An assignment A: E → {0,1} represents a structurally valid path iff it satisfies
-//! the flow conservation constraint Φ_b at every block:
+//! For a function with CFG (B, E) every CFA edge `e` has a Boolean variable `xₑ` and every
+//! loop header `h` a loop-entry variable `yₕ` (the Ball-Larus dummy edge `ENTRY → h`). An
+//! assignment satisfies `f_paths` **iff** it is the characteristic vector of exactly one
+//! acyclic path segment (see `construction::graph`), so `#SAT(f_paths)` *is* the path count:
 //!
-//! **EXIT block (0 successors):** Φ_b = TRUE.
-//!
-//! **Unconditional (1 successor):**
 //! ```text
-//! Φ_b = (∨ x_{pᵢ→b}) → x_{b→s}
+//! starts:     s₀ = ¬(∨ₕ yₕ)                          the segment starts at ENTRY …
+//!             AtMostOne{yₕ}                           … or at exactly one loop header
+//! block b:    In_b  = {s₀ if b = ENTRY} ∪ {y_b if b is a header}
+//!                   ∪ {xₑ : e = (p → b) active, not a back edge}
+//!             Out_b = {xₑ : e = (b → s)}              (back edges end the segment)
+//!             AtMostOne(In_b)
+//!             Out_b = ∅ :  nothing more               (the segment may end here)
+//!             Out_b ≠ ∅ :  AtMostOne(Out_b) ∧ (∨In_b ↔ ∨Out_b)
+//! inactive e: ¬xₑ                                     (unreachable source / bad endpoint)
 //! ```
-//! "If any predecessor edge is taken, the single outgoing edge is taken."
 //!
-//! **Binary branch (2 successors — most common for conditionals):**
-//! ```text
-//! Φ_b = (∨ x_{pᵢ→b}) → (x_{e_true} ⊕ x_{e_false})
-//! ```
-//! "If entered, exactly one of the two branch edges is taken (XOR)."
+//! Flow is conserved with unit capacity at every block and exactly one unit enters at a
+//! start; because back edges only *leave* blocks, the 1-edges form one path in a DAG and
+//! every variable is determined by the path. The previous encoding (`reach(b) → out(b)`)
+//! left the edges of unreached blocks free and had no exit condition, overstating counts
+//! exponentially (one if/else counted 8 paths instead of 2).
 //!
-//! **Switch (n > 2 successors):**
-//! Exactly one outgoing edge taken — pairwise AND-NOT exclusion.
+//! Each `AtMostOne`/`∨` is built with O(k) operations by the two-accumulator construction
+//! (`none`, `exactly_one`) instead of O(k²) pairwise clauses, and blocks are conjoined in
+//! topological order, matching the locality-preserving variable order.
 
-use crate::cfg::builder::FunctionCFGData;
-use crate::psa::bdd::BDDLibrary;
-use crate::psa::ordering::{rpo::edge_index_of, rpo::pred_list, rpo::succ_list, VariableOrdering};
+use crate::psa::bdd::{BDDLibrary, BddLimit};
+use crate::psa::construction::graph::{PathGraph, ENTRY_BLOCK};
+use crate::psa::construction::levels::BuildLevels;
 use crate::psa::types::BoolOp;
 
-/// Build the structural constraint Φ_b for block `block_id` in `cfg`.
-///
-/// Returns the root node_id of the ROBDD encoding Φ_b within `bdd`.
-pub fn build_phi_b(
-    block_id: u32,
-    cfg: &FunctionCFGData,
-    ordering: &VariableOrdering,
-    bdd: &mut BDDLibrary,
-) -> u32 {
-    let succs = succ_list(cfg, block_id);
-    let preds = pred_list(cfg, block_id);
+/// `(at_most_one, exactly_one, any)` of a list of BDDs.
+pub struct Cardinality {
+    pub at_most_one: u32,
+    pub exactly_one: u32,
+    pub any: u32,
+}
 
-    // ── is_reachable: OR of all incoming edge variables ───────────────────────
-    let is_reachable = preds.iter().fold(bdd.false_id(), |acc, &pred| {
-        if let Some(ei) = edge_index_of(cfg, pred, block_id) {
-            let var = ordering.var_for_edge_idx(ei);
-            let x = bdd.var(var);
-            bdd.apply(BoolOp::Or, acc, x)
-        } else {
-            acc
-        }
-    });
+/// Build the cardinality constraints of `xs` with O(|xs|) operations.
+pub fn cardinality(bdd: &mut BDDLibrary, xs: &[u32]) -> Result<Cardinality, BddLimit> {
+    let mut none = bdd.true_id();
+    let mut one = bdd.false_id();
+    for &x in xs {
+        let not_x = bdd.try_not(x)?;
+        let stay_one = bdd.try_apply(BoolOp::And, one, not_x)?;
+        let become_one = bdd.try_apply(BoolOp::And, none, x)?;
+        one = bdd.try_apply(BoolOp::Or, stay_one, become_one)?;
+        none = bdd.try_apply(BoolOp::And, none, not_x)?;
+    }
+    let at_most_one = bdd.try_apply(BoolOp::Or, none, one)?;
+    let any = bdd.try_not(none)?;
+    Ok(Cardinality {
+        at_most_one,
+        exactly_one: one,
+        any,
+    })
+}
 
-    match succs.len() {
-        // EXIT block: no outgoing constraint — return TRUE.
-        0 => bdd.true_id(),
+/// Literal BDD of the variable at `level`.
+#[inline]
+fn literal(bdd: &mut BDDLibrary, level: u16) -> Result<u32, BddLimit> {
+    bdd.try_var(level)
+}
 
-        // Unconditional: if reachable, the single outgoing edge is taken.
-        1 => {
-            let x_out = if let Some(ei) = edge_index_of(cfg, block_id, succs[0]) {
-                let var = ordering.var_for_edge_idx(ei);
-                bdd.var(var)
-            } else {
-                bdd.true_id()
-            };
-            bdd.implies(is_reachable, x_out)
-        }
-
-        // Binary branch: if entered, exactly one branch is taken (XOR).
-        2 => {
-            let x_true = if let Some(ei) = edge_index_of(cfg, block_id, succs[0]) {
-                let v = ordering.var_for_edge_idx(ei);
-                bdd.var(v)
-            } else {
-                bdd.false_id()
-            };
-            let x_false = if let Some(ei) = edge_index_of(cfg, block_id, succs[1]) {
-                let v = ordering.var_for_edge_idx(ei);
-                bdd.var(v)
-            } else {
-                bdd.false_id()
-            };
-            let xor = bdd.apply(BoolOp::Xor, x_true, x_false);
-            bdd.implies(is_reachable, xor)
-        }
-
-        // Switch: exactly one successor taken.
-        _ => build_switch_constraint(block_id, succs, is_reachable, cfg, ordering, bdd),
+/// Level of edge `e`; every CFA edge has a construction level by construction of
+/// [`BuildLevels`].
+#[inline]
+fn edge_level(levels: &BuildLevels, e: u32) -> u16 {
+    match levels.edge(e) {
+        Some(l) => l,
+        None => unreachable!("CFA edge {} has no construction level", e),
     }
 }
 
-/// Switch constraint: exactly one of n outgoing edges taken.
-///
-/// `at_least_one ∧ at_most_one` where at_most_one uses pairwise ¬(xᵢ ∧ xⱼ) clauses.
-fn build_switch_constraint(
-    block_id: u32,
-    succs: &[u32],
-    is_reachable: u32,
-    cfg: &FunctionCFGData,
-    ordering: &VariableOrdering,
+/// Build `f_paths` for `graph` under `levels`.
+pub fn build_path_formula(
+    graph: &PathGraph,
+    levels: &BuildLevels,
     bdd: &mut BDDLibrary,
-) -> u32 {
-    let xs: Vec<u32> = succs
-        .iter()
-        .filter_map(|&s| {
-            edge_index_of(cfg, block_id, s).map(|ei| {
-                let v = ordering.var_for_edge_idx(ei);
-                bdd.var(v)
-            })
-        })
-        .collect();
+) -> Result<u32, BddLimit> {
+    // ── Segment starts ────────────────────────────────────────────────────────
+    let mut loop_entries: Vec<u32> = Vec::with_capacity(graph.headers().len());
+    for &h in graph.headers() {
+        let level = match levels.loop_entry(h) {
+            Some(l) => l,
+            None => unreachable!("loop header {} has no loop-entry level", h),
+        };
+        loop_entries.push(literal(bdd, level)?);
+    }
+    let starts = cardinality(bdd, &loop_entries)?;
+    let function_start = bdd.try_not(starts.any)?;
+    let mut f_paths = starts.at_most_one;
 
-    if xs.is_empty() {
-        return bdd.true_id();
+    // ── Flow conservation, block by block in topological order ────────────────
+    for &b in graph.topo_order() {
+        let phi_b = build_block_constraint(b, graph, levels, function_start, bdd)?;
+        f_paths = bdd.try_apply(BoolOp::And, f_paths, phi_b)?;
     }
 
-    // at_least_one: ∨ xᵢ
-    let at_least_one = xs
-        .iter()
-        .fold(bdd.false_id(), |acc, &x| bdd.apply(BoolOp::Or, acc, x));
-
-    // at_most_one: ∧ ¬(xᵢ ∧ xⱼ) for all i < j
-    let mut at_most_one = bdd.true_id();
-    for i in 0..xs.len() {
-        for j in (i + 1)..xs.len() {
-            let both = bdd.apply(BoolOp::And, xs[i], xs[j]);
-            let not_both = bdd.apply_not(both);
-            at_most_one = bdd.apply(BoolOp::And, at_most_one, not_both);
+    // ── Edges that can lie on no path ─────────────────────────────────────────
+    for e in 0..graph.n_edges() as u32 {
+        if graph.is_inactive(e) {
+            let x = literal(bdd, edge_level(levels, e))?;
+            let not_x = bdd.try_not(x)?;
+            f_paths = bdd.try_apply(BoolOp::And, f_paths, not_x)?;
         }
     }
 
-    let exactly_one = bdd.apply(BoolOp::And, at_least_one, at_most_one);
-    bdd.implies(is_reachable, exactly_one)
+    Ok(f_paths)
+}
+
+/// The flow constraint Φ_b of one reachable block.
+fn build_block_constraint(
+    block: u32,
+    graph: &PathGraph,
+    levels: &BuildLevels,
+    function_start: u32,
+    bdd: &mut BDDLibrary,
+) -> Result<u32, BddLimit> {
+    let mut ins: Vec<u32> = Vec::new();
+    if block == ENTRY_BLOCK {
+        ins.push(function_start);
+    }
+    if graph.is_header(block) {
+        let level = match levels.loop_entry(block) {
+            Some(l) => l,
+            None => unreachable!("loop header {} has no loop-entry level", block),
+        };
+        ins.push(literal(bdd, level)?);
+    }
+    for &e in graph.in_edges(block) {
+        if graph.is_forward(e) {
+            ins.push(literal(bdd, edge_level(levels, e))?);
+        }
+    }
+
+    let mut outs: Vec<u32> = Vec::with_capacity(graph.out_edges(block).len());
+    for &e in graph.out_edges(block) {
+        outs.push(literal(bdd, edge_level(levels, e))?);
+    }
+
+    let input = cardinality(bdd, &ins)?;
+    if outs.is_empty() {
+        // A block without successors ends the segment.
+        return Ok(input.at_most_one);
+    }
+    let output = cardinality(bdd, &outs)?;
+    let conserve = bdd.try_iff(input.any, output.any)?;
+    let both_unique = bdd.try_apply(BoolOp::And, input.at_most_one, output.at_most_one)?;
+    bdd.try_apply(BoolOp::And, both_unique, conserve)
 }

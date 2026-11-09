@@ -1,8 +1,8 @@
 //! Continue Statement CFG builder algorithm (§4.5.3).
 
 use crate::ast::BPASTArtifact;
-use crate::cfg::builder::state::CFGBuilderState;
-use crate::core::types::cfg::CFGEdgeType;
+use crate::cfg::builder::state::{CFGBuilderState, Jump};
+use crate::core::types::ast::ASTNodeType;
 use crate::symbol::SymbolTableArtifact;
 
 pub fn build_continue(
@@ -11,26 +11,17 @@ pub fn build_continue(
     bpa: &BPASTArtifact,
     _sta: &SymbolTableArtifact,
 ) {
-    state.add_stmt_to_current(node, bpa);
-    let from = state.current_block;
+    state.add_stmt_no_implicit(node, bpa);
 
-    let target_label = bpa.first_child(node);
+    let label = bpa
+        .first_child(node)
+        .filter(|&l| bpa.node_type(l) == ASTNodeType::NN_IDENTIFIER_EXPR)
+        .map(|l| state.label_ref(bpa, l));
 
-    let target_frame = if let Some(label_node) = target_label {
-        state
-            .continue_stack
-            .iter()
-            .rev()
-            .find(|f| f.label == Some(label_node))
-            .copied()
-    } else {
-        state.continue_stack.last().copied()
-    };
-
-    if let Some(frame) = target_frame {
-        state.add_edge(from, frame.target, CFGEdgeType::LoopBack);
+    // See `build_break` for the handling of unresolvable targets.
+    if let Some(frame) = state.find_continue(label, node) {
+        let from = state.current_block;
+        state.route_jump(from, Jump::Continue(frame));
+        state.terminate();
     }
-
-    let new_blk = state.new_block();
-    state.current_block = new_blk;
 }

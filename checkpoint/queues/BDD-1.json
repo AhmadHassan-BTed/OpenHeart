@@ -1,0 +1,507 @@
+[
+ {
+  "id": "BDD-01",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "Use-after-free: BDD apply/not/restrict read through a raw slice of the Vec they push into",
+  "files": [
+   "src/psa/bdd/mod.rs:77-96",
+   "src/psa/bdd/mod.rs:99-110",
+   "src/psa/bdd/mod.rs:119-132",
+   "src/psa/bdd/unique_table.rs:64-65"
+  ],
+  "evidence": "BDDLibrary::apply builds `read = unsafe { slice::from_raw_parts(self.nodes.as_ptr(), len) }` and then passes `&mut self.nodes` into apply(), whose make_node does `nodes.push(..)` (unique_table.rs:64-65). The justification comment (mod.rs:79-83) says the Vec 'never reallocates mid-recursion ... because we pre-cleared the cache'. That is false: nodes starts as `vec![F,T]` (capacity 2) with no reserve, so pushes reallocate at every power of two, and every later `nodes[f]` read in the recursion dereferences freed memory. apply_not and restrict repeat the same pattern.",
+  "impact": "Undefined behaviour on essentially every non-trivial function, in both the CLI and /api/analyze. Results range from silent BDD corruption and wrong counts to a segfault once the freed buffer is reused or unmapped. The current tests cannot detect it.",
+  "recommendation": "Remove the unsafe blocks. ROBDDNode is Copy, so read `let n = self.nodes[f as usize];` into a local before recursing and pass only `&mut self` or indices. Add `#![forbid(unsafe_code)]` to src/psa, run `cargo +nightly miri test psa::bdd` in CI, and add a >100k-node regression test checked against a truth-table evaluator.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "#SAT(f_paths) is not the path count: Phi_b leaves unreached edges free, so paths are overstated exponentially",
+  "files": [
+   "src/psa/construction/constraints.rs:41-86",
+   "src/psa/construction/mod.rs:84-109",
+   "src/psa/bdd/sat_count.rs:1-20",
+   "docs/openheart_research_paper.tex:969-983",
+   "tests/research_paper_theorems_tests.rs:82-84"
+  ],
+  "evidence": "Phi_b only encodes reach(b) -> out-constraint (constraints.rs:64,82,131). Nothing forces the edges of unreached blocks to 0, there is no C_exit (the paper's definition includes one), and the entry variable is restricted away (mod.rs:95) yet still counted as free by sat_count(f_paths, n_vars) (mod.rs:109). In a faithful Python port, whose sat_count equals brute-force model counts: one if/else gives 8 instead of 2; k sequential if/else give 2*4^k instead of 2^k; 20 guard clauses give 8,667,850,491,898 instead of 21. The theorem test itself counts (1,1,1) as a path.",
+  "impact": "Phase 8's headline metric is wrong for essentially every branching function, and it is published in PlantUML/Mermaid annotations, UMA records and Phase 9 aggregates.",
+  "recommendation": "Count acyclic paths exactly with Ball-Larus path numbering (MICRO 1996): an O(V+E) dynamic program after back edges are replaced by dummy entry/exit edges, using num-bigint BigUint, with loops reported separately. If a decision-diagram path set is needed, build a ZDD of s-t paths with Knuth's Simpath / frontier-based search (Kawahara et al. 2017). Done means a proptest differential test against brute-force path enumeration on random structured CFGs.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Unsound unsafe aliasing in the ROBDD manager can read freed memory",
+  "files": [
+   "src/psa/bdd/mod.rs",
+   "src/psa/bdd/apply.rs",
+   "src/psa/bdd/unique_table.rs",
+   "src/core/io/mmap.rs"
+  ],
+  "evidence": "mod.rs:86, :102 and :122 build &[ROBDDNode] with from_raw_parts(self.nodes.as_ptr(), len) while also passing &mut self.nodes. make_node pushes new nodes (unique_table.rs:65). After recursion the stale slice is still read: apply.rs:104 reads 'nodes' after the call at :103 may have pushed, and apply.rs:136-138 holds fn_ = &nodes[f] across a pushing call. The SAFETY note (mod.rs:79-83) says clearing the cache prevents reallocation; it does not. mmap.rs:15 has no SAFETY note.",
+  "impact": "If the Vec grows during apply_not or restrict, the code reads freed memory, producing wrong BDDs or crashes. Holding a shared slice alongside &mut is undefined behavior even without reallocation, and Miri would flag it.",
+  "recommendation": "Remove the unsafe: pass only &mut Vec<ROBDDNode> and copy each node by index before recursing, or use an arena with stable indices. Add a Miri CI job for psa.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-03",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Static variable orders make ROBDDs exponential on plain sequential code, with no node or time budget",
+  "files": [
+   "src/psa/ordering/rpo.rs:12-64",
+   "src/psa/ordering/force.rs:19-76",
+   "src/psa/ordering/force.rs:106-118",
+   "src/psa/construction/mod.rs:73-87",
+   "src/adapters/server.rs:241-253",
+   "src/adapters/server.rs:612"
+  ],
+  "evidence": "The initial order is DFS edge pre-order (rpo.rs:12-64), not RPO. FORCE then refines it, but its branch hyperedge omits the predecessor edges that Phi_b couples (force.rs:106-118), and it runs a fixed number of iterations with no span check. Ported pipeline on k sequential if/else: 9,344 / 18,688 / 37,376 reachable nodes at k=10/11/12 (83k / 174k / 348k stored). At k=9, FORCE gives 11,588 nodes against 103 for a plain topological order, and 4,736 against Theorem 5.2's bound of 75 (m=38). There is no node limit, timeout or fallback, and recursion depth is unbounded.",
+  "impact": "A method with about 20-24 sequential if/else needs gigabytes and minutes, then runs out of memory. /api/analyze runs Phase 8 synchronously on cloned repositories, so this is a remotely triggerable DoS.",
+  "recommendation": "Seed with a locality-preserving order: blocks in RPO, each block's in and out edges adjacent. Keep FORCE only with its span-based stopping rule, then apply real sifting (BDD-06). Enforce a per-function node budget and deadline (as CUDD's Cudd_SetMaxMemory / Cudd_SetTimeLimit do) that degrades to a 'summary unavailable' record with DP metrics. Make apply/restrict/sat_count iterative. Done means a criterion benchmark showing linear growth on series-parallel CFG families.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-04",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "compute_max_path_length enumerates every walk (exponential) and returns the bound for any loop",
+  "files": [
+   "src/psa/construction/mod.rs:153-173"
+  ],
+  "evidence": "The DFS pushes (s, depth+1) for every successor with no visited set or memoization, stopping only at sinks or when depth >= #blocks (mod.rs:164-168). Ported to Python, a single loop containing an if/else followed by straight-line code needs 175 / 6,603 / 1,179,565 pushes at 17 / 37 / 67 blocks, roughly x1.8 per 10 blocks. Acyclic if/else chains cost 2^k. For any cyclic CFG the result is simply the block-count bound, not a path length.",
+  "impact": "Ordinary methods of 150+ blocks hang Phase 8, and with it the server request, even when the BDD is small. max_path_len is meaningless for every function that contains a loop.",
+  "recommendation": "Compute the longest acyclic path by dynamic programming over the DAG left after removing back edges (from cfg.loop_info or DFS edge classification), in O(V+E). Store a separate has_loop/unbounded flag or a loop-bound estimate. Done means tests on diamond chains, nested loops and a 10k-block synthetic CFG, each finishing in milliseconds.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Feasibility filter is unsound: SSA ids are reused as BDD variable indices and collide with edge variables",
+  "files": [
+   "src/psa/construction/feasibility.rs:63-75",
+   "src/psa/construction/feasibility.rs:85-101",
+   "src/psa/construction/feasibility.rs:108-124",
+   "src/ssa/renaming.rs:124-133",
+   "src/core/types/ssa.rs:43"
+  ],
+  "evidence": "build_condition_bdd picks the last non-phi SSA def in the block, not the branch condition, and uses `ssa_id & 0x3FFF` as a BDD variable (feasibility.rs:115-123). SSA ids are function-local and start at 0 (renaming.rs:124-133), the same range as edge variables 0..n_vars, so `cond -> x_true` (line 73) usually constrains an unrelated edge. In the port, the diamond count drops from 8 to 4 (the else-path is deleted) on a collision, and becomes 68 when the variable is >= n_vars, because sat_count's gap logic assumes var < n_vars. Block ids are also truncated to u8/u16 (lines 88, 115; ssa.rs:43).",
+  "impact": "Feasible paths are removed or counts become garbage, contradicting the documented 'sound over-approximation'. Correlated or contradictory predicates are never actually detected.",
+  "recommendation": "Extract atomic predicates from condition ASTs and canonicalize them (SSA value numbering, normalized negation and comparisons). Allocate predicate variables in a separate range above the edge variables and quantify them out before counting. Decide infeasible branch combinations with an SMT solver (z3 crate or bitwuzla) under a time budget, as KLEE and CBMC do. Widen def_block to u32. Done means tests with correlated (if(x>0)...if(x>0)) and contradictory branches.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'Rudell sifting' is a no-op: only the ordering table is permuted, never the BDD",
+  "files": [
+   "src/psa/ordering/sifting.rs:44-82",
+   "src/psa/ordering/mod.rs:116-129",
+   "src/psa/construction/mod.rs:103",
+   "docs/openheart_research_paper.tex:799-802",
+   "docs/plans/phase8.md:189-194"
+  ],
+  "evidence": "sift_variable calls ordering.swap_adjacent() but never rewrites any node, and it measures size with bdd.node_count() (sifting.rs:51,59,70), which cannot change. As a result `sz < best_size` never fires, best_pos stays at the starting position, and the final loop returns the variable home. A simulated full pass leaves the ordering identical for n=2..39. `_root` is unused. If a swap ever did stick, var_to_edge would no longer match the node.var labels. The paper and phase8.md both claim Rudell sifting with in-place swaps.",
+  "impact": "No dynamic reordering exists to rescue the bad static orders behind BDD-03, O(n^2) swaps per function are wasted, and a published algorithmic claim is false.",
+  "recommendation": "Implement Rudell sifting (ICCAD 1993): per-level unique subtables, in-place adjacent-level swaps that touch only levels i and i+1, reference counts for live size, a max-growth cutoff of about 1.2x, and CUDD-style perm/invperm level indirection. Alternatively, adopt oxidd, which already ships reordering. Done means a test where sifting shrinks a deliberately bad interleaved order to linear size.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-07",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The 'SCPG hash chain' does not hash the artifacts; staleness detection is global and non-deterministic",
+  "files": [
+   "src/tra/uml_link/hash_chain.rs:28-56",
+   "src/tra/builder.rs:97-109",
+   "src/tra/uml_link/mod.rs:60",
+   "src/tra/delta/invalidation.rs:10-12",
+   "src/core/types/source.rs:10-20",
+   "src/psa/mod.rs:78"
+  ],
+  "evidence": "compute() ignores _bpa, _cfa and _ssa (hash_chain.rs:30-33). bpa_hash is crc64 of the file count and cga_hash is crc64 of call_site_count (lines 37, 41); cfa_hash is sta.bpa_hash ^ sta.tca_hash (39). tca_hash hashes the Debug string of the file records, which includes mtime_ns (36; source.rs:10-20). The six values are XOR-folded and truncated to CRC32 (44). Invariant 3 recomputes the same formula from the stored fields, which makes it a tautology. Every UMLLink carries this single value, so is_stale is all-or-nothing. The PSA writes cfa.sta_hash into its ssa_hash field (psa/mod.rs:78).",
+  "impact": "AST, CFG and SSA changes go undetected, while a `touch` or a fresh clone marks everything stale. Cross-artifact provenance cannot be verified, and the paper's Eq. 8 is unbacked.",
+  "recommendation": "Hash the canonical artifact bytes with BLAKE3, chain them as h_i = H(h_{i-1} || bytes_i), exclude mtimes, and keep at least 128 bits. Store per-entity digests (per-symbol declaration/body hash, per-function CFG hash) so staleness is decided per element. Verify the chain on load, and write the real .ssa digest into the PSA's ssa_hash. Done means tests showing that a body edit invalidates exactly that function's records and a touch invalidates none.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-08",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Incremental invalidation is dead code and unsound; the documented 5-stage protocol does not exist",
+  "files": [
+   "src/tra/delta/mod.rs:20-47",
+   "src/tra/delta/invalidation.rs:7-20",
+   "src/scpg/incremental/mod.rs:25-34",
+   "docs/traceability_and_incremental.md:41-82"
+  ],
+  "evidence": "DeltaApplicator::compute_delta and StaleDetector have no callers outside their own module and its re-export. compute_delta compares BI_sym by positional sym_id and global token ids (delta/mod.rs:28-38). Inserting one token or symbol early shifts every later id and invalidates nearly everything. An edit that keeps a declaration's token span is missed, deletions are never reported, and nothing propagates dependencies. IncrementalEngine::apply_delta just returns `current_hash ^ 0x0101_0101` with stale_link_count 0. The rope buffer, tree-sitter incremental reparse and Merkle diff described in the doc do not exist.",
+  "impact": "The paper's incremental-update theorem (thm:incr) and the README's incremental claims have no implementation. Every edit means a full 10-phase rebuild.",
+  "recommendation": "Model the phases as Salsa queries (salsa crate: revisions, durability, early cutoff/backdating) keyed by stable ids (qualified name plus signature; file path plus byte offset). Use tree-sitter Tree::edit and changed_ranges to find dirty functions, rerun Phases 4-8 only for those, and diff per-entity hashes to decide UMLLink staleness. Done means an edit-replay benchmark over real commit histories that reports the recomputed fraction and latency.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-05",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Silent narrowing casts cap the system at 65,535 files, 65,535 columns, 64 KB tokens, 256 blocks/method and 65,535-member SCCs",
+  "files": [
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/mod.rs:123",
+   "src/ingestion/walker.rs:54-63",
+   "src/core/types/token.rs:121-124",
+   "src/ingestion/serializer.rs:48-50",
+   "src/ingestion/builder.rs:49-55",
+   "src/core/types/ssa.rs:25",
+   "src/core/types/ssa.rs:43",
+   "src/cg/scc.rs:38",
+   "src/psa/construction/feasibility.rs:114-119",
+   "src/tra/backward/ssa_bi.rs:35",
+   "src/uma/structural/class_diagram.rs:128",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "Narrowing casts: `file_id as u16`, header file_count `len() as u16`, `col: start.column as u16` (wraps), token len `.min(u16::MAX)` (truncates the text), `def_block: (def_block & 0xFF) as u8`, `raw_members.len() as u16`. The 24-bit line limit is only a debug_assert, and overflow-checks are off. In a minified .js (the server collects .js) wider than 65,535 columns, tokens at col c and c+65,536 share a sort_key, and finalize aborts the run with 'Invariant 2 Violation'. Consumers index the sorted token_records by token_id, so any reordering silently corrupts lookups.",
+  "impact": "Repositories the size of the JDK, or containing a single minified bundle, fail Phase 1. Methods with more than 256 blocks map SSA definitions and traceability to the wrong block; feasibility.rs even documents the truncation.",
+  "recommendation": "Key tokens by (file_id: u32, byte_offset: u32) and keep a per-file line-start table for line/column, as rustc's SourceMap or the line-index crate do. Widen def_block, member_count and the file counts to u32. Replace `as` casts with `try_from(...)?` and typed errors, and enable overflow-checks in CI builds. Add tests with 70K synthetic files, a 200K-column line and a 300-block method.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Declaration coverage gaps: enum constants, anonymous classes, records, interface constants, and catch/resource/for-each/pattern variables",
+  "files": [
+   "src/ast/adapter/java.rs:30-129",
+   "src/ast/reducer.rs:17",
+   "src/core/types/symbol.rs:17",
+   "src/core/types/symbol.rs:22",
+   "src/uma/structural/class_diagram.rs:209",
+   "src/tra/builder.rs:84",
+   "src/symbol/adapter/java.rs:32-51"
+  ],
+  "evidence": "The Java adapter has no arm for enum_constant, constant_declaration, annotation_type_body, catch_formal_parameter, resource_specification, inferred_parameters, compact_constructor_declaration or constructor_body, so all of them hit Drop with their subtrees. SK_ENUM_CONSTANT and SK_ANON_CLASS are never constructed, yet class_diagram.rs:209 and tra/builder.rs:84 consume them. Anonymous-class methods become children of the enclosing local-variable or method symbol. Record components become SK_PARAMs with no implicit fields or accessors (JLS 8.10.3), and for-each and pattern variables get no symbol at all.",
+  "impact": "Enums render without literals, and anonymous listeners and strategies are invisible to CHA and pattern detection. Records have no attributes. Constructor bodies, which carry dependency-injection wiring, never reach Phase 4 to 6 or the composition check.",
+  "recommendation": "Write a JLS declaration-kind coverage test with one fixture per kind, then add adapter arms and symbols for each. Create SK_ANON_CLASS with a TH edge to the instantiated type. Synthesize implicit members: record fields, accessors and canonical constructor (JLS 8.10.3), and enum values/valueOf (8.9.3). Scope catch, resource, for-each and pattern variables to their construct.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-07",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Real incremental, commit-aware analysis",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/ingestion/parser/tree_sitter.rs",
+   "src/main.rs",
+   "docs/traceability_and_incremental.md",
+   "ROADMAP.md"
+  ],
+  "evidence": "apply_delta classifies a delta and returns current_hash ^ 0x0101_0101 (src/scpg/incremental/mod.rs:26-34). Staleness is a hash comparison (src/tra/delta/invalidation.rs:10-21). Parsing passes no old tree (src/ingestion/parser/tree_sitter.rs:21-23), and analyze reruns all ten phases (src/main.rs:150-254). Neither the five-stage Merkle protocol (docs/traceability_and_incremental.md:71-80) nor ROADMAP's 'O(1) incremental delta update' (ROADMAP.md:116) is implemented.",
+  "impact": "Every edit or PR forces a full rebuild. That rules out IDE-level latency and PR-time use, where CodeQL overlay databases, Infer's compositional diff analysis and Semgrep baselines compete.",
+  "recommendation": "Content-hash files and functions, and persist per-file artifacts. Reparse using tree-sitter edits and the old tree. Track dependencies between phases (salsa-style) so CFG, SSA and PSA are recomputed only for touched functions and their callers. Add --baseline <commit> to produce findings and diagrams for the diff only.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Binary artifact readers panic or allocate huge buffers on malformed input",
+  "files": [
+   "src/uma/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/ast/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "There are 291 .unwrap() calls in src, 286 outside tests, and 208 are bytes[a..b].try_into().unwrap(). 84% of the non-test ones are in five serializers: uma 96, symbol 66, tra 46, ast 17, psa 15. uma/serializer.rs:268-300 loops over counts taken from the header and slices bytes[offset..offset+4] without checking the remaining length. Before that it calls Vec::with_capacity(class_count) with a count read from the file. The CRC-64 check (239-249) catches accidental corruption, not crafted files.",
+  "impact": "inspect and every artifact reader crash on truncated or hostile files, either from an out-of-bounds index or a multi-GB allocation.",
+  "recommendation": "Add a bounds-checked cursor (read_u32()? returning InvalidData). Cap counts by the remaining bytes before allocating. Replace unwrap with ?. Add a cargo-fuzz target for each reader.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-09",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Backward index returns fabricated or misaligned source ranges",
+  "files": [
+   "src/tra/backward/blk_bi.rs:17-21",
+   "src/tra/backward/ssa_bi.rs:13-41",
+   "src/core/types/ssa.rs:43",
+   "src/tra/forward/sym_span.rs:36-41",
+   "src/tra/uml_link/mod.rs:46-51",
+   "src/tra/builder.rs:111-133"
+  ],
+  "evidence": "Synthetic or empty blocks (every ENTRY and EXIT) get ft=lt=0 to satisfy Invariant 1, which is the first token of file 0. BI_ssa derives per-function block offsets from max(def_block)+1 (ssa_bi.rs:13-24) instead of the CFA block counts that BI_blk uses, and def_block is truncated to u8. Phi-nodes always take this fallback path (def_stmt=u32::MAX), so in every function after the first they resolve to blocks of other functions. Span lines are cast to u16 (sym_span.rs:38,40), missing UMLLinks become (0,0,0,0,0), and Invariant 4 checks only the first 5% of sym ids.",
+  "impact": "Theorem 5.3 round-trips fail for synthetic blocks and phi-nodes, and entity-to-source navigation silently lands in the wrong file or line.",
+  "recommendation": "Build block and SSA offsets from CFA prefix sums and store them in the .tra. Use an explicit no-source sentinel, or the owning function's span, for synthetic blocks. Widen def_block (Phase 5) and the line fields to u32, and return Result diagnostics instead of assert!. Done means an exhaustive round-trip check plus a proptest that every BI range lies inside its owning function's span.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-10",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "'O(1) bidirectional traceability' is not delivered: forward and navigation queries are scans",
+  "files": [
+   "src/tra/forward/sym_span.rs:50-71",
+   "src/tra/forward/cs_span.rs:41-62",
+   "src/tra/uml_link/mod.rs:67-68",
+   "src/scpg/query/navigation.rs:9-27",
+   "src/uma/structural/class_diagram.rs:304-308",
+   "README.md:48"
+  ],
+  "evidence": "forward_sym_query walks backward from the partition point and breaks only when the file changes (sym_span.rs:60-70). That costs O(log N + symbols before the token in the file), not the documented O(log N + k). forward_cs_query never stops once first_token_id < token_id (cs_span.rs:51-60). UMLLinks are 'sorted for O(1) array index access', but they cover only UML kinds, so they cannot be indexed by sym_id. NavigationEngine::to_source does a linear .find and from_source a full filter, and class diagrams run a .find per class (O(C*U)).",
+  "impact": "Query latency grows with file and repository size, and the README's headline O(1) traceability claim is false for every forward and navigation query.",
+  "recommendation": "Exploit span nesting: store each span's enclosing-span index (or reuse the BP AST's parent/LCA), binary-search the innermost span, then walk parents for O(log N + k). Use an interval tree such as rust-lapper for non-nested data. Give UMLLinks a dense sym_id-to-slot array, break cs queries early, and add CSR offset tables for blocks and SSA. Done means criterion p50/p99 latency benchmarks at 1M symbols.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-11",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "BDD engine lacks complement edges, a persistent computed table and GC; the artifact ships about 8x garbage nodes",
+  "files": [
+   "src/psa/bdd/mod.rs:32-37",
+   "src/psa/bdd/mod.rs:77-78",
+   "src/psa/bdd/mod.rs:99-131",
+   "src/psa/bdd/apply.rs:60-68",
+   "src/psa/bdd/mod.rs:140-174",
+   "src/psa/builder.rs:69"
+  ],
+  "evidence": "apply() clears the computed table on every call (mod.rs:78), not and restrict allocate fresh HashMaps, and XOR's terminal case rebuilds NOT with a new map each time (apply.rs:64,67). Nothing is reused across a function's hundreds of conjunctions. There are no complement edges, no ITE, a SipHash unique table, and no reference counts or GC. into_nodes() ships every intermediate node: 39,585 stored against 4,736 reachable at 9 diamonds, which inflates n_nodes and total_nodes. verify_canonicity never checks the variable-order invariant.",
+  "impact": "Several-fold time and memory overhead compared with CUDD, Sylvan and oxidd, bloated .psa files, and misleading ROBDD-size metrics.",
+  "recommendation": "Adopt oxidd (Rust: complement-edge BCDDs, ZDDs, parallel apply, reordering, generic sat_count) or biodivine-lib-bdd (exact_cardinality). Otherwise rebuild CUDD-style: complement edges, ITE with standard triples, a lossy global computed table keyed on (op,f,g), per-level FxHash subtables, reference-count GC, and mark-compact of the root's sub-DAG before serialization. Add an order check to verify_canonicity. Done means criterion benchmarks against oxidd on n-queens and ISCAS'85.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-12",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Recursion, interprocedural composition and BDD queries are not implemented",
+  "files": [
+   "src/psa/construction/recursive.rs:13-28",
+   "src/psa/mod.rs:14-18",
+   "src/psa/mod.rs:98-102",
+   "src/cg/scc.rs:103",
+   "src/scpg/query/robdd.rs:9-20"
+  ],
+  "evidence": "RecursiveHandler::apply returns f_paths unchanged and stamps unwind_depth=3 (recursive.rs:26-28); nothing is unwound. No callee summary is ever read, and the documented callee-first order is actually inverted: Tarjan already emits callee SCCs first (scc.rs:103), and Phase 8 reverses them (psa/mod.rs:102). No code reads the stored node arrays or ordering tables; the only PSA query returns header sat_count and cyclomatic. The claimed 'path feasibility in O(|ROBDD|)' capability does not exist, and processing is single-threaded.",
+  "impact": "The interprocedural and recursion claims are unbacked, and the .psa carries large node arrays that nothing can query.",
+  "recommendation": "Either drop the claims and the node arrays, or implement them: a query API (restrict to an edge set and test satisfiability or count, paths through an edge, witness extraction via any_sat), call-site summary composition (Sharir-Pnueli functional approach or IDE), and bounded inlining for recursive SCCs. Use Tarjan's order without .rev(), and add rayon parallelism per function. Done means one test per advertised capability.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-13",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "edge_index_of linear scans make Phase 8 O(E^2) and map parallel edges to one variable",
+  "files": [
+   "src/psa/ordering/rpo.rs:106-108",
+   "src/psa/construction/constraints.rs:42-50",
+   "src/psa/ordering/force.rs:92-129",
+   "src/psa/construction/feasibility.rs:57",
+   "src/cfg/builder/state.rs:46-50"
+  ],
+  "evidence": "edge_index_of is `cfg.edges.iter().position(|(f,t,_)| f==from && t==to)` (rpo.rs:106-107). It is called for every predecessor and successor of every block during Phi_b construction, hyperedge building, DFS ordering and feasibility filtering, so each pass is O(E^2). Matching on the (from,to) pair also merges parallel edges, which Phase 4's add_edge never dedupes, into one variable. For a binary branch, XOR(x,x)=FALSE would then make the block unreachable.",
+  "impact": "Large generated methods (switch tables and parsers with around 10^4 edges) cost about 10^8 comparisons per pass, and multi-edges would silently zero out paths.",
+  "recommendation": "Have Phase 4 emit edge ids in the CSR (a succ_edge_id[] parallel to succ_adj, plus pred_edge_id[]) and index BDD variables by edge id, giving O(1) lookups. Keep parallel edges as distinct variables, or merge them explicitly with multiplicity weights for counting. Done means an O(E) construction pass and a test with a duplicated edge.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Query cache flushes everything when full, uses a weak 32-bit XOR key, and sits behind one global Mutex",
+  "files": [
+   "src/scpg/query/cache.rs:21-36",
+   "src/scpg/serializer/mod.rs:124-134",
+   "src/scpg/serializer/integrity.rs:18-39",
+   "src/ssa/mod.rs:41",
+   "src/psa/mod.rs:77",
+   "src/tra/uml_link/hash_chain.rs:36-44",
+   "src/scpg/api/mod.rs:51-72",
+   "src/scpg/api/builder.rs:5-35"
+  ],
+  "evidence": "The 'LRU' cache clears every entry when full. Its scpg_hash key XORs nine values. One of them is a token count, and `ssa.cfa_hash` and `psa.cfa_hash` are both `crc64_ecma(cfa_bytes)`, so they cancel out; the result is folded to 32 bits. TRA stamps links with a different scpg_hash formula. Results are cached by the engine's hash, but artifacts arrive with each call. All queries are serialized by `Arc<Mutex>`, and a poisoned lock silently returns false. EngineBuilder's options are never used and it has no build().",
+  "impact": "Stale or colliding cache hits are possible, links cannot be checked against the engine's hash, and server queries cannot run concurrently.",
+  "recommendation": "Key snapshots with a SHA-256 or BLAKE3 digest of the canonical section bytes (sha2 is already a dependency), store it in the header's empty source_hash, and share one hash definition with TRA. Use moka or lru over immutable Arc snapshots so reads need no Mutex. Return Result on a poisoned lock and implement build(). Done means a concurrency benchmark and a collision property test.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Impact, navigation and ROBDD queries miss their stated semantics and complexity",
+  "files": [
+   "src/scpg/query/impact.rs:10-34",
+   "src/scpg/query/navigation.rs:8-27",
+   "src/scpg/query/robdd.rs:9-20",
+   "src/tra/types.rs:125-136",
+   "src/main.rs:508-548"
+  ],
+  "evidence": "`impact_set` promises \"callers, overrides, and dependents\" but ignores `_sta` and follows only reverse call edges, scanning every edge per node. `to_source` is documented as O(1) but is `uml_links.iter().find`. `from_source` is documented as O(log n) but is a linear filter that returns every overlapping link instead of the innermost one. TRA's dense `bi_sym` and `sym_span` arrays go unused. `path_count` and `cyclomatic` return 1 for unknown symbols. No CLI command or HTTP route exposes any of these queries.",
+  "impact": "Change impact is under-reported when virtual dispatch is involved, every navigation lookup is O(n), and unknown symbols report fake metrics.",
+  "recommendation": "Compute impact as reverse reachability over call, override (CHA/RTA), field read/write and type-reference edges, or use Chianti-style atomic changes. Navigate with `bi_sym[sym_id]` plus an interval tree or binary search over sorted spans that returns the innermost entity. Return Option for unknown ids, and expose the queries through the CLI and an HTTP or LSP API. Done means tests for override-aware impact and benchmarks that confirm the stated complexity.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-18",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": ".cfa/.ssa/.cga encodings are lossy, partly write-only and mis-indexed",
+  "files": [
+   "src/cfg/serializer.rs:102",
+   "src/cfg/serializer.rs:147-185",
+   "src/ssa/serializer.rs:81-95",
+   "src/ssa/serializer.rs:113",
+   "src/core/types/ssa.rs:25-43",
+   "src/core/types/cg.rs:94",
+   "src/psa/construction/feasibility.rs:114-119"
+  ],
+  "evidence": ".cfa stores exit = blocks.len()-1, but RPO numbering places EXIT before loop-body blocks, so in any function with a loop it names a body block; block statements and token ranges are not stored. CFGArtifact::deserialize and SSASerializer::read return empty function lists. .ssa directory offsets omit seven u32 length prefixes per function, drifting by 28 bytes each. SSARecord.def_block is a u8, which Phase 8 (feasibility.rs:114-119) and Phase 7 then alias. φ orig_sym_id is written as u16, and SCCRecord.member_count is a u16.",
+  "impact": "External readers of .cfa/.ssa get wrong data or none. Functions with more than 256 blocks get mis-attributed SSA defs downstream, and an SCC with more than 65,535 members trips Invariant 3 and aborts Phase 6.",
+  "recommendation": "Use u32 for ids and counts, derive directory offsets from the bytes actually written, store the EXIT id explicitly, implement full readers, and add round-trip property tests. Consider a versioned zero-copy schema (rkyv, FlatBuffers or Cap'n Proto).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-19",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Call-site records carry the wrong token, arity and block, and the CG spans every symbol",
+  "files": [
+   "src/cg/call_sites.rs:142-180",
+   "src/cg/call_sites.rs:43",
+   "src/cg/mod.rs:110-128",
+   "src/psa/mod.rs:98-102"
+  ],
+  "evidence": "call_token is the first identifier child, i.e. the receiver in `obj.m()` (call_sites.rs:153-170). arg_count = children−1 (172-180) is off by one when a receiver exists, and counts anonymous-class members. call_block is found only when the call node is itself a block statement; otherwise it is 0, the ENTRY block (142-151). flags are always 0 (43). method_count = sta.symbol_count (cg/mod.rs:110) puts classes, fields and locals into the CG and SCC table, contrary to phase6.md:23. Tarjan emits SCCs callee-first, but psa/mod.rs:98-102 reverses them believing the opposite.",
+  "impact": "Traceability highlights the wrong token, there is no call-site→CFG link to build an ICFG on, and the SCC order contract is misread downstream.",
+  "recommendation": "Record the name token and argument list explicitly, map each call to its CFG node (see FLOW-16), and restrict CG nodes to callables through a dense method index. Document and test the SCC order (Tarjan's output is reverse topological, i.e. callee-first). Replace Vec::contains deduplication with sort+dedup.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact deserializers slice fixed header offsets after only a minimal length check, panicking on truncated-but-magic-valid files",
+  "files": [
+   "src/main.rs:347-485",
+   "src/uma/serializer.rs:238-270",
+   "src/tra/serializer.rs:114-170"
+  ],
+  "evidence": "`inspect` dispatches on magic then calls sub-deserializers. Readers validate only a coarse minimum length (e.g. `bytes.len() < UMA_HEADER_SIZE + 8`, uma/serializer.rs:230) or `buf.len() < 96` (tra:114) and then index many fixed ranges via `try_into().unwrap()` and derive counts used to slice payloads. A file with a valid magic/CRC-consistent prefix but a truncated or oversized declared count can panic on slice-out-of-range during body parsing. No `catch_unwind` guards these.",
+  "impact": "`openheart inspect` on a crafted or corrupted artifact can panic instead of returning the intended 'corrupted artifact' error; the same parsers are reachable from the engine open path.",
+  "recommendation": "Bounds-check every read against remaining length and return `io::Error` on shortfall (consider a small cursor helper or the `zerocopy`/`bytes` crates). Validate declared element counts against remaining bytes before allocating/slicing. Add fuzz targets (cargo-fuzz) for each `.tca/.bpa/.sta/.cfa/.ssa/.cga/.tra/.psa/.uma/.scpg` reader.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "BDD-14",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No reference/occurrence index and no stable symbol identity (gap against Kythe/SCIP)",
+  "files": [
+   "src/tra/types.rs:125-136",
+   "src/symbol/serializer.rs:14-34",
+   "src/ingestion/mod.rs:69-70",
+   "src/tra/builder.rs:33-43"
+  ],
+  "evidence": "The .tra holds only declaration spans (BI_sym, sym_span, UMLLinks), and neither the STA nor the TRA records use-site occurrences. Find-references, go-to-definition from a use, and role-tagged occurrences are therefore impossible. All keys are positional: sym_id is the STA vector index, token ids are corpus-global, and file_id is the manifest position cast `as u16` (ingestion/mod.rs:70), which wraps beyond 65,535 files.",
+  "impact": "Below the Kythe/SCIP/LSIF baseline: no cross-reference navigation, no cross-repo linking, no IDE or Sourcegraph interoperability, and links that do not survive a rebuild.",
+  "recommendation": "Add an occurrence table (file, byte range, symbol, roles: definition/reference/read/write/import) populated during Phase 3 name resolution, with SCIP-style stable symbol strings (scheme, package, descriptor#method(sig).). Emit a SCIP index via the scip crate, report LSP positions (UTF-16 columns), and use u32 file ids. Done means `scip lint` passes and precision/recall is measured on a labelled Java corpus.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-16",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "sat_count silently saturates at u64::MAX, and consumers then wrap",
+  "files": [
+   "src/psa/bdd/sat_count.rs:60",
+   "src/psa/bdd/sat_count.rs:79-92",
+   "src/uma/visitor.rs:214",
+   "Cargo.toml:23",
+   "src/psa/metrics.rs:79-95"
+  ],
+  "evidence": "Counts above 2^64 return u64::MAX through saturating operations (sat_count.rs:60,79,90,92), with no flag marking the result as inexact. Phase 9 sums them with a plain `+=` (uma/visitor.rs:214), which wraps because overflow-checks=false. PathMetrics serializes `mean = sat_count as f32`, which is not a mean, and from_bytes drops unwind_depth.",
+  "impact": "Functions with 64 or more independent decisions, common in generated code, get clamped counts, and the aggregate totals wrap to small nonsense values.",
+  "recommendation": "Count with num-bigint BigUint, as biodivine-lib-bdd's exact_cardinality and CUDD's Cudd_ApaCountMinterm do, and store a log2 f64 plus an exactness bit in the 16-byte record. Use checked adds in consumers. Done means a test with 80 sequential branches reporting exactly 2^80.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-17",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "PSA/TRA readers trust header counts; the PSA uses a different and slow CRC-64 variant",
+  "files": [
+   "src/psa/serializer.rs:192-244",
+   "src/psa/serializer.rs:259-279",
+   "src/tra/serializer.rs:130-138",
+   "src/tra/serializer.rs:172-295",
+   "src/main.rs:432",
+   "src/main.rs:448"
+  ],
+  "evidence": "Both readers slice `bytes[pos..pos+N]` and call `Vec::with_capacity(n)` using untrusted u32 counts, without validating them against the remaining length. A crafted file with a recomputed CRC therefore panics, or attempts a multi-GB allocation through the CLI inspect path. The PSA's bit-serial CRC-64 (init/xorout all-ones, augmented form) differs from ingestion's CRC-64/ECMA-182, despite the comment saying it 'matches all other serializers' (serializer.rs:262).",
+  "impact": "Local DoS on malformed artifacts, inconsistent integrity checks across formats, and bit-at-a-time hashing of large files.",
+  "recommendation": "Parse through a bounds-checked cursor (binrw, zerocopy, or get() with checked_mul), and validate each count against the remaining bytes before allocating. Use one standard checksum everywhere (the crc crate's CRC_64_ECMA_182 with table/SIMD) or BLAKE3. Add cargo-fuzz targets for both readers. Done means an hour of clean fuzzing.",
+  "effort": "S",
+  "confidence": "high"
+ }
+]

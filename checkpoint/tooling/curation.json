@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "eyebrow": "Audit · OpenHeart main @ fc218cd · 9 November 2026",
+    "verdict": "TBD",
+    "scope": [
+      "28.7K lines of Rust in src/",
+      "9K lines of JavaScript in web/",
+      "29 integration tests",
+      "Static review: no Rust toolchain on the audit machine"
+    ],
+    "method": [
+      "Detection only, reported raw. Nine auditors each read one area of the code against the leading tools and papers for that job. Seven cross-cutting auditors looked for what falls between areas: end-to-end data flow, benchmark integrity, scale, robustness, web security, the test suite, and language support. A second round then went file by file through each area to list everything the first round left out, with no cap on the count.",
+      "Three more agents researched what benchmark-grade evaluation means for this kind of tool, compared OpenHeart with competing engines and code-to-UML tools, and ran the automated checks that work without a Rust toolchain.",
+      "Findings were not verified before listing; each one cites the code it rests on so it can be checked while fixing. A few carry a note from a partial review that was stopped early. Findings marked disputed were challenged by that review.",
+      "Limits: cargo, clippy and the test suite could not be run on the audit machine, so no finding rests on a test run. Statements about runtime behavior come from reading the code."
+    ]
+  },
+  "raw": true,
+  "contextArea": { "SCPGX": "SCPG", "BENCH": "EVAL", "COMP": "EVAL", "AUTO": "ENG", "E2E": "XCUT", "FIT": "XCUT", "SCALE": "XCUT", "ROB": "XCUT", "LANG": "XCUT", "WSEC": "WEB", "TST": "ENG" },
+  "areas": [
+    { "code": "SRV", "name": "HTTP server, CLI and container", "artifacts": "src/adapters · src/main.rs · Dockerfile" },
+    { "code": "CORE", "name": "Core, ingestion and succinct AST", "artifacts": "Phases 1–2 · corpus.tca · ast.bpa" },
+    { "code": "SYM", "name": "Symbol table and name resolution", "artifacts": "Phase 3 · symbols.sta" },
+    { "code": "FLOW", "name": "Control flow, SSA and call graph", "artifacts": "Phases 4–6 · cfg.cfa · ssa.ssa · callgraph.cga" },
+    { "code": "BDD", "name": "Traceability and ROBDD path summaries", "artifacts": "Phases 7–8 · traceability.tra · paths.psa" },
+    { "code": "UML", "name": "UML extraction and pattern detection", "artifacts": "Phase 9 · metadata.uma" },
+    { "code": "SCPG", "name": "Unified graph, queries and exporters", "artifacts": "Phase 10 · unified.scpg" },
+    { "code": "WEB", "name": "Web studio", "artifacts": "web/ · GitHub Pages" },
+    { "code": "ENG", "name": "Engineering, tests and documented claims", "artifacts": "tests/ · .github/ · Cargo.toml · docs/" },
+    { "code": "XCUT", "name": "Cross-cutting: integration, benchmark integrity, scale, robustness, languages", "artifacts": "Whole pipeline, phases 1–10" },
+    { "code": "EVAL", "name": "Benchmarks and positioning", "artifacts": "Evaluation research · competitor comparison" }
+  ],
+  "top": [],
+  "roadmap": [],
+  "merge": {},
+  "exclude": [],
+  "overrides": {}
+}

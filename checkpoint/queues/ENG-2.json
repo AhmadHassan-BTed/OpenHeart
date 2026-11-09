@@ -1,0 +1,735 @@
+[
+ {
+  "id": "MANDATE-CORE-ARCH-ENG",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "critical",
+  "title": "Language-neutral, compiler-grade rewiring of your paths (no hard-coding, no templates)",
+  "files": [
+   "Cargo.toml"
+  ],
+  "evidence": "OpenHeart must support every language with language-agnostic algorithms, and must never hard-code, template or guess: it works the way compilers do, statically. New code is being written now (read what exists): src/lang (neutral.rs universal vocabulary, frontend.rs LanguageFrontend trait, registry.rs single list of languages, profile.rs, build/ for compile_commands, CMake and MSBuild, preprocess.rs, project_model.rs, uml_semantics.rs, idioms.rs, frontends java, kotlin, c, cpp, csharp); src/ir (typed three-address SSA IR with explicit memory operations, lowering from the AST, dominators); src/memory (abstract heap, field-sensitive points-to with on-the-fly call graph, escape, ownership, mod/ref); src/analysis (lattices, worklist solvers, SCCP, intervals, nullness, typestate, control dependence, IFDS/IDE, contexts, canonical branch conditions); src/derive (every diagram derived from those facts with provenance and a Derivation tag, NotDerivable instead of invention); src/symex (bounded static symbolic execution with a stack, heap and path-condition model producing execution traces); src/abi (C/C++ Itanium and MSVC, JVM and CLR memory layouts, lifetimes, calling conventions); src/arch (architecture recovery: dependency graph, DSM, layers, clustering, metrics, boundaries); src/memview (lifetime, ownership, heap-shape and stack-frame views plus memory-safety and data-race facts). Everything from the architectural flow down to memory-level execution must come from these facts, for every language, with semantics exactly per each language specification. Contract names: LangId::C, LangId::Cpp, LangId::CSharp; ASTNodeType additions NN_NAMESPACE_DECL, NN_STRUCT_DECL, NN_UNION_DECL, NN_TYPEDEF_DECL, NN_FUNCTION_DECL, NN_DESTRUCTOR_DECL, NN_OPERATOR_DECL, NN_TEMPLATE_DECL, NN_PROPERTY_DECL, NN_INDEXER_DECL, NN_EVENT_DECL, NN_DELEGATE_DECL, NN_USING_DIRECTIVE, NN_INCLUDE_DIRECTIVE, NN_GOTO_STMT, NN_LABELED_STMT, NN_FOREACH_STMT, NN_USING_STMT, NN_LOCK_STMT, NN_YIELD_STMT.",
+  "impact": "Without this, OpenHeart stays Java-specific and heuristic instead of a universal, compiler-grade engine.",
+  "recommendation": "Keep Cargo.toml dependencies consistent: one tree-sitter core version that all grammar crates (java, kotlin, c, cpp, c-sharp) support, rust-version raised if a dependency requires it, and every crate the new modules added kept.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-1",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Replace tree-sitter = \"0.20\", tree-sitter-java = \"0.20\" and tree-sitter-javascript = \"0.20\" with tre",
+  "files": [
+   "Cargo.toml [dependencies]"
+  ],
+  "evidence": "Replace tree-sitter = \"0.20\", tree-sitter-java = \"0.20\" and tree-sitter-javascript = \"0.20\" with tree-sitter = \"0.25\" (or current 0.26), tree-sitter-java = \"0.23\" and tree-sitter-javascript = \"0.23\" (or current). Add tree-sitter-kotlin-ng = \"1\". Every grammar must declare a rust-version of 1.88 or lower, or rust-version in [package] must be raised with it.",
+  "impact": "LANG-01/CORE-01/ENG-01/COMP-01/AUTO-05/ENG-14: current grammars, Kotlin's included, need the LanguageFn API, which tree-sitter 0.20 does not have. This is more than the one dependency line my paths allow.",
+  "recommendation": "Replace tree-sitter = \"0.20\", tree-sitter-java = \"0.20\" and tree-sitter-javascript = \"0.20\" with tree-sitter = \"0.25\" (or current 0.26), tree-sitter-java = \"0.23\" and tree-sitter-javascript = \"0.23\" (or current). Add tree-sitter-kotlin-ng = \"1\". Every grammar must declare a rust-version of 1.88 or lower, or rust-version in [package] must be raised with it.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-6",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Run `make ci CARGO_FLAGS=--locked` on ubuntu-latest, windows-latest and macos-latest. Add jobs for `",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "Run `make ci CARGO_FLAGS=--locked` on ubuntu-latest, windows-latest and macos-latest. Add jobs for `make msrv`, `make deny`, `make machete`, `make coverage` and `make docker-smoke`, plus nightly `make miri` and `make asan`. Add top-level `permissions: contents: read`, pin actions by commit SHA, and use Swatinem/rust-cache.",
+  "impact": "ENG-10/TST-17/AUTO-15/ENG-15: the Makefile now provides every gate. Calling it from CI keeps local and CI commands identical.",
+  "recommendation": "Run `make ci CARGO_FLAGS=--locked` on ubuntu-latest, windows-latest and macos-latest. Add jobs for `make msrv`, `make deny`, `make machete`, `make coverage` and `make docker-smoke`, plus nightly `make miri` and `make asan`. Add top-level `permissions: contents: read`, pin actions by commit SHA, and use Swatinem/rust-cache.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-7",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Replace the three inline cargo commands with `exec make ci \"$@\"`.",
+  "files": [
+   "scripts/ci_check.sh"
+  ],
+  "evidence": "Replace the three inline cargo commands with `exec make ci \"$@\"`.",
+  "impact": "ENG-10: `make ci` no longer calls this script; it now runs fmt-check, check, lint, test (with doctests) and doc. Delegating keeps the two from drifting.",
+  "recommendation": "Replace the three inline cargo commands with `exec make ci \"$@\"`.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-9",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Stop uploading target/release/libopenheart.rlib. Use an OS matrix (linux/macos/windows) that runs `m",
+  "files": [
+   ".github/workflows/release.yml"
+  ],
+  "evidence": "Stop uploading target/release/libopenheart.rlib. Use an OS matrix (linux/macos/windows) that runs `make dist` and uploads dist/openheart-<version>-<triple>.tar.gz plus its .sha256 file. Add `permissions: contents: write` and `needs` on CI success.",
+  "impact": "COMP-09/ENG-13/AUTO-15: the new dist target produces the usable binary archive and checksum.",
+  "recommendation": "Stop uploading target/release/libopenheart.rlib. Use an OS matrix (linux/macos/windows) that runs `make dist` and uploads dist/openheart-<version>-<triple>.tar.gz plus its .sha256 file. Add `permissions: contents: write` and `needs` on CI success.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Adopt thiserror for typed per-layer errors (ENG-07), or remove the line.",
+  "files": [
+   "Cargo.toml [dependencies] thiserror line"
+  ],
+  "evidence": "Adopt thiserror for typed per-layer errors (ENG-07), or remove the line.",
+  "impact": "ENG-14/AUTO-15/CORE-14: it is still unused, and `make machete` reports it until one of these happens.",
+  "recommendation": "Adopt thiserror for typed per-layer errors (ENG-07), or remove the line.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "HO-fix_ENG_1-15",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Handoff from fix:ENG:1: Add rayon = \"1\" together with par_iter over files (per-thread Parser via map_init) and over function",
+  "files": [
+   "Cargo.toml [dependencies] + src/ingestion",
+   "src/ast",
+   "src/core/pipeline.rs"
+  ],
+  "evidence": "Add rayon = \"1\" together with par_iter over files (per-thread Parser via map_init) and over functions in Phases 4, 5, 8 and 9.",
+  "impact": "SCALE-10/COMP-08: the dependency is useful only together with the code that uses it.",
+  "recommendation": "Add rayon = \"1\" together with par_iter over files (per-thread Parser via map_init) and over functions in Phases 4, 5, 8 and 9.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "restart_server.sh SIGKILLs every process using the port, including clients",
+  "files": [
+   "scripts/restart_server.sh",
+   "Makefile"
+  ],
+  "evidence": "lsof -t -i:${PORT} (restart_server.sh:11) matches sockets whose local or remote port is 8080. That includes browsers, IDEs and any app connected to a remote :8080 service or proxy, and all of them are killed with kill -9 (line 14) without confirmation. Both make server and make serve run it (Makefile:39-44).",
+  "impact": "Starting the dev server can force-kill unrelated applications and lose unsaved work.",
+  "recommendation": "Select listeners only (lsof -t -iTCP:$PORT -sTCP:LISTEN) and check that the process is openheart or cargo. Send SIGTERM and wait before SIGKILL, and ask before killing any other process.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-08",
+  "kind": "flaw",
+  "category": "dependency",
+  "severity": "high",
+  "title": "Docker builder toolchain is likely too old for the locked dependencies",
+  "files": [
+   "Dockerfile",
+   "Cargo.lock",
+   "Cargo.toml",
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "Dockerfile:2 pins rust:1.80-slim. Cargo.lock pins sha2 0.11.1 (digest 0.11.3, hybrid-array 0.4.15) and getrandom 0.4.3; these release lines use edition 2024 and need Rust 1.85 or later. Cargo.toml has no rust-version, and CI tests only stable and beta (ci.yml:19). Differs from SRV-11: the image cannot be built at all.",
+  "impact": "docker build fails while compiling dependencies, even after the CMD in SRV-03 is fixed.",
+  "recommendation": "Pin a current toolchain image by digest, declare rust-version in Cargo.toml, and add MSRV and docker-build CI jobs.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "FIT-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Identity is the simple class name end to end; same-named classes merge, and the benchmark cannot see it",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/symbol/passes/pass4_members.rs",
+   "ruthless_verify.py",
+   "tests/adversarial_trick_tests.rs"
+  ],
+  "evidence": "PlantUML declares `class {SimpleName}` with no FQN alias (plantuml.rs:330-333) and keys class_by_name and edges by simple name (443-470). JSON node ids are simple names (json.rs:258). Pass 4 binds types through class_name_to_sym, a map keyed by simple name (pass4_members.rs:18-32, 108). The oracle is a dict keyed by simple name (ruthless_verify.py:95) and the PUML parser returns a set, so both sides collapse duplicates. Experiment: for a toy tree with a/Config.java and b/Config.java the oracle reports one class. adversarial_trick_tests.rs:7 claims \"disambiguation of identical class names\", but its fixtures contain no duplicates.",
+  "impact": "In real repositories (java-design-patterns declares App in nearly every module; Spring apps have many Config and Application classes), members and edges from different packages are merged or misattributed while F1 stays unchanged.",
+  "recommendation": "Use the FQN (package plus enclosing types) or the symbol id as node identity in every exporter, with display aliases (`class \"Config\" as a.Config`). Resolve types only via the scope graph and imports, and score benchmarks by FQN. Done = a fixture with three Config classes in different packages yields three nodes with correct edges in PlantUML, Mermaid and JSON.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-11",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "high",
+  "title": "A missing or failed repository is silently replaced by another repo and reported as success",
+  "files": [
+   "src/adapters/server.rs",
+   "web/index.html",
+   "scripts/verify_all_14_uml_diagrams.py"
+  ],
+  "evidence": "When ./target_repos/<name> is absent and `git clone` fails, process_analyze_request takes the first directory in ./target_repos (server.rs:467-482). It analyses that directory and returns `\"status\":\"success\"` with the log \"All 10 phases verified\" (696-699). The payment-service preset (index.html:93, 1155) points at https://github.com/example/payment-service, which can only succeed through this fallback. Benchmark scripts gate on status and syntax only (verify_all_14_uml_diagrams.py:132-149), so a missing dataset produces green results computed on the wrong code.",
+  "impact": "A typo, a private repo or an absent dataset returns another project's diagrams under the requested name. Published benchmark numbers can come from the wrong repository without any warning.",
+  "recommendation": "Fail closed: return an error status (and HTTP 4xx) when the requested repository cannot be materialized. Include the resolved path and commit SHA in every response. Benchmark scripts must assert that the analysed SHA equals the pinned SHA from a dataset manifest. Done = an integration test where an unknown repository yields an error and no diagrams.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "generate_diagrams.py looks for its config in scripts/ and silently writes zero diagrams",
+  "files": [
+   "scripts/generate_diagrams.py",
+   "CHANGELOG.md"
+  ],
+  "evidence": "Line 62 builds cfg_path from os.path.dirname(__file__), which is scripts/, but ruthless_config.json lives at the repo root. exists() is False, so diagram_mapping=[] (67), the loop at 73 writes nothing, and the script prints 'Saved 0' and exits 0. CHANGELOG.md:33 advertises 14 .puml files. The hint at 45 names ./restart_server.sh, which is actually in scripts/.",
+  "impact": "The documented diagram generator never produces output and still reports success.",
+  "recommendation": "Resolve Path(__file__).resolve().parents[1]/'ruthless_config.json'. Exit non-zero when the config is missing or no diagram is saved. Fix the hint path.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-08",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Harness docstrings advertise checks the scripts never perform",
+  "files": [
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_authored_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/test_diagrams_outputs_refresh.py"
+  ],
+  "evidence": "benchmark_all:8-9 promises artifact verification and syntax checks for 14 diagrams. It requests 5 diagram types (85), checks no artifact, and parses relations (68-72) that it then discards (111). test_authored:12 claims CRC-64 checks on all artifacts but inspects 6 of 10 (160). test_ruthless:100 omits .tra, .psa and .uma. refresh:8 claims 'edge consistency' but checks only header, footer and braces.",
+  "impact": "Readers overestimate what the evaluation actually covers.",
+  "recommendation": "Implement the promised checks (inspect all 10 artifacts, score inheritance edges with precision and recall) or correct the docstrings.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-10",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Six harness scripts copy the same client and server-bootstrap code, and the copies have drifted",
+  "files": [
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/test_authored_design_patterns.py",
+   "scripts/test_diagrams_outputs_refresh.py",
+   "scripts/test_full_suite.py",
+   "scripts/verify_all_14_uml_diagrams.py"
+  ],
+  "evidence": "post_analyze, run_cmd, log_test and the fuser+Popen+sleep bootstrap are duplicated in all six scripts (e.g. benchmark:30-49,154-162; full_suite:32-55,253-260). They already differ: timeouts of 30, 60 or 300 s, port 8085 versus 8080, and verify_all_14:133 reads 'error' while the server returns 'errors'. All assume CWD is the repo root (os.getcwd() binary path).",
+  "impact": "Every fix must be made six times, and behaviour already differs between scripts.",
+  "recommendation": "Extract a shared harness package: a pytest server fixture with health polling, a client and scoring helpers. Resolve paths from __file__ and take the port and timeouts from env.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-11",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Harness tests whatever target/debug binary exists and waits a fixed 2 s for readiness",
+  "files": [
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/test_authored_design_patterns.py",
+   "scripts/test_diagrams_outputs_refresh.py",
+   "scripts/verify_all_14_uml_diagrams.py",
+   "scripts/test_full_suite.py"
+  ],
+  "evidence": "OPENHEART_BIN is target/debug/openheart (benchmark:27, test_ruthless:24, authored:34, refresh:23, verify_14:32, full_suite:256), and no script builds it, so a stale binary gets tested silently. Readiness is time.sleep(2) (e.g. benchmark:162). Server stdout and stderr go to DEVNULL (159-160), so crashes look like analysis failures.",
+  "impact": "Results may describe an old build, and startup failures get misdiagnosed.",
+  "recommendation": "Run cargo build --locked first (a release build for timings). Poll /api/health with a deadline. Write server output to a log file and print it on failure.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-12",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "Scripts SIGKILL any process listening on the benchmark port",
+  "files": [
+   "scripts/restart_server.sh",
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/test_authored_design_patterns.py",
+   "scripts/test_diagrams_outputs_refresh.py",
+   "scripts/test_full_suite.py",
+   "scripts/verify_all_14_uml_diagrams.py"
+  ],
+  "evidence": "restart_server.sh:11-14 runs kill -9 on every PID lsof finds on the port. The Python harnesses run 'fuser -k PORT/tcp' (benchmark:155, test_ruthless:276, authored:169, refresh:274, full_suite:253, verify_14:160). Whatever owns 8080 or 8085 (another dev server, a proxy) is killed with no check or prompt, and SIGKILL prevents cleanup.",
+  "impact": "Running a benchmark can kill unrelated local services.",
+  "recommendation": "Start the server on an ephemeral port and track its PID. If the port is busy, fail with a clear message. Send SIGTERM and wait before escalating.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-13",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "The Python harness and the web studio have no CI at all",
+  "files": [
+   ".github/workflows/ci.yml",
+   ".github/workflows/deploy_pages.yml",
+   "ruthless_verify.py",
+   "scripts/generate_diagrams.py"
+  ],
+  "evidence": "ci.yml:40-47 runs only cargo check, fmt and test. The nine Python scripts and web/js (published by deploy_pages.yml:30-37) are never compiled, linted or run. That is how defects such as generate_diagrams.py:62 and ruthless_verify.py:433-457 shipped. This differs from ENG-10 and AUTO-15, which are about Rust lint gates.",
+  "impact": "Half of the repository's code can break with no signal.",
+  "recommendation": "Add a job that runs py_compile, ruff and unit tests for the scoring helpers, plus node --check or eslint on web/js, and a headless smoke test of index.html against a built server.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-14",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "Pages deploy runs on every push to main regardless of CI status",
+  "files": [
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "The deploy triggers on push to main and workflow_dispatch (3-6). It has no needs or workflow_run dependency on ci.yml and no paths filter, so it runs in parallel with CI. A commit that fails CI is still published to the live studio, and Rust-only commits redeploy the site.",
+  "impact": "Broken web builds go live, and unneeded deploys churn the Pages environment.",
+  "recommendation": "Trigger on workflow_run of 'Continuous Integration' with conclusion == success (or merge into one workflow using needs), and add paths: ['web/**'].",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-15",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "medium",
+  "title": "Release workflow lacks contents: write and uses the deprecated action-gh-release@v1",
+  "files": [
+   ".github/workflows/release.yml"
+  ],
+  "evidence": "There is no permissions block (1-28). With the read-only default GITHUB_TOKEN of newer repos, action-gh-release cannot create a release (403). @v1 (22) is the Node 16 generation. No tests run, the tag is never checked against Cargo.toml's 0.1.0, and no checksums are published. This differs from ENG-13 (never run, ships an .rlib).",
+  "impact": "Tagging v* probably fails, and a successful run could publish an untested, mis-versioned artifact.",
+  "recommendation": "Add job-level permissions: contents: write. Use a SHA-pinned v2. Run cargo test --locked first, assert the tag matches the package version, and attach SHA256SUMS.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "UML2-07",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "Sequence extraction has no size bound, and its u16 ordinals wrap",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:42",
+   "src/uma/behavioral/sequence_diagram.rs:84",
+   "src/uma/behavioral/sequence_diagram.rs:96-151",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "For each entry point, a DFS over the entire reachable call graph emits one message per (site, target) pair, with no cap on depth, messages or lifelines. A polymorphic CHA site emits one message per target. ordinal is a u16 incremented with `+= 1`, and the HEAD dev profile sets overflow-checks=false, so after 65,535 messages ordinals wrap silently. This differs from UML-09 (scan cost) and UML-07 (ordering).",
+  "impact": "Large apps produce scenarios with huge message lists and duplicate ordinals, and memory grows as entry points times call edges.",
+  "recommendation": "Add configurable per-scenario depth and message caps, collapse polymorphic targets into one message to the declared type, and use u32 ordinals. Add test_sequence_message_cap_respected.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FIT-15",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Headline numbers are unmeasured or unreproducible (128×, the F1 table, the CI badge, test counts)",
+  "files": [
+   "README.md",
+   "docs/succinct_structures.md",
+   "docs/overview.md",
+   ".gitignore",
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "\"128× Memory Compression\" (README.md:54) divides 32 MB of pointers by the 250 KB topology bitstring only; the same derivation totals 9.65 MB, which is 3.3× (docs/succinct_structures.md:37-47). There is no benches/ directory and no criterion harness. The F1 table (docs/overview.md:100-111) cannot be reproduced: target_repos/ is gitignored, no URLs, commit SHAs or result files are committed, and CI (ci.yml) runs only cargo test. The \"CI passing\" badge is a static shields.io image (README.md:10). README.md:164 claims 22 integration tests; tests/ contains 29.",
+  "impact": "Readers cannot check any headline claim, and the badge stays green even when CI fails.",
+  "recommendation": "Publish a benchmark manifest (repo URL, commit SHA, licence) and commit machine-readable results. Add criterion benches that measure serialized artifact bytes and resident memory against a pointer baseline (for example a tree-sitter Tree or a JavaParser AST heap) and report the measured ratio. Use the workflow status badge and generate README numbers from CI artefacts. Done = `make bench` reproduces every README number.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-21",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "ruthless_verify.py ignores ignore_dirs and overrides package_stmt_patterns from its config",
+  "files": [
+   "ruthless_verify.py",
+   "ruthless_config.json"
+  ],
+  "evidence": "IGNORE_DIRS is loaded (38) but never used; each oracle hardcodes its own ignore set (66-69, 110-113, 191-194). PKG_STMT_PATTERNS is built from the config (40-42) and then replaced by a hardcoded dict (181-185), so ruthless_config.json:98-106 have no effect. defaultdict (14) is unused. The docstring's 'Zero hardcoding' (6) is false.",
+  "impact": "Edits to the config silently do nothing, and three copies of the ignore list can drift.",
+  "recommendation": "Use the config values, factor out one walk_sources() helper, and delete the dead code.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-22",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "ruthless_verify.py re-slices the file prefix for every regex match",
+  "files": [
+   "ruthless_verify.py"
+  ],
+  "evidence": "For each match, oracle_regex builds content[:match.start()] twice (90 and 93) to count backticks and newlines. That costs O(file size) per match, or O(n*m) per file. The backtick-parity heuristic (91) ignores escapes and comments, and its extension list omits .mts and .cts, which line 142 does handle.",
+  "impact": "The oracle is slow on large or minified files, and JS ground truth is wrong around template literals.",
+  "recommendation": "Precompute newline offsets once and bisect into them. Tokenize template literals in one pass, and share one extension set.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-26",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "Harness output prints fixed success figures regardless of outcome",
+  "files": [
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_full_suite.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/test_diagrams_outputs_refresh.py"
+  ],
+  "evidence": "benchmark:201 always prints '(100.0%)', the banners hardcode 176 modules (3, 138, 199), and line 202 divides by total_analyzed, which raises ZeroDivisionError when no module is found. full_suite:243 prints 'F1=1.0000 across Android, Java, Kotlin, JS, Rust' even on FAIL. test_ruthless:114 and 140 and refresh:126 and 203 print fixed detail strings.",
+  "impact": "Logs read as successful even when checks fail.",
+  "recommendation": "Print computed values only, guard the divisions, and take counts from the modules actually discovered.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-28",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "The Python harness cannot run on Windows, the maintainer's platform",
+  "files": [
+   "ruthless_verify.py",
+   "scripts/test_full_suite.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/restart_server.sh"
+  ],
+  "evidence": "The scripts depend on fuser and lsof, call 'python3' (full_suite:241) and write under /tmp. The box-drawing and emoji output crashes when stdout is piped on cp1252: in scratchpad, ruthless_verify.py raised UnicodeEncodeError at line 402. full_suite:159-228 runs cargo test while openheart.exe is running, and Windows locks the file against relinking (medium confidence).",
+  "impact": "Validation results cannot be reproduced on the development machine.",
+  "recommendation": "Use sys.executable and tempfile, and track PIDs instead of calling fuser. Call sys.stdout.reconfigure(encoding='utf-8'). Stop the server before running cargo test.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "ENG2-29",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Python scripts have unused imports, broad excepts and shell=True with unquoted paths",
+  "files": [
+   "scripts/benchmark_all_java_design_patterns.py",
+   "ruthless_verify.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/test_authored_design_patterns.py"
+  ],
+  "evidence": "Unused imports: shutil, ThreadPoolExecutor and as_completed (benchmark:19, 23), defaultdict (ruthless_verify:14). 'except Exception' swallows errors without detail (benchmark:91, 119-120). ruthless_verify:324 catches (URLError, Exception). Every run_cmd uses shell=True with f-string paths (e.g. test_ruthless:94, authored:143), which breaks on paths containing spaces.",
+  "impact": "Failures are hidden and command lines are fragile.",
+  "recommendation": "Enable ruff rules F401, BLE001 and S602 in CI. Pass argument lists to subprocess.run and log exception details.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-32",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "low",
+  "title": "restart_server.sh and generate_diagrams.py have small robustness bugs",
+  "files": [
+   "scripts/restart_server.sh",
+   "scripts/generate_diagrams.py"
+  ],
+  "evidence": "restart_server.sh uses 'set -e' without pipefail or nounset (2), never validates or quotes PORT (4, 11, 21), and reports 'No existing server' when lsof is missing (11). generate_diagrams.py:25 derives repo_name with replace('.git',''), so 'user.github.io' becomes 'userhub.io', and it accepts '..' as a name, which writes outside output_diagrams/.",
+  "impact": "Edge cases produce wrong output directories and misleading messages.",
+  "recommendation": "Use set -euo pipefail, check that the port is numeric and that lsof exists. Strip only a trailing .git and sanitize the directory name.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-33",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "CI cache key ignores the compiler version and is never refreshed",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "ci.yml:29-38 caches target/ under '<os>-cargo-<stable|beta>-<hash(Cargo.lock)>' with no restore-keys. When stable or beta advances, the restored target/ is unusable and everything rebuilds. actions/cache does not re-save on an exact key hit, so every run rebuilds until Cargo.lock changes, and any lockfile change starts cold.",
+  "impact": "CI is slow and wastes runner minutes.",
+  "recommendation": "Use Swatinem/rust-cache, which keys on rustc -vV and prunes target/, or add the rustc version hash to the key plus restore-keys.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-34",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "CI job ordering and matrix settings waste time and let beta block merges",
+  "files": [
+   ".github/workflows/ci.yml"
+  ],
+  "evidence": "The matrix (17-19) keeps the default fail-fast and has no continue-on-error, so a beta-only regression cancels stable and blocks PRs. fmt --check runs after a full cargo check (40-44), and check duplicates the build cargo test performs. There is no concurrency group, timeout-minutes or workflow_dispatch. 'cargo test --all-targets' (47) skips doctests.",
+  "impact": "Feedback is slower, toolchain noise blocks merges, and doc examples are never tested.",
+  "recommendation": "Run fmt first. Set fail-fast: false and continue-on-error for beta. Add concurrency and timeouts, plus a 'cargo test --doc' step.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-35",
+  "kind": "flaw",
+  "category": "dependency",
+  "severity": "low",
+  "title": "No build passes --locked, so Cargo.lock can be silently re-resolved",
+  "files": [
+   ".github/workflows/ci.yml",
+   ".github/workflows/release.yml",
+   "Makefile",
+   "scripts/ci_check.sh"
+  ],
+  "evidence": "ci.yml:41,47, release.yml:19, Makefile:8-20 and ci_check.sh:10,16 all run cargo without --locked or --frozen. If Cargo.toml and Cargo.lock disagree, CI quietly re-resolves in the runner and tests versions nobody committed, and release binaries are not reproducible from their tag.",
+  "impact": "CI may test, and releases may ship, dependency versions that were never reviewed.",
+  "recommendation": "Add --locked to every cargo invocation in CI, the release workflow, the Makefile and ci_check.sh.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-36",
+  "kind": "flaw",
+  "category": "dependency",
+  "severity": "low",
+  "title": "Dependabot does not group the ABI-coupled tree-sitter crates or watch the Dockerfile",
+  "files": [
+   ".github/dependabot.yml"
+  ],
+  "evidence": "dependabot.yml:3-13 has no groups or ignore rules. tree-sitter, tree-sitter-java and tree-sitter-javascript must move together because the grammar ABI has to match the runtime, but they arrive as separate PRs that fail or mismatch. No docker ecosystem entry covers the Dockerfile base image. Major bumps (thiserror 2, sha2 0.11) were merged on a compile-only gate.",
+  "impact": "Grammar upgrades are effectively blocked, and base-image CVEs go unnoticed.",
+  "recommendation": "Add a tree-sitter group and a docker ecosystem entry, and label semver-major updates for manual review.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "ENG2-37",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "Makefile .PHONY, help and docs targets are incomplete or awkward",
+  "files": [
+   "Makefile"
+  ],
+  "evidence": ".PHONY (1) omits release, run and server, so a file with one of those names silently disables the target. help (51-61) does not list run or server, and the server and serve targets are identical (38-44). The docs target runs 'cargo doc --open' (28), which fails on headless machines.",
+  "impact": "Minor developer confusion and targets that do not work everywhere.",
+  "recommendation": "Complete .PHONY and help, drop the duplicate target, and split docs from docs-open.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-38",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "low",
+  "title": "The dev profile compiles at opt-level 2 and the release profile is untuned",
+  "files": [
+   "Cargo.toml"
+  ],
+  "evidence": "[profile.dev] opt-level = 2 (21-23) also applies to cargo test and check builds. It slows incremental builds and CI and optimises away variables in the debugger. It also means the 'debug' binaries the scripts use are optimised. There is no [profile.release] (lto, codegen-units = 1) for the shipped binary. ENG-14 covers only the overflow-checks setting.",
+  "impact": "Slower edit-compile-test loops and debugging, and an untuned release binary.",
+  "recommendation": "Use opt-level 0 or 1 for the crate with [profile.dev.package.\"*\"] opt-level = 2 for dependencies, and add a tuned release profile.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-39",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": ".editorconfig gives .yml files a 4-space indent and puts spaces in Makefile recipes",
+  "files": [
+   ".editorconfig"
+  ],
+  "evidence": "'[*.yml]' (20) is an empty section, so the indent rules that follow apply only to *.yaml, and every workflow inherits indent_size 4 from [*]. [*] sets indent_style = space with no Makefile override, so EditorConfig-aware editors turn recipe tabs into spaces and make fails with 'missing separator'. *.bat files inherit end_of_line = lf.",
+  "impact": "Editors corrupt the Makefile and mis-indent the workflows.",
+  "recommendation": "Use [*.{yml,yaml}], add [Makefile] with indent_style = tab, and add [*.{bat,cmd}] with end_of_line = crlf.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-40",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": ".gitattributes forces LF on run.bat and marks only one artifact type as binary",
+  "files": [
+   ".gitattributes"
+  ],
+  "evidence": "'* text=auto eol=lf' (2) has no *.bat or *.cmd override, so run.bat is checked out with LF endings, and cmd.exe can misparse labels and goto in LF-only batch files. Only *.tca, png, jpg and ico are marked binary (13-16). The other nine artifact types, webp, mp4, pdf and fonts rely on autodetection.",
+  "impact": "The Windows launcher may misbehave, and binary files risk end-of-line conversion or text diffs.",
+  "recommendation": "Add '*.bat text eol=crlf' and '*.cmd text eol=crlf', plus binary rules for every artifact and media type.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "ENG2-41",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": ".gitignore negations never apply and several patterns over-match",
+  "files": [
+   ".gitignore",
+   "examples/README.md"
+  ],
+  "evidence": "'.vscode/' (92) excludes the whole directory, so the negations at 93-96 have no effect (git check-ignore confirms settings.json is ignored). 'sample_codebase/*' (61) ignores the tracked fixture directory, and the .gitkeep it re-includes does not exist. Unanchored build/, dist/, env/ and out/ (18-19, 34-35, 53) match nested directories. The output directories from examples/README are not ignored.",
+  "impact": "Shared editor settings and new fixtures cannot be committed, and generated output pollutes git status.",
+  "recommendation": "Use '.vscode/*', anchor root-only patterns with '/', drop the sample_codebase rule, and add output_*/.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-52",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Docs name a Monaco editor that is not used and disagree on diagram numbering",
+  "files": [
+   "README.md",
+   "CHANGELOG.md",
+   "docs/architecture.md",
+   "docs/codebase-guide.md",
+   "ruthless_config.json",
+   "docs/assets/scpg_overview.svg"
+  ],
+  "evidence": "README.md:157, CHANGELOG.md:17,25, architecture.md:182 and codebase-guide.md:229 call the source viewer Monaco. web/js/editor.js:1-6 is a zero-dependency viewer, and index.html loads no Monaco. README.md:69-84 numbers 02 Package and 05 Object, while ruthless_config.json:107-121 numbers them the other way round. The README's hero SVG says '9x CSR' and '14 diagrams', but overview.md says 7.1x and the README says 19.",
+  "impact": "Inconsistent names and numbers erode trust in the docs.",
+  "recommendation": "Call it a 'source viewer'. Take the diagram numbering from manifest.json, and regenerate the SVG from the same data.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "ENG2-56",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Issue and PR templates describe an obsolete 5-phase pipeline and lack key fields",
+  "files": [
+   ".github/ISSUE_TEMPLATE/feature_request.md",
+   ".github/ISSUE_TEMPLATE/bug_report.md",
+   ".github/PULL_REQUEST_TEMPLATE.md"
+  ],
+  "evidence": "feature_request.md:15-20 lists Phase 3 as CFG & SSA, Phase 4 as ROBDD and Phase 5 as IFDS & UML, which contradicts the 10-phase pipeline. bug_report.md (15-24) does not ask for the language, CLI-vs-server mode or artifacts. There is no ISSUE_TEMPLATE/config.yml pointing security reports to SECURITY.md. The PR checklist (15-18) omits clippy and the Python harness.",
+  "impact": "Reports arrive mislabelled and incomplete, and vulnerabilities may be filed publicly.",
+  "recommendation": "Update the phase list to phases 1-10, add the missing fields, add a config.yml with a security contact link, and extend the PR checklist.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-72",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "run.bat is checked out with LF line endings",
+  "files": [
+   "run.bat",
+   ".gitattributes"
+  ],
+  "evidence": ".gitattributes:2 forces '* text=auto eol=lf' with no override for *.bat, and the working copy of run.bat contains only LF (checked with od). cmd.exe parses LF-only batch files unreliably, especially label scanning and block parsing.",
+  "impact": "Windows checkouts can hit intermittent batch failures that are hard to diagnose.",
+  "recommendation": "Add '*.bat text eol=crlf' and '*.cmd text eol=crlf' to .gitattributes and renormalize.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "SRV2-74",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "restart_server.sh misreports when lsof is missing and runs a debug build",
+  "files": [
+   "scripts/restart_server.sh",
+   "Makefile"
+  ],
+  "evidence": "'2>/dev/null || true' hides a missing lsof (restart_server.sh:11), so the script prints 'No existing server process found' and then cargo fails to bind. The script is Unix-only, yet the Makefile targets call it on every platform (Makefile:39-44). It runs cargo run (debug) with an unquoted ${PORT} (line 21).",
+  "impact": "Diagnostics are misleading, the server runs slower, and make fails on Windows.",
+  "recommendation": "Check command -v lsof (fall back to ss or fuser), quote variables, and run the release binary.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-75",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "Makefile target hygiene issues",
+  "files": [
+   "Makefile"
+  ],
+  "evidence": ".PHONY (Makefile:1) is missing release, run and server, and help (Makefile:51-61) does not list run or server. server and serve are duplicate targets (Makefile:39-44). docs uses --open, which fails in headless environments (Makefile:28).",
+  "impact": "Targets silently stop running if a file with the same name appears, and targets are hard to discover.",
+  "recommendation": "Complete .PHONY, generate help from the ## comments, drop the duplicate target, and make --open optional.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-52",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Unreferenced assets deployed (.mmd files, duplicate JSON, unlinked docs, garbage demo names)",
+  "files": [
+   "web/diagrams/state.json",
+   "web/diagrams/use_case.json",
+   "web/diagrams/class.mmd",
+   "web/docs/scpg_architecture_diagram.html",
+   ".github/workflows/deploy_pages.yml:30-33"
+  ],
+  "evidence": "No JS references the .mmd files, state.json or use_case.json (renderGraph fetches statemachine and usecase). Nothing links web/docs. The workflow uploads all of web/. deployment.json has exporter-garbage node names such as node_Lets and node_terface.",
+  "impact": "Larger deploys, duplicate sources of truth, and demo data that looks broken.",
+  "recommendation": "Expose the Mermaid/PlantUML sources and docs in the UI or exclude them from the artifact, and regenerate deployment.json.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB2-55",
+  "kind": "flaw",
+  "category": "devops",
+  "severity": "low",
+  "title": "Pages workflow: mutable action tags, persisted credentials, no path filter",
+  "files": [
+   ".github/workflows/deploy_pages.yml:3-6",
+   ".github/workflows/deploy_pages.yml:24-37"
+  ],
+  "evidence": "checkout@v4, configure-pages@v6, upload-pages-artifact@v5 and deploy-pages@v5 are pinned to mutable major tags, not SHAs. checkout keeps persist-credentials at its default. With no paths filter, every Rust-only push redeploys Pages, and there is no post-deploy smoke or link check. WEB-08 covers only the missing test gate.",
+  "impact": "Supply-chain exposure and unnecessary deployments.",
+  "recommendation": "Pin actions by SHA (Dependabot can bump them), set persist-credentials: false, add a paths filter for web/** and the workflow file, and add a smoke/link-check step.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV2-60",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "low",
+  "title": "HTTP server and git shell-out compiled into the library crate",
+  "files": [
+   "src/lib.rs",
+   "src/adapters/mod.rs",
+   "Cargo.toml"
+  ],
+  "evidence": "lib.rs:1 exports pub mod adapters (server and web_repo), and Cargo.toml defines no features. Every library consumer therefore compiles an HTTP server that spawns git and writes to CWD-relative directories.",
+  "impact": "Embedders who only need the analysis engine get a larger attack surface and longer builds.",
+  "recommendation": "Move the server into the binary crate, or put it behind an optional 'server' cargo feature.",
+  "effort": "S",
+  "confidence": "high"
+ }
+]

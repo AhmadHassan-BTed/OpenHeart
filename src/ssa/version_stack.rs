@@ -1,42 +1,52 @@
 //! Version Stack for Dominator Tree DFS Renaming (§5.2.3).
 //! Authored by Ahmad Hassan (B-Ted).
-
-use std::collections::HashMap;
+//!
+//! One stack of SSA ids per dense variable id, plus a push log: leaving a dominator-tree
+//! node pops exactly the versions pushed while it was processed, so no per-block snapshot
+//! of the whole stack map is needed.
 
 #[derive(Debug, Clone, Default)]
 pub struct VersionStack {
-    stacks: HashMap<u32, Vec<u32>>,
+    stacks: Vec<Vec<u32>>,
+    log: Vec<u32>,
 }
 
 impl VersionStack {
-    pub fn new() -> Self {
+    pub fn new(var_count: usize) -> Self {
         Self {
-            stacks: HashMap::new(),
+            stacks: vec![Vec::new(); var_count],
+            log: Vec::new(),
         }
     }
 
-    pub fn push(&mut self, orig_sym: u32, ssa_id: u32) {
-        self.stacks.entry(orig_sym).or_default().push(ssa_id);
+    pub fn push(&mut self, var: u32, ssa_id: u32) {
+        if let Some(st) = self.stacks.get_mut(var as usize) {
+            st.push(ssa_id);
+            self.log.push(var);
+        }
     }
 
-    pub fn top(&self, orig_sym: u32) -> u32 {
+    /// Current SSA id of `var`, `u32::MAX` when no definition reaches this point.
+    pub fn top(&self, var: u32) -> u32 {
         self.stacks
-            .get(&orig_sym)
+            .get(var as usize)
             .and_then(|st| st.last().copied())
             .unwrap_or(u32::MAX)
     }
 
-    pub fn save_depths(&self) -> HashMap<u32, usize> {
-        self.stacks
-            .iter()
-            .map(|(&sym, st)| (sym, st.len()))
-            .collect()
+    /// Position to return to when the current dominator-tree node is left.
+    pub fn mark(&self) -> usize {
+        self.log.len()
     }
 
-    pub fn restore_to(&mut self, saved_depths: &HashMap<u32, usize>) {
-        for (sym, stack) in &mut self.stacks {
-            let target_len = saved_depths.get(sym).copied().unwrap_or(0);
-            stack.truncate(target_len);
+    /// Pops every version pushed since `mark`.
+    pub fn restore_to(&mut self, mark: usize) {
+        while self.log.len() > mark {
+            if let Some(var) = self.log.pop() {
+                if let Some(st) = self.stacks.get_mut(var as usize) {
+                    st.pop();
+                }
+            }
         }
     }
 }

@@ -1,25 +1,32 @@
 //! Traceability Artifact Builder & Invariants Verifier (§7.5.1, §7.8).
 
+use std::collections::BTreeMap;
+
 use crate::ast::BPASTArtifact;
 use crate::cfg::serializer::CFGArtifact;
-use crate::core::logger::log_info;
+use crate::core::logger::{log_info, log_warn};
 use crate::core::types::cg::CallGraphArtifact;
-use crate::core::types::symbol::SymbolKind;
 use crate::core::types::token::unpack_sort_key;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::ssa::SSAArtifact;
 use crate::symbol::SymbolTableArtifact;
 use crate::tra::backward::{
-    ASTBackwardIndex, BlockBackwardIndex, CallSiteBackwardIndex, SSABackwardIndex,
-    SymbolBackwardIndex,
+    ASTBackwardIndex, BlockBackwardIndex, CallSiteBackwardIndex, FunctionBlockRange,
+    FunctionSsaRange, SSABackwardIndex, SymbolBackwardIndex,
 };
+use crate::tra::entity::EntityIndex;
 use crate::tra::forward::{CallSiteSpanIndex, SymbolSpanIndex};
-use crate::tra::types::TraceabilityArtifact;
-use crate::tra::uml_link::{ScpgHashChain, UMLLinkRegistry};
+use crate::tra::types::{
+    FunctionIndexRecord, TraceabilityArtifact, NO_OFFSET, NO_SOURCE_TOKEN, TRA_FORMAT_VERSION,
+};
+use crate::tra::uml_link::{ScpgHashChain, UMLLinkRegistry, UML_SYMBOL_KINDS};
 
 pub struct TraceabilityArtifactBuilder;
 
 impl TraceabilityArtifactBuilder {
+    /// Build the traceability artifact. Invariant violations are reported as diagnostics
+    /// (see [`TraceabilityArtifactBuilder::verify_invariants`]); the artifact is returned
+    /// either way so that the violations can be inspected.
     pub fn build(
         tca: &TokenCorpusArtifact,
         bpa: &BPASTArtifact,
@@ -32,16 +39,20 @@ impl TraceabilityArtifactBuilder {
 
         let bi_ast = ASTBackwardIndex::build(bpa);
         let bi_sym = SymbolBackwardIndex::build(sta, bpa);
-        let bi_blk = BlockBackwardIndex::build(cfa);
-        let bi_ssa = SSABackwardIndex::build(ssa, bpa, &bi_blk);
+        let (bi_blk, block_ranges) = BlockBackwardIndex::build(cfa, &bi_sym);
+        let (bi_ssa, ssa_ranges) =
+            SSABackwardIndex::build(ssa, bpa, &bi_blk, &block_ranges, &bi_sym);
+        let function_index = Self::function_index(&block_ranges, &ssa_ranges);
         let bi_cs = CallSiteBackwardIndex::build(cga);
 
         let sym_span = SymbolSpanIndex::build(&bi_sym, tca, sta);
         let cs_span = CallSiteSpanIndex::build(&bi_cs, tca, cga);
         let uml_links = UMLLinkRegistry::build(&bi_sym, tca, sta, hashes.scpg_hash);
+        let uml_slots = UMLLinkRegistry::slots(&uml_links, sta.symbol_records.len());
+        let entities = EntityIndex::build(sta, tca, &bi_sym);
 
         let artifact = TraceabilityArtifact {
-            format_version: 1,
+            format_version: TRA_FORMAT_VERSION,
             hashes,
             bi_ast,
             bi_sym,
@@ -51,86 +62,149 @@ impl TraceabilityArtifactBuilder {
             sym_span,
             cs_span,
             uml_links,
+            function_index,
+            entities,
+            uml_slots,
         };
 
-        Self::verify_invariants(&artifact, sta, tca);
+        match Self::verify_invariants(&artifact, sta, tca) {
+            Ok(()) => log_info("Phase 7 Invariants 1-4 verified."),
+            Err(violations) => {
+                for v in &violations {
+                    log_warn(&format!("Phase 7 DIAGNOSTIC: {}", v));
+                }
+            }
+        }
         artifact
     }
 
+    /// Merge the CFA block ranges and SSA ranges into one record per function, sorted by
+    /// sym_id.
+    fn function_index(
+        block_ranges: &[FunctionBlockRange],
+        ssa_ranges: &[FunctionSsaRange],
+    ) -> Vec<FunctionIndexRecord> {
+        let mut by_sym: BTreeMap<u32, FunctionIndexRecord> = BTreeMap::new();
+        let blank = |sym_id: u32| FunctionIndexRecord {
+            sym_id,
+            first_block: NO_OFFSET,
+            block_count: 0,
+            first_ssa: NO_OFFSET,
+            ssa_count: 0,
+        };
+        for &(sym, first, count) in block_ranges {
+            let r = by_sym.entry(sym).or_insert_with(|| blank(sym));
+            r.first_block = first;
+            r.block_count = count;
+        }
+        for &(sym, first, count) in ssa_ranges {
+            let r = by_sym.entry(sym).or_insert_with(|| blank(sym));
+            r.first_ssa = first;
+            r.ssa_count = count;
+        }
+        by_sym.into_values().collect()
+    }
+
+    /// Check Invariants 1–4 (§7.8) and table consistency; returns every violation.
+    ///
+    /// - **Invariant 1 (BI_blk completeness):** every block maps to a token range — its own or
+    ///   its owning function's; [`NO_SOURCE_TOKEN`] only where no span exists at all.
+    /// - **Invariant 2 (UMLLink coverage):** one UMLLink per UML-kind symbol.
+    /// - **Invariant 3 (hash chain):** the chain digest and tags follow from the stored
+    ///   per-artifact digests.
+    /// - **Invariant 4 (backward–forward round trip):** for *every* symbol with a declaration
+    ///   span, the forward query at its first token returns it.
     pub fn verify_invariants(
         tra: &TraceabilityArtifact,
         sta: &SymbolTableArtifact,
         tca: &TokenCorpusArtifact,
-    ) {
-        // Invariant 1 (BI_blk Global Completeness): Every basic block has a valid entry
-        for (i, entry) in tra.bi_blk.iter().enumerate() {
-            assert!(
-                entry.first_token_id != u32::MAX,
-                "Invariant 1 Violated: BI_blk[{}] first_tok is u32::MAX",
-                i
-            );
+    ) -> Result<(), Vec<String>> {
+        let mut violations: Vec<String> = Vec::new();
+        let n_syms = sta.symbol_records.len();
+
+        // Invariant 1.
+        let unsourced = tra
+            .bi_blk
+            .iter()
+            .filter(|e| e.first_token_id == NO_SOURCE_TOKEN)
+            .count();
+        if unsourced > 0 {
+            violations.push(format!(
+                "Invariant 1: {} basic blocks have neither tokens nor an owning function span",
+                unsourced
+            ));
+        }
+        if let Some(bad) = tra.bi_blk.iter().position(|e| {
+            e.first_token_id != NO_SOURCE_TOKEN && e.last_token_id < e.first_token_id
+        }) {
+            violations.push(format!("Invariant 1: BI_blk[{}] has an inverted token range", bad));
         }
 
-        // Invariant 2 (UMLLink Symbol Coverage): Every UML symbol has a UMLLinkRecord
-        let uml_kinds: &[u8] = &[
-            SymbolKind::SK_CLASS as u8,
-            SymbolKind::SK_INTERFACE as u8,
-            SymbolKind::SK_ENUM as u8,
-            SymbolKind::SK_RECORD as u8,
-            SymbolKind::SK_ANNOTATION_TYPE as u8,
-            SymbolKind::SK_METHOD as u8,
-            SymbolKind::SK_CONSTRUCTOR as u8,
-            SymbolKind::SK_FIELD as u8,
-            SymbolKind::SK_ENUM_CONSTANT as u8,
-        ];
+        // Invariant 2.
         let expected_uml_count = sta
             .symbol_records
             .iter()
-            .filter(|sym| uml_kinds.contains(&sym.kind))
+            .filter(|sym| UML_SYMBOL_KINDS.contains(&sym.kind))
             .count();
-        assert_eq!(
-            tra.uml_links.len(),
-            expected_uml_count,
-            "Invariant 2 Violated: UMLLink count mismatch"
-        );
-
-        // Invariant 3 (Hash Chain Validity): Composite scpg_hash check
-        let expected_scpg_hash = ScpgHashChain::compute_composite(
-            tra.hashes.tca_hash,
-            tra.hashes.bpa_hash,
-            tra.hashes.sta_hash,
-            tra.hashes.cfa_hash,
-            tra.hashes.ssa_hash,
-            tra.hashes.cga_hash,
-        );
-        assert_eq!(
-            tra.hashes.scpg_hash, expected_scpg_hash,
-            "Invariant 3 Violated: scpg_hash mismatch"
-        );
-
-        // Invariant 4 (Backward-Forward Roundtrip): Spot-check 5% of symbols
-        let total_syms = sta.symbol_records.len();
-        let check_count = (total_syms / 20).max(1).min(total_syms);
-        for s in 0..check_count {
-            let entry = &tra.bi_sym[s];
-            if entry.decl_first_tok != u32::MAX
-                && (entry.decl_first_tok as usize) < tca.token_records.len()
-            {
-                let start_tok = &tca.token_records[entry.decl_first_tok as usize];
-                let (file_id, _, _) = unpack_sort_key(start_tok.sort_key);
-                let forward_res = SymbolSpanIndex::forward_sym_query(
-                    entry.decl_first_tok,
-                    file_id,
-                    &tra.sym_span,
-                );
-                assert!(
-                    forward_res.contains(&(s as u32)),
-                    "Invariant 4 Violated: symbol {} not found in forward query result",
-                    s
-                );
-            }
+        if tra.uml_links.len() != expected_uml_count {
+            violations.push(format!(
+                "Invariant 2: {} UMLLinks for {} UML-kind symbols",
+                tra.uml_links.len(),
+                expected_uml_count
+            ));
         }
 
-        log_info("Phase 7 Invariants 1-4 asserted successfully.");
+        // Invariant 3.
+        if let Err(msg) = tra.hashes.verify() {
+            violations.push(format!("Invariant 3: {}", msg));
+        }
+
+        // Table consistency.
+        if tra.bi_sym.len() != n_syms || tra.entities.len() != n_syms || tra.uml_slots.len() != n_syms
+        {
+            violations.push(format!(
+                "per-symbol tables disagree: {} symbols, {} BI_sym, {} entities, {} UML slots",
+                n_syms,
+                tra.bi_sym.len(),
+                tra.entities.len(),
+                tra.uml_slots.len()
+            ));
+        }
+
+        // Invariant 4 (exhaustive).
+        let n_tokens = tca.token_records.len();
+        let mut missing = 0usize;
+        let mut first_missing: Option<usize> = None;
+        for (s, entry) in tra.bi_sym.iter().enumerate().take(n_syms) {
+            if entry.decl_first_tok == u32::MAX || (entry.decl_first_tok as usize) >= n_tokens {
+                continue;
+            }
+            if entry.decl_last_tok.min(n_tokens as u32 - 1) < entry.decl_first_tok {
+                continue;
+            }
+            let start_tok = &tca.token_records[entry.decl_first_tok as usize];
+            let (file_id, _, _) = unpack_sort_key(start_tok.sort_key);
+            let forward =
+                SymbolSpanIndex::forward_sym_query(entry.decl_first_tok, file_id, &tra.sym_span);
+            if !forward.contains(&(s as u32)) {
+                missing += 1;
+                if first_missing.is_none() {
+                    first_missing = Some(s);
+                }
+            }
+        }
+        if let Some(first) = first_missing {
+            violations.push(format!(
+                "Invariant 4: {} symbols are not returned by the forward query at their first \
+                 token (first: sym_id={})",
+                missing, first
+            ));
+        }
+
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(violations)
+        }
     }
 }

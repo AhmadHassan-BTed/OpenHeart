@@ -1,0 +1,562 @@
+[
+ {
+  "id": "SCPG-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Compiler-IR diagrams (CFG/DFG/CDG/call graph/ROBDD) and several views are hard-coded templates, not analysis output",
+  "files": [
+   "src/scpg/diagram/export/json.rs:1748-1830",
+   "src/scpg/diagram/export/json.rs:1833-2100",
+   "src/scpg/diagram/export/json.rs:1511-1745",
+   "src/scpg/diagram/export/plantuml.rs:1271-1283",
+   "src/scpg/diagram/export/plantuml.rs:1355-1398",
+   "src/scpg/diagram/export/plantuml.rs:1432-1446",
+   "src/scpg/diagram/export/mermaid.rs:1527-1572",
+   "src/scpg/diagram/export/mermaid.rs:1605-1619",
+   "src/scpg/diagram/export/plantuml.rs:18-23",
+   "README.md:66"
+  ],
+  "evidence": "The JSON CFG, DFG, CDG, call-graph, ROBDD, timing, interaction and profile builders take `_uma,_sta,_tca` and emit constants that describe OpenHeart itself (\"v0 = load manifest\", \"v3 = compute_idom(v2)\", \"x2: ASTAcyclic\", \"@60ms: 8 Threads\"). The PlantUML and Mermaid CDGs ignore their inputs and print \"(amount > 0)\" and \"repository.saveOrder()\". Every function gets the same fixed 4-block CFG diamond. The DFG is a φ template with \"var_name: retries\". The call graph chains methods in HashSet order with invented \"CHA/1-CFA dispatch\" edges and a fake SCC self-loop. Exporters never receive .cfa/.ssa/.cga/.psa.",
+  "impact": "Every analyzed program gets identical or invented control-flow, data-flow, dependence, call and BDD graphs. The README claim of \"19 projections derived from binary graph layers\" is false, and users can be misled about their own code.",
+  "recommendation": "Pass exporters a DiagramContext: CFA CSR with idom, SSA DefUseCSR/CDGCSR/phis, CGA callee_csr with SCCs, PSA ROBDD node tables and TRA spans. Use it to render the real graphs (CFG with back-edges and dominator tree, def-use with φ, CDG, SCC-clustered call graph, actual BDD nodes). Until then, drop these types from the registry and the README. Done means golden tests on fixture methods whose expected CFG and CDG were checked by hand.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Seven of 14 UML diagrams are templated or hard-coded, yet labeled '100% Symbol-Grounded' and verified:true",
+  "files": [
+   "src/scpg/diagram/export/json.rs:1584-1657",
+   "src/scpg/diagram/export/json.rs:758-851",
+   "src/scpg/diagram/export/json.rs:1436-1452",
+   "src/scpg/diagram/export/json.rs:415-416",
+   "src/scpg/diagram/export/json.rs:733",
+   "src/scpg/diagram/export/plantuml.rs:1005-1013",
+   "src/scpg/diagram/export/mermaid.rs:1065-1121",
+   "src/scpg/diagram/export/mermaid.rs:859-897",
+   "src/scpg/diagram/export/mermaid.rs:1357-1386",
+   "src/scpg/diagram/export/mermaid.rs:1275-1297",
+   "src/scpg/diagram/export/mermaid.rs:805-831",
+   "src/scpg/diagram/renderers.rs:8-24"
+  ],
+  "evidence": "JSON timing ignores its inputs (`_uma, _sta, _tca`) and always emits tracks CompilerCore, MemoryPool ('@60ms: 512MB') and ParallelWorkers. State machines are Uninitialized→Active per class with invented actions (`entry / onInit()`, `do / executeWork()`, `exit / cleanup()`). Use cases are `classes.take(6)` × `methods.take(3)`; deployment nodes are packages with 'artifact: X.module'; the JSON composite root is a hard-coded 'OpenHeartEngine.java'; the communication fallback invents calls between the first four classes (`invoke_{dst}`). Every JSON diagram sets `compiler_hash: 0x83D2D2B2, verified: true` and `file: {Name}.java, lines: [1]`. renderers.rs reports class counts as the composite, profile and use-case counts.",
+  "impact": "Users receive invented timings, states, use cases and deployment topology that look like analysis results. Reviews or tool comparisons built on these diagrams are wrong, and the verified flag gives false assurance.",
+  "recommendation": "Tag every diagram and element with a provenance tier (derived / heuristic / unavailable) in GraphIR and the rendered output. Return an explicit 'not statically derivable' result instead of placeholders for timing, deployment, use case and state machine until real extractors exist (see UML-03, UML-14). Delete hard-coded names, `.java` guesses and the constant verified/compiler_hash; take file and line from UMLLinkRecord/TRA. Add a CI metamorphic test that fails when a diagram's output does not change with its input.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Field-type TH_USES edges are treated as supertypes, so nearly every class with a field is reported as Decorator and Composite",
+  "files": [
+   "src/symbol/passes/pass5_hierarchy.rs:159-182",
+   "src/uma/patterns/decorator.rs:14-33",
+   "src/uma/patterns/composite.rs:15-34",
+   "src/uma/patterns/facade.rs:11-24",
+   "src/uma/patterns/adapter.rs:14-25",
+   "src/uma/patterns/query.rs:41-43",
+   "src/uma/patterns/strategy.rs:15-23",
+   "src/uma/patterns/mod.rs:127-138",
+   "src/symbol/adapter/java.rs:21-29",
+   "src/scpg/diagram/export/mermaid.rs:670-682"
+  ],
+  "evidence": "Pass 5 adds a TH_USES edge from each class to every field type, primitives included (`builder.symbol(0xB000_0005)` is None, so `.unwrap_or(SK_EXTERNAL)`). decorator.rs and composite.rs take all `th_edges` with `from_sym == sym_id`, with no relation filter, then test `parent_types.contains(&f.type_id)`, which holds for any typed field: Decorator 85, Composite 75. facade.rs counts fields with `type_id != u32::MAX`; primitive ids qualify, so three ints earn Facade 70. A Python re-implementation over examples/test_patterns_codebase gives 37 reports on 13 of 35 classes, and only 9 name a real participant (precision ≈0.24). The Facade and Adapter samples display <<Decorator>>, which is checked first.",
+  "impact": "Pattern stereotypes drawn on class diagrams are wrong for most classes of a real codebase, and pattern counts and the visitor's pattern_frequency metric are dominated by noise.",
+  "recommendation": "Build a supertype index restricted to TH_EXTENDS/TH_IMPLEMENTS once and use it in every rule; exclude primitives, stubs and external types from structural predicates. Require call-graph evidence for Decorator/Composite/Adapter: an overriding method that forwards to the wrapped field, and for Composite a loop over a collection of the component type. Add negative fixtures (POJO, DTO with three ints, linked-list Node) asserting no pattern, and gate per-pattern precision in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "User-facing CFG, DFG, CDG and call-graph diagrams are hard-coded templates, not analysis output",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:1253-1297",
+   "src/scpg/diagram/export/plantuml.rs:1339-1398",
+   "src/scpg/diagram/export/mermaid.rs:1575-1621",
+   "src/scpg/diagram/export/mermaid.rs:1536",
+   "src/scpg/diagram/export/json.rs:1748-1760",
+   "src/scpg/diagram/export/json.rs:1970-1986",
+   "README.md:88-90"
+  ],
+  "evidence": "Every exporter for diagrams 15-19 takes only (uma, sta, tca) and never reads .cfa/.ssa/.cga. The PlantUML/Mermaid CFG is a fixed Entry→Gate→Then/Else→Exit template. The DFG prints `var_name: retries` v0/v1/φ for the first three classes. The CDG always shows `(amount > 0)` → `repository.saveOrder()`. The call graph chains methods in HashSet order, labelled `CHA/1-CFA dispatch`, plus a fake `Tarjan SCC cycle` self-edge. The JSON CFG and CG describe OpenHeart's own pipeline (`v0 = load manifest`, `cooper_dominators()`). The code is in src/scpg (Phase 10).",
+  "impact": "Users see fabricated flow diagrams for every input, contradicting README lines 88-90, and the fabrication hid the Phase 4-6 defects in this report.",
+  "recommendation": "Render these diagrams from the artifacts (blocks, edges and idom; φ and def-use; the CDG CSR; CG edges and SCCs) with deterministic ordering and per-function selection. Add snapshot tests that check every rendered node and edge against an artifact entity. Show 'not available' instead of a placeholder when an analysis did not run.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-04",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Showcase diagrams are not reproducible engine output; hash and 'verified' are constants",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "web/diagrams/statemachine.json",
+   "web/diagrams/usecase.json",
+   "web/diagrams/robdd.json",
+   "web/diagrams/callgraph.json"
+  ],
+  "evidence": "All 18 JSON exporters hardcode compiler_hash \"0x83D2D2B2\" and verified: true (json.rs:415-416 through json.rs:2094). 12 of the 19 committed JSONs have other hashes (e.g. 0x55AA11FF, 0x33DD88AA) that appear nowhere in src, scripts or web. Their content describes OpenHeart itself rather than the sample input: states named 'Lexical Ingestion', an actor 'CI / CD Automation Agent', a BDD variable 'isSyntaxValid'.",
+  "impact": "The public Studio presents hand-written data as engine output, and the 'verified' flag carries no information. This undercuts the README's 14-UML-diagram and traceability claims for anyone benchmarking the tool.",
+  "recommendation": "Regenerate every showcase file from a pinned sample with the CLI in CI and fail on drift. Compute a real content hash with sha2, which is already a dependency. Compute 'verified' or remove it. Mark any illustrative files as illustrative.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "State, object, component, deployment, composite, use-case and activity views ignore UMA data and invent content",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:1001-1016",
+   "src/scpg/diagram/export/plantuml.rs:524-556",
+   "src/scpg/diagram/export/plantuml.rs:572-614",
+   "src/scpg/diagram/export/plantuml.rs:786-788",
+   "src/scpg/diagram/export/plantuml.rs:897-937",
+   "src/scpg/diagram/export/json.rs:758-853",
+   "src/scpg/diagram/export/json.rs:928-966",
+   "src/scpg/diagram/export/json.rs:1401-1493",
+   "src/scpg/diagram/export/mermaid.rs:1182-1192",
+   "src/scpg/diagram/export/mermaid.rs:1372-1375",
+   "src/uma/types.rs:138-170",
+   "src/uma/types.rs:218-223"
+  ],
+  "evidence": "State machines always show \"Uninitialized\" and \"Active\" states with \"entry / onInit()\", \"do / executeWork()\" and \"exit / cleanup()\", and never read `sm.states`. Object diagrams draw one object per class with \"references\" edges between consecutive classes, while `uma.objects` (allocation sites) goes unused. Components get an invented `I{name}` interface, deployments get \"art_X.jar\" nodes, and composites get `port in_port/out_port`. Use-case actors are classes whose names end in \"Service\" or \"App\". JSON activities chain nodes in a line and ignore `act.edges`. Every Mermaid gantt task is `0, 1s`.",
+  "impact": "Most behavioral and deployment views look plausible but contain no program facts. They mislead reviewers and make the \"14 UML 2.5 diagrams\" claim impossible to verify.",
+  "recommendation": "Render only modeled facts: states and transitions with guards from StateRecord/TransitionRecord, objects from ObjectRecord plus points-to links, component interfaces from provided/required sets, activity flow from ActivityEdge, and sequence fragments from CombinedFragment. When a diagram has no evidence, emit an explicit \"no data\" note instead of a placeholder. Note that UMA's own state model is a 2-state placeholder, which is another auditor's area. Done means golden fixtures whose every element traces back to a source span.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Exporters key classes by sanitized simple name, merging same-named types and misattaching edges",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:443-506",
+   "src/scpg/diagram/export/plantuml.rs:211-227",
+   "src/scpg/diagram/export/json.rs:140-146",
+   "src/scpg/diagram/export/json.rs:257-259",
+   "src/scpg/diagram/export/mermaid.rs:660",
+   "src/scpg/diagram/export/mermaid.rs:211-226",
+   "web/diagrams/class.json"
+  ],
+  "evidence": "PlantUML maps names to symbols in `class_by_name: BTreeMap<String,u32>` and keys edges by `(src_name,dst_name)`. JSON uses `id: name.clone()`, and Mermaid keys `class_package_map` by name. As a result, many nested `Builder`s or `a.Config`/`b.Config` collapse into one node. The shipped class.json has 5 duplicate node ids (CurrentState, IDAssigner, Module…). `sanitize` maps `Foo$Bar` and `Foo_Bar` to the same id. Mermaid's fix for duplicate packages appends the root's initial, so `com.a.util` and `com.b.util` both become `util_C`. Since PlantUML 1.2023.2, packages are namespaces, so edges keyed by bare names are also fragile across versions.",
+  "impact": "Common Java codebases, such as those using nested Builders or per-module Config/Utils classes, get merged boxes and edges between the wrong classes. JSON consumers receive ids that are not unique.",
+  "recommendation": "Derive stable unique ids from sym_id or the fully qualified name (SCIP or Kythe-style symbol strings) and print display names separately: PlantUML `class \"Builder\" as C_1234`, Mermaid `class C_1234[\"Builder\"]`, JSON id = FQN, xmi:id = hash(FQN). Resolve edges by symbol, never by name. Done means a test with two inner Builders and two Config packages yields distinct nodes in every format.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "JSON Graph IR fabricates source provenance and 'verified' metadata",
+  "files": [
+   "src/scpg/diagram/export/json.rs:267-268",
+   "src/scpg/diagram/export/json.rs:580-581",
+   "src/scpg/diagram/export/json.rs:733-734",
+   "src/scpg/diagram/export/json.rs:1393-1394",
+   "src/scpg/diagram/export/json.rs:1447",
+   "src/scpg/diagram/export/json.rs:415-416",
+   "src/uma/types.rs:91",
+   "web/js/editor.js:160"
+  ],
+  "evidence": "Class nodes get `file: Some(format!(\"{}.java\", name))` and `lines: vec![1, 5, 10]`. Sequence, state and object nodes get `\"{name}.java\"` with line 1. The composite root is \"OpenHeartEngine.java\" for every input. Each GraphIR carries the constants `compiler_hash: \"0x83D2D2B2\"` and `verified: true`. Meanwhile every ClassRecord has `uml_link` holding the real file, line and column, and the web editor navigates by `nodeData?.file`. The shipped class.json assigns TypeScript interfaces and Python classes to `.java` files.",
+  "impact": "Click-to-source opens files that do not exist or the wrong lines, which contradicts the 'O(1) bidirectional traceability' headline. The 'verified' flag is meaningless.",
+  "recommendation": "Fill file and range from `class_rec.uml_link` or TRA sym_span, taking the path from tca.file_records, and emit null when unknown. Set compiler_hash to the real snapshot digest. Either drop `verified` or compute it from real checks (unique ids, all edge endpoints resolve). Add a JSON Schema for GraphIR and validate against it in CI. Done means every node with a span maps back to its declaring token range.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Generated PlantUML and Mermaid is invalid for common inputs, and nothing validates it",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs:1536",
+   "web/diagrams/dfg.mmd",
+   "src/scpg/diagram/export/plantuml.rs:963-974",
+   "src/scpg/diagram/export/mermaid.rs:143-172",
+   "src/scpg/diagram/export/mermaid.rs:309-328",
+   "src/scpg/diagram/export/plantuml.rs:1037-1058",
+   "web/diagrams/sequence.puml",
+   "src/scpg/diagram/export/mermaid.rs:1263-1269"
+  ],
+  "evidence": "The Mermaid DFG emits `v2_0[\"...join: Block 2\"]\"]` with a stray `\"]`, and the shipped dfg.mmd contains it. PlantUML activity prints `if (eval_branch) then (yes)` for each decision node but never `endif`, then closes the partition `}` while the if is still open. Mermaid places relations inside `namespace {}` blocks (at the package LCA) and nests namespaces, but namespace bodies accept only class statements and nesting needs Mermaid 11.15 or later. The PlantUML sequence declares `act_ExternalActor` but sends messages from an undeclared `part_Actor`; the shipped sample shows both lifelines. Mermaid flowchart ids are raw lifeline names, so a name like `end` breaks parsing.",
+  "impact": "Typical code triggers render errors: any method with an if, and any relation between classes in the same package. The Mermaid DFG never renders at all.",
+  "recommendation": "Print from a typed IR with per-format printers that emit structured blocks (if/else/endif from region analysis), keep relations outside namespaces, and alias every id (`P1`, `C_1234`) with quoted labels. In CI, parse every fixture output with `plantuml -checkonly` and `@mermaid-js/mermaid-cli` (mmdc) or mermaid.parse, and fail on any error. Done means zero parse errors across the fixtures and examples/.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-11",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "XMI export is a placeholder: class shells with numbered names and obsolete namespaces, unreachable from CLI and server",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs:8-19",
+   "src/scpg/diagram/factory.rs:140-148",
+   "src/main.rs:281-309",
+   "docs/plans/phase10.md:560"
+  ],
+  "evidence": "The output is `<uml:Model xmi:version=\"2.1\" xmlns:xmi=\"http://schema.omg.org/spec/XMI/2.1\" xmlns:uml=\"http://www.eclipse.org/uml2/3.0.0/UML\">` with one `<packagedElement xmi:type=\"uml:Class\" xmi:id=\"sym_N\" name=\"Class_N\"/>` per class. It has no real names, packages, attributes, operations, generalizations, realizations or associations, and the Model itself has no xmi:id. `XMIFactory` ignores the diagram type. The CLI and server write only .puml, .mmd and .json files.",
+  "impact": "Nothing useful can be imported into Papyrus, Enterprise Architect or MagicDraw, so the 'Eclipse-compatible XMI / UML 2.x' interchange claim is not backed by code.",
+  "recommendation": "Emit a full model through quick-xml, with proper escaping. Target XMI 2.5.1 (http://www.omg.org/spec/XMI/20131001) with UML 2.5.1 (http://www.omg.org/spec/UML/20161101), or Eclipse UML2 5.0.0 for Papyrus. Include nested packages, ownedAttribute with type refs, multiplicity and aggregation, ownedOperation/ownedParameter, generalization, interfaceRealization and Association memberEnds, with stable FQN-hash ids. Done means a round-trip import into headless Eclipse UML2 and an EA import check.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Class extractor silently drops legitimate user types through a 188-name blacklist and lexical filters",
+  "files": [
+   "src/uma/structural/class_diagram.rs:346-538",
+   "src/uma/structural/class_diagram.rs:97-104",
+   "src/uma/structural/class_diagram.rs:106-114",
+   "src/uma/structural/class_diagram.rs:136-166",
+   "src/uma/mod.rs:70",
+   "src/ingestion/mod.rs:137",
+   "examples/huge_enterprise_src/enterprise/bank/core/Entity.java:3",
+   "src/scpg/diagram/common.rs:59-91"
+  ],
+  "evidence": "`is_reserved_keyword` rejects user classes named Context, Singleton, Logger, Root, Entity, Configuration, Table, Value, Error, Update, List or Thread, plus project-specific names (HomeScreen, INVESTOR, OpenHeart). Context and Singleton are canonical GoF participant names, and src/uma/mod.rs:70 runs detection only over extracted classes, so the textbook Singleton is never examined. The repo's own examples/huge_enterprise_src/.../core/Entity.java interface is dropped. Names with `$` or non-ASCII letters, *Binding names and lowercase names are rejected. Test exclusion matches only '/src/test/', while ingestion stores raw OS paths, so on Windows test classes are kept.",
+  "impact": "Class diagrams, pattern detection and every derived diagram omit real types without warning, and output differs between Linux and Windows.",
+  "recommendation": "Delete the blacklist and fix the misclassifications it hides at their source in Phases 1-3 (annotations, constants or framework names emitted as SK_CLASS). Filter only on symbol kind and origin (synthetic, external, generated), accept full JLS and Kotlin identifiers, normalize paths before test detection, and make test inclusion a CLI flag. Add regression fixtures declaring Context, Singleton, Entity, Root and a Unicode-named class.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Sequence diagrams list messages in the wrong order with no nesting, returns or fragments, and all scenarios merge into one diagram",
+  "files": [
+   "src/uma/behavioral/sequence_diagram.rs:86-163",
+   "src/uma/actor_identification.rs:24-45",
+   "src/scpg/diagram/export/plantuml.rs:1033-1066",
+   "src/scpg/diagram/export/mermaid.rs:1198-1234",
+   "docs/uml_derivation.md:86-89"
+  ],
+  "evidence": "Callers are expanded from a LIFO stack after all of a method's calls are emitted, so for A→B, A→C the sub-calls of C print before those of B, and each method is expanded once, wherever it is popped. `combined_fragments` is always empty, although `_cfa` is passed and docs/uml_derivation.md:89 promises ROBDD-derived alt/loop/opt. There is no depth bound or library filter. PlantUML emits activate/return/deactivate right after each call, so activations never nest. The actor is declared `act_Actor` but its messages come from `part_Actor`, creating a phantom participant. Every entry-point scenario is concatenated into one diagram.",
+  "impact": "Sequence diagrams misstate call order and nesting, the core semantics of the notation, and become unreadable walls of messages on any non-trivial project.",
+  "recommendation": "Emit one diagram per scenario by ordered, depth-bounded inlining of call sites in CFG order (Rountev, Volgin and Reddoch, PASTE 2005). Map branch and loop regions to alt/opt/loop/break fragments with guards, emit replies and nested activations, and mark async calls (Thread.start, Executor.submit, CompletableFuture). Name lifelines by receiver object via points-to (Rountev and Connell, ICSE 2005), and choose entry points from framework semantics (main, @RequestMapping, JUnit, Android lifecycle).",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Class diagrams lose multiplicity, collection element types, relationship kinds and member signatures, and collide on simple names",
+  "files": [
+   "src/uma/structural/class_diagram.rs:210-295",
+   "src/symbol/passes/pass3_types.rs:25-31",
+   "src/symbol/passes/pass5_hierarchy.rs:184-213",
+   "src/scpg/diagram/export/plantuml.rs:460-495",
+   "src/scpg/diagram/export/mermaid.rs:655-777",
+   "src/scpg/diagram/export/xmi.rs:11-15",
+   "src/core/types/symbol.rs:66-73"
+  ],
+  "evidence": "`is_collection: 0` is hard-coded. Type refs resolve from their first token, so `List<Observer>` becomes List and the one-to-many link to Observer vanishes. Phase 3's `sta.associations` (AssocKind, multiplicity, role names) is never read. Return types are recorded as associations (they are dependencies), while parameters, locals and `new` yield nothing. With multiple interface extends only the last survives. Member modifiers are cast `as u8`, losing default/sealed/varargs bits. Exporters treat composition as 'final field', draw nesting as `*--` (Mermaid), omit parameters and key classes by simple name, so nested Builders merge. PlantUML keeps one edge per pair; XMI emits only `Class_{id}`.",
+  "impact": "Diagrams omit the relationships reviewers need most (one-to-many, ownership, usage), misrender overloads, generics and same-named types, and cannot round-trip to UML tools.",
+  "recommendation": "Model type arguments in Phase 3 (a TypeRef tree), consume sta.associations, and classify relationships per Guéhéneuc and Albin-Amiot (OOPSLA 2004): association, aggregation or composition by exclusivity and lifetime, with multiplicity from collection or array types. Add «use»/«create» dependencies. Key elements by qualified name, and emit operation signatures, UML templates, {static}/{abstract} and enumeration literals. Export OMG XMI 2.5.1, validated against UML 2.5.1 and import-tested in Papyrus, Enterprise Architect and Visual Paradigm, to reach IntelliJ/ObjectAid-level fidelity.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "UML association inference is constant-folded and unused: every resolvable field is aggregation 0..*, and composition is unreachable",
+  "files": [
+   "src/symbol/uml_meta/associations.rs:40-49",
+   "src/symbol/uml_meta/associations.rs:52-111",
+   "src/symbol/std_library/java_stubs.rs:57-62",
+   "src/symbol/passes/pass5_hierarchy.rs:159-215",
+   "src/scpg/diagram/export/plantuml.rs:470-490"
+  ],
+  "evidence": "`is_collection = builder.std_lib.stubs.contains_key(\"List\") || ..` (associations.rs:40) is always true, because List is a stub (java_stubs.rs:57-62). So every non-external field type, java.lang.String included, becomes an Aggregation with 0..* (pass5:203-207). is_array tests flag 0x08, which is never set. Composition is unreachable and would accept any `new` in any constructor (95-111), although Phase 2 drops constructor bodies anyway. Primitive pseudo-ids default to SK_EXTERNAL (pass5:171-174), producing Dependency records and TH_USES edges to nonexistent ids. mult_min is always 0, there is no bidirectional pairing, and nothing reads sta.associations.",
+  "impact": "Phase 3's association output is wrong for essentially every field and is ignored. Phase 10 re-derives associations by simple name and marks every final field as composition (plantuml.rs:482-488), so the plan in phase3.md:155-171 is never realized.",
+  "recommendation": "Implement the phase3.md decision table over TypeRef. Value types (primitives, boxed types, String, java.time) are attributes. Collection, Iterable, Map value and array types give 0..* to the element type; Optional gives 0..1; a primitive or @NonNull gives 1. Pair opposite ends into bidirectional associations (JPA mappedBy). Composition needs lifecycle evidence (an owned, non-escaping `new`, via Phase 5/6) per Guéhéneuc & Albin-Amiot 2004. Phase 9 must consume these records.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-06",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Standard interchange: SARIF, GraphML/DOT/GraphSON, SCIP and full XMI 2.5.1",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/json.rs",
+   "web/js/ui.js"
+  ],
+  "evidence": "XMI emits only `Class_<sym_id>` packagedElements in an Eclipse UML2 3.0.0 namespace (src/scpg/diagram/export/xmi.rs:8-18), whatever the diagram type (src/scpg/diagram/factory.rs:140-148). The studio's XMI export is an empty stub (web/js/ui.js:123-127). The JSON graph IR has no schema or version field (src/scpg/diagram/export/json.rs:30-45). src contains no SARIF, GraphML, DOT, GraphSON or SCIP writer.",
+  "impact": "Results cannot flow into GitHub code scanning, Neo4j/Gephi, Sourcegraph, or EA/VP/Papyrus models. Interop is table stakes in both tool categories.",
+  "recommendation": "Emit SARIF 2.1.0 for findings and pattern matches. Emit GraphML, DOT, GraphSON and Neo4j CSV for every SCPG layer, and a SCIP index for code navigation. Write XMI 2.5.1 with attributes, operations, associations, generalizations and diagram interchange, and validate it by round-tripping through Eclipse UML2/Papyrus, EA and VP. Version the JSON IR and publish a JSON Schema for it.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-10",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Wire token-anchored traceability into exports and the studio",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/query/navigation.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "JSON nodes get file set to '<Name>.java' and lines set to [1, 5, 10] (src/scpg/diagram/export/json.rs:267-268) or [1] (json.rs:581). No exporter or factory reads the TRA artifact. Navigation is linear despite the 'O(1)'/'O(log n)' comments (src/scpg/query/navigation.rs:8-27). Source files are found through hard-coded example paths (web/js/editor.js:183-193; src/adapters/server.rs:119-198).",
+  "impact": "The headline 'O(1) bidirectional source-to-diagram traceability' (README.md:48) never reaches users. Clicking a diagram element cannot reliably open its code, which IntelliJ and Sourcetrail do by default.",
+  "recommendation": "Emit real UMLLink spans (path, line/column range, token ids, scpg_hash) on every node, edge, member and message. Build the dense backward index for O(1) lookup. Resolve files by file_id from the corpus instead of guessing by name. Add end-to-end tests that check click-to-source lands on the right code.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Diagram files: duplicate copies, communication equals sequence, empty Mermaid files, duplicate ids",
+  "files": [
+   "web/diagrams/manifest.json",
+   "web/diagrams/communication.json",
+   "web/diagrams/class.json",
+   "src/scpg/diagram/export/json.rs",
+   "src/adapters/server.rs",
+   "web/js/graph-loader.js"
+  ],
+  "evidence": "communication.json is byte-identical to sequence.json (diagram_type \"sequence\"). The current exporter only relabels the sequence IR (json.rs:1660-1669). state.json and use_case.json are duplicates because the server writes both alias names (server.rs:648-652). The manifest references no .mmd files. statemachine, callgraph and robdd .mmd are empty headers or comments, against 11, 7 and 5 nodes in JSON. class.json has 0 edges and 5 duplicate ids, and graph-loader.js does not de-duplicate.",
+  "impact": "Only 13 distinct UML diagrams back the 14-diagram claim, and the JSON and Mermaid outputs disagree. Cytoscape requires unique element ids, so the class view can break or lose nodes.",
+  "recommendation": "Give the communication diagram its own IR. Write one canonical file name per type. List .mmd files in the manifest or delete them. Add CI checks for unique ids, a non-empty class edge set, and matching node counts across formats.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-11",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Heavy copy-paste in the diagram exporters (35% exact, 79% after normalization)",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/cfg/stmts/while_stmt.rs",
+   "src/symbol/passes/pass4_members.rs",
+   "tests/strategy_diagram_tests.rs"
+  ],
+  "evidence": "With 40-token windows: exporters 35.1% exact (json.rs 50%) and 78.8% normalized; all of src 13.0% exact and 54.1% normalized; tests 25.3% exact. Largest clones: json.rs:148-182 vs 445-479; mermaid.rs:383-424 vs plantuml.rs:76-117 (identical registries); mermaid.rs:1242-1257 vs plantuml.rs:1089-1102; for_stmt.rs:112-132 vs while_stmt.rs:31-51 (93% of while_stmt.rs); pass4_members.rs:18-32 vs pass5_hierarchy.rs:19-33; strategy_diagram_tests.rs:68-109 vs uma_tests.rs:49-100.",
+  "impact": "Every fix has to be made three times (JSON, PUML, Mermaid), and the copies have already drifted, e.g. the empty Mermaid state diagram.",
+  "recommendation": "Build one model per diagram type and render it through small per-format emitters. Use a generic registry and a macro for strategy impls. Share loop-lowering code in cfg. Move test fixtures into tests/common.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-17",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "UML 2.5 claims have no conformance checks, and timing diagrams use a made-up clock",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "docs/uml_derivation.md",
+   "README.md"
+  ],
+  "evidence": "XMI is emitted as XMI 2.1 in the Eclipse UML2 3.0.0 namespace (xmi.rs:10), not as OMG UML 2.5.1 XMI. Timing diagrams advance a fixed clock by 50 per message, using only the first sequence. When there is none they fall back to the first 3 classes times 2 methods (plantuml.rs:1196-1240; uml_derivation.md:113). README.md:56,64-91 claims all 14 UML 2.5 diagrams, yet no test loads the XMI or checks any behavioural diagram against what the program does.",
+  "impact": "The interoperability and 'all 14 diagrams' claims cannot be verified. Some projections are invented rather than derived from program semantics.",
+  "recommendation": "Validate XMI by loading it in a pinned Eclipse UML2 5.x with EMF validation. Score behavioural diagrams against dynamic traces (S11). Label projections that have no oracle, such as timing and interaction overview, as illustrative.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-13",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Diagram and .scpg output differ from run to run",
+  "files": [
+   "src/scpg/diagram/export/json.rs:131-148",
+   "src/scpg/diagram/export/json.rs:433-530",
+   "src/scpg/diagram/export/mermaid.rs:600-622",
+   "src/scpg/diagram/export/mermaid.rs:174-186",
+   "src/scpg/diagram/export/mermaid.rs:799",
+   "src/scpg/diagram/export/plantuml.rs:1410-1439",
+   "src/scpg/diagram/export/mermaid.rs:1583-1612",
+   "src/scpg/serializer/mod.rs:136-147",
+   "README.md:66"
+  ],
+  "evidence": "The JSON class and package diagrams iterate a HashMap or HashSet with RandomState when emitting nodes, edges and sequential `edge_{n}` ids, so ids and order change per process. Mermaid inserts nested packages from a HashSet and sorts only the root's children; `sort_children_and_edges` is never called. Call-graph views chain nodes in `HashSet::into_iter` order. The .scpg header embeds `creation_ts_ns`.",
+  "impact": "Diffs are noisy, web layouts shift, and golden tests and content-addressed caching are impossible. This contradicts the README's 'deterministically derives' claim.",
+  "recommendation": "Use BTreeMap or IndexMap, or sort by stable keys (FQN, sym_id) before emitting. Derive edge ids by hashing (src, kind, dst). Call the recursive sort. Keep timestamps out of hashed bytes and honor SOURCE_DATE_EPOCH. Done means a test that runs each exporter in two separate processes and asserts byte-equal output.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-16",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "No large-graph strategy: arbitrary first-N truncation and single giant diagrams that exceed renderer limits",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:925-929",
+   "src/scpg/diagram/export/plantuml.rs:958",
+   "src/scpg/diagram/export/plantuml.rs:1033-1067",
+   "src/scpg/diagram/export/mermaid.rs:1457-1459",
+   "src/scpg/diagram/export/mermaid.rs:1584-1589",
+   "src/scpg/diagram/export/json.rs:1358",
+   "web/diagrams/sequence.puml",
+   "web/diagrams/robdd.mmd"
+  ],
+  "evidence": "Views silently keep the first N UMA records: `take(6)` classes × `take(3)` methods for use cases, `take(6)` activities, `take(2)` for ROBDD, `take(12)` objects. The shipped robdd.mmd and callgraph.mmd are empty because the first classes are enums. The sequence exporter puts every scenario in one diagram. The shipped sequence.puml is 110 KB with 699 calls and 699 returns, well beyond PlantUML's default 4096 px limit. Mermaid's maxTextSize (50,000) and maxEdges (500) defaults are ignored.",
+  "impact": "On real repositories, diagrams come out arbitrarily partial, empty or cropped, or the renderer refuses them.",
+  "recommendation": "Add view scoping (focus symbol, package or entry method plus a depth), deterministic size budgets with degree or PageRank ranking, package collapsing or Louvain clustering, one diagram per scenario with `newpage`, renderer-limit checks, and the ELK layout. Done means the examples/ projects produce bounded, renderable diagrams along with a list of omitted elements.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-17",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "The three exporters are divergent re-implementations; shared helpers and the edge optimizer are dead or buggy",
+  "files": [
+   "src/scpg/diagram/common.rs:12-150",
+   "src/scpg/diagram/export/plantuml.rs:229-235",
+   "src/scpg/diagram/export/mermaid.rs:489-560",
+   "src/scpg/diagram/export/mermaid.rs:762-776",
+   "src/scpg/diagram/export/json.rs:70-118",
+   "src/scpg/diagram/export/plantuml_optimizer.rs:38-120",
+   "src/scpg/diagram/factory.rs:181-207"
+  ],
+  "evidence": "There are four copies of sanitize, resolve_name and is_primitive, each with different rules. Mermaid drops any user class named `Entity` or `args`, PlantUML drops one named `Class`, and DiagramUtils is never called. PlantUML builds edges from fields and keeps one edge per class pair, so a realization overwrites a decorator's has-a link. Mermaid uses `association_syms` and draws nesting as `*--`. PlantUMLOptimizer is never called, ignores its thresholds, and drops an inheritance edge whenever the same pair also has a cross-package association (confirmed with a port). JSON silently falls back to a class diagram for unknown types.",
+  "impact": "The same model renders differently in each format, every fix has to be made three or four times, and the dead code advertises behavior that would be wrong if it were enabled.",
+  "recommendation": "Build one typed IR per view (stable ids, typed members, edge kinds, spans) and implement PlantUML, Mermaid, XMI and JSON as printers that visit it. Keep one set of filter rules keyed by resolved type rather than by name. Fix the optimizer so it honors thresholds and never suppresses generalization, or delete it. Return None for unknown diagram types. Done means a cross-format test that asserts identical node and edge sets.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Activity diagrams discard CFG guards, exception edges, loops and labels; the label extractor reads the wrong token",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:66-134",
+   "src/core/types/cfg.rs:7-15",
+   "src/uma/label_extraction.rs:22-35",
+   "src/core/types/ast.rs:202-213",
+   "src/scpg/diagram/export/mermaid.rs:1131-1162",
+   "docs/openheart_research_paper.tex:806-810"
+  ],
+  "evidence": "Every edge becomes EDGE_KIND_CONTROL with guard_text_id 0, although the CFG labels edges True/False/Except/Switch/LoopBack. loop_depth is always 0 despite `cfg.loop_info`; swimlane_count and end_node_count are hard-coded to 1; switch blocks with more than two successors become ACTION; FORK/JOIN/EXCEPTION nodes are never produced. The label is computed then discarded (`_label_text`; label_text_id = block_id). LabelExtractor treats `bpa.node_attr` (packed visibility/modifier/operator bits) as a token index, so plain statements read token #0. Its byte slice at max_chars-3 can panic mid-character on long non-ASCII tokens (latent). Exporters show only the first 6-8 functions, as 'Block_N' rectangles.",
+  "impact": "Activity diagrams are unlabeled block graphs without decision guards or exception paths, short of the decision/merge semantics the paper claims.",
+  "recommendation": "Map edge types to guards ([cond]/[else], case labels) using the branch condition's TRA token span, and render exception edges as UML exception handlers or interruptible regions. Emit explicit decision/merge nodes, fork/join for thread and async starts, and partitions for inlined callees. Build labels from statement token spans, truncate on char boundaries (`char_indices`), store them in label_texts, and render each node kind with its UML shape.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-13",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Open extension model: loadable language adapters, rule/pattern packs, stable schema",
+  "files": [
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "src/scpg/diagram/factory.rs"
+  ],
+  "evidence": "Adapters are hard-wired in AdapterRegistry::new (src/ingestion/adapter/registry.rs:19-42) and ASTAdapterRegistry::new (src/ast/adapter/registry.rs:15-31). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Exporter factories can only be registered from Rust (src/scpg/diagram/factory.rs:309), and pattern detectors are compiled-in functions.",
+  "impact": "Third parties cannot add a language, detector or exporter without forking. Joern frontends, CodeQL packs and Semgrep rules grew their ecosystems through exactly these extension points.",
+  "recommendation": "Publish a versioned SCPG schema and a semver crate API. Load language adapters from declarative tree-sitter query files (.scm) for declarations, calls and types, or as WASM components. Make pattern and architecture detectors data-driven rule packs. Document a 'write a frontend' guide with a reference Kotlin adapter.",
+  "effort": "L",
+  "confidence": "medium"
+ },
+ {
+  "id": "AUTO-12",
+  "kind": "enhancement",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "Very long functions hold most of the risk",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs",
+   "src/uma/serializer.rs",
+   "src/adapters/server.rs",
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/main.rs"
+  ],
+  "evidence": "Of 834 non-test functions (lengths by brace matching), the median is 10 lines and p90 is 65. 118 are over 50 lines, 43 over 100 and 13 over 200. Largest: pass1_discovery.rs:18-633 run (616), uma/serializer.rs:229-679 read (451), server.rs:366-762 process_analyze_request (397), class_diagram.rs:13-344 extract (332), json.rs:121-421 (301), main.rs:101-345 cmd_analyze (245).",
+  "impact": "These functions cannot be unit-tested, and defects such as the silent repo fallback hide inside 400-line handlers.",
+  "recommendation": "Split by concern: routing, validation, phase orchestration, record codecs. Enforce clippy::too_many_lines and cognitive_complexity limits in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-18",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Class-diagram detail falls far short of UML reverse-engineering tools",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:335-363",
+   "src/scpg/diagram/export/plantuml.rs:483-489",
+   "src/scpg/diagram/export/json.rs:356-366",
+   "src/scpg/diagram/export/mermaid.rs:713",
+   "src/uma/types.rs:66-74"
+  ],
+  "evidence": "Methods print as `name() : Ret` with no parameters (UMA stores only param_count), so overloads show up as identical lines. Each type is reduced to a single symbol name, so generics, arrays and nullability disappear. Static and abstract markers, multiplicities and role names are missing. Composition is inferred from the `final` modifier. JSON marks a field as aggregation whenever its type name contains \"List\", \"Set\" or \"Array\", which catches names like `Settings` and `Listener`. Mermaid prints fields as `+name Type`.",
+  "impact": "The diagrams lack the detail users expect from IntelliJ UML or Papyrus reverse engineering, and some relationship kinds are wrong.",
+  "recommendation": "Extend the UMA model and the IR with full signatures (parameter names and types, type arguments, array and nullable flags, modifiers). Render them with PlantUML `{static}`/`{abstract}` and quoted generic labels, and with Mermaid `~T~` generics. Derive aggregation and multiplicity from resolved Collection subtypes, and use composition only for owned lifecycles. Done means fixture parity with a reference generator such as the PlantUML Maven or Gradle plugins.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-14",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "Package, component and deployment views are containment counts with no dependency or build-metadata grounding",
+  "files": [
+   "src/uma/structural/package_diagram.rs:10-58",
+   "src/uma/structural/component_diagram.rs:10-54",
+   "src/scpg/diagram/export/mermaid.rs:834-898",
+   "docs/uml_derivation.md:58-76"
+  ],
+  "evidence": "PackageRecord holds only class and subpackage counts, with no inter-package dependencies, although docs/uml_derivation.md:60 promises them. Components are exactly packages and `_cga` is unused. 'Provided' counts interfaces declared in the package, 'required' counts TH edges (duplicates included) to outside interfaces, and exporters render neither (bare boxes). Deployment reuses packages. No build or deployment metadata is read: pom.xml, build.gradle, module-info.java, DI annotations, Dockerfile or Kubernetes manifests.",
+  "impact": "Architecture views carry no information beyond the directory tree, whereas Structure101, jQAssistant/ArchUnit-based views or Enterprise Architect show dependency structure, cycles and layering.",
+  "recommendation": "Compute package dependency edges from type references and call edges, with cycle detection (Tarjan SCC) and Martin's metrics (Ca, Ce, I, A, D). Derive components from Maven/Gradle modules, JPMS modules and Spring @Component/@Service beans, with implemented interfaces as provided and injected interface-typed fields as required. Derive deployment from Dockerfile, compose, Kubernetes or Helm manifests, and mark it unavailable when they are absent.",
+  "effort": "L",
+  "confidence": "high"
+ }
+]

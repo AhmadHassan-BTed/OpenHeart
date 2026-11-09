@@ -1,8 +1,11 @@
 /**
- * OpenHeart Hierarchical Architectural Layout Engine (Zero Hardcoding)
- * Recursive bottom-up composite bounding box layout algorithm for arbitrary package trees.
- * Guarantees zero overlapping, cycle-safe topological ranking, generous arrow routing channels,
- * and dedicated domain geometry for all 19 UML & Compiler IR diagram projections.
+ * OpenHeart Deterministic Layout Engine
+ *  - Package diagrams: recursive bottom-up bounding boxes with balanced (square-ish) card grids
+ *    and shelf-packed sub-packages, so large packages do not become one tall column.
+ *  - Graph diagrams (CFG, call graph, state, ...): layered (Sugiyama-style) layout with DFS cycle
+ *    breaking, longest-path layering, barycenter crossing reduction and centred coordinates.
+ * Overlap and crossing counts are not measured by this module; it makes no guarantee beyond the
+ * construction itself (cards in a grid cell or layer slot never share space by construction).
  */
 
 export function computeDeterministicLayout(elements, graphType = 'class') {
@@ -86,6 +89,7 @@ export function computeDeterministicLayout(elements, graphType = 'class') {
  * ── Standard UML Class / Package / Composite Bounding Box Engine ──
  */
 function layoutPackageBoundingBoxEngine(packageMap, standaloneNodes, elements) {
+  const MAX_CARD_COLUMNS = 6;
   const CARD_WIDTH = 290;
   const CARD_GAP_X = 120;
   const CARD_GAP_Y = 100;
@@ -96,6 +100,24 @@ function layoutPackageBoundingBoxEngine(packageMap, standaloneNodes, elements) {
   const ROOT_GAP_X = 180;
   const ROOT_GAP_Y = 180;
 
+  function shelfRows(items, targetWidth, gap) {
+    const rows = [];
+    let row = [];
+    let rowWidth = 0;
+    items.forEach(item => {
+      const w = item.bounds.width;
+      if (row.length > 0 && rowWidth + gap + w > targetWidth) {
+        rows.push(row);
+        row = [];
+        rowWidth = 0;
+      }
+      rowWidth += (row.length > 0 ? gap : 0) + w;
+      row.push(item);
+    });
+    if (row.length) rows.push(row);
+    return rows;
+  }
+
   function computePackageBounds(pkg) {
     pkg.childPackages.forEach(cp => computePackageBounds(cp));
 
@@ -103,7 +125,8 @@ function layoutPackageBoundingBoxEngine(packageMap, standaloneNodes, elements) {
     let classesHeight = 0;
 
     if (pkg.childClasses.length > 0) {
-      const colCount = Math.min(2, Math.max(1, pkg.childClasses.length));
+      // Balanced grid: roughly square for many cards, capped so cards stay readable side by side.
+      const colCount = Math.min(MAX_CARD_COLUMNS, Math.max(1, Math.ceil(Math.sqrt(pkg.childClasses.length * 1.5))));
       const rowCount = Math.ceil(pkg.childClasses.length / colCount);
 
       let maxClassH = 140;
@@ -124,15 +147,19 @@ function layoutPackageBoundingBoxEngine(packageMap, standaloneNodes, elements) {
 
     let subpackagesWidth = 0;
     let subpackagesHeight = 0;
+    pkg.subRows = [];
 
     if (pkg.childPackages.length > 0) {
-      pkg.childPackages.forEach(cp => {
-        subpackagesWidth += cp.bounds.width + SIBLING_GAP_X;
-        if (cp.bounds.height > subpackagesHeight) {
-          subpackagesHeight = cp.bounds.height;
-        }
+      const area = pkg.childPackages.reduce((sum, cp) => sum + cp.bounds.width * cp.bounds.height, 0);
+      const widest = pkg.childPackages.reduce((m, cp) => Math.max(m, cp.bounds.width), 0);
+      const target = Math.max(widest, classesWidth, Math.sqrt(area) * 1.4);
+      pkg.subRows = shelfRows(pkg.childPackages, target, SIBLING_GAP_X);
+      pkg.subRows.forEach((row, idx) => {
+        const rowWidth = row.reduce((sum, cp) => sum + cp.bounds.width, 0) + SIBLING_GAP_X * (row.length - 1);
+        const rowHeight = row.reduce((m, cp) => Math.max(m, cp.bounds.height), 0);
+        subpackagesWidth = Math.max(subpackagesWidth, rowWidth);
+        subpackagesHeight += rowHeight + (idx > 0 ? CARD_GAP_Y : 0);
       });
-      subpackagesWidth -= SIBLING_GAP_X;
     }
 
     if (pkg.childClasses.length === 0 && pkg.childPackages.length === 0) {
@@ -205,10 +232,15 @@ function layoutPackageBoundingBoxEngine(packageMap, standaloneNodes, elements) {
     }
 
     if (pkg.childPackages.length > 0) {
-      let currentSubX = originX + PAD_SIDE;
-      pkg.childPackages.forEach(cp => {
-        positionPackage(cp, currentSubX, currentY);
-        currentSubX += cp.bounds.width + SIBLING_GAP_X;
+      (pkg.subRows || [pkg.childPackages]).forEach(row => {
+        let currentSubX = originX + PAD_SIDE;
+        let rowHeight = 0;
+        row.forEach(cp => {
+          positionPackage(cp, currentSubX, currentY);
+          currentSubX += cp.bounds.width + SIBLING_GAP_X;
+          rowHeight = Math.max(rowHeight, cp.bounds.height);
+        });
+        currentY += rowHeight + CARD_GAP_Y;
       });
     }
   }
@@ -233,41 +265,47 @@ function layoutPackageBoundingBoxEngine(packageMap, standaloneNodes, elements) {
 
   rootPackages.forEach(rp => computePackageBounds(rp));
 
-  // Multi-Root Package Grid Alignment
-  const COLS = rootPackages.length > 2 ? 2 : 1;
-  let col = 0;
-  let rowX = 0;
+  // Root packages: shelf-packed rows targeting a roughly square overall footprint.
+  const rootArea = rootPackages.reduce((sum, rp) => sum + rp.bounds.width * rp.bounds.height, 0);
+  const widestRoot = rootPackages.reduce((m, rp) => Math.max(m, rp.bounds.width), 0);
+  const rootRows = shelfRows(rootPackages, Math.max(widestRoot, Math.sqrt(rootArea) * 1.4), ROOT_GAP_X);
   let rowY = 0;
-  let maxRowHeight = 0;
-
-  rootPackages.forEach((rp) => {
-    if (col >= COLS) {
-      col = 0;
-      rowX = 0;
-      rowY += maxRowHeight + ROOT_GAP_Y;
-      maxRowHeight = 0;
-    }
-    positionPackage(rp, rowX, rowY);
-    rowX += rp.bounds.width + ROOT_GAP_X;
-    if (rp.bounds.height > maxRowHeight) {
-      maxRowHeight = rp.bounds.height;
-    }
-    col++;
+  rootRows.forEach(row => {
+    let rowX = 0;
+    let rowHeight = 0;
+    row.forEach(rp => {
+      positionPackage(rp, rowX, rowY);
+      rowX += rp.bounds.width + ROOT_GAP_X;
+      rowHeight = Math.max(rowHeight, rp.bounds.height);
+    });
+    rowY += rowHeight + ROOT_GAP_Y;
   });
-  let currentRootY = rowY + maxRowHeight + ROOT_GAP_Y;
+  let currentRootY = rowY;
 
   if (standaloneNodes.length > 0) {
-    const STANDALONE_COLS = Math.min(3, Math.max(1, Math.ceil(Math.sqrt(standaloneNodes.length))));
+    const STANDALONE_COLS = Math.min(8, Math.max(1, Math.ceil(Math.sqrt(standaloneNodes.length * 1.5))));
     const GAP_X = 120;
     const GAP_Y = 100;
+    // Uniform cells sized to the largest card keep differently sized cards from overlapping.
+    const cellW = standaloneNodes.reduce((m, n) => Math.max(m, n.data.width || CARD_WIDTH), CARD_WIDTH);
+    const rowHeights = [];
+    standaloneNodes.forEach((node, idx) => {
+      const r = Math.floor(idx / STANDALONE_COLS);
+      rowHeights[r] = Math.max(rowHeights[r] || 0, node.data.height || 140);
+    });
+    const rowOffsets = [];
+    let acc = 0;
+    rowHeights.forEach((h, r) => {
+      rowOffsets[r] = acc;
+      acc += h + GAP_Y;
+    });
     standaloneNodes.forEach((node, idx) => {
       const c = idx % STANDALONE_COLS;
       const r = Math.floor(idx / STANDALONE_COLS);
-      const w = node.data.width || CARD_WIDTH;
       const h = node.data.height || 140;
       node.position = {
-        x: c * (w + GAP_X) + w / 2,
-        y: currentRootY + r * (h + GAP_Y) + h / 2
+        x: c * (cellW + GAP_X) + cellW / 2,
+        y: currentRootY + rowOffsets[r] + h / 2
       };
     });
   }
@@ -320,139 +358,162 @@ function layoutModularGridLayout(nodes, edges, elements) {
 }
 
 /**
- * ── Cycle-Safe Topological Hierarchical Layout Engine ──
+ * ── Layered (Sugiyama-style) Layout for directed graphs ──
+ * 1. Cycle breaking: iterative DFS from entry-like nodes; back edges are reversed.
+ * 2. Layering: longest path over the resulting DAG (Kahn's algorithm, linear queue).
+ * 3. Crossing reduction: alternating down/up barycenter sweeps.
+ * 4. Coordinates: each layer centred; very wide layers wrap into sub-rows.
+ * Isolated nodes are placed in a grid below the layered drawing. All steps are O(V + E)
+ * except the sweeps, which are O(iterations · E log V).
  */
 function layoutHierarchicalGraph(nodeMap, edges, elements) {
   const nodes = [];
-  const inDegree = new Map();
-  const adj = new Map();
-
-  nodeMap.forEach((node, id) => {
-    if (!node.data.isPackage) {
-      nodes.push(node);
-      inDegree.set(id, 0);
-      adj.set(id, []);
-    }
+  nodeMap.forEach(node => {
+    if (!node.data.isPackage) nodes.push(node);
   });
+  const n = nodes.length;
+  if (n === 0) return elements;
 
+  const index = new Map();
+  nodes.forEach((node, i) => index.set(node.data.id, i));
+  const out = Array.from({ length: n }, () => []);
+  const degree = new Int32Array(n);
   edges.forEach(edge => {
-    const src = edge.data.source;
-    const tgt = edge.data.target;
-    if (adj.has(src) && inDegree.has(tgt) && src !== tgt) {
-      adj.get(src).push(tgt);
-      inDegree.set(tgt, inDegree.get(tgt) + 1);
-    }
+    const s = index.get(edge.data.source);
+    const t = index.get(edge.data.target);
+    if (s === undefined || t === undefined || s === t) return;
+    out[s].push(t);
+    degree[s]++;
+    degree[t]++;
   });
 
-  const ranks = new Map();
-  const visited = new Set();
-  const queue = [];
+  const isEntryLike = (node) => {
+    const d = node.data;
+    return d.kind === 'entry' || d.name === 'start' || d.name === '[*]' || /(^|[^a-z])(entry|start|init)([^a-z]|$)/i.test(String(d.id));
+  };
+  const indegreeRaw = new Int32Array(n);
+  out.forEach(list => list.forEach(t => { indegreeRaw[t]++; }));
+  const rootOrder = [];
+  nodes.forEach((node, i) => { if (isEntryLike(node)) rootOrder.push(i); });
+  nodes.forEach((node, i) => { if (!isEntryLike(node) && indegreeRaw[i] === 0) rootOrder.push(i); });
+  nodes.forEach((node, i) => { if (!isEntryLike(node) && indegreeRaw[i] !== 0) rootOrder.push(i); });
 
-  // 1. Identify starting entry roots (inDegree === 0 or initial state / entry block)
-  nodes.forEach(node => {
-    const id = node.data.id;
-    const isStart = node.data.kind === 'entry' || node.data.name === 'start' || node.data.name === '[*]' || id.includes('start') || id.includes('init');
-    if (inDegree.get(id) === 0 || isStart) {
-      if (!ranks.has(id)) {
-        queue.push(id);
-        ranks.set(id, 0);
-      }
-    }
-  });
-
-  // If no entry roots identified, seed with the first node
-  if (queue.length === 0 && nodes.length > 0) {
-    queue.push(nodes[0].data.id);
-    ranks.set(nodes[0].data.id, 0);
-  }
-
-  // 2. BFS level traversal with cycle detection and depth capping
-  const MAX_DEPTH = 50;
-  while (visited.size < nodes.length) {
-    if (queue.length === 0) {
-      const nextUnvisited = nodes.find(n => !visited.has(n.data.id));
-      if (!nextUnvisited) break;
-      queue.push(nextUnvisited.data.id);
-      if (!ranks.has(nextUnvisited.data.id)) {
-        ranks.set(nextUnvisited.data.id, 0);
-      }
-    }
-
-    while (queue.length > 0) {
-      const u = queue.shift();
-      if (visited.has(u)) continue;
-      visited.add(u);
-
-      const currRank = ranks.get(u) || 0;
-      const neighbors = adj.get(u) || [];
-
-      neighbors.forEach(v => {
-        if (!visited.has(v)) {
-          const nextRank = Math.min(MAX_DEPTH, currRank + 1);
-          if (!ranks.has(v) || nextRank > ranks.get(v)) {
-            ranks.set(v, nextRank);
+  // 1. Cycle breaking
+  const state = new Uint8Array(n); // 0 = new, 1 = on stack, 2 = finished
+  const dagOut = Array.from({ length: n }, () => []);
+  for (const root of rootOrder) {
+    if (state[root] !== 0) continue;
+    const stack = [[root, 0]];
+    state[root] = 1;
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      const u = frame[0];
+      if (frame[1] < out[u].length) {
+        const v = out[u][frame[1]++];
+        if (state[v] === 1) {
+          dagOut[v].push(u); // back edge reversed
+        } else {
+          dagOut[u].push(v);
+          if (state[v] === 0) {
+            state[v] = 1;
+            stack.push([v, 0]);
           }
-          queue.push(v);
         }
-      });
+      } else {
+        state[u] = 2;
+        stack.pop();
+      }
     }
   }
 
-  nodes.forEach(n => {
-    if (!ranks.has(n.data.id)) {
-      ranks.set(n.data.id, 0);
+  // 2. Longest-path layering
+  const dagIn = Array.from({ length: n }, () => []);
+  const indeg = new Int32Array(n);
+  dagOut.forEach((list, u) => list.forEach(v => { dagIn[v].push(u); indeg[v]++; }));
+  const rank = new Int32Array(n);
+  const queue = [];
+  for (let i = 0; i < n; i++) if (indeg[i] === 0) queue.push(i);
+  for (let head = 0; head < queue.length; head++) {
+    const u = queue[head];
+    for (const v of dagOut[u]) {
+      if (rank[u] + 1 > rank[v]) rank[v] = rank[u] + 1;
+      if (--indeg[v] === 0) queue.push(v);
     }
-  });
+  }
 
-  const rankGroups = new Map();
-  ranks.forEach((r, id) => {
-    if (!rankGroups.has(r)) rankGroups.set(r, []);
-    const n = nodeMap.get(id);
-    if (n) rankGroups.get(r).push(n);
+  // 3. Layers and crossing reduction (isolated nodes handled separately)
+  const isolated = [];
+  const layers = [];
+  queue.forEach(i => {
+    if (degree[i] === 0) {
+      isolated.push(i);
+      return;
+    }
+    const r = rank[i];
+    if (!layers[r]) layers[r] = [];
+    layers[r].push(i);
   });
+  const denseLayers = layers.filter(Boolean);
+  const pos = new Float64Array(n);
+  denseLayers.forEach(layer => layer.forEach((v, k) => { pos[v] = k; }));
+  const sweep = (layerList, neighbours) => {
+    layerList.forEach(layer => {
+      const keyed = layer.map((v, k) => {
+        const adj = neighbours[v];
+        if (!adj.length) return { v, key: pos[v], k };
+        let sum = 0;
+        for (const u of adj) sum += pos[u];
+        return { v, key: sum / adj.length, k };
+      });
+      keyed.sort((a, b) => a.key - b.key || a.k - b.k);
+      keyed.forEach((item, k) => {
+        layer[k] = item.v;
+        pos[item.v] = k;
+      });
+    });
+  };
+  for (let iter = 0; iter < 4; iter++) {
+    sweep(denseLayers.slice(1), dagIn);
+    sweep(denseLayers.slice(0, -1).reverse(), dagOut);
+  }
 
-  const LEVEL_GAP_Y = 160;
-  const NODE_GAP_X = 120;
+  // 4. Coordinates
+  const LEVEL_GAP_Y = 150;
+  const NODE_GAP_X = 110;
+  const MAX_NODES_PER_ROW = 14;
   let currentY = 40;
-
-  const sortedRanks = Array.from(rankGroups.keys()).sort((a, b) => a - b);
-  sortedRanks.forEach(rank => {
-    const group = rankGroups.get(rank);
-    if (!group || group.length === 0) return;
-
-    // If rank is broad (> 3 nodes), wrap into sub-rows of max 3 nodes
-    const MAX_NODES_PER_ROW = 3;
-    const subRows = [];
-    for (let i = 0; i < group.length; i += MAX_NODES_PER_ROW) {
-      subRows.push(group.slice(i, i + MAX_NODES_PER_ROW));
-    }
-
-    subRows.forEach(rowGroup => {
+  denseLayers.forEach(layer => {
+    for (let start = 0; start < layer.length; start += MAX_NODES_PER_ROW) {
+      const row = layer.slice(start, start + MAX_NODES_PER_ROW);
       let totalWidth = 0;
-      let maxH = 100;
-      rowGroup.forEach(n => {
-        const w = n.data.width || 260;
-        const h = n.data.height || 140;
-        totalWidth += w + NODE_GAP_X;
-        if (h > maxH) maxH = h;
+      let maxH = 80;
+      row.forEach(v => {
+        totalWidth += (nodes[v].data.width || 260) + NODE_GAP_X;
+        maxH = Math.max(maxH, nodes[v].data.height || 140);
       });
       totalWidth -= NODE_GAP_X;
-
       let currentX = -totalWidth / 2;
-      rowGroup.forEach(n => {
-        const w = n.data.width || 260;
-        const h = n.data.height || 140;
-
-        n.position = {
-          x: currentX + w / 2,
-          y: currentY + h / 2
-        };
+      row.forEach(v => {
+        const w = nodes[v].data.width || 260;
+        const h = nodes[v].data.height || 140;
+        nodes[v].position = { x: currentX + w / 2, y: currentY + h / 2 };
         currentX += w + NODE_GAP_X;
       });
-
       currentY += maxH + LEVEL_GAP_Y;
-    });
+    }
   });
+
+  if (isolated.length) {
+    const cols = Math.max(1, Math.min(10, Math.ceil(Math.sqrt(isolated.length * 1.5))));
+    const cellW = isolated.reduce((m, v) => Math.max(m, nodes[v].data.width || 260), 0) + NODE_GAP_X;
+    const cellH = isolated.reduce((m, v) => Math.max(m, nodes[v].data.height || 140), 0) + 80;
+    const startX = -((cols * cellW) - NODE_GAP_X) / 2;
+    isolated.forEach((v, k) => {
+      const c = k % cols;
+      const r = Math.floor(k / cols);
+      nodes[v].position = { x: startX + c * cellW + (cellW - NODE_GAP_X) / 2, y: currentY + r * cellH + (nodes[v].data.height || 140) / 2 };
+    });
+  }
 
   return elements;
 }

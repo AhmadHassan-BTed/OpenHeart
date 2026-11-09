@@ -10,6 +10,7 @@ export {
   onThemeChange,
   buildCytoscapeStylesheet,
   fetchManifest,
+  getManifestError,
   setManifest,
   getCachedManifest
 } from './theme-manager.js';

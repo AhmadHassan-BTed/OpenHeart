@@ -2,6 +2,8 @@
 
 ## Phase 8: ROBDD Path Summary Computation
 
+> **Status: design specification.** This plan describes the target design of Phase 8. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
 ### 8.1 Phase Mandate & Exact Boundaries
 
 Phase 8 converts each function's CFG — a graph of basic blocks and edges — into a compact Boolean formula that encodes exactly the set of all structurally feasible execution paths through that function. This formula is stored as a Reduced Ordered Binary Decision Diagram (ROBDD): a canonical, maximally-compressed directed acyclic graph whose size is exponentially smaller than explicit path enumeration for the vast majority of real-world code.
@@ -134,9 +136,19 @@ The structural path function f\_paths: {0,1}^{|E|} → {0,1} is defined as the c
 
 **Exit constraint:** At least one edge into the EXIT block is taken (there must be a return or throw).
 
-f\_paths = (∧\_b Φ\_b) ∧ entry\_constraint
+f\_paths = (∧\_b Φ\_b) ∧ entry\_constraint ∧ exit\_constraint
 
 Each Φ\_b is built as an ROBDD clause and conjuncted into the accumulating f\_paths using `apply(AND, ...)`.
+
+**Correction — the implications above are not enough.** Φ\_b only says what happens *if* b is entered. The edges leaving a block that is not entered remain unconstrained, so every assignment of them satisfies f\_paths and #SAT counts it: one `if/else` yields 8 models instead of 2, and k sequential `if/else` blocks yield 2·4^k instead of 2^k. For #SAT(f\_paths) to equal the number of entry-to-exit paths, every block must satisfy **flow conservation**:
+
+- in(b) ↔ out(b), where in(b) = ∨ incoming edge variables and out(b) = ∨ outgoing edge variables (an edge out of an unreached block is 0);
+- at most one incoming and at most one outgoing edge of b is 1;
+- exactly one edge out of ENTRY and exactly one edge into EXIT is 1.
+
+In an acyclic CFG these constraints admit exactly the edge sets of the entry-to-exit paths. A variable removed by restriction (such as the ENTRY edge) must also be removed from the variable count passed to `sat_count`, otherwise it is counted as free and doubles the result. Loops must be handled separately (back edges replaced by dummy entry/exit edges, as in Ball–Larus path numbering).
+
+> *Implementation (audited baseline `fc218cd`):* `src/psa/construction/constraints.rs` encodes only the implications, without the exit constraint, and counts the restricted entry variable as free, so the reported `sat_count` overstates the number of paths for every branching function. Ball–Larus numbering (MICRO 1996) computes the exact acyclic path count in O(V + E) and is the reference against which any fix must be differentially tested.
 
 #### 8.2.4 Variable Ordering — FORCE Algorithm
 
@@ -194,6 +206,8 @@ FORCE converges to a **low-bandwidth ordering**: variables that appear together 
 Each adjacent swap of variables at positions k and k+1 is performed in O(|nodes at levels k and k+1|) time using local node restructuring. Total sifting cost: O(m × |ROBDD|) amortized.
 
 **Combined strategy:** FORCE (O(m × n\_constraints × 100 iterations)) then sifting (O(m × |ROBDD|)) gives near-optimal ordering in O(m × |ROBDD|) total.
+
+> *Implementation (audited baseline `fc218cd`):* `src/psa/ordering/sifting.rs` calls `swap_adjacent()` on the ordering table but never rewrites a BDD node, and measures `node_count()`, which a table permutation cannot change. The minimum is therefore always the starting position and every variable returns home: the pass has no effect. Real sifting needs per-level unique subtables, in-place swaps of levels k and k+1, reference counts for the live size, a growth cut-off, and a level indirection (`perm`/`invperm`) so that node variable labels stay consistent.
 
 #### 8.2.5 #SAT Computation with Variable Gaps
 

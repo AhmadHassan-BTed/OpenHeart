@@ -2,6 +2,8 @@
 
 ## Phase 6: Inter-procedural Call Graph & Points-To Analysis
 
+> **Status: design specification.** This plan describes the target design of Phase 6. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
 ### 6.1 Phase Mandate & Exact Boundaries
 
 Phase 6 assembles the inter-procedural skeleton of the SCPG: the call graph. Every call expression identified in the BP AST — direct, virtual, interface, constructor, or dynamic — is resolved to a set of possible callee symbols and encoded as a typed edge. The call graph is the structural substrate for Phase 8's CFL-reachability path queries, Phase 9's sequence and use-case diagram generation, and the final SCPG query engine's inter-procedural slicing capability.
@@ -96,6 +98,8 @@ cha_targets(
 
 #### 6.2.4 One-CFA: Allocation-Site Sensitivity
 
+> *Implementation (audited baseline `fc218cd`):* the code looks up receiver types (`src/cg/resolution.rs`); it keeps no call-string context, so it is not 1-CFA. The fan-out figures quoted below are from the cited literature, not from OpenHeart.
+
 1-CFA refines CHA using the SSA information from Phase 5. The key insight: if the receiver `o^i` is an SSA variable, its definition site tells us its allocation type.
 
 ```
@@ -139,6 +143,8 @@ one_cfa_targets(
 **Precision gain:** For `o = new ConcreteList(); o.add(x)`, CHA returns all `add()` implementations across the entire `Collection` hierarchy (potentially dozens). 1-CFA sees that `o^i` is defined by `new ConcreteList()` and returns exactly `{ConcreteList.add}`. This reduces average virtual call fan-out from ~8 targets (CHA) to ~1.3 targets (1-CFA) on typical Java codebases (empirical from Lhoták & Hendren 2003 benchmarks).
 
 #### 6.2.5 Anderson's Inclusion-Based Points-To Analysis
+
+> *Implementation (audited baseline `fc218cd`): not implemented.* `src/cg/points_to.rs` seeds a set only when an SSA defining statement is itself a `new` expression (it is normally the enclosing declaration or expression statement, so allocations are rarely seen), takes the allocation "type" by indexing symbols with an AST node id, and propagates only along φ copies. There are no assign, load, store, call or return constraints, no field sensitivity and no cycle detection, and `pts` is keyed by an SSA id that restarts at 0 in every function, so facts from different methods merge. This section is the design for a future solver.
 
 For a more globally precise (but more expensive) alternative to per-call-site 1-CFA, Anderson's algorithm (1994) computes a global points-to relation `pts: SSAVar → 2^{AllocSite}` over all pointer-typed SSA variables.
 

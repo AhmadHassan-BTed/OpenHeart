@@ -1,54 +1,73 @@
 //! BehavioralExtractor — coordinates behavioral UML diagram extractions (§9.3).
+//!
+//! Timing diagrams are not extracted: no prior phase models threads or time,
+//! so there is no evidence to build them from.
 
 pub mod activity_diagram;
 pub mod communication_diagram;
 pub mod interaction_overview;
 pub mod sequence_diagram;
 pub mod state_machine;
-pub mod timing_diagram;
 
 pub use activity_diagram::ActivityDiagramExtractor;
 pub use communication_diagram::CommunicationDiagramExtractor;
 pub use interaction_overview::InteractionOverviewExtractor;
-pub use sequence_diagram::SequenceDiagramExtractor;
+pub use sequence_diagram::{SequenceDiagramExtractor, SequenceOptions};
 pub use state_machine::StateMachineExtractor;
-pub use timing_diagram::TimingDiagramExtractor;
 
 use crate::ast::BPASTArtifact;
 use crate::cfg::serializer::CFGArtifact;
-use crate::core::types::cg::CallGraphArtifact;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::psa::types::PathSummaryArtifact;
-use crate::ssa::serializer::SSAArtifact;
-use crate::symbol::SymbolTableArtifact;
-use crate::tra::types::TraceabilityArtifact;
+use crate::uma::bodies::MemberBodies;
+use crate::uma::index::UMAIndex;
+use crate::uma::label_extraction::LabelTable;
 use crate::uma::types::*;
+
+/// All behavioral records of one Phase 9 run.
+pub struct BehavioralRecords {
+    pub activities: Vec<ActivityRecord>,
+    pub state_machines: Vec<StateMachineRecord>,
+    pub sequences: Vec<SequenceDiagramRecord>,
+    pub communications: Vec<CommunicationDiagramRecord>,
+    pub interaction_overviews: Vec<InteractionOverviewRecord>,
+}
 
 pub struct BehavioralExtractor;
 
 impl BehavioralExtractor {
+    #[allow(clippy::too_many_arguments)]
     pub fn extract_all(
-        sta: &SymbolTableArtifact,
+        index: &UMAIndex<'_>,
+        bodies: &MemberBodies,
         cfa: &CFGArtifact,
         bpa: &BPASTArtifact,
         tca: &TokenCorpusArtifact,
         psa: &PathSummaryArtifact,
-        ssa: &SSAArtifact,
-        cga: &CallGraphArtifact,
-        tra: &TraceabilityArtifact,
-    ) -> (
-        Vec<ActivityRecord>,
-        Vec<StateMachineRecord>,
-        Vec<SequenceDiagramRecord>,
-    ) {
-        let activities = ActivityDiagramExtractor::extract_all(cfa, bpa, tca, sta, psa);
-        let state_machines = StateMachineExtractor::extract_all(sta, ssa);
-        let sequences = SequenceDiagramExtractor::extract_all(sta, cfa, cga, tra);
+        labels: &mut LabelTable,
+        class_syms: &[u32],
+        include_tests: bool,
+        sequence_options: SequenceOptions,
+    ) -> BehavioralRecords {
+        let activities = ActivityDiagramExtractor::extract_all(cfa, bpa, tca, psa, labels);
+        let state_machines = StateMachineExtractor::extract_all(index, bodies, labels, class_syms);
+        let sequences = SequenceDiagramExtractor::extract_all(
+            index,
+            bodies,
+            labels,
+            include_tests,
+            sequence_options,
+        );
+        let communications = CommunicationDiagramExtractor::extract(&sequences);
+        let interaction_overviews =
+            InteractionOverviewExtractor::extract(index, &activities, &sequences);
 
-        CommunicationDiagramExtractor::extract(sta, &sequences);
-        InteractionOverviewExtractor::extract(sta, &activities, &sequences);
-        TimingDiagramExtractor::extract(sta);
-
-        (activities, state_machines, sequences)
+        BehavioralRecords {
+            activities,
+            state_machines,
+            sequences,
+            communications,
+            interaction_overviews,
+        }
     }
 }

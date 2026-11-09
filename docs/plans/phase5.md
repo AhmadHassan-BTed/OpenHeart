@@ -2,6 +2,8 @@
 
 ## Phase 5: SSA Conversion & Data Flow Graph Construction
 
+> **Status: design specification.** This plan describes the target design of Phase 5. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
 ### 5.1 Phase Mandate & Exact Boundaries
 
 Phase 5 transforms the control flow structure from Phase 4 into its most analytically powerful form: Static Single Assignment (SSA). Every variable is renamed so that each name has exactly one definition site anywhere in the program. This single constraint — one name, one definition — makes def-use relationships explicit, sparse, and O(1)-navigable, which is the mathematical precondition that makes both Phase 8's ROBDD path summaries and the IFDS-based data-flow analyses tractable.
@@ -154,6 +156,8 @@ Time: O(m × depth\_pdom) where depth\_pdom = post-dominator tree height ≤ n. 
 **CDG Semantics:** For every CDG edge (X, Y), we store the edge type `CD_TRUE` or `CD_FALSE` to capture which branch of X's conditional results in Y's execution. This is used in Phase 9 to generate precise UML activity diagram guards.
 
 #### 5.2.6 IFDS Framework — Polynomial Data-Flow Analysis
+
+> *Implementation (audited baseline `fc218cd`): not implemented.* `src/ssa/ifds.rs` visits each SSA record once and marks facts by AST shape: a "taint source" is a defining statement with a direct method-declaration child, "nullable" is any direct literal child (so `i = 0` is marked nullable and `String s = null;` is not), and type-state reuses the method-declaration test. There is no supergraph, flow function, path edge, summary edge or worklist, and nothing is propagated. The `supergraph.rs` and `tabulation.rs` modules described below do not exist. Everything in this section is the design for a future Reps–Horwitz–Sagiv tabulation solver over an ICFG.
 
 **Definition (IFDS Problem):** Given a program supergraph G\* = (N\*, E\*) (a CFG with inter-procedural call/return edges), a finite universe of data-flow facts D, and a family of flow functions {f\_{m,n} : 2^D → 2^D}, the IFDS analysis computes for each program point n the set of facts valid at n.
 

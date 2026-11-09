@@ -1,0 +1,923 @@
+[
+ {
+  "id": "CORE-01",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Only Java has a real grammar: Kotlin is parsed as Java then JavaScript; Python/Rust/TS/C++ as JavaScript",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs:29-31",
+   "src/ingestion/adapter/registry.rs:34-39",
+   "src/ingestion/adapter/registry.rs:52-57",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ast/adapter/registry.rs:37-42",
+   "src/ingestion/adapter/mod.rs:14-16",
+   "src/ingestion/adapter/generic.rs:52-58",
+   "src/adapters/server.rs:805-830",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "KotlinLanguageAdapter::ts_language() returns tree_sitter_java::language(), and Cargo.toml has only the java and javascript grammars. AdapterRegistry::get falls back to a LangId::Unknown adapter built on tree_sitter_javascript, so .py/.rs/.ts/.cpp/.go files, all of which the server collects, are lexed as JavaScript. Phase 2 registers no Kotlin adapter, so Kotlin is reduced by the generic JS reducer. The generic Phase-1 adapter keeps include_anonymous()=false, so it emits no keywords, operators or punctuation, and it types any alphabetic named leaf as Keyword. No test ingests a .kt file.",
+  "impact": "Every non-Java file produces error-ridden CSTs and meaningless ASTs, so later phases fall back to token heuristics. The README's 'F1 = 1.0000 across Java, Kotlin, Python, Rust, TypeScript, C++' is not supported by Phases 1 and 2.",
+  "recommendation": "Upgrade to tree-sitter 0.25 and add real grammars (tree-sitter-kotlin-ng, -python, -typescript, -rust, -cpp, -go). For each language, write Phase 1/2 adapters whose classification tables are generated from or tested against the grammar's node-types.json, with a test that fails on any unclassified kind. Skip unsupported extensions with a diagnostic instead of re-parsing them with another grammar. Done = per-language golden AST snapshot tests and published per-language accuracy on a public corpus.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Java reducer's default Drop silently discards constructor bodies, switch bodies, try-with-resources and generic types",
+  "files": [
+   "src/ast/adapter/java.rs:105-131",
+   "src/cfg/stmts/mod.rs:41",
+   "src/cfg/stmts/try_stmt.rs:62-66"
+  ],
+  "evidence": "classify() ends in `_ => Drop`, which discards the whole subtree. No arm names constructor_body, switch_block, try_with_resources_statement, explicit_constructor_invocation, enum_constant, generic_type, array_type, scoped_type_identifier, catch_formal_parameter, inferred_parameters or ERROR, all of which tree-sitter-java emits, and none of these strings appear anywhere in the repo. Switches parse as switch_expression, so the switch_statement arm is likely dead, and the CFG dispatches only NN_SWITCH_STMT. With the catch parameter gone, try_stmt.rs:62-66 takes the catch body as the 'param' and never dispatches its statements.",
+  "impact": "For ordinary Java, statements and calls inside constructors, switches and try-with-resources vanish from AST, CFG, SSA and call graph. Generic, array and qualified types (`List<Foo>`, `new HashMap<>()`, `Foo[]`) also disappear, which degrades type resolution and UML associations.",
+  "recommendation": "Make Eliminate the default and keep Drop for an explicit allowlist of trivia. Classify every named kind in tree-sitter-java's node-types.json, enforced by a unit test that fails on unclassified kinds. Add insta snapshot tests for constructors, switch rules and groups, try-with-resources, enums, lambdas, generics, records and patterns, and record a per-file count of nodes lost to ERROR.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-01",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Cross-file type resolution does not work: import declarations never reach Pass 2 and same-package lookup is missing",
+  "files": [
+   "src/ast/adapter/java.rs:129",
+   "src/ast/reducer.rs:17",
+   "src/symbol/passes/pass2_imports.rs:15-18",
+   "src/symbol/passes/pass2_imports.rs:28-43",
+   "src/symbol/passes/pass2_imports.rs:63",
+   "src/symbol/passes/pass3_types.rs:71-89",
+   "src/symbol/scope_graph/resolver.rs:57-73",
+   "docs/plans/phase3.md:429"
+  ],
+  "evidence": "The Java adapter has no arm for import_declaration, so `_ => Drop` (java.rs:129) discards it, and Drop returns None without visiting children (reducer.rs:17). Pass 2 therefore never fires. If imports did arrive, Pass 2 joins tokens with spaces (pass2:63), so `.*` never matches and simple names become ' List'. It also files every import under the module's declared-in scope, which is the global root (15-18). Pass 3 maps imported FQNs to new SK_EXTERNALs, never to project symbols (pass3:71-78). Same-package lookup, promised in phase3.md:429, does not exist, and wildcard_imports is never called.",
+  "impact": "Every reference to a type declared in another file becomes an SK_EXTERNAL keyed by simple name. Exporters then re-match by simple name (plantuml.rs:443-477), which is wrong whenever simple names collide across packages.",
+  "recommendation": "Emit package and import nodes from Phase 2. In Pass 1, build a global FQN→SymId index and one package scope shared by all compilation units of a package. Resolve per JLS 6.4.1 and 7.5: local and member types, then single-type imports, then same package, then on-demand imports, then java.lang; static imports for members. Encode this as scope-graph import edges with path ordering (Neron et al. 2015; Statix). Done when a 3-file, 2-package fixture with clashing simple names matches javac's bindings.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Declaration names come from token-window heuristics and are wrong for annotated members, every parameter and long class headers",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs:635-893",
+   "src/symbol/passes/pass1_discovery.rs:645",
+   "src/symbol/passes/pass1_discovery.rs:703",
+   "src/symbol/passes/pass1_discovery.rs:865-883",
+   "src/ingestion/adapter/java.rs:69-70",
+   "src/ast/adapter/java.rs:42",
+   "src/uma/structural/class_diagram.rs:346-429"
+  ],
+  "evidence": "Methods take the last identifier before the first '(' (pass1:696-745), and fields the last before the first '=' (748-791). Parameters fall through to the first identifier (793-889). The class keyword must appear within 15 tokens (645). The Annotation skip (703) never fires, because annotations are never leaf tokens (ingestion java.rs:69-70). A re-implementation (scratchpad sim_pass1.py) gives `@GetMapping(\"/x\") ... getUser(` → GetMapping; `@GeneratedValue(strategy=..) Long id` → strategy; parameter `String name` → String; `final Long id` → final; `@Entity @Table(..) class User` → Entity; `@Import({A.class,B.class}) class Cfg` → B. A Spring/Lombok blocklist is hardcoded at 865-883.",
+  "impact": "In Spring, JPA and JUnit 5 code, members and classes are named after annotations, and every parameter takes its first token's text as its name. Call graph, UML, traceability and resolution inherit these names, and the downstream 'Entity' blocklist hides real classes.",
+  "recommendation": "Extract names structurally. In Phase 2, record in a side array the token of each declaration's tree-sitter `name` field (type declarations, methods, constructors), plus each variable_declarator and formal_parameter name; Pass 1 reads it. Emit one SK_FIELD or SK_LOCAL_VAR per declarator: java.rs:42 currently emits the declaration and its declarators, and `int a, b;` yields one field named b. Delete the hardcoded name lists. Done when golden name tests pass on Spring PetClinic and a JPA entity fixture.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "Java AST reduction (Phase 2 root cause) discards switch bodies, constructor bodies and try-with-resources before Phases 4-6",
+  "files": [
+   "src/ast/adapter/java.rs:129",
+   "src/ast/adapter/mod.rs:19-20",
+   "src/cfg/mod.rs:60-75",
+   "src/cfg/stmts/mod.rs:35-63",
+   "tests/pipeline_accuracy_tests.rs:142"
+  ],
+  "evidence": "Unlisted tree-sitter kinds hit `_ => Drop` (java.rs:129), which discards the whole subtree (adapter/mod.rs:19-20). Unlisted: switch_block/switch_rule/switch_label, try_with_resources_statement, constructor_body, explicit_constructor_invocation, yield_statement, enum_constant. NN_SWITCH_CASE is never produced, so build_switch is dead code; as far as I know, tree-sitter-java ≥0.19 also emits statement switches as switch_expression, which dispatch_stmt does not handle. Constructors have no NN_BLOCK child, so cfg/mod.rs:60-75 skips them; the accuracy test asserts function_count == 2 for a file with three bodies.",
+  "impact": "Statements and call sites inside switches, constructors (including super()/this() chains), try-with-resources and enum-constant bodies vanish from the CFG, SSA and call graph: silent data loss on idiomatic Java.",
+  "recommendation": "Map these kinds (Keep/Eliminate) and add a coverage test generated from tree-sitter-java's node-types.json that fails if any statement or expression kind is dropped. In Phase 4, handle NN_SWITCH_EXPR, arrow rules, patterns and yield; desugar try-with-resources per JLS 14.20.3 (close() and suppressed exceptions); model constructor prologues (super/this call, field initializers) as an <init> body, as Soot and WALA do.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-01",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "critical",
+  "title": "Genuine Kotlin and multi-language frontends with a versioned support matrix",
+  "files": [
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "Cargo.toml",
+   "README.md",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The Kotlin adapter returns tree_sitter_java::language() (src/ingestion/adapter/kotlin.rs:29-31). The AST registry maps JavaScript, TypeScript, Rust, Generic and Unknown to one JavaScript-grammar adapter, and Kotlin falls through to it (src/ast/adapter/registry.rs:19-28,37-42). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Cargo.toml:9-11 pulls in only the tree-sitter 0.20 Java and JavaScript grammars. Yet README.md:60 claims six languages and src/adapters/server.rs:83-85 advertises seven. Tests and examples contain no lambdas, sealed types or switch patterns.",
+  "impact": "Kotlin and every non-Java input produce Java parses full of errors or JavaScript-shaped ASTs, so multi-language results cannot be trusted. CodeQL and Joern publish support per language and per version. Without that, OpenHeart cannot be compared even on Java and Kotlin, its stated core.",
+  "recommendation": "Upgrade to a current tree-sitter release. Add tree-sitter-kotlin-ng with Kotlin AST and semantic adapters. Gate Java 8-25 and Kotlin 1.9-2.x features behind conformance fixtures, and publish a support matrix. Reject unsupported files instead of silently using the JavaScript grammar. Drop unimplemented languages from the README and /api/supported-languages until they pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Unsound unsafe aliasing in the ROBDD manager can read freed memory",
+  "files": [
+   "src/psa/bdd/mod.rs",
+   "src/psa/bdd/apply.rs",
+   "src/psa/bdd/unique_table.rs",
+   "src/core/io/mmap.rs"
+  ],
+  "evidence": "mod.rs:86, :102 and :122 build &[ROBDDNode] with from_raw_parts(self.nodes.as_ptr(), len) while also passing &mut self.nodes. make_node pushes new nodes (unique_table.rs:65). After recursion the stale slice is still read: apply.rs:104 reads 'nodes' after the call at :103 may have pushed, and apply.rs:136-138 holds fn_ = &nodes[f] across a pushing call. The SAFETY note (mod.rs:79-83) says clearing the cache prevents reallocation; it does not. mmap.rs:15 has no SAFETY note.",
+  "impact": "If the Vec grows during apply_not or restrict, the code reads freed memory, producing wrong BDDs or crashes. Holding a shared slice alongside &mut is undefined behavior even without reallocation, and Miri would flag it.",
+  "recommendation": "Remove the unsafe: pass only &mut Vec<ROBDDNode> and copy each node by index before recursing, or use an arena with stable indices. Add a Miri CI job for psa.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-05",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Only Java and JavaScript grammars exist; Kotlin, TypeScript and Rust use the wrong grammar",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/kotlin.rs",
+   "src/ast/adapter/registry.rs",
+   "src/ingestion/adapter/registry.rs",
+   "src/adapters/server.rs",
+   "README.md"
+  ],
+  "evidence": "Cargo.toml lists only tree-sitter-java and tree-sitter-javascript. The Kotlin adapter returns tree_sitter_java::language() (kotlin.rs:30). TypeScript, Rust, Generic and Unknown are reduced with the JavaScript grammar (ast/adapter/registry.rs:21-28), and files with any other extension are parsed as JavaScript (ingestion/adapter/registry.rs:34-38). The API advertises java, python, typescript, javascript, cpp, rust and go (server.rs:84). README.md:60 claims F1 = 1.0000 across six languages.",
+  "impact": "Non-Java input quietly produces CSTs full of parse errors. Any outside benchmark will disprove the multi-language accuracy claims.",
+  "recommendation": "Either add real grammars and adapters (kotlin, python, rust, typescript, cpp) with tests, or narrow the README and API claims to Java and JS. Reject unsupported extensions instead of falling back to JavaScript.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The six-language claim rests on only two linked grammars",
+  "files": [
+   "Cargo.toml",
+   "src/ingestion/adapter/registry.rs",
+   "src/ingestion/adapter/kotlin.rs",
+   "README.md"
+  ],
+  "evidence": "Only tree-sitter-java and tree-sitter-javascript are dependencies (Cargo.toml:9-11). Kotlin is parsed with the Java grammar (kotlin.rs:30). Python, TypeScript, Rust, C++ and Go are detected (registry.rs:60-79), then routed to an Unknown adapter that uses the JavaScript grammar (registry.rs:34-38, 52-56). README.md:60 nevertheless claims validation across Java, Kotlin, Python, Rust, TypeScript and C++.",
+  "impact": "Results for non-Java languages come from tree-sitter error recovery under the wrong grammar. CFG, SSA and call graphs built from them cannot be meaningful, and any comparison with a real multi-language tool will show this.",
+  "recommendation": "Limit claims to Java (and JavaScript) for now. Add suite S13, which measures the per-language ERROR/MISSING node rate under the correct grammar and FQN precision/recall against SCIP indexers. Publish a result for each language before claiming it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-03",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The code's own data structures contradict the 128x and 4.65 MB per 1M AST nodes claims",
+  "files": [
+   "README.md",
+   "docs/overview.md",
+   "docs/architecture.md",
+   "docs/succinct_structures.md",
+   "docs/openheart_research_paper.tex",
+   "src/ast/rmq.rs",
+   "src/ast/jump_table.rs",
+   "src/ast/preorder.rs",
+   "src/ast/rank_select.rs",
+   "src/ast/serializer.rs"
+  ],
+  "evidence": "Claims: README.md:48,54; overview.md:119; architecture.md:107; succinct_structures.md:39-47. The 128x figure is the information-theoretic gap (paper .tex:292-296), not a measurement. Per node, the code stores: an 8 B u32 jump table over 2n bits (jump_table.rs:15-16); 17 B of preorder arrays (preorder.rs:4-8); u16 rank blocks for every 8 bits (rank_select.rs:8, 15-16); and a sparse-table RMQ over 2n positions times 21 u32 levels plus i32/usize side arrays (rmq.rs:24-54). Estimated from field sizes at 1M nodes: about 25 MB serialized (serializer.rs:34-61) and about 210 MB in RAM.",
+  "impact": "The flagship number is about 5x too optimistic on disk and about 45x in memory. In RAM the structure is larger than the 32 MB pointer tree the docs compare it against. Any reviewer who measures RSS will refute the claim.",
+  "recommendation": "Add suite S15: per-structure byte accounting plus dhat max-live heap for n = 10^3 to 10^7, published as bits per node. Drop the 128x claim until S15 supports it. To earn a succinct-structure claim, replace the jump table and sparse table with an o(n)-bit range-min-max tree, and derive parent from the BP sequence instead of parent_map.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Feasibility filter is unsound: SSA ids are reused as BDD variable indices and collide with edge variables",
+  "files": [
+   "src/psa/construction/feasibility.rs:63-75",
+   "src/psa/construction/feasibility.rs:85-101",
+   "src/psa/construction/feasibility.rs:108-124",
+   "src/ssa/renaming.rs:124-133",
+   "src/core/types/ssa.rs:43"
+  ],
+  "evidence": "build_condition_bdd picks the last non-phi SSA def in the block, not the branch condition, and uses `ssa_id & 0x3FFF` as a BDD variable (feasibility.rs:115-123). SSA ids are function-local and start at 0 (renaming.rs:124-133), the same range as edge variables 0..n_vars, so `cond -> x_true` (line 73) usually constrains an unrelated edge. In the port, the diamond count drops from 8 to 4 (the else-path is deleted) on a collision, and becomes 68 when the variable is >= n_vars, because sat_count's gap logic assumes var < n_vars. Block ids are also truncated to u8/u16 (lines 88, 115; ssa.rs:43).",
+  "impact": "Feasible paths are removed or counts become garbage, contradicting the documented 'sound over-approximation'. Correlated or contradictory predicates are never actually detected.",
+  "recommendation": "Extract atomic predicates from condition ASTs and canonicalize them (SSA value numbering, normalized negation and comparisons). Allocate predicate variables in a separate range above the edge variables and quantify them out before counting. Decide infeasible branch combinations with an SMT solver (z3 crate or bitwuzla) under a time budget, as KLEE and CBMC do. Widen def_block to u32. Done means tests with correlated (if(x>0)...if(x>0)) and contradictory branches.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-07",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The 'SCPG hash chain' does not hash the artifacts; staleness detection is global and non-deterministic",
+  "files": [
+   "src/tra/uml_link/hash_chain.rs:28-56",
+   "src/tra/builder.rs:97-109",
+   "src/tra/uml_link/mod.rs:60",
+   "src/tra/delta/invalidation.rs:10-12",
+   "src/core/types/source.rs:10-20",
+   "src/psa/mod.rs:78"
+  ],
+  "evidence": "compute() ignores _bpa, _cfa and _ssa (hash_chain.rs:30-33). bpa_hash is crc64 of the file count and cga_hash is crc64 of call_site_count (lines 37, 41); cfa_hash is sta.bpa_hash ^ sta.tca_hash (39). tca_hash hashes the Debug string of the file records, which includes mtime_ns (36; source.rs:10-20). The six values are XOR-folded and truncated to CRC32 (44). Invariant 3 recomputes the same formula from the stored fields, which makes it a tautology. Every UMLLink carries this single value, so is_stale is all-or-nothing. The PSA writes cfa.sta_hash into its ssa_hash field (psa/mod.rs:78).",
+  "impact": "AST, CFG and SSA changes go undetected, while a `touch` or a fresh clone marks everything stale. Cross-artifact provenance cannot be verified, and the paper's Eq. 8 is unbacked.",
+  "recommendation": "Hash the canonical artifact bytes with BLAKE3, chain them as h_i = H(h_{i-1} || bytes_i), exclude mtimes, and keep at least 128 bits. Store per-entity digests (per-symbol declaration/body hash, per-function CFG hash) so staleness is decided per element. Verify the chain on load, and write the real .ssa digest into the PSA's ssa_hash. Done means tests showing that a body edit invalidates exactly that function's records and a touch invalidates none.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The unified .scpg stores only element counts; the 'memory-mapped' open is a full copy, and no query uses it",
+  "files": [
+   "src/scpg/serializer/mod.rs:56-108",
+   "src/scpg/mmap/mod.rs:13-18",
+   "src/scpg/api/mod.rs:22-45",
+   "src/scpg/query/mod.rs:39-83",
+   "src/core/io/mmap.rs:12-17",
+   "README.md:59",
+   "README.md:124",
+   "docs/plans/phase10.md:532-542"
+  ],
+  "evidence": "Ten of the eleven sections hold a single LE count (`tca.token_records.len() as u32`, `sta.symbol_count`, `cga.call_site_count`, `psa.total_nodes`). Only StringTable carries real bytes, and no section deserializer exists. `MemoryMappedSCPG::open` calls `fs::read` into a Vec, although a memmap2 wrapper exists in core/io/mmap.rs. `OpenHeartEngine.mmap` is never read, and every query takes in-memory artifacts as arguments. Sections are unaligned (4-byte payloads, directory u64 fields at offsets ≡4 mod 8), so zero-copy views are impossible.",
+  "impact": "Phase 10's main output carries no analysis data, and a .scpg cannot be reopened to answer a query. The claims of \"<1 ms mmap open\", an \"82 MB LZ4\" file and hot/cold paging are not backed by code.",
+  "recommendation": "Make each section hold the full canonical artifact (or columnar CSR arrays, as in Joern flatgraph), aligned to 64 B or 4 KiB, with a per-section zstd/LZ4 codec and checksum. Map it with memmap2 from an immutable, atomically renamed file, expose typed views through zerocopy or bytemuck (or rkyv with bytecheck), and run QueryEngine over that view. Done means opening and querying a 500 KLOC .scpg without re-running phases 1-9, with latency measured by criterion.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-09",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "'CFL-reachability' is plain call-graph reachability with an O(V·E) inner loop",
+  "files": [
+   "src/scpg/query/cfl.rs:1-35",
+   "src/core/types/cg.rs:150-153",
+   "src/core/types/cg.rs:126-138",
+   "docs/plans/phase10.md:90-104",
+   "docs/plans/phase10.md:536"
+  ],
+  "evidence": "The \"cubic worklist tabulation\" stores pairs `(source,u)` with a fixed source, which is just a BFS visited set. There are no call/return labels, summary edges or ICFG, so it cannot express realizable (matched-parenthesis) paths. For every dequeued node it scans the whole `site_to_edge_map`. A port on a 2,000-node chain made 3,998,000 edge visits, even though `callee_csr`, `caller_csr` and `edges_of()` already exist.",
+  "impact": "The query is mislabeled, and its run time collapses on large codebases: about 1e9 edge scans at 15K methods and 60K edges. That contradicts the claim \"sub-second for 15K methods\".",
+  "recommendation": "For method reachability, use CSR adjacency plus SCC condensation (the .cga already has Tarjan SCCs) and a reachability index: bitset closure for small graphs, GRAIL or pruned landmark labeling for large ones. For true CFL reachability, implement IFDS tabulation (Reps-Horwitz-Sagiv) or Dyck reachability (Reps 1998) over the ICFG with summary edges. Done means criterion benchmarks on 100K-edge graphs, cross-checked against a Soufflé reference.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Class extractor silently drops legitimate user types through a 188-name blacklist and lexical filters",
+  "files": [
+   "src/uma/structural/class_diagram.rs:346-538",
+   "src/uma/structural/class_diagram.rs:97-104",
+   "src/uma/structural/class_diagram.rs:106-114",
+   "src/uma/structural/class_diagram.rs:136-166",
+   "src/uma/mod.rs:70",
+   "src/ingestion/mod.rs:137",
+   "examples/huge_enterprise_src/enterprise/bank/core/Entity.java:3",
+   "src/scpg/diagram/common.rs:59-91"
+  ],
+  "evidence": "`is_reserved_keyword` rejects user classes named Context, Singleton, Logger, Root, Entity, Configuration, Table, Value, Error, Update, List or Thread, plus project-specific names (HomeScreen, INVESTOR, OpenHeart). Context and Singleton are canonical GoF participant names, and src/uma/mod.rs:70 runs detection only over extracted classes, so the textbook Singleton is never examined. The repo's own examples/huge_enterprise_src/.../core/Entity.java interface is dropped. Names with `$` or non-ASCII letters, *Binding names and lowercase names are rejected. Test exclusion matches only '/src/test/', while ingestion stores raw OS paths, so on Windows test classes are kept.",
+  "impact": "Class diagrams, pattern detection and every derived diagram omit real types without warning, and output differs between Linux and Windows.",
+  "recommendation": "Delete the blacklist and fix the misclassifications it hides at their source in Phases 1-3 (annotations, constants or framework names emitted as SK_CLASS). Filter only on symbol kind and origin (synthetic, external, generated), accept full JLS and Kotlin identifiers, normalize paths before test detection, and make test inclusion a CLI flag. Add regression fixtures declaring Context, Singleton, Entity, Root and a Unicode-named class.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Class diagrams lose multiplicity, collection element types, relationship kinds and member signatures, and collide on simple names",
+  "files": [
+   "src/uma/structural/class_diagram.rs:210-295",
+   "src/symbol/passes/pass3_types.rs:25-31",
+   "src/symbol/passes/pass5_hierarchy.rs:184-213",
+   "src/scpg/diagram/export/plantuml.rs:460-495",
+   "src/scpg/diagram/export/mermaid.rs:655-777",
+   "src/scpg/diagram/export/xmi.rs:11-15",
+   "src/core/types/symbol.rs:66-73"
+  ],
+  "evidence": "`is_collection: 0` is hard-coded. Type refs resolve from their first token, so `List<Observer>` becomes List and the one-to-many link to Observer vanishes. Phase 3's `sta.associations` (AssocKind, multiplicity, role names) is never read. Return types are recorded as associations (they are dependencies), while parameters, locals and `new` yield nothing. With multiple interface extends only the last survives. Member modifiers are cast `as u8`, losing default/sealed/varargs bits. Exporters treat composition as 'final field', draw nesting as `*--` (Mermaid), omit parameters and key classes by simple name, so nested Builders merge. PlantUML keeps one edge per pair; XMI emits only `Class_{id}`.",
+  "impact": "Diagrams omit the relationships reviewers need most (one-to-many, ownership, usage), misrender overloads, generics and same-named types, and cannot round-trip to UML tools.",
+  "recommendation": "Model type arguments in Phase 3 (a TypeRef tree), consume sta.associations, and classify relationships per Guéhéneuc and Albin-Amiot (OOPSLA 2004): association, aggregation or composition by exclusivity and lifetime, with multiplicity from collection or array types. Add «use»/«create» dependencies. Key elements by qualified name, and emit operation signatures, UML templates, {static}/{abstract} and enumeration literals. Export OMG XMI 2.5.1, validated against UML 2.5.1 and import-tested in Papyrus, Enterprise Architect and Visual Paradigm, to reach IntelliJ/ObjectAid-level fidelity.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-03",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Java NodeAttr encoding matches modifier substrings (annotations included), maps 9 operators, and its decoder is a stub",
+  "files": [
+   "src/ast/adapter/java.rs:133-179",
+   "src/core/types/ast.rs:224-232",
+   "src/symbol/passes/pass1_discovery.rs:895-930",
+   "src/symbol/adapter/java.rs:125-133"
+  ],
+  "evidence": "encode_attrs runs `text.contains(\"public\")`, `contains(\"final\")` and so on over the whole modifiers node, annotations included: `@Column(name = \"is_public\") private boolean isPublic;` becomes PUBLIC, and `@Column(name = \"final_price\")` sets MOD_FINAL. Only static/final/abstract are detected. VISIBILITY_PACKAGE_PRIVATE is never emitted, so members without modifiers fall back to default_visibility() = Public. Operators cover only = + - * / == != && ||, and unpack_operator_id returns Assign for any nonzero value. The lookup uses child_by_field_name(\"modifiers\"), but tree-sitter-java's modifiers is an unnamed child, so this likely always returns None.",
+  "impact": "UML visibility (+/-/#) and {static}/{final} are wrong for common JPA- or Jackson-annotated members, and possibly for every member. Phase 3 reads these bits directly. The relational operators that path conditions need are never recorded.",
+  "recommendation": "Find the modifiers node by kind, iterate its children and match exact keyword kinds (`child.kind() == \"private\"`), skipping annotation children. Emit package-private explicitly. Encode all Java modifiers, and all binary, unary and assignment operators from the operator token's kind. Implement unpack_operator_id as an exhaustive TryFrom<u8>. Add unit tests per modifier and per operator, including annotation strings that contain keywords.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-04",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "The 'succinct' AST costs ~209 B/node in memory and ~25 B/node on disk, against the documented 4.65-9.65 MB per 1M nodes and the 128x claim",
+  "files": [
+   "src/ast/rmq.rs:24-54",
+   "src/ast/jump_table.rs:14-31",
+   "src/ast/rank_select.rs:23-52",
+   "src/ast/serializer.rs:33-62",
+   "src/ingestion/serializer.rs:126-142",
+   "docs/succinct_structures.md:37-47",
+   "docs/succinct_structures.md:117",
+   "docs/overview.md:119",
+   "README.md:48",
+   "README.md:54"
+  ],
+  "evidence": "Per BP bit the code keeps a u32 match_pos, an i32 excess, a usize log2 entry and a Vec<Vec<u32>> sparse table of about log2(2N) levels. The rank directory stores a u16 per 8 bits, which is 200% overhead, not o(n). From the code, N=1M nodes needs BP 0.25 MB, sparse table 160 MB, match_pos 8 MB, log2 16 MB, excess 8 MB and preorder arrays 17 MB: about 209 MB in total. The docs claim 4.65-9.65 MB, and the 32 MB pointer tree they claim to beat is smaller. The .tca also stores two byte-identical 16-byte-per-token arrays.",
+  "impact": "Memory grows as n log n (about 2.4 GB for 10M nodes), so large codebases run out of RAM in Phase 2. The headline compression and O(1)-navigation claims are false.",
+  "recommendation": "Replace match_pos, SparseTableRMQ and the hand-rolled rank with a range min-max tree (Navarro & Sadakane, ACM TALG 2014; Arroyuelo et al., ALENEX 2010): for example vers-vecs RsVec with its BP tree, or a port of sdsl-lite bp_support_sada with rank_support_v5/select_support_mcl. Use rank9 or poppy for rank. Keep a single token array. Done = a measured topology overhead of at most 3 bits/node in a criterion+RSS benchmark, with the docs regenerated from measurements.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-05",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Silent narrowing casts cap the system at 65,535 files, 65,535 columns, 64 KB tokens, 256 blocks/method and 65,535-member SCCs",
+  "files": [
+   "src/ingestion/mod.rs:70",
+   "src/ingestion/mod.rs:123",
+   "src/ingestion/walker.rs:54-63",
+   "src/core/types/token.rs:121-124",
+   "src/ingestion/serializer.rs:48-50",
+   "src/ingestion/builder.rs:49-55",
+   "src/core/types/ssa.rs:25",
+   "src/core/types/ssa.rs:43",
+   "src/cg/scc.rs:38",
+   "src/psa/construction/feasibility.rs:114-119",
+   "src/tra/backward/ssa_bi.rs:35",
+   "src/uma/structural/class_diagram.rs:128",
+   "Cargo.toml:21-23"
+  ],
+  "evidence": "Narrowing casts: `file_id as u16`, header file_count `len() as u16`, `col: start.column as u16` (wraps), token len `.min(u16::MAX)` (truncates the text), `def_block: (def_block & 0xFF) as u8`, `raw_members.len() as u16`. The 24-bit line limit is only a debug_assert, and overflow-checks are off. In a minified .js (the server collects .js) wider than 65,535 columns, tokens at col c and c+65,536 share a sort_key, and finalize aborts the run with 'Invariant 2 Violation'. Consumers index the sorted token_records by token_id, so any reordering silently corrupts lookups.",
+  "impact": "Repositories the size of the JDK, or containing a single minified bundle, fail Phase 1. Methods with more than 256 blocks map SSA definitions and traceability to the wrong block; feasibility.rs even documents the truncation.",
+  "recommendation": "Key tokens by (file_id: u32, byte_offset: u32) and keep a per-file line-start table for line/column, as rustc's SourceMap or the line-index crate do. Widen def_block, member_count and the file counts to u32. Replace `as` casts with `try_from(...)?` and typed errors, and enable overflow-checks in CI builds. Add tests with 70K synthetic files, a 200K-column line and a 300-block method.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "lca() is wrong for most queries; select1 returns 0 (root) for absent ranks and for the last node in ~1% of corpora",
+  "files": [
+   "src/ast/rmq.rs:81-96",
+   "src/ast/rank_select.rs:86-109",
+   "src/ast/builder.rs:58-121",
+   "src/symbol/uml_meta/associations.rs:95-110",
+   "tests/ast_tests.rs:62-79"
+  ],
+  "evidence": "lca maps the min-excess position m to rank1(m)-1-1 (the previous preorder node) instead of the parent of m+1, so for R(A(C),B), lca(C,B) returns A. A faithful Python port of rmq.rs and rank_select.rs gave 2758/4000 wrong LCAs on random trees. On an exact hit, select1 steps back one superblock. When the trailing superblock holds no 1-bits, std's binary_search lands on the sentinel, select1(node_count) returns 0, and first_child(last leaf) = Some(1). The port hit this in 29/3000 AST-like trees. Tests cover only a 6-bit tree.",
+  "impact": "first_child, next_sibling, depth and subtree_size all go through select1. The phantom child sends walkers such as associations.rs:95-110 into file 0's tree, producing wrong compositions and possibly never terminating on single-file input. Each select is also an O(log n + 512) bit scan.",
+  "recommendation": "Implement lca per Sadakane & Navarro (SODA 2010): return x if y <= findclose(x), else enclose(rmq(x, y) + 1). In select1, use `superblocks.partition_point(|&c| c < t) - 1` and return Option<usize>. Replace the get_bit scan with sampled select plus broadword in-word select. Add proptest differential tests against a naive pointer tree for random trees up to 10^5 nodes, including BP lengths that straddle 512-bit boundaries.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Secondary token sweep fabricates classes and fields in pure Java and misplaces Kotlin members",
+  "files": [
+   "src/symbol/passes/pass1_discovery.rs:200-456",
+   "src/symbol/passes/pass1_discovery.rs:257",
+   "src/symbol/passes/pass1_discovery.rs:396-407",
+   "src/symbol/passes/pass1_discovery.rs:414-453",
+   "src/ast/adapter/registry.rs:19-28",
+   "src/ingestion/adapter/kotlin.rs:29-30",
+   "src/uma/structural/class_diagram.rs:106-114"
+  ],
+  "evidence": "The sweep runs for every language. Java `var` locals and identifiers named `val` create public SK_FIELDs on current_class_sym (414-453), which is never reset at class end or file change (257). Class literals, or variables named record or object, followed by a capitalized identifier create phantom SK_CLASS/SK_RECORD symbols in the root scope (396-407). On one Java test, sim_pass1.py produced TestConfig, ErrorCode and Mode plus fields order, result and compute. Only the first (file, name) pair gets a symbol (433). Kotlin depends entirely on this sweep: its AST falls back to the JS grammar (registry.rs:19-28), and ingestion uses the Java grammar (kotlin.rs:29-30).",
+  "impact": "Java output gains fake classes and fields, and because they sit in the global root scope, any file's lookups can capture them. Kotlin members attach to the wrong class and never get types. Downstream ALL_CAPS filters only mask the problem.",
+  "recommendation": "Disable the sweep for languages that have an AST adapter. Give Kotlin a real front end: the tree-sitter-kotlin grammar (fwcd) plus a KotlinSemanticAdapter covering primary-constructor properties, companion objects, extension receivers, top-level file facades, nullable types and typealiases. Alternatively ingest semanticdb-kotlinc output. Add a regression test asserting that Java fixtures produce no symbols without a decl_node other than externals and packages.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Type references are bare identifiers: generic, array, qualified and wildcard types are dropped, and type parameters are unnamed",
+  "files": [
+   "src/ast/adapter/java.rs:83-91",
+   "src/ast/adapter/java.rs:129",
+   "src/symbol/passes/pass3_types.rs:26-36",
+   "src/symbol/passes/pass3_types.rs:86-89",
+   "src/symbol/passes/pass4_members.rs:46-57",
+   "docs/plans/phase3.md:453"
+  ],
+  "evidence": "generic_type, array_type, scoped_type_identifier, type_parameter and wildcard have no adapter arm, so they are dropped with their subtrees. As a result `List<Order> xs`, `Order[] xs`, `Map.Entry e`, `java.util.Date d` and `Optional<User> find()` have no NN_TYPE_REF, and type_id stays u32::MAX (pass4:46-57). type_parameters survives as one NN_TYPE_PARAM whose range is just '<', so it is unnamed, and every `T` becomes one global SK_EXTERNAL 'T' (pass3:86-89). Pass 3 reads only the first token (26-36). type_param_count and the array flag are never set. phase3.md:453 claims type arguments are resolved.",
+  "impact": "Collection, array and Optional fields and generic return types, the main source of 0..* associations, carry no type at all. Generics are invisible to UML and signatures, and no erasure exists for overloads.",
+  "recommendation": "Add a TypeRef table {head SymId, args[TypeRefId], array_dims, wildcard kind and bound, annotations}. Create one SK_TYPE_PARAM per type_parameter, with bounds, scoped to its class or method. Implement erasure (JLS 4.6) and basic subtyping. For `var` (JLS 14.4.1), infer from `new T(..)` or a typed call, otherwise mark UNKNOWN. Persist TypeRefs in .sta. Done when field and return-type tests over generic, array, nested and qualified types pass.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Declaration coverage gaps: enum constants, anonymous classes, records, interface constants, and catch/resource/for-each/pattern variables",
+  "files": [
+   "src/ast/adapter/java.rs:30-129",
+   "src/ast/reducer.rs:17",
+   "src/core/types/symbol.rs:17",
+   "src/core/types/symbol.rs:22",
+   "src/uma/structural/class_diagram.rs:209",
+   "src/tra/builder.rs:84",
+   "src/symbol/adapter/java.rs:32-51"
+  ],
+  "evidence": "The Java adapter has no arm for enum_constant, constant_declaration, annotation_type_body, catch_formal_parameter, resource_specification, inferred_parameters, compact_constructor_declaration or constructor_body, so all of them hit Drop with their subtrees. SK_ENUM_CONSTANT and SK_ANON_CLASS are never constructed, yet class_diagram.rs:209 and tra/builder.rs:84 consume them. Anonymous-class methods become children of the enclosing local-variable or method symbol. Record components become SK_PARAMs with no implicit fields or accessors (JLS 8.10.3), and for-each and pattern variables get no symbol at all.",
+  "impact": "Enums render without literals, and anonymous listeners and strategies are invisible to CHA and pattern detection. Records have no attributes. Constructor bodies, which carry dependency-injection wiring, never reach Phase 4 to 6 or the composition check.",
+  "recommendation": "Write a JLS declaration-kind coverage test with one fixture per kind, then add adapter arms and symbols for each. Create SK_ANON_CLASS with a TH edge to the instantiated type. Synthesize implicit members: record fields, accessors and canonical constructor (JLS 8.10.3), and enum values/valueOf (8.9.3). Scope catch, resource, for-each and pattern variables to their construct.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-12",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Dispatch model is weaker than CHA: name-only, downward-only, no RTA, initializers, lambdas or libraries",
+  "files": [
+   "src/cg/resolution.rs:58-112",
+   "src/cg/resolution.rs:115-176",
+   "src/cg/call_sites.rs:32-35",
+   "src/cg/call_sites.rs:113",
+   "src/cg/call_sites.rs:129-140",
+   "src/core/types/cg.rs:13"
+  ],
+  "evidence": "resolve_cha gathers same-name, non-abstract METHOD and CONSTRUCTOR symbols in subtypes (resolution.rs:84-93). Overloads are conflated, and there is no upward lookup for inherited implementations or default methods (JVMS 5.4.6). CG_EDGE_INTERFACE is unreachable because it tests a method symbol for SK_INTERFACE (call_sites.rs:113). 'resolve_1cfa' is not call-string 1-CFA, and it is dead because receiver_ssa is effectively never found (129-140). There is no RTA, entry-point model, lambda→SAM linking, super/this()/<clinit> edge or reflection (CG_EDGE_REFLECTION is unused). Calls in field and instance initializers are dropped (32-35).",
+  "impact": "Even after FLOW-05, soundness and precision would sit far below CHA as implemented by Soot, WALA or OPAL.",
+  "recommendation": "Build per-class method tables with JVMS-correct virtual, interface and default-method resolution. Layer CHA, then RTA (Bacon & Sweeney 1996), then VTA or on-the-fly points-to. Add entry points (main, tests, frameworks), LambdaMetafactory-style lambda and method-reference modeling, <init>/<clinit> semantics, JDK models from jmods or class files, and reflection handling via string analysis or TamiFlex logs. Measure with CATS and Judge (Reif et al., ISSTA 2019) and dynamic call-graph recall on DaCapo/XCorpus.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-07",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Real incremental, commit-aware analysis",
+  "files": [
+   "src/scpg/incremental/mod.rs",
+   "src/tra/delta/invalidation.rs",
+   "src/ingestion/parser/tree_sitter.rs",
+   "src/main.rs",
+   "docs/traceability_and_incremental.md",
+   "ROADMAP.md"
+  ],
+  "evidence": "apply_delta classifies a delta and returns current_hash ^ 0x0101_0101 (src/scpg/incremental/mod.rs:26-34). Staleness is a hash comparison (src/tra/delta/invalidation.rs:10-21). Parsing passes no old tree (src/ingestion/parser/tree_sitter.rs:21-23), and analyze reruns all ten phases (src/main.rs:150-254). Neither the five-stage Merkle protocol (docs/traceability_and_incremental.md:71-80) nor ROADMAP's 'O(1) incremental delta update' (ROADMAP.md:116) is implemented.",
+  "impact": "Every edit or PR forces a full rebuild. That rules out IDE-level latency and PR-time use, where CodeQL overlay databases, Infer's compositional diff analysis and Semgrep baselines compete.",
+  "recommendation": "Content-hash files and functions, and persist per-file artifacts. Reparse using tree-sitter edits and the old tree. Track dependencies between phases (salsa-style) so CFG, SSA and PSA are recomputed only for touched functions and their callers. Add --baseline <commit> to produce findings and diagrams for the diff only.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-16",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "high",
+  "title": "No intermediate representation: statement-level AST blocks block precise SSA, ICFG and IFDS",
+  "files": [
+   "src/core/types/cfg.rs:35",
+   "src/cfg/builder/state.rs:52-62",
+   "src/cfg/stmts/mod.rs:61-63",
+   "src/ssa/liveness.rs:124-171"
+  ],
+  "evidence": "Basic blocks hold whole AST statements (BasicBlock.stmts; add_stmt_to_current). Calls, allocations, short-circuit operands and implicit operations (unboxing, iterator()/next(), close(), string concatenation) are not CFG nodes. Evaluation order and temporaries are implicit, and no excepting instruction is explicit. Every consumer (SSA, points-to, call graph, IFDS) re-walks AST subtrees with ad-hoc logic such as extract_stmt_vars, and call sites cannot be mapped to CFG nodes (call_block falls back to 0).",
+  "impact": "Benchmark-grade interprocedural analyses (IFDS/IDE, Andersen, context-sensitive call graphs) cannot be built on this representation.",
+  "recommendation": "Lower to a typed three-address IR with explicit temporaries, call/return nodes and excepting instructions (Jimple/Shimple, WALA's SSA IR, OPAL's TAC), or to Joern-style expression-level CFG nodes, and build SSA during lowering (Braun et al. 2013). Consider a bytecode front end for javac/kotlinc class files, as Soot, WALA, OPAL and Doop use, to get exact lambda, switch, finally and Kotlin semantics.",
+  "effort": "XL",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Binary artifact readers panic or allocate huge buffers on malformed input",
+  "files": [
+   "src/uma/serializer.rs",
+   "src/symbol/serializer.rs",
+   "src/tra/serializer.rs",
+   "src/ast/serializer.rs",
+   "src/psa/serializer.rs"
+  ],
+  "evidence": "There are 291 .unwrap() calls in src, 286 outside tests, and 208 are bytes[a..b].try_into().unwrap(). 84% of the non-test ones are in five serializers: uma 96, symbol 66, tra 46, ast 17, psa 15. uma/serializer.rs:268-300 loops over counts taken from the header and slices bytes[offset..offset+4] without checking the remaining length. Before that it calls Vec::with_capacity(class_count) with a count read from the file. The CRC-64 check (239-249) catches accidental corruption, not crafted files.",
+  "impact": "inspect and every artifact reader crash on truncated or hostile files, either from an out-of-bounds index or a multi-GB allocation.",
+  "recommendation": "Add a bounds-checked cursor (read_u32()? returning InvalidData). Cap counts by the remaining bytes before allocating. Replace unwrap with ?. Add a cargo-fuzz target for each reader.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-16",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "'Zero-copy' artifacts are copied and re-indexed on load",
+  "files": [
+   "README.md",
+   "src/ast/serializer.rs"
+  ],
+  "evidence": "README.md:59 claims every phase artifact is mapped directly into page memory. In fact the .bpa reader copies each array element into new Vecs and rebuilds rank/select and the sparse-table RMQ on every load (serializer.rs:120-184).",
+  "impact": "Opening an artifact costs O(n log n) time and temporarily doubles memory. The load-time and query-latency claims for a mapped .scpg do not hold for the reader that ships.",
+  "recommendation": "Add artifact-open latency and RSS benchmarks, with cold and warm page cache, to S14/S15. Move to aligned sections that are mapped directly (for example zerocopy or bytemuck slices), and persist the auxiliary indexes instead of rebuilding them.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "BDD-09",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Backward index returns fabricated or misaligned source ranges",
+  "files": [
+   "src/tra/backward/blk_bi.rs:17-21",
+   "src/tra/backward/ssa_bi.rs:13-41",
+   "src/core/types/ssa.rs:43",
+   "src/tra/forward/sym_span.rs:36-41",
+   "src/tra/uml_link/mod.rs:46-51",
+   "src/tra/builder.rs:111-133"
+  ],
+  "evidence": "Synthetic or empty blocks (every ENTRY and EXIT) get ft=lt=0 to satisfy Invariant 1, which is the first token of file 0. BI_ssa derives per-function block offsets from max(def_block)+1 (ssa_bi.rs:13-24) instead of the CFA block counts that BI_blk uses, and def_block is truncated to u8. Phi-nodes always take this fallback path (def_stmt=u32::MAX), so in every function after the first they resolve to blocks of other functions. Span lines are cast to u16 (sym_span.rs:38,40), missing UMLLinks become (0,0,0,0,0), and Invariant 4 checks only the first 5% of sym ids.",
+  "impact": "Theorem 5.3 round-trips fail for synthetic blocks and phi-nodes, and entity-to-source navigation silently lands in the wrong file or line.",
+  "recommendation": "Build block and SSA offsets from CFA prefix sums and store them in the .tra. Use an explicit no-source sentinel, or the owning function's span, for synthetic blocks. Widen def_block (Phase 5) and the line fields to u32, and return Result diagnostics instead of assert!. Done means an exhaustive round-trip check plus a proptest that every BI range lies inside its owning function's span.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "UML-12",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Activity diagrams discard CFG guards, exception edges, loops and labels; the label extractor reads the wrong token",
+  "files": [
+   "src/uma/behavioral/activity_diagram.rs:66-134",
+   "src/core/types/cfg.rs:7-15",
+   "src/uma/label_extraction.rs:22-35",
+   "src/core/types/ast.rs:202-213",
+   "src/scpg/diagram/export/mermaid.rs:1131-1162",
+   "docs/openheart_research_paper.tex:806-810"
+  ],
+  "evidence": "Every edge becomes EDGE_KIND_CONTROL with guard_text_id 0, although the CFG labels edges True/False/Except/Switch/LoopBack. loop_depth is always 0 despite `cfg.loop_info`; swimlane_count and end_node_count are hard-coded to 1; switch blocks with more than two successors become ACTION; FORK/JOIN/EXCEPTION nodes are never produced. The label is computed then discarded (`_label_text`; label_text_id = block_id). LabelExtractor treats `bpa.node_attr` (packed visibility/modifier/operator bits) as a token index, so plain statements read token #0. Its byte slice at max_chars-3 can panic mid-character on long non-ASCII tokens (latent). Exporters show only the first 6-8 functions, as 'Block_N' rectangles.",
+  "impact": "Activity diagrams are unlabeled block graphs without decision guards or exception paths, short of the decision/merge semantics the paper claims.",
+  "recommendation": "Map edge types to guards ([cond]/[else], case labels) using the branch condition's TRA token span, and render exception edges as UML exception handlers or interruptible regions. Emit explicit decision/merge nodes, fork/join for thread and async starts, and partitions for inlined callees. Build labels from statement token spans, truncate on char boundaries (`char_indices`), store them in label_texts, and render each node kind with its UML shape.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-07",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Artifact readers trust file-supplied lengths; Phase 2 never checks the .tca's magic, version or CRC; `inspect` claims 'VERIFIED VALID' without checking",
+  "files": [
+   "src/ast/mod.rs:40-60",
+   "src/ast/serializer.rs:105-142",
+   "src/ingestion/serializer.rs:212-300",
+   "src/ingestion/serializer.rs:247-251",
+   "src/ingestion/mod.rs:136-138",
+   "src/ingestion/serializer.rs:93-98",
+   "src/main.rs:373-388",
+   "README.md:59"
+  ],
+  "evidence": "ASTStage::run parses the mmapped .tca at fixed offsets without checking TCA_MAGIC, the version or the stored CRC. BPASTSerializer::read slices buf[offset..offset+8] using lengths taken from the file, so a CRC-valid file with inconsistent lengths panics. It also ignores _format_ver, never checks bit_count against words.len() (get_bit then panics), and passes file-controlled u32 counts to with_capacity, which can abort on a multi-GB allocation. CRC-64 is not a MAC. path_str_offset holds a text_id in memory but a byte offset on disk, and read() discards the paths. cmd_inspect prints 'VERIFIED VALID' after matching only the magic.",
+  "impact": "Corrupt, stale or crafted artifacts are either consumed silently or crash the process. The README's 'zero-copy, CRC-64 verified' format is neither: sections are unaligned and get copied (the BP words start at offset 68).",
+  "recommendation": "Define one versioned container with magic, version, a section table (offset, length, alignment) and 8- or 64-byte-aligned sections, all validated before use. Read it through zerocopy/bytemuck try_from_bytes for real mmap views, or adopt rkyv with validation, FlatBuffers or Arrow IPC. Use checked arithmetic, cap allocations by the bytes remaining, and give each field one meaning. Make inspect actually verify, and add cargo-fuzz targets for every reader.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-08",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Safe wrapper over unsafe mmap combined with in-place truncating writes to fixed, predictable paths",
+  "files": [
+   "src/core/io/mmap.rs:13-17",
+   "src/ingestion/serializer.rs:168-170",
+   "src/ast/serializer.rs:21",
+   "src/core/pipeline.rs:113",
+   "src/core/pipeline.rs:159-168",
+   "src/main.rs:120-148"
+  ],
+  "evidence": "MemoryMappedFile::open is a safe fn wrapping `unsafe { Mmap::map(&file)? }` and exposes &[u8] with no stated invariant. Artifacts are written with File::create (truncating) straight to fixed names (corpus.tca, ast.bpa), either in ./openheart_output or, for SCPGPipelineBuilder::new(), in std::env::temp_dir(). Two concurrent runs sharing a directory truncate a file the other run has mapped: SIGBUS on Unix, an error on Windows. On a shared /tmp, a planted symlink at /tmp/corpus.tca is followed and its target overwritten (CWE-377/CWE-59). Writes are not atomic.",
+  "impact": "Concurrent runs crash or corrupt artifacts. Library users of the default builder face a local file-clobber hazard.",
+  "recommendation": "Hand the in-memory Phase 1 artifact to Phase 2 instead of mmapping it. If mmap stays, make the constructor an `unsafe fn` with a documented contract and take an advisory lock (fd-lock). Write each artifact to a tempfile::NamedTempFile in the target directory and persist() it (atomic rename). Default to a fresh tempfile::TempDir rather than fixed names in temp_dir().",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-09",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "No syntax-error model, no parse timeout, recursive CST walks on the caller's stack, and a 2023-era grammar",
+  "files": [
+   "src/ingestion/walker.rs:32-77",
+   "src/ast/reducer.rs:8-93",
+   "src/ast/adapter/java.rs:129",
+   "src/ingestion/parser/tree_sitter.rs:17-24",
+   "src/ingestion/mod.rs:69-72",
+   "Cargo.toml:9-11",
+   "docs/plans/phase1_ingestion_spec.md:298"
+  ],
+  "evidence": "Neither walker checks is_error/is_missing/has_error. Zero-width MISSING leaves such as ';' become empty-text Punctuation tokens, while the Java reducer's `_ => Drop` discards ERROR subtrees, which tree-sitter's recovery can make large. SourceFileRecord.flags is always 0, although the spec reserves bits for has_bom and crlf. parse() sets no timeout or cancellation flag. walk_recursive and reduce_and_encode recurse once per CST level and allocate a TreeCursor per internal node, so input nested thousands of levels deep can overflow the stack (Windows' main thread has 1 MB). The grammars are tree-sitter 0.20.10 and tree-sitter-java 0.20.2.",
+  "impact": "Files that contain errors or newer Java syntax silently lose code, and adversarial or generated input can hang or abort the CLI and the single-threaded server.",
+  "recommendation": "Traverse iteratively with a single TreeCursor (goto_first_child, goto_next_sibling, goto_parent). Treat ERROR as Eliminate, skip MISSING leaves, and record per-file diagnostics in the .tca: error and missing counts, byte ranges, BOM, CRLF. Use Parser::set_timeout_micros plus a cancellation flag. Upgrade to tree-sitter 0.25 and tree-sitter-java 0.23.x. Fuzz ingestion with cargo-fuzz, seeded from tree-sitter corpus tests.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-10",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Each file is read three times and parsed twice, single-threaded, with no content check between phases",
+  "files": [
+   "src/ingestion/mod.rs:50-59",
+   "src/ingestion/mod.rs:104-117",
+   "src/ast/mod.rs:136-155",
+   "src/ingestion/allocator.rs:3-21",
+   "src/ast/builder.rs:163-177",
+   "src/ingestion/serializer.rs:16-29",
+   "src/ast/mod.rs:48",
+   "src/symbol/serializer.rs:43"
+  ],
+  "evidence": "Phase 1 reads each file once to hash it (mod.rs:53) and again to parse it (mod.rs:111). Phase 2 reads it a third time from the stored path and re-parses it (ast/mod.rs:142-143), never comparing against content_sha256, and silently skips any file whose read or parse fails (`if let Ok`). There is no rayon: the Mutex<StringInterner> and the AtomicU32 allocator guard single-threaded loops. close_node walks every open ancestor for each node (O(N*depth)), although the reducer already propagates token ranges. A bit-at-a-time CRC-64 runs at least three times over the .tca.",
+  "impact": "Throughput is a fraction of what one core could deliver, and the other cores sit idle. A file edited mid-run yields an AST that silently disagrees with the token corpus, and unreadable files simply disappear.",
+  "recommendation": "Parse each file once and emit tokens plus the reduced AST in one pass, either by keeping the Tree or by building a rowan-style green tree. Use rayon par_iter over files with per-file buffers merged in file order, plus a concurrent interner (lasso ThreadedRodeo). Verify SHA-256 before reuse and fail loudly on unreadable files. Swap the CRC for crc64fast-nvme or xxh3/BLAKE3, delete the ancestor loop, and use tree-sitter incremental parsing (Tree::edit) in the server. Done = criterion LOC/s that scales with cores.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-13",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "medium",
+  "title": "Logger writes every message at every level to two files under a global mutex; phase timers never fire",
+  "files": [
+   "src/core/logger.rs:124-159",
+   "src/core/logger.rs:110-112",
+   "src/core/logger.rs:186-207",
+   "src/ingestion/mod.rs:36",
+   "src/ast/mod.rs:38",
+   "src/ast/adapter/generic.rs:26-28",
+   "src/cg/call_sites.rs:57"
+  ],
+  "evidence": "log_event applies the level only to console output. Its file branch formats each line and write_all()s it to both files for Trace and Debug too, under LOGGER_STATE's Mutex. Callers build messages eagerly with format!: there are 15 log_trace and 12 log_debug call sites, including one per call site in cg/call_sites.rs:57. The persistent log appends forever, with no rotation. PhaseTimer has no Drop and finish() is never called in Phases 1-2, so no stage timings are logged. The generic reducer prints `[TS-KIND]` to stdout for every 'class' or 'export' kind.",
+  "impact": "Logging spends I/O and lock time in proportion to trace volume even when tracing is off. Logs grow without bound, and there is no timing telemetry to benchmark against.",
+  "recommendation": "Adopt tracing, with tracing-subscriber's EnvFilter for per-sink levels and tracing-appender's non-blocking rolling writer. Use the macros so that disabled levels cost nothing. Model each phase as a span so timings come for free. Remove the debug println.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-16",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "Source discovery follows symlinks, aborts on the first I/O error, ignores .gitignore and generated code, and neither dedups nor caps file size",
+  "files": [
+   "src/main.rs:76-99",
+   "src/adapters/server.rs:764-830",
+   "src/ingestion/mod.rs:38-39",
+   "src/ingestion/mod.rs:51-54"
+  ],
+  "evidence": "collect_source_files recurses via Path::is_dir(), which follows symlinks, so a symlink cycle recurses until the OS returns an error. Any read_dir or entry error propagates through `?` and aborts the whole analysis. The server's copy also follows symlinks. There is no .gitignore, hidden-directory or build-output filtering (target/, build/generated/), and extension matching is case-sensitive. IngestionStage::run sorts paths but never dedups them, so one file reached by two paths gets two file_ids, and fs::read loads files of any size, twice.",
+  "impact": "Real repositories with symlinks, unreadable directories or generated sources either fail or produce duplicate symbols, and one huge generated file can exhaust memory.",
+  "recommendation": "Use the ignore crate's WalkBuilder (gitignore and hidden-file handling, follow_links(false) or loop detection, max_filesize, parallel walk) with globset include/exclude configuration. Canonicalize and dedup paths. Log and skip unreadable entries. Tag generated files (@Generated, build directories) so they can be excluded or analysed separately.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SYM-15",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Visibility and modifiers are probably never extracted for Java, and the defaults make package-private members public",
+  "files": [
+   "src/ast/adapter/java.rs:139-157",
+   "src/symbol/passes/pass1_discovery.rs:895-943",
+   "src/symbol/adapter/java.rs:125-133",
+   "src/core/types/symbol.rs:56-74"
+  ],
+  "evidence": "encode_attrs calls node.child_by_field_name(\"modifiers\") (ast java.rs:139). In tree-sitter-java, modifiers appears to be an unnamed child: corpus trees show (class_declaration (modifiers) name: ..) [https://hackage-origin.haskell.org/package/tree-sitter-java-0.7.0.2/candidate/src/vendor/tree-sitter-java/corpus/declarations.txt]. If so, the call always returns None, and Pass 1 uses default_visibility: Package for types, Public for all members (java.rs:125-133), contrary to JLS 6.6.1. When modifiers are found, contains(\"public\") also matches annotation text. Only static, final and abstract are mapped, so pass1:927-941 is dead code.",
+  "impact": "UML visibility markers, abstract and static stereotypes, CHA's abstract filter (cg/resolution.rs:89) and any singleton or composition heuristic would see empty or wrong modifiers.",
+  "recommendation": "Walk the modifiers child's children by node kind (keyword tokens, marker_annotation, annotation) and never substring-match. Apply the JLS implicit modifiers: interface members public, interface fields public static final, enum constructors private, record fields private final. Set DEFAULT, VARARGS, SEALED and NON_SEALED. Add a test that `public static final` yields non-zero attrs, plus a fixture covering every modifier.",
+  "effort": "S",
+  "confidence": "medium"
+ },
+ {
+  "id": "FLOW-18",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": ".cfa/.ssa/.cga encodings are lossy, partly write-only and mis-indexed",
+  "files": [
+   "src/cfg/serializer.rs:102",
+   "src/cfg/serializer.rs:147-185",
+   "src/ssa/serializer.rs:81-95",
+   "src/ssa/serializer.rs:113",
+   "src/core/types/ssa.rs:25-43",
+   "src/core/types/cg.rs:94",
+   "src/psa/construction/feasibility.rs:114-119"
+  ],
+  "evidence": ".cfa stores exit = blocks.len()-1, but RPO numbering places EXIT before loop-body blocks, so in any function with a loop it names a body block; block statements and token ranges are not stored. CFGArtifact::deserialize and SSASerializer::read return empty function lists. .ssa directory offsets omit seven u32 length prefixes per function, drifting by 28 bytes each. SSARecord.def_block is a u8, which Phase 8 (feasibility.rs:114-119) and Phase 7 then alias. φ orig_sym_id is written as u16, and SCCRecord.member_count is a u16.",
+  "impact": "External readers of .cfa/.ssa get wrong data or none. Functions with more than 256 blocks get mis-attributed SSA defs downstream, and an SCC with more than 65,535 members trips Invariant 3 and aborts Phase 6.",
+  "recommendation": "Use u32 for ids and counts, derive directory offsets from the bytes actually written, store the EXIT id explicitly, implement full readers, and add round-trip property tests. Consider a versioned zero-copy schema (rkyv, FlatBuffers or Cap'n Proto).",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "FLOW-20",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Kotlin (and the other advertised languages) get no CFG, SSA or call graph",
+  "files": [
+   "src/ast/adapter/registry.rs:19-41",
+   "src/symbol/passes/pass1_discovery.rs:439-447",
+   "src/cfg/mod.rs:55-58",
+   "Cargo.toml:9-11",
+   "README.md:60"
+  ],
+  "evidence": "Only Java has an AST adapter. Kotlin falls back to the generic adapter bound to tree_sitter_javascript (registry.rs:19-41), so .kt files are parsed as JavaScript. Kotlin `fun` symbols come from a token sweep that leaves decl_node = u32::MAX (SymbolRecord::UNINIT, pass1_discovery.rs:439-447), and Phase 4 skips such symbols (cfg/mod.rs:55-58); their call sites have no enclosing method and are dropped. Cargo.toml has no Kotlin, Python or C++ grammar.",
+  "impact": "The Java/Kotlin flow-analysis claim, and the multi-language F1 claim as applied to Phases 4-6, hold for nothing except Java.",
+  "recommendation": "Add tree-sitter-kotlin (or analyze kotlinc bytecode) with a dedicated reduction adapter and a Kotlin lowering for when, expression-bodied functions, ?., !!, inline lambdas and suspend state machines. Scope README claims per phase and language until golden tests cover them.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-14",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Security/config docs describe controls the code does not implement (env knobs, forbid(unsafe_code), module paths, supported versions)",
+  "files": [
+   ".env.example:1-17",
+   "docs/security-architecture.md:9-34",
+   "src/core/logger.rs:97-108",
+   "SECURITY.md:9-13"
+  ],
+  "evidence": "security-architecture.md states env vars `OPENHEART_MAX_MEMORY_MB`, `OPENHEART_NUM_THREADS`, `OPENHEART_ARTIFACT_DIR` are 'managed via .env with safe fallback defaults' and that ingestion modules carry `#![forbid(unsafe_code)]`. grep finds no code reading those vars (logger reads only `OPENHEART_LOG`, logger.rs:98; .env.example advertises `RUST_LOG`, which is unused), `forbid(unsafe_code)` appears in no source file, and the cited `src/phase1/parser/tree_sitter.rs` path does not exist (it is src/ingestion/parser/…). SECURITY.md lists supported versions 1.0.x/1.1.x though the crate is 0.1.0.",
+  "impact": "The advertised memory cap (a DoS mitigation) and unsafe-code guarantee are fictional, and the version-support table is false — misleading for a project positioned as benchmark-grade and auditable.",
+  "recommendation": "Either implement the knobs (read and enforce OPENHEART_MAX_MEMORY_MB as a real cap, honor OPENHEART_NUM_THREADS/ARTIFACT_DIR, support RUST_LOG) or delete them from docs and .env.example. Add `#![forbid(unsafe_code)]` to the modules that truly contain none, fix the module paths, and correct SECURITY.md to the versions that exist. Add a doc-lint/test asserting every documented env var is referenced in code.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-13",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Open extension model: loadable language adapters, rule/pattern packs, stable schema",
+  "files": [
+   "src/ingestion/adapter/registry.rs",
+   "src/ast/adapter/registry.rs",
+   "src/symbol/adapter/mod.rs",
+   "src/scpg/diagram/factory.rs"
+  ],
+  "evidence": "Adapters are hard-wired in AdapterRegistry::new (src/ingestion/adapter/registry.rs:19-42) and ASTAdapterRegistry::new (src/ast/adapter/registry.rs:15-31). Only a Java SemanticAdapter exists (src/symbol/adapter/mod.rs:1). Exporter factories can only be registered from Rust (src/scpg/diagram/factory.rs:309), and pattern detectors are compiled-in functions.",
+  "impact": "Third parties cannot add a language, detector or exporter without forking. Joern frontends, CodeQL packs and Semgrep rules grew their ecosystems through exactly these extension points.",
+  "recommendation": "Publish a versioned SCPG schema and a semver crate API. Load language adapters from declarative tree-sitter query files (.scm) for declarations, calls and types, or as WASM components. Make pattern and architecture detectors data-driven rule packs. Document a 'write a frontend' guide with a reference Kotlin adapter.",
+  "effort": "L",
+  "confidence": "medium"
+ },
+ {
+  "id": "BDD-14",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "medium",
+  "title": "No reference/occurrence index and no stable symbol identity (gap against Kythe/SCIP)",
+  "files": [
+   "src/tra/types.rs:125-136",
+   "src/symbol/serializer.rs:14-34",
+   "src/ingestion/mod.rs:69-70",
+   "src/tra/builder.rs:33-43"
+  ],
+  "evidence": "The .tra holds only declaration spans (BI_sym, sym_span, UMLLinks), and neither the STA nor the TRA records use-site occurrences. Find-references, go-to-definition from a use, and role-tagged occurrences are therefore impossible. All keys are positional: sym_id is the STA vector index, token ids are corpus-global, and file_id is the manifest position cast `as u16` (ingestion/mod.rs:70), which wraps beyond 65,535 files.",
+  "impact": "Below the Kythe/SCIP/LSIF baseline: no cross-reference navigation, no cross-repo linking, no IDE or Sourcegraph interoperability, and links that do not survive a rebuild.",
+  "recommendation": "Add an occurrence table (file, byte range, symbol, roles: definition/reference/read/write/import) populated during Phase 3 name resolution, with SCIP-style stable symbol strings (scheme, package, descriptor#method(sig).). Emit a SCIP index via the scip crate, report LSP positions (UTF-16 columns), and use u32 file ids. Done means `scip lint` passes and precision/recall is measured on a labelled Java corpus.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-12",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "The token corpus is lossy and partly mis-typed, so it cannot serve as a faithful lexical layer",
+  "files": [
+   "src/ingestion/adapter/java.rs:33-77",
+   "src/ingestion/adapter/mod.rs:14-26",
+   "src/ingestion/adapter/generic.rs:35-60",
+   "src/core/types/source.rs:31-39",
+   "src/ingestion/builder.rs:45-46",
+   "src/ast/reducer.rs:95-116"
+  ],
+  "evidence": "The Java adapter drops anonymous tokens that map_node_type does not list: `?` and `:` (ternary, labels, enhanced-for, case), `@interface`, `sealed`, `permits`, `non-sealed` and the module keywords. `octal_integer_literal` becomes Unknown. Javadoc is never classified CommentDoc, so the default include_doc_comments=true has no effect. The generic adapter keeps no anonymous tokens at all. When a node's first token is missing, reducer.rs:95-116 borrows a neighbouring token on the same line, which can lie outside the node. The builder's 'Invariant 1: Monotonicity' is a comment with no check behind it.",
+  "impact": "Phase 3's token-level heuristics (its fallback for Kotlin and the other languages), clone detection, source reconstruction and doc-based traceability all run on an incomplete stream, and node-to-token ranges are imprecise.",
+  "recommendation": "Make the lexical layer lossless, in the style of rust-analyzer's rowan green tree or Roslyn's full-fidelity trees: emit every leaf, with trivia as flagged ranges. Classify tokens from tables derived from node-types.json, and detect `/**` as CommentDoc. Add a round-trip property test: concatenated token and trivia text equals the original file bytes.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-14",
+  "kind": "enhancement",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "Pipeline abstraction is decorative: the stage template has no implementors and orchestration is copy-pasted three times",
+  "files": [
+   "src/core/pipeline.rs:34-78",
+   "src/core/pipeline.rs:97-101",
+   "src/core/pipeline.rs:143-148",
+   "src/core/pipeline.rs:151-238",
+   "src/main.rs:139-200",
+   "src/adapters/server.rs:506-600",
+   "Cargo.toml:14"
+  ],
+  "evidence": "PipelineStageTemplate, with its verify_invariants and timing hooks, has zero implementors. SCPGPipelineBuilder::execute, cmd_analyze and the server each wire all 10 phases by hand, with different error handling. The server uses fs::read(..).unwrap_or_default() and passes empty bytes onward. diagram_formats is stored but never used. Every phase writes its artifact and the caller reads it back with fs::read. Phases 7-10 return plain values and cannot report errors. Errors are Strings or io::Error; thiserror is a dependency but is never used.",
+  "impact": "The CLI, server and library behave differently. There is no caching, cancellation, per-stage metrics or partial re-run, and errors lose their structure.",
+  "recommendation": "Define one Stage trait with typed inputs and outputs and a thiserror error enum, driven by a single Pipeline that the CLI, server and library all use. Hand artifacts over in memory and persist them optionally. Key each stage's output by a hash of its inputs and config so unchanged stages are skipped, salsa or Bazel style. Add cancellation tokens and per-stage timing and RSS metrics, and either wire up or remove diagram_formats.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-21",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": ".env.example documents settings the code never reads",
+  "files": [
+   ".env.example",
+   "src/core/logger.rs",
+   "Dockerfile"
+  ],
+  "evidence": ".env.example defines RUST_LOG, OPENHEART_ARTIFACT_DIR, OPENHEART_MAX_MEMORY_MB, OPENHEART_NUM_THREADS and OPENHEART_STRICT_INVARIANTS. None of them appears anywhere in src/. The only environment variable the code reads is OPENHEART_LOG (core/logger.rs:98), and it is not documented. The Dockerfile's HOST and PORT are ignored too, and the code has no threading at all.",
+  "impact": "Operators believe they are controlling memory, thread count and invariant checks when they are not.",
+  "recommendation": "Either implement a single Config read from environment and CLI, or delete the unused keys. Document OPENHEART_LOG.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "CORE-17",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "low",
+  "title": "Unseeded FNV-1a with linear probing leaves the interner open to hash flooding",
+  "files": [
+   "src/ingestion/interner.rs:6-13",
+   "src/ingestion/interner.rs:47-72",
+   "src/ingestion/interner.rs:127-145"
+  ],
+  "evidence": "intern() places each string at `fnv1a_64(text) & table_mask` and resolves collisions by linear probing. FNV-1a is unkeyed and resize() rehashes with the same function, so identifiers crafted to share low hash bits stay in one cluster across resizes. Collisions are resolved correctly, because bytes are compared (interner.rs:67), but each insert probes the whole cluster.",
+  "impact": "A malicious repository fed to the single-threaded server can make Phase 1 interning quadratic and stall the server.",
+  "recommendation": "Keep insertion-ordered IDs, which preserves determinism, but hash with a seeded fast hasher (foldhash or ahash with a per-process random seed) through hashbrown::HashTable, or adopt lasso or string-interner. Keep the byte comparison.",
+  "effort": "S",
+  "confidence": "medium"
+ }
+]

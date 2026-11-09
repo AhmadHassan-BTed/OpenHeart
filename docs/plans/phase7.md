@@ -2,6 +2,8 @@
 
 ## Phase 7: Traceability Index Construction
 
+> **Status: design specification.** This plan describes the target design of Phase 7. Where the reference implementation differed at the audited baseline `fc218cd`, an *Implementation* note says so; the authoritative per-phase status is [docs/status.md](../status.md). Size and timing figures in this plan are design estimates, not measurements.
+
 ### 7.1 Phase Mandate & Exact Boundaries
 
 Phase 7 is the only pure aggregation phase in the pipeline. It performs no new analysis — it reads all six prior artifacts and synthesizes a unified, bidirectional traceability index: the mathematical substrate that makes every generated UML element navigable to source code, and every source token navigable to all SCPG entities that derive from it.
@@ -371,6 +373,8 @@ impl UMLLinkRegistry {
 ```
 
 #### 7.5.4 Incremental Delta Processing
+
+> *Implementation (audited baseline `fc218cd`):* the delta modules (`src/tra/delta/`) have no callers. They compare backward-index entries by positional `sym_id` and corpus-global token ids, so one early insertion invalidates nearly everything after it, an edit that keeps a declaration's token span is missed, and deletions are never reported. See [traceability_and_incremental.md §3](../traceability_and_incremental.md#3-incremental-synchronization-engine--design-not-implemented).
 
 When source changes (a file edit in an IDE), the pipeline re-runs incrementally. Phase 7's role in incremental sync:
 

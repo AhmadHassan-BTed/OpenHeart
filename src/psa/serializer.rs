@@ -1,6 +1,6 @@
 //! PathSummaryArtifact binary I/O (.psa format) (§8.6).
 //!
-//! **PSA File Format v1.0 (all integers: little-endian):**
+//! **PSA File Format v2 (all integers: little-endian):**
 //!
 //! ```text
 //! ╔══════════════════════════════════════════════════════════════════╗
@@ -11,43 +11,54 @@
 //! ║ FUNCTION DIR.       │ n_f × 32 B   │ FunctionPSAHeader[] sorted ║
 //! ║                     │              │ by sym_id. Binary search.  ║
 //! ╠═════════════════════╪══════════════╪════════════════════════════╣
-//! ║ VARIABLE ORDERING   │ variable     │ Per-function: edge_id[] of ║
-//! ║ TABLES              │              │ length n_vars. Maps        ║
-//! ║                     │              │ var_idx → CFA edge_id.     ║
+//! ║ VARIABLE ORDERING   │ variable     │ Per-function: code[] of    ║
+//! ║ TABLES              │              │ length n_vars. Maps level  ║
+//! ║                     │              │ → edge id / loop entry.    ║
 //! ╠═════════════════════╪══════════════╪════════════════════════════╣
 //! ║ ROBDD NODE ARRAYS   │ variable     │ Per-function: ROBDDNode[]  ║
-//! ║                     │              │ (12 bytes each). Lazy-     ║
-//! ║                     │              │ loaded on first path query.║
+//! ║                     │              │ (12 bytes each), compacted,║
+//! ║                     │              │ children before parents.   ║
 //! ╠═════════════════════╪══════════════╪════════════════════════════╣
 //! ║ PATH METRICS TABLE  │ n_f × 16 B   │ (cyclomatic:u16,           ║
-//! ║                     │              │  max_path:u16, sat_lo:u32, ║
-//! ║                     │              │  sat_hi:u32, mean:f32)     ║
+//! ║                     │              │  max_path:u16, unwind:u16, ║
+//! ║                     │              │  flags:u16, log2:f64)      ║
 //! ║                     │              │ Hot path — always mmap'd.  ║
 //! ╠═════════════════════╪══════════════╪════════════════════════════╣
-//! ║ CHECKSUM            │ 8 B          │ CRC-64/ECMA                ║
+//! ║ CHECKSUM            │ 8 B          │ CRC-64/ECMA-182            ║
 //! ╚═════════════════════╩══════════════╩════════════════════════════╝
 //! ```
 //!
 //! **Header layout (64 bytes):**
 //! ```text
 //!  0- 7: magic     : u64   = PSA_MAGIC (b"OPENHPSA")
-//!  8-11: version   : u32   = 1
+//!  8-11: version   : u32   = 2
 //! 12-15: n_funcs   : u32   number of functions
 //! 16-23: cfa_hash  : u64   CRC-64 of the CFA artifact (§8.8 Invariant 4)
-//! 24-31: ssa_hash  : u64   CRC-64 of the SSA artifact
+//! 24-31: ssa_hash  : u64   first 64 bits of the SSA canonical SHA-256 digest
 //! 32-39: total_nodes: u64  total ROBDD nodes across all functions
 //! 40-47: dir_offset : u64  byte offset of FUNCTION DIR section
 //! 48-55: metrics_offset: u64  byte offset of PATH METRICS TABLE
 //! 56-63: _reserved : u64   (must be zero)
 //! ```
+//!
+//! The checksum is the CRC-64/ECMA-182 implementation shared by every OpenHeart artifact
+//! (`ingestion::serializer::crc64_ecma`). The reader treats the file as untrusted: every read
+//! is bounds-checked, every declared count is validated against the bytes that remain before
+//! anything is allocated, and every node array is validated (ids, order, canonicity) so the
+//! query API can traverse it safely. Malformed input yields `InvalidData`, never a panic.
 
 use std::fs;
 use std::io;
 use std::path::Path;
 
+use crate::ingestion::serializer::crc64_ecma;
 use crate::psa::bdd::node::ROBDDNode;
+use crate::psa::bdd::verify_node_array;
 use crate::psa::metrics::PathMetrics;
-use crate::psa::types::{FunctionPSAHeader, PathSummaryArtifact, PSA_MAGIC};
+use crate::psa::ordering::VariableOrdering;
+use crate::psa::types::{
+    FunctionPSAHeader, PathSummaryArtifact, PSA_FORMAT_VERSION, PSA_MAGIC, PSA_NO_ROOT,
+};
 
 /// Header size in bytes.
 const HEADER_SIZE: usize = 64;
@@ -57,6 +68,8 @@ const DIR_ENTRY_SIZE: usize = 32;
 const NODE_SIZE: usize = 12;
 /// Path metrics entry size in bytes.
 const METRICS_SIZE: usize = 16;
+/// Ordering table entry size in bytes.
+const ORDERING_ENTRY_SIZE: usize = 4;
 /// CRC-64 checksum size in bytes.
 const CHECKSUM_SIZE: usize = 8;
 
@@ -65,30 +78,46 @@ pub struct PathSummarySerializer;
 
 impl PathSummarySerializer {
     /// Serialize the PathSummaryArtifact to the .psa file at `path`.
+    pub fn write(artifact: &PathSummaryArtifact, path: &Path) -> io::Result<()> {
+        let buf = Self::to_bytes(artifact)?;
+        fs::write(path, &buf)
+    }
+
+    /// Serialize the PathSummaryArtifact to bytes.
     ///
     /// Writes all sections in order: HEADER, FUNCTION DIR, VARIABLE ORDERING TABLES,
-    /// ROBDD NODE ARRAYS, PATH METRICS TABLE, CHECKSUM.
-    ///
-    /// The CHECKSUM is CRC-64/ECMA of all preceding bytes.
-    pub fn write(artifact: &PathSummaryArtifact, path: &Path) -> io::Result<()> {
+    /// ROBDD NODE ARRAYS, PATH METRICS TABLE, CHECKSUM (CRC-64/ECMA of all preceding bytes).
+    pub fn to_bytes(artifact: &PathSummaryArtifact) -> io::Result<Vec<u8>> {
         let n = artifact.function_count();
+        if artifact.ordering_tables.len() != n
+            || artifact.node_arrays.len() != n
+            || artifact.metrics.len() != n
+        {
+            return Err(invalid(format!(
+                "PSA sections disagree: {} directory entries, {} ordering tables, \
+                 {} node arrays, {} metrics records",
+                n,
+                artifact.ordering_tables.len(),
+                artifact.node_arrays.len(),
+                artifact.metrics.len()
+            )));
+        }
+        let n_u32 = u32::try_from(n).map_err(|_| invalid("too many functions for PSA"))?;
 
         // ── Pre-compute section sizes and offsets ─────────────────────────────
         let dir_size = n * DIR_ENTRY_SIZE;
-
-        // Variable ordering: each function's ordering is n_vars × 4 bytes.
-        let ordering_size: usize = artifact.ordering_tables.iter().map(|t| t.len() * 4).sum();
-
-        // ROBDD node arrays: each node is 12 bytes.
+        let ordering_size: usize = artifact
+            .ordering_tables
+            .iter()
+            .map(|t| t.len() * ORDERING_ENTRY_SIZE)
+            .sum();
         let node_array_size: usize = artifact
             .node_arrays
             .iter()
             .map(|a| a.len() * NODE_SIZE)
             .sum();
-
         let metrics_size = n * METRICS_SIZE;
 
-        // Section byte offsets.
         let dir_offset = HEADER_SIZE as u64;
         let ordering_offset = dir_offset + dir_size as u64;
         let node_array_offset = ordering_offset + ordering_size as u64;
@@ -96,32 +125,37 @@ impl PathSummarySerializer {
         let checksum_offset = metrics_offset + metrics_size as u64;
         let total_size = checksum_offset as usize + CHECKSUM_SIZE;
 
-        // ── Build the complete file in memory ─────────────────────────────────
         let mut buf: Vec<u8> = Vec::with_capacity(total_size);
 
         // ── HEADER (64 bytes) ─────────────────────────────────────────────────
         buf.extend_from_slice(&PSA_MAGIC.to_le_bytes());
         buf.extend_from_slice(&artifact.format_version.to_le_bytes());
-        buf.extend_from_slice(&(n as u32).to_le_bytes());
+        buf.extend_from_slice(&n_u32.to_le_bytes());
         buf.extend_from_slice(&artifact.cfa_hash.to_le_bytes());
         buf.extend_from_slice(&artifact.ssa_hash.to_le_bytes());
         buf.extend_from_slice(&artifact.total_nodes.to_le_bytes());
         buf.extend_from_slice(&dir_offset.to_le_bytes());
         buf.extend_from_slice(&metrics_offset.to_le_bytes());
-        // _reserved (8 bytes)
         buf.extend_from_slice(&0u64.to_le_bytes());
         debug_assert_eq!(buf.len(), HEADER_SIZE);
 
         // ── FUNCTION DIRECTORY (n × 32 bytes) ────────────────────────────────
-        for header in &artifact.function_dir {
+        for (i, header) in artifact.function_dir.iter().enumerate() {
+            if header.n_vars as usize != artifact.ordering_tables[i].len()
+                || header.n_nodes as usize != artifact.node_arrays[i].len()
+            {
+                return Err(invalid(format!(
+                    "PSA directory entry for sym_id={} disagrees with its tables",
+                    header.sym_id
+                )));
+            }
             buf.extend_from_slice(&header.to_bytes());
         }
-        debug_assert_eq!(buf.len(), HEADER_SIZE + dir_size);
 
-        // ── VARIABLE ORDERING TABLES (per-function edge_id[n_vars]) ──────────
+        // ── VARIABLE ORDERING TABLES (per-function code[n_vars]) ─────────────
         for ordering_table in &artifact.ordering_tables {
-            for &edge_id in ordering_table {
-                buf.extend_from_slice(&edge_id.to_le_bytes());
+            for &code in ordering_table {
+                buf.extend_from_slice(&code.to_le_bytes());
             }
         }
 
@@ -140,107 +174,155 @@ impl PathSummarySerializer {
         for metric in &artifact.metrics {
             buf.extend_from_slice(&metric.to_bytes());
         }
+        debug_assert_eq!(buf.len() as u64, checksum_offset);
 
         // ── CHECKSUM (CRC-64/ECMA of all preceding bytes) ─────────────────────
         let crc = crc64_ecma(&buf);
         buf.extend_from_slice(&crc.to_le_bytes());
-
-        // ── Write to disk ─────────────────────────────────────────────────────
-        fs::write(path, &buf)?;
-        Ok(())
+        Ok(buf)
     }
 
     /// Deserialize a PathSummaryArtifact from a .psa file at `path`.
-    ///
-    /// Validates:
-    /// 1. PSA_MAGIC matches.
-    /// 2. CRC-64/ECMA checksum matches (verifying file integrity).
     pub fn read(path: &Path) -> io::Result<PathSummaryArtifact> {
         let bytes = fs::read(path)?;
+        Self::from_bytes(&bytes)
+    }
 
+    /// Deserialize a PathSummaryArtifact from bytes.
+    ///
+    /// Validates:
+    /// 1. Length, CRC-64/ECMA checksum and PSA_MAGIC.
+    /// 2. Format version, section offsets and every declared count against the remaining bytes.
+    /// 3. Every ordering table (decodable, no duplicate variable) and node array (terminals,
+    ///    ids, variable order, canonicity) and every root id.
+    pub fn from_bytes(bytes: &[u8]) -> io::Result<PathSummaryArtifact> {
         if bytes.len() < HEADER_SIZE + CHECKSUM_SIZE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "PSA file too small",
-            ));
+            return Err(invalid("PSA file too small"));
         }
 
         // ── Validate CRC-64 ───────────────────────────────────────────────────
         let data_end = bytes.len() - CHECKSUM_SIZE;
-        let stored_crc = u64::from_le_bytes(bytes[data_end..data_end + 8].try_into().unwrap());
+        let mut tail = Cursor::new(&bytes[data_end..]);
+        let stored_crc = tail.u64()?;
         let computed_crc = crc64_ecma(&bytes[..data_end]);
         if stored_crc != computed_crc {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "PSA CRC-64 mismatch: stored=0x{:016X}, computed=0x{:016X}",
-                    stored_crc, computed_crc
-                ),
-            ));
+            return Err(invalid(format!(
+                "PSA CRC-64 mismatch: stored=0x{:016X}, computed=0x{:016X}",
+                stored_crc, computed_crc
+            )));
         }
+        let data = &bytes[..data_end];
 
         // ── Parse HEADER ──────────────────────────────────────────────────────
-        let magic = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+        let mut cur = Cursor::new(data);
+        let magic = cur.u64()?;
         if magic != PSA_MAGIC {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("PSA magic mismatch: got 0x{:016X}", magic),
-            ));
+            return Err(invalid(format!("PSA magic mismatch: got 0x{:016X}", magic)));
+        }
+        let format_version = cur.u32()?;
+        if format_version != PSA_FORMAT_VERSION {
+            return Err(invalid(format!(
+                "unsupported PSA format version {} (expected {})",
+                format_version, PSA_FORMAT_VERSION
+            )));
+        }
+        let n_funcs = cur.u32()? as usize;
+        let cfa_hash = cur.u64()?;
+        let ssa_hash = cur.u64()?;
+        let total_nodes = cur.u64()?;
+        let dir_offset = cur.u64()?;
+        let metrics_offset = cur.u64()?;
+        let _reserved = cur.u64()?;
+        if dir_offset != HEADER_SIZE as u64 {
+            return Err(invalid(format!(
+                "PSA directory offset {} (expected {})",
+                dir_offset, HEADER_SIZE
+            )));
         }
 
-        let format_version = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-        let n_funcs = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
-        let cfa_hash = u64::from_le_bytes(bytes[16..24].try_into().unwrap());
-        let ssa_hash = u64::from_le_bytes(bytes[24..32].try_into().unwrap());
-        let total_nodes = u64::from_le_bytes(bytes[32..40].try_into().unwrap());
-        // dir_offset (40..48) — always HEADER_SIZE in v1.
-        let metrics_offset = u64::from_le_bytes(bytes[48..56].try_into().unwrap()) as usize;
-
         // ── Parse FUNCTION DIRECTORY ──────────────────────────────────────────
-        let mut pos = HEADER_SIZE;
+        cur.require(n_funcs, DIR_ENTRY_SIZE, "function directory")?;
         let mut function_dir: Vec<FunctionPSAHeader> = Vec::with_capacity(n_funcs);
         for _ in 0..n_funcs {
-            let entry_bytes: &[u8; 32] = bytes[pos..pos + DIR_ENTRY_SIZE].try_into().unwrap();
-            function_dir.push(FunctionPSAHeader::from_bytes(entry_bytes));
-            pos += DIR_ENTRY_SIZE;
+            let entry = cur.array::<DIR_ENTRY_SIZE>()?;
+            function_dir.push(FunctionPSAHeader::from_bytes(&entry));
+        }
+        if function_dir.windows(2).any(|w| w[0].sym_id >= w[1].sym_id) {
+            return Err(invalid("PSA function directory is not strictly sorted by sym_id"));
         }
 
         // ── Parse VARIABLE ORDERING TABLES ───────────────────────────────────
         let mut ordering_tables: Vec<Vec<u32>> = Vec::with_capacity(n_funcs);
-        for i in 0..n_funcs {
-            let n_vars = function_dir[i].n_vars as usize;
+        for header in &function_dir {
+            let n_vars = header.n_vars as usize;
+            cur.require(n_vars, ORDERING_ENTRY_SIZE, "variable ordering table")?;
             let mut table: Vec<u32> = Vec::with_capacity(n_vars);
             for _ in 0..n_vars {
-                let eid = u32::from_le_bytes(bytes[pos..pos + 4].try_into().unwrap());
-                table.push(eid);
-                pos += 4;
+                table.push(cur.u32()?);
             }
+            VariableOrdering::from_codes(&table).map_err(|msg| {
+                invalid(format!(
+                    "PSA ordering table of sym_id={}: {}",
+                    header.sym_id, msg
+                ))
+            })?;
             ordering_tables.push(table);
         }
 
         // ── Parse ROBDD NODE ARRAYS ───────────────────────────────────────────
         let mut node_arrays: Vec<Vec<ROBDDNode>> = Vec::with_capacity(n_funcs);
-        for i in 0..n_funcs {
-            let n_nodes = function_dir[i].n_nodes as usize;
+        let mut counted_nodes: u64 = 0;
+        for header in &function_dir {
+            let n_nodes = header.n_nodes as usize;
+            cur.require(n_nodes, NODE_SIZE, "ROBDD node array")?;
             let mut arr: Vec<ROBDDNode> = Vec::with_capacity(n_nodes);
             for _ in 0..n_nodes {
-                let var = u16::from_le_bytes(bytes[pos..pos + 2].try_into().unwrap());
-                let flags = u16::from_le_bytes(bytes[pos + 2..pos + 4].try_into().unwrap());
-                let lo = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap());
-                let hi = u32::from_le_bytes(bytes[pos + 8..pos + 12].try_into().unwrap());
+                let var = cur.u16()?;
+                let flags = cur.u16()?;
+                let lo = cur.u32()?;
+                let hi = cur.u32()?;
                 arr.push(ROBDDNode { var, flags, lo, hi });
-                pos += NODE_SIZE;
             }
+            verify_node_array(&arr, Some(header.n_vars.min(u16::MAX as u32) as u16)).map_err(
+                |msg| invalid(format!("PSA node array of sym_id={}: {}", header.sym_id, msg)),
+            )?;
+            if header.root_node != PSA_NO_ROOT && header.root_node as usize >= arr.len() {
+                return Err(invalid(format!(
+                    "PSA root {} of sym_id={} is outside its {} nodes",
+                    header.root_node,
+                    header.sym_id,
+                    arr.len()
+                )));
+            }
+            counted_nodes += n_nodes as u64;
             node_arrays.push(arr);
+        }
+        if counted_nodes != total_nodes {
+            return Err(invalid(format!(
+                "PSA header declares {} nodes but the arrays hold {}",
+                total_nodes, counted_nodes
+            )));
         }
 
         // ── Parse PATH METRICS TABLE ──────────────────────────────────────────
-        pos = metrics_offset;
+        if metrics_offset != cur.position() as u64 {
+            return Err(invalid(format!(
+                "PSA metrics offset {} does not follow the node arrays (at {})",
+                metrics_offset,
+                cur.position()
+            )));
+        }
+        cur.require(n_funcs, METRICS_SIZE, "path metrics table")?;
         let mut metrics: Vec<PathMetrics> = Vec::with_capacity(n_funcs);
         for _ in 0..n_funcs {
-            let entry: &[u8; 16] = bytes[pos..pos + METRICS_SIZE].try_into().unwrap();
-            metrics.push(PathMetrics::from_bytes(entry));
-            pos += METRICS_SIZE;
+            let entry = cur.array::<METRICS_SIZE>()?;
+            metrics.push(PathMetrics::from_bytes(&entry));
+        }
+        if cur.remaining() != 0 {
+            return Err(invalid(format!(
+                "{} unexpected trailing bytes before the PSA checksum",
+                cur.remaining()
+            )));
         }
 
         Ok(PathSummaryArtifact {
@@ -256,26 +338,79 @@ impl PathSummarySerializer {
     }
 }
 
-/// CRC-64/ECMA polynomial computation (§8.6, §8.8 Invariant 4).
-///
-/// Implements CRC-64/ECMA-182 with polynomial 0x42F0E1EBA9EA3693.
-/// This matches the checksum algorithm used by all other OpenHeart artifact serializers.
-fn crc64_ecma(data: &[u8]) -> u64 {
-    const POLY: u64 = 0x42F0E1EBA9EA3693;
-    let mut crc: u64 = 0xFFFF_FFFF_FFFF_FFFF;
-    for &byte in data {
-        let b = byte as u64;
-        for bit in (0..8).rev() {
-            let bit_val = (b >> bit) & 1;
-            let top_bit = (crc >> 63) & 1;
-            crc <<= 1;
-            crc ^= bit_val;
-            if top_bit != 0 {
-                crc ^= POLY;
-            }
+/// `InvalidData` error with a message.
+fn invalid(msg: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, msg.into())
+}
+
+/// Bounds-checked little-endian reader over an untrusted byte slice.
+struct Cursor<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> Cursor<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, pos: 0 }
+    }
+
+    #[inline]
+    fn position(&self) -> usize {
+        self.pos
+    }
+
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.bytes.len() - self.pos
+    }
+
+    /// Fail unless `count` records of `size` bytes remain (checked arithmetic), so that
+    /// allocations sized by `count` are bounded by the input length.
+    fn require(&self, count: usize, size: usize, what: &str) -> io::Result<()> {
+        match count.checked_mul(size) {
+            Some(needed) if needed <= self.remaining() => Ok(()),
+            _ => Err(invalid(format!(
+                "PSA {} declares {} records of {} bytes but only {} bytes remain",
+                what,
+                count,
+                size,
+                self.remaining()
+            ))),
         }
     }
-    crc ^ 0xFFFF_FFFF_FFFF_FFFF
+
+    fn take(&mut self, n: usize) -> io::Result<&'a [u8]> {
+        if n > self.remaining() {
+            return Err(invalid(format!(
+                "PSA truncated: needed {} bytes at offset {}, {} remain",
+                n,
+                self.pos,
+                self.remaining()
+            )));
+        }
+        let s = &self.bytes[self.pos..self.pos + n];
+        self.pos += n;
+        Ok(s)
+    }
+
+    fn array<const N: usize>(&mut self) -> io::Result<[u8; N]> {
+        let s = self.take(N)?;
+        let mut out = [0u8; N];
+        out.copy_from_slice(s);
+        Ok(out)
+    }
+
+    fn u16(&mut self) -> io::Result<u16> {
+        Ok(u16::from_le_bytes(self.array::<2>()?))
+    }
+
+    fn u32(&mut self) -> io::Result<u32> {
+        Ok(u32::from_le_bytes(self.array::<4>()?))
+    }
+
+    fn u64(&mut self) -> io::Result<u64> {
+        Ok(u64::from_le_bytes(self.array::<8>()?))
+    }
 }
 
 #[cfg(test)]
@@ -286,7 +421,7 @@ mod tests {
     fn make_minimal_artifact() -> PathSummaryArtifact {
         use crate::psa::bdd::node::ROBDDNode;
         PathSummaryArtifact {
-            format_version: 1,
+            format_version: PSA_FORMAT_VERSION,
             cfa_hash: 0xDEADBEEF_CAFEBABE,
             ssa_hash: 0xABCD_1234_5678_9DEF,
             function_dir: vec![FunctionPSAHeader {
@@ -298,7 +433,7 @@ mod tests {
                 cyclomatic: 3,
                 max_path_len: 5,
                 unwind_depth: 0,
-                _reserved: 0,
+                flags: 0,
             }],
             ordering_tables: vec![vec![10, 20]],
             node_arrays: vec![vec![
@@ -306,7 +441,7 @@ mod tests {
                 ROBDDNode::true_terminal(),
                 ROBDDNode::internal(0, 0, 1),
             ]],
-            metrics: vec![PathMetrics::new(3, 5, 2, 0)],
+            metrics: vec![PathMetrics::new(3, 5, 0, 0, 1.0)],
             total_nodes: 3,
         }
     }
@@ -320,7 +455,7 @@ mod tests {
         PathSummarySerializer::write(&artifact, path).unwrap();
         let loaded = PathSummarySerializer::read(path).unwrap();
 
-        assert_eq!(loaded.format_version, 1);
+        assert_eq!(loaded.format_version, PSA_FORMAT_VERSION);
         assert_eq!(loaded.cfa_hash, 0xDEADBEEF_CAFEBABE);
         assert_eq!(loaded.function_count(), 1);
         assert_eq!(loaded.function_dir[0].sym_id, 1);

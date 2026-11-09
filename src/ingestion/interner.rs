@@ -1,7 +1,14 @@
+use std::collections::hash_map::RandomState;
+use std::hash::BuildHasher;
+
 const FNV1A_PRIME: u64 = 0x0000_0100_0000_01B3;
 const FNV1A_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 
 /// FNV-1a 64-bit hash function.
+///
+/// Used only for the persisted string-header index of the `.tca` format, which must be
+/// stable across processes. The in-memory interner table does not use it (see
+/// `StringInterner`).
 #[inline]
 pub fn fnv1a_64(bytes: &[u8]) -> u64 {
     let mut hash = FNV1A_OFFSET;
@@ -12,7 +19,18 @@ pub fn fnv1a_64(bytes: &[u8]) -> u64 {
     hash
 }
 
-/// Deduplicating String Interner using FNV-1a hash table with open addressing.
+/// Bytes of the length prefix in front of every stored string.
+pub const STRING_LEN_PREFIX_BYTES: usize = 4;
+
+/// Deduplicating string interner: insertion-ordered ids over an open-addressing table.
+///
+/// The table hashes with a per-process randomly keyed SipHash (`RandomState`), so a crafted
+/// input cannot force all identifiers into one probe cluster (hash flooding). Ids are
+/// assigned in insertion order and never depend on the hash, so the corpus stays
+/// deterministic. Collisions are resolved by comparing the bytes.
+///
+/// Storage layout: for each string in id order, a little-endian u32 length followed by the
+/// bytes. Strings are stored in full; nothing is truncated.
 #[derive(Debug, Clone)]
 pub struct StringInterner {
     table: Vec<(u64, u32)>,
@@ -21,18 +39,20 @@ pub struct StringInterner {
     load_limit: usize,
     storage: Vec<u8>,
     offsets: Vec<u32>,
+    hasher: RandomState,
 }
 
 impl StringInterner {
     pub fn with_capacity(initial_capacity: usize) -> Self {
-        let cap = initial_capacity.next_power_of_two().max(16);
+        let cap = initial_capacity.max(16).next_power_of_two();
         Self {
             table: vec![(0, u32::MAX); cap],
             table_mask: cap - 1,
             count: 0,
-            load_limit: (cap as f64 * 0.75) as usize,
+            load_limit: cap / 4 * 3,
             storage: Vec::new(),
             offsets: Vec::new(),
+            hasher: RandomState::new(),
         }
     }
 
@@ -44,17 +64,18 @@ impl StringInterner {
         self.count
     }
 
-    pub fn intern(&mut self, text: &[u8]) -> u32 {
-        let mut hash = fnv1a_64(text);
-        if hash == 0 {
-            hash = 1;
-        }
+    #[inline]
+    fn slot_hash(&self, text: &[u8]) -> u64 {
+        // 0 marks an empty slot.
+        self.hasher.hash_one(text).max(1)
+    }
 
+    pub fn intern(&mut self, text: &[u8]) -> u32 {
+        let hash = self.slot_hash(text);
         let mut slot = (hash as usize) & self.table_mask;
         loop {
             let (h, id) = self.table[slot];
             if h == 0 {
-                // Empty slot: insert new string
                 let text_id = self.count;
                 self.store_string(text);
                 self.table[slot] = (hash, text_id);
@@ -75,10 +96,7 @@ impl StringInterner {
         if self.count == 0 {
             return u32::MAX;
         }
-        let mut hash = fnv1a_64(text);
-        if hash == 0 {
-            hash = 1;
-        }
+        let hash = self.slot_hash(text);
         let mut slot = (hash as usize) & self.table_mask;
         loop {
             let (h, id) = self.table[slot];
@@ -93,12 +111,12 @@ impl StringInterner {
     }
 
     fn store_string(&mut self, text: &[u8]) {
-        let offset = self.storage.len() as u32;
+        let offset = u32::try_from(self.storage.len())
+            .expect("string storage exceeds the 4 GiB addressable by u32 offsets");
+        let len = u32::try_from(text.len()).expect("a single string exceeds 4 GiB");
         self.offsets.push(offset);
-
-        let len = (text.len().min(u16::MAX as usize)) as u16;
         self.storage.extend_from_slice(&len.to_le_bytes());
-        self.storage.extend_from_slice(&text[..len as usize]);
+        self.storage.extend_from_slice(text);
     }
 
     pub fn lookup_text(&self, text_id: u32) -> &[u8] {
@@ -106,20 +124,20 @@ impl StringInterner {
             return b"";
         }
         let offset = self.offsets[text_id as usize] as usize;
-        if offset + 2 > self.storage.len() {
+        let Some(prefix) = self.storage.get(offset..offset + STRING_LEN_PREFIX_BYTES) else {
             return b"";
-        }
-        let len = u16::from_le_bytes([self.storage[offset], self.storage[offset + 1]]) as usize;
-        if offset + 2 + len > self.storage.len() {
-            return b"";
-        }
-        &self.storage[offset + 2..offset + 2 + len]
+        };
+        let len = u32::from_le_bytes([prefix[0], prefix[1], prefix[2], prefix[3]]) as usize;
+        let start = offset + STRING_LEN_PREFIX_BYTES;
+        self.storage.get(start..start + len).unwrap_or(b"")
     }
 
+    /// Raw storage (u32 length-prefixed strings in id order).
     pub fn get_storage_bytes(&self) -> &[u8] {
         &self.storage
     }
 
+    /// Byte offset of each string's length prefix in `get_storage_bytes`, indexed by id.
     pub fn get_offsets(&self) -> &[u32] {
         &self.offsets
     }
@@ -141,7 +159,7 @@ impl StringInterner {
 
         self.table = new_table;
         self.table_mask = new_mask;
-        self.load_limit = (new_cap as f64 * 0.75) as usize;
+        self.load_limit = new_cap / 4 * 3;
     }
 }
 

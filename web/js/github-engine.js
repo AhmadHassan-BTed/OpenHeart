@@ -1,582 +1,791 @@
 /**
- * OpenHeart GitHub-Native Dynamic Ingestion & AST Extraction Engine
- * Enables 100% serverless, zero-backend GitHub repository cloning and AST parsing on GitHub Pages.
+ * OpenHeart In-Browser Ingestion Engine (approximate, declaration-level)
+ *
+ * Used when the Rust engine is not reachable (for example on GitHub Pages). It ingests a
+ * GitHub repository, a local folder or a ZIP archive, selects a bounded, relevance-ranked
+ * sample of source files, extracts declarations with the linear-time parser in a Web Worker,
+ * and builds a class-model Graph IR. Every result reports exactly what was sampled, skipped
+ * and why; nothing in the result claims verification or full-repository coverage.
  */
 
-export class GitHubEngine {
-  /**
-   * Parse GitHub URL into owner, repository name, and optional branch/path
-   */
-  static parseRepoUrl(url) {
-    if (!url) return null;
-    let clean = url.trim()
-      .replace(/^https?:\/\/github\.com\//i, '')
-      .replace(/\.git$/i, '')
-      .replace(/^\//, '')
-      .replace(/\/$/, '');
+import { ParserHost } from './analysis/parser-host.js';
+import { buildClassModel } from './analysis/model-builder.js';
+import { hashGraphIr } from './analysis/ir-hash.js';
+import { languageForPath } from './analysis/source-parser.js';
 
-    if (clean.startsWith('local:') || clean.includes('(Local') || clean.includes('(Active')) {
-      return null;
-    }
+export const INGESTION_LIMITS = Object.freeze({
+  maxFileBytes: 512 * 1024,
+  maxRemoteFiles: 150,
+  maxRemoteBytes: 12 * 1024 * 1024,
+  maxLocalFiles: 1500,
+  maxLocalBytes: 48 * 1024 * 1024,
+  maxZipArchiveBytes: 200 * 1024 * 1024,
+  maxZipEntries: 60000,
+  maxZipDeclaredBytes: 1024 * 1024 * 1024,
+  fetchConcurrency: 6,
+  parseTimeoutMs: 4000,
+  maxTreeWalkRequests: 40
+});
 
-    const parts = clean.split('/');
-    if (parts.length >= 2 && parts[0] && parts[1] && !parts[0].includes(':')) {
-      const owner = parts[0];
-      const repo = parts[1];
-      let branch = 'HEAD';
-      let subPath = '';
-      if (parts[2] === 'tree' && parts[3]) {
-        branch = parts[3];
-        subPath = parts.slice(4).join('/');
-      } else if (parts.length > 2) {
-        subPath = parts.slice(2).join('/');
-      }
-      return { owner, repo, branch, subPath };
-    }
-    return null;
-  }
+const IGNORED_DIRS = new Set([
+  'node_modules', '.git', 'bin', 'obj', 'target', 'dist', 'build', 'out', '.vs', '.idea', '.gradle',
+  '__pycache__', 'vendor', 'third_party', 'third-party', 'bower_components', '.venv', 'venv',
+  'site-packages', 'pods', 'carthage', '.next', '.nuxt', 'coverage', '.mvn', '.svn', '.hg', '.tox',
+  '.cache', '.terraform', 'generated', 'gen'
+]);
 
-  /**
-   * Fetch repository tree and parse source files into SCPG Graph IR
-   */
-  static async analyzeGitHubRepo(repoUrl, onProgress) {
-    const repoInfo = this.parseRepoUrl(repoUrl);
-    if (!repoInfo) {
-      throw new Error(`Invalid GitHub repository URL: "${repoUrl}". Expected format: https://github.com/owner/repo`);
-    }
+const TEST_DIRS = new Set(['test', 'tests', '__tests__', 'spec', 'specs', 'testing', 'androidtest', 'testfixtures', 'e2e', 'integration-test', 'integration-tests', 'it']);
 
-    const { owner, repo } = repoInfo;
-    if (onProgress) onProgress(15, `Querying GitHub Tree API for ${owner}/${repo}...`);
+const RELEVANT_DIR_HINT = /^(src|main|lib|app|core|pkg|internal|cmd|source|sources|java|kotlin|scala|com|org|net|io)$/i;
 
-    // 1. Fetch Repository Metadata to get default branch
-    let defaultBranch = repoInfo.branch !== 'HEAD' ? repoInfo.branch : 'main';
-    try {
-      const metaResp = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
-      if (metaResp.ok) {
-        const meta = await metaResp.json();
-        if (meta.default_branch) {
-          defaultBranch = meta.default_branch;
-        }
-      }
-    } catch (_) {}
-
-    // 2. Fetch Recursive File Tree from GitHub API
-    let treeData = null;
-    const branchesToTry = [defaultBranch, 'HEAD', 'main', 'master', 'trunk', 'develop'];
-    const uniqueBranches = Array.from(new Set(branchesToTry));
-    let branchUsed = defaultBranch;
-
-    for (const br of uniqueBranches) {
-      try {
-        const resp = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${br}?recursive=1`);
-        if (resp.ok) {
-          treeData = await resp.json();
-          branchUsed = br;
-          break;
-        }
-      } catch (e) {
-        // Try next candidate branch
-      }
-    }
-
-    if (!treeData || !treeData.tree || !Array.isArray(treeData.tree)) {
-      throw new Error(`Could not access repository tree for ${owner}/${repo}. Check if the repository is public.`);
-    }
-
-    if (onProgress) onProgress(35, `Discovered ${treeData.tree.length} files. Filtering source code...`);
-
-    // 3. Filter Source Files (Java, Kotlin, Rust, TS/JS, Python, C#)
-    const validExtensions = ['.java', '.kt', '.rs', '.ts', '.js', '.py', '.cs', '.go', '.cpp', '.hpp', '.c', '.h'];
-    const sourceFiles = treeData.tree.filter(item => {
-      if (item.type !== 'blob') return false;
-      const p = item.path.toLowerCase();
-      return validExtensions.some(ext => p.endsWith(ext));
-    });
-
-    if (sourceFiles.length === 0) {
-      throw new Error(`No source code files found in repository ${owner}/${repo}.`);
-    }
-
-    if (onProgress) onProgress(50, `Ingesting ${sourceFiles.length} source files & extracting AST declarations...`);
-
-    // 4. Sample primary source files for responsive in-browser parsing
-    const filesToFetch = sourceFiles.slice(0, 30);
-    const classes = [];
-    const packages = new Map();
-    const relations = [];
-
-    let fetchedCount = 0;
-    for (const file of filesToFetch) {
-      try {
-        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branchUsed}/${file.path}`;
-        const rawResp = await fetch(rawUrl);
-        if (rawResp.ok) {
-          const code = await rawResp.text();
-          this.parseSourceFile(file.path, code, classes, packages, relations, owner, repo, branchUsed);
-        }
-      } catch (err) {
-        console.warn(`[GitHubEngine] Failed to fetch ${file.path}:`, err);
-      }
-      fetchedCount++;
-      if (onProgress) {
-        const p = 50 + Math.floor((fetchedCount / filesToFetch.length) * 35);
-        onProgress(p, `Parsing AST (${fetchedCount}/${filesToFetch.length} files): ${file.path.split('/').pop()}`);
-      }
-    }
-
-    if (classes.length === 0) {
-      // If regex didn't extract any structured classes, create representative module nodes from files
-      filesToFetch.forEach(f => {
-        const name = f.path.split('/').pop().replace(/\.[^/.]+$/, '');
-        const pkgName = f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')).replace(/\//g, '.') : 'root';
-        const pkgId = `pkg_${pkgName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-        if (!packages.has(pkgId)) {
-          packages.set(pkgId, { id: pkgId, name: pkgName, shortName: pkgName.split('.').pop() });
-        }
-        classes.push({
-          id: name,
-          name: name,
-          kind: 'class',
-          package: pkgName,
-          packageId: pkgId,
-          filePath: f.path,
-          rawUrl: `https://raw.githubusercontent.com/${owner}/${repo}/${branchUsed}/${f.path}`,
-          fields: [{ name: 'id', type: 'String' }],
-          methods: [{ name: 'execute', returnType: 'void' }]
-        });
-      });
-    }
-
-    if (onProgress) onProgress(90, `Synthesizing deterministic UML 2.5 Graph IR...`);
-
-    // 5. Build Complete Graph IR Schema
-    const graphIr = this.buildGraphIr(owner, repo, classes, packages, relations);
-
-    if (onProgress) onProgress(100, `Successfully compiled SCPG for ${repo}!`);
-
-    return {
-      status: 'success',
-      session_id: `sess_gh_${Date.now().toString(36)}`,
-      stats: {
-        files_processed: sourceFiles.length,
-        total_classes: classes.length,
-        total_relations: relations.length,
-        execution_time_ms: 280
-      },
-      graph_ir: graphIr
-    };
-  }
-
-  /**
-   * Analyze custom source files (from Local Folder selection or uploaded ZIP)
-   * @param {Array<{path: string, getText: () => Promise<string>}>} fileList
-   * @param {string} codebaseName
-   * @param {function} onProgress
-   */
-  static async analyzeSourceFiles(fileList, codebaseName, onProgress) {
-    if (!fileList || fileList.length === 0) {
-      throw new Error('No files provided for analysis.');
-    }
-
-    if (onProgress) onProgress(15, `Scanning ${fileList.length} files in ${codebaseName}...`);
-
-    const validExtensions = ['.java', '.kt', '.rs', '.ts', '.js', '.py', '.cs', '.go', '.cpp', '.hpp', '.c', '.h'];
-    const ignoredDirs = ['node_modules', '.git', 'bin', 'obj', 'target', 'dist', 'build', '.vs', '.idea', '__pycache__', 'vendor'];
-
-    const sourceFiles = fileList.filter(item => {
-      const p = item.path.toLowerCase().replace(/\\/g, '/');
-      const parts = p.split('/');
-      if (parts.some(part => ignoredDirs.includes(part))) return false;
-      return validExtensions.some(ext => p.endsWith(ext));
-    });
-
-    if (sourceFiles.length === 0) {
-      throw new Error(`No supported source code files found in "${codebaseName}". Supported extensions: Java, Kotlin, C#, Rust, TypeScript, JavaScript, Python, Go, C/C++.`);
-    }
-
-    if (onProgress) onProgress(35, `Discovered ${sourceFiles.length} code files. Parsing AST declarations...`);
-
-    // Sample primary files (up to 80 files for snappy, collision-free Cytoscape layout)
-    const filesToParse = sourceFiles.slice(0, 80);
-    const classes = [];
-    const packages = new Map();
-    const relations = [];
-    const fileCache = new Map();
-
-    let processedCount = 0;
-    for (const f of filesToParse) {
-      try {
-        const code = await f.getText();
-        fileCache.set(f.path, code);
-        this.parseSourceFile(f.path, code, classes, packages, relations, codebaseName, 'Local', 'main');
-      } catch (err) {
-        console.warn(`[GitHubEngine] Failed to read ${f.path}:`, err);
-      }
-      processedCount++;
-      if (onProgress) {
-        const p = 35 + Math.floor((processedCount / filesToParse.length) * 50);
-        onProgress(p, `Parsing AST (${processedCount}/${filesToParse.length} files): ${f.path.split('/').pop()}`);
-      }
-    }
-
-    if (classes.length === 0) {
-      filesToParse.forEach(f => {
-        const name = f.path.split('/').pop().replace(/\.[^/.]+$/, '');
-        const pkgName = f.path.includes('/') ? f.path.substring(0, f.path.lastIndexOf('/')).replace(/\//g, '.') : 'root';
-        const pkgId = `pkg_${pkgName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-        if (!packages.has(pkgId)) {
-          packages.set(pkgId, { id: pkgId, name: pkgName, shortName: pkgName.split('.').pop() });
-        }
-        classes.push({
-          id: name,
-          name: name,
-          kind: 'class',
-          package: pkgName,
-          packageId: pkgId,
-          filePath: f.path,
-          fields: [{ name: 'id', type: 'String' }],
-          methods: [{ name: 'execute', returnType: 'void' }]
-        });
-      });
-    }
-
-    if (onProgress) onProgress(90, `Synthesizing deterministic UML 2.5 Graph IR...`);
-
-    const graphIr = this.buildGraphIr(codebaseName, 'Local', classes, packages, relations);
-
-    if (onProgress) onProgress(100, `Successfully compiled SCPG for ${codebaseName}!`);
-
-    return {
-      status: 'success',
-      session_id: `sess_local_${Date.now().toString(36)}`,
-      stats: {
-        files_processed: sourceFiles.length,
-        total_classes: classes.length,
-        total_relations: relations.length,
-        execution_time_ms: 150
-      },
-      graph_ir: graphIr,
-      fileCache: fileCache
-    };
-  }
-
-  /**
-   * In-browser AST & Symbol extractor for Java, Kotlin, Rust, TypeScript, C#
-   */
-  static parseSourceFile(filePath, code, classes, packages, relations, owner, repo, branch) {
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
-    
-    // Extract package / namespace / module path (supporting file-scoped & block-scoped namespaces)
-    let pkgName = 'default';
-    const pkgMatch = code.match(/(?:package|namespace)\s+([a-zA-Z0-9_.]+)\s*[;{]/);
-    if (pkgMatch) {
-      pkgName = pkgMatch[1];
-    } else {
-      const parts = filePath.split('/');
-      if (parts.length > 1) {
-        pkgName = parts.slice(0, parts.length - 1).join('.');
-      }
-    }
-
-    const pkgId = `pkg_${pkgName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-    if (!packages.has(pkgId)) {
-      packages.set(pkgId, {
-        id: pkgId,
-        name: pkgName,
-        shortName: pkgName.split('.').pop() || 'default'
-      });
-    }
-
-    // 2. Comprehensive Multi-Language Class/Interface/Record/Trait Regex
-    const classDeclRegex = /(?:export\s+)?(?:public\s+|private\s+|protected\s+)?(?:abstract\s+|sealed\s+|final\s+)?(class|interface|enum|record|trait|struct|type)\s+([A-Za-z0-9_]+)(?:<[^>]*>)?(?:\s*(?:extends|implements|permits|:)\s*([A-Za-z0-9_,\s<>\?]+))?\s*\{/g;
-    let match;
-    let foundInFile = 0;
-
-    while ((match = classDeclRegex.exec(code)) !== null) {
-      foundInFile++;
-      let kind = match[1]; // class, interface, enum, trait, struct, record, type
-      if (kind === 'trait' || kind === 'record' || kind === 'type') kind = 'interface';
-      if (kind === 'struct') kind = 'class';
-
-      const className = match[2];
-      const heritage = match[3] || '';
-      
-      const heritageParts = heritage.split(',').map(s => s.trim().split('<')[0].replace(/extends|implements|permits/g, '').trim()).filter(Boolean);
-
-      const extendsList = [];
-      const implementsList = [];
-      if (heritage) {
-        const extMatch = heritage.match(/extends\s+([A-Za-z0-9_<>,\s]+?)(?:\s+implements|$)/);
-        if (extMatch) {
-          extMatch[1].split(',').forEach(item => {
-            const clean = item.trim().split('<')[0].trim();
-            if (clean && !['Object', 'Enum', 'Any', 'ValueType'].includes(clean)) extendsList.push(clean);
-          });
-        }
-        const impMatch = heritage.match(/implements\s+([A-Za-z0-9_<>,\s]+)/);
-        if (impMatch) {
-          impMatch[1].split(',').forEach(item => {
-            const clean = item.trim().split('<')[0].trim();
-            if (clean) implementsList.push(clean);
-          });
-        }
-        if (extendsList.length === 0 && implementsList.length === 0 && heritage.includes(':')) {
-          const parts = heritage.replace(/^:/, '').split(',');
-          parts.forEach((item, idx) => {
-            const clean = item.trim().split('<')[0].trim();
-            if (!clean || ['Object', 'Enum', 'Any'].includes(clean)) return;
-            const isIface = (clean.startsWith('I') && clean.length > 1 && clean[1].toUpperCase() === clean[1]) || kind === 'interface';
-            if (isIface) implementsList.push(clean);
-            else if (idx === 0) extendsList.push(clean);
-            else implementsList.push(clean);
-          });
-        }
-      }
-
-      // Extract fields and methods from class block
-      const classBody = code.slice(match.index + match[0].length);
-      const fields = this.extractFields(classBody);
-      const methods = this.extractMethods(classBody);
-
-      const classRec = {
-        id: className,
-        name: className,
-        kind: kind,
-        package: pkgName,
-        packageId: pkgId,
-        filePath: filePath,
-        rawUrl: rawUrl,
-        extends: extendsList.length > 0 ? (extendsList.length === 1 ? extendsList[0] : extendsList) : undefined,
-        implements: implementsList.length > 0 ? implementsList : undefined,
-        fields: fields,
-        methods: methods
-      };
-
-      classes.push(classRec);
-
-      // Extract Realization & Generalization for base classes / interfaces
-      for (const hItem of heritageParts) {
-        if (!hItem || ['Object', 'Enum', 'Any', 'ValueType'].includes(hItem)) continue;
-        const isInterface = (hItem.startsWith('I') && hItem.length > 1 && hItem[1].toUpperCase() === hItem[1]) || kind === 'interface';
-        relations.push({
-          source: className,
-          target: hItem,
-          uml_kind: isInterface ? 'realization' : 'generalization',
-          arrow: isInterface ? '..|>' : '--|>'
-        });
-      }
-
-      // Extract Associations from fields
-      for (const field of fields) {
-        const fieldType = field.type.replace(/[\[\]<>]/g, '').trim();
-        if (fieldType && /^[A-Z][A-Za-z0-9_]*$/.test(fieldType) && fieldType !== className && fieldType !== 'String') {
-          relations.push({
-            source: className,
-            target: fieldType,
-            uml_kind: field.isCollection ? 'aggregation' : 'association',
-            arrow: field.isCollection ? 'o--' : '-->'
-          });
-        }
-      }
-    }
-
-    // Fallback: If no classes matched with braces, create class from filename
-    if (foundInFile === 0) {
-      const fileName = filePath.split('/').pop().replace(/\.[^/.]+$/, '');
-      if (/^[A-Z][A-Za-z0-9_]*$/.test(fileName)) {
-        classes.push({
-          id: fileName,
-          name: fileName,
-          kind: 'class',
-          package: pkgName,
-          packageId: pkgId,
-          filePath: filePath,
-          rawUrl: rawUrl,
-          fields: this.extractFields(code),
-          methods: this.extractMethods(code)
-        });
-      }
-    }
-  }
-
-  static extractFields(body) {
-    const fields = [];
-    const fieldRegex = /(?:(public|protected|private|val|var|let|mut)\s+)?(?:(static)\s+)?(?:(final|readonly)\s+)?([A-Za-z0-9_<>[\]]+)\s+([a-zA-Z0-9_]+)\s*(?:=\s*([^;,)\n]+))?\s*(?:=|;|,|\))/g;
-    let m;
-    let count = 0;
-    while ((m = fieldRegex.exec(body)) !== null && count < 250) {
-      const rawVis = m[1] || 'private';
-      const isStatic = Boolean(m[2]);
-      const isFinal = Boolean(m[3]);
-      const type = m[4];
-      const name = m[5];
-      const defaultVal = m[6] ? m[6].trim() : null;
-      if (['if', 'for', 'while', 'switch', 'return', 'import', 'package', 'class', 'fun', 'fn', 'function', 'new', 'throw'].includes(name)) continue;
-      const isCollection = type.includes('List') || type.includes('Set') || type.includes('Map') || type.includes('Vec') || type.includes('[]') || type.includes('Array');
-      const visibility = rawVis === 'public' ? '+' : (rawVis === 'protected' ? '#' : '-');
-      fields.push({
-        name,
-        type,
-        visibility,
-        isStatic,
-        isFinal,
-        isCollection,
-        defaultValue: defaultVal,
-        signature: `${name}: ${type}${defaultVal ? ` = ${defaultVal}` : ''}`
-      });
-      count++;
-    }
-    return fields;
-  }
-
-  static extractMethods(body) {
-    const methods = [];
-    const methodRegex = /(?:(public|protected|private|fun|fn|def)\s+)?(?:(abstract|static|final|async)\s+)*([A-Za-z0-9_<>[\]]+)?\s*([a-zA-Z0-9_]+)\s*\(([^)]*)\)\s*(?:\{|;|->|:)/g;
-    let m;
-    let count = 0;
-    while ((m = methodRegex.exec(body)) !== null && count < 250) {
-      const rawVis = m[1] || 'public';
-      const modifiers = m[2] || '';
-      const returnType = m[3] || 'void';
-      const name = m[4];
-      const paramsRaw = m[5] || '';
-      if (!['if', 'for', 'while', 'switch', 'catch', 'when', 'match', 'synchronized'].includes(name)) {
-        const visibility = rawVis === 'private' ? '-' : (rawVis === 'protected' ? '#' : '+');
-        const isStatic = modifiers.includes('static');
-        const isAbstract = modifiers.includes('abstract');
-        const isAsync = modifiers.includes('async');
-
-        const parameters = [];
-        if (paramsRaw.trim()) {
-          const parts = paramsRaw.split(',');
-          for (const part of parts) {
-            const trimmed = part.trim();
-            if (!trimmed) continue;
-            if (trimmed.includes(':')) {
-              const [pName, pType] = trimmed.split(':').map(s => s.trim());
-              parameters.push({ name: pName || 'param', type: pType || 'any' });
-            } else {
-              const tokens = trimmed.replace(/\bfinal\b|\bval\b|\bvar\b/g, '').trim().split(/\s+/);
-              if (tokens.length >= 2) {
-                const pType = tokens.slice(0, -1).join(' ');
-                const pName = tokens[tokens.length - 1];
-                parameters.push({ name: pName, type: pType });
-              } else if (tokens.length === 1) {
-                parameters.push({ name: tokens[0], type: 'any' });
-              }
-            }
-          }
-        }
-
-        const paramSig = parameters.map(p => `${p.name}: ${p.type}`).join(', ');
-        methods.push({
-          name,
-          returnType,
-          visibility,
-          isStatic,
-          isAbstract,
-          isAsync,
-          parameters,
-          signature: `${name}(${paramSig}): ${returnType}`
-        });
-        count++;
-      }
-    }
-    return methods;
-  }
-
-  static buildGraphIr(owner, repo, classes, packages, relations) {
-    const nodes = [];
-    const edges = [];
-
-    // Add Package Containers
-    packages.forEach(pkg => {
-      nodes.push({
-        id: pkg.id,
-        name: pkg.shortName,
-        label: `package [${pkg.shortName}]`,
-        kind: 'package',
-        stereotype: '<<package>>',
-        is_package: true,
-        is_domain_tier: true,
-        nest_level: 0,
-        parent: null,
-        file: null,
-        lines: [],
-        fields: [],
-        methods: [],
-        instructions: []
-      });
-    });
-
-    // Add Class Nodes
-    classes.forEach(c => {
-      nodes.push({
-        id: c.id,
-        name: c.name,
-        label: c.name,
-        kind: c.kind,
-        stereotype: `<<${c.kind}>>`,
-        parent: c.packageId,
-        nest_level: 1,
-        is_package: false,
-        is_domain_tier: false,
-        file: c.filePath,
-        raw_url: c.rawUrl,
-        lines: [1, 5, 10],
-        extends: c.extends,
-        implements: c.implements,
-        fields: c.fields.map(f => ({
-          visibility: f.visibility || '-',
-          name: f.name,
-          type_name: f.type,
-          signature: f.signature || `${f.name}: ${f.type}`,
-          is_static: Boolean(f.isStatic),
-          is_final: Boolean(f.isFinal),
-          is_collection: Boolean(f.isCollection),
-          default_value: f.defaultValue
-        })),
-        methods: c.methods.map(m => ({
-          visibility: m.visibility || '+',
-          name: m.name,
-          type_name: m.returnType,
-          signature: m.signature || `${m.name}(): ${m.returnType}`,
-          parameters: m.parameters || [],
-          is_static: Boolean(m.isStatic),
-          is_abstract: Boolean(m.isAbstract),
-          is_async: Boolean(m.isAsync)
-        })),
-        instructions: []
-      });
-    });
-
-    // Add Edges
-    const declaredClassNames = new Set(classes.map(c => c.name));
-    relations.forEach((rel, idx) => {
-      if (declaredClassNames.has(rel.source) && declaredClassNames.has(rel.target)) {
-        edges.push({
-          id: `edge_${idx}_${rel.source}_${rel.target}`,
-          source: rel.source,
-          target: rel.target,
-          kind: rel.uml_kind,
-          label: '',
-          arrow: rel.arrow
-        });
-      }
-    });
-
-    return {
-      diagram_type: 'class',
-      title: `SCPG Class Model · ${owner}/${repo}`,
-      nodes: nodes,
-      edges: edges,
-      metadata: {
-        total_nodes: nodes.length,
-        total_edges: edges.length,
-        compiler_hash: `0x${Math.floor(Math.random() * 0xFFFFFF + 0x100000).toString(16).toUpperCase()}`,
-        verified: true
-      }
-    };
+export class GitHubError extends Error {
+  constructor(code, message, details = {}) {
+    super(message);
+    this.name = 'GitHubError';
+    this.code = code;
+    this.details = details;
   }
 }
 
+function abortError() {
+  const err = new Error('Analysis cancelled.');
+  err.name = 'AbortError';
+  return err;
+}
+
+function throwIfAborted(signal) {
+  if (signal && signal.aborted) throw abortError();
+}
+
+function nowMs() {
+  return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+}
+
+function normalizePath(path) {
+  return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+function encodePathSegments(path) {
+  return normalizePath(path).split('/').map(encodeURIComponent).join('/');
+}
+
+// ── Path classification ────────────────────────────────────────────────────────
+
+function isTestPath(path) {
+  const lower = path.toLowerCase();
+  const segments = lower.split('/');
+  if (segments.slice(0, -1).some(seg => TEST_DIRS.has(seg))) return true;
+  const base = segments[segments.length - 1];
+  if (/^test_.+\.py$/.test(base) || /_test\.(go|py)$/.test(base)) return true;
+  if (/\.(spec|test)\.[cm]?[jt]sx?$/.test(base)) return true;
+  const original = path.split('/').pop();
+  return /(Tests?|Spec|IT)\.(java|kt|kts|cs|scala|swift)$/.test(original);
+}
+
+function isMinifiedName(path) {
+  return /(\.min\.[cm]?js|\.bundle\.js|-min\.js|\.packed\.js)$/i.test(path);
+}
+
+function compileAttributePattern(pattern) {
+  let p = pattern.trim();
+  if (!p || p.startsWith('#')) return null;
+  const anchored = p.startsWith('/');
+  if (anchored) p = p.slice(1);
+  const dirOnly = p.endsWith('/');
+  if (dirOnly) p = p.slice(0, -1);
+  let re = '';
+  for (let i = 0; i < p.length; i++) {
+    const c = p[i];
+    if (c === '*') {
+      if (p[i + 1] === '*') {
+        re += '.*';
+        i++;
+        if (p[i + 1] === '/') i++;
+      } else {
+        re += '[^/]*';
+      }
+    } else if (c === '?') {
+      re += '[^/]';
+    } else if ('.+()[]{}^$|\\'.includes(c)) {
+      re += `\\${c}`;
+    } else {
+      re += c;
+    }
+  }
+  const hasSlash = p.includes('/');
+  const prefix = anchored || hasSlash ? '^' : '(^|/)';
+  const suffix = dirOnly ? '/' : '($|/)';
+  try {
+    return new RegExp(prefix + re + suffix);
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Parses .gitattributes linguist-vendored / linguist-generated rules.
+ * Later rules override earlier ones, as in git.
+ */
+export function parseLinguistAttributes(text) {
+  const rules = [];
+  String(text || '').split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const parts = trimmed.split(/\s+/);
+    const pattern = compileAttributePattern(parts[0]);
+    if (!pattern) return;
+    let vendored = null;
+    let generated = null;
+    parts.slice(1).forEach(attr => {
+      const lower = attr.toLowerCase();
+      if (lower === 'linguist-vendored' || lower === 'linguist-vendored=true') vendored = true;
+      else if (lower === '-linguist-vendored' || lower === 'linguist-vendored=false') vendored = false;
+      else if (lower === 'linguist-generated' || lower === 'linguist-generated=true') generated = true;
+      else if (lower === '-linguist-generated' || lower === 'linguist-generated=false') generated = false;
+    });
+    if (vendored !== null || generated !== null) rules.push({ pattern, vendored, generated });
+  });
+  return rules;
+}
+
+function attributeFlags(path, rules) {
+  let vendored = false;
+  let generated = false;
+  for (const rule of rules) {
+    if (!rule.pattern.test(path)) continue;
+    if (rule.vendored !== null) vendored = rule.vendored;
+    if (rule.generated !== null) generated = rule.generated;
+  }
+  return { vendored, generated };
+}
+
+/**
+ * Classifies every candidate file. Returns { eligible: [...], skipped: { reason: count } }.
+ * Candidate: { path, size (bytes | null) }
+ */
+function classifyCandidates(candidates, attributeRules, maxFileBytes) {
+  const eligible = [];
+  const skipped = { unsupported_language: 0, ignored_directory: 0, vendored: 0, generated: 0, test: 0, minified: 0, too_large: 0 };
+  for (const c of candidates) {
+    const path = normalizePath(c.path);
+    const language = languageForPath(path);
+    if (!language) { skipped.unsupported_language++; continue; }
+    const segments = path.toLowerCase().split('/');
+    if (segments.slice(0, -1).some(seg => IGNORED_DIRS.has(seg))) { skipped.ignored_directory++; continue; }
+    const flags = attributeFlags(path, attributeRules);
+    if (flags.vendored) { skipped.vendored++; continue; }
+    if (flags.generated) { skipped.generated++; continue; }
+    if (isMinifiedName(path)) { skipped.minified++; continue; }
+    if (isTestPath(path)) { skipped.test++; continue; }
+    if (typeof c.size === 'number' && c.size > maxFileBytes) { skipped.too_large++; continue; }
+    eligible.push(Object.assign({}, c, { path, language }));
+  }
+  return { eligible, skipped };
+}
+
+function relevanceScore(path, language, primaryLanguage) {
+  let score = 0;
+  if (/(^|\/)src\/main\//.test(path)) score += 4;
+  else if (/(^|\/)(src|lib|app|pkg|internal|cmd|source|sources|core)\//.test(path)) score += 2;
+  if (language === primaryLanguage) score += 2;
+  return score;
+}
+
+/**
+ * Picks a bounded, deterministic sample: highest relevance tier first, round-robin across
+ * top-level modules inside a tier so a large multi-module repository is covered broadly.
+ */
+function selectSample(eligible, maxFiles, maxBytes) {
+  const langCounts = new Map();
+  eligible.forEach(f => langCounts.set(f.language, (langCounts.get(f.language) || 0) + 1));
+  let primaryLanguage = null;
+  let best = -1;
+  langCounts.forEach((count, lang) => {
+    if (count > best) { best = count; primaryLanguage = lang; }
+  });
+
+  const firstSegments = new Set(eligible.map(f => f.path.split('/')[0]));
+  const moduleDepth = firstSegments.size === 1 && eligible.some(f => f.path.includes('/')) ? 1 : 0;
+  const moduleKey = (path) => {
+    const segs = path.split('/');
+    return segs.length > moduleDepth + 1 ? segs.slice(0, moduleDepth + 1).join('/') : '';
+  };
+
+  const tiers = new Map();
+  eligible.forEach(f => {
+    const score = relevanceScore(f.path, f.language, primaryLanguage);
+    if (!tiers.has(score)) tiers.set(score, new Map());
+    const groups = tiers.get(score);
+    const key = moduleKey(f.path);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(f);
+  });
+
+  const selected = [];
+  let bytes = 0;
+  let budgetHit = false;
+  const scores = Array.from(tiers.keys()).sort((a, b) => b - a);
+  outer:
+  for (const score of scores) {
+    const groups = tiers.get(score);
+    const keys = Array.from(groups.keys()).sort();
+    keys.forEach(k => groups.get(k).sort((a, b) => (a.path < b.path ? -1 : 1)));
+    const cursors = new Map(keys.map(k => [k, 0]));
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const k of keys) {
+        const list = groups.get(k);
+        const idx = cursors.get(k);
+        if (idx >= list.length) continue;
+        progressed = true;
+        const f = list[idx];
+        cursors.set(k, idx + 1);
+        const size = typeof f.size === 'number' ? f.size : 0;
+        if (selected.length >= maxFiles || bytes + size > maxBytes) {
+          budgetHit = true;
+          break outer;
+        }
+        selected.push(f);
+        bytes += size;
+      }
+    }
+  }
+  return { selected, selectedBytes: bytes, budgetHit, primaryLanguage, moduleCount: new Set(eligible.map(f => moduleKey(f.path))).size };
+}
+
+function isProbablyMinified(code) {
+  if (code.length < 4000) return false;
+  let lines = 1;
+  let longest = 0;
+  let current = 0;
+  for (let i = 0; i < code.length; i++) {
+    if (code.charCodeAt(i) === 10) {
+      lines++;
+      if (current > longest) longest = current;
+      current = 0;
+    } else {
+      current++;
+    }
+  }
+  if (current > longest) longest = current;
+  return longest > 5000 || code.length / lines > 400;
+}
+
+async function runPool(items, limit, signal, worker) {
+  let next = 0;
+  const runners = [];
+  const count = Math.min(limit, items.length);
+  for (let r = 0; r < count; r++) {
+    runners.push((async () => {
+      while (next < items.length) {
+        throwIfAborted(signal);
+        const idx = next++;
+        await worker(items[idx], idx);
+      }
+    })());
+  }
+  await Promise.all(runners);
+}
+
+// ── GitHub REST client ─────────────────────────────────────────────────────────
+
+class GitHubApi {
+  constructor({ token = null, signal = null } = {}) {
+    this.token = token || null;
+    this.signal = signal;
+    this.requests = 0;
+    this.rateLimit = { limit: null, remaining: null, reset: null };
+  }
+
+  captureRateLimit(headers) {
+    const limit = parseInt(headers.get('x-ratelimit-limit'), 10);
+    const remaining = parseInt(headers.get('x-ratelimit-remaining'), 10);
+    const reset = parseInt(headers.get('x-ratelimit-reset'), 10);
+    if (Number.isFinite(limit)) this.rateLimit.limit = limit;
+    if (Number.isFinite(remaining)) this.rateLimit.remaining = remaining;
+    if (Number.isFinite(reset)) this.rateLimit.reset = reset;
+  }
+
+  async request(path, { accept = 'application/vnd.github+json', as = 'json' } = {}) {
+    throwIfAborted(this.signal);
+    const headers = { Accept: accept };
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    let res;
+    try {
+      res = await fetch(`https://api.github.com${path}`, { headers, signal: this.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      throw new GitHubError('network', `Could not reach api.github.com: ${(err && err.message) || err}.`);
+    }
+    this.requests++;
+    this.captureRateLimit(res.headers);
+    if (res.ok) return as === 'text' ? res.text() : res.json();
+
+    let message = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body && typeof body.message === 'string') message = body.message;
+    } catch (_) { /* non-JSON error body */ }
+
+    if ((res.status === 403 || res.status === 429) && (this.rateLimit.remaining === 0 || /rate limit/i.test(message))) {
+      const resetDate = this.rateLimit.reset ? new Date(this.rateLimit.reset * 1000) : null;
+      const minutes = resetDate ? Math.max(0, Math.ceil((resetDate.getTime() - Date.now()) / 60000)) : null;
+      const resetText = resetDate ? ` It resets at ${resetDate.toLocaleTimeString()} (in about ${minutes} min).` : '';
+      const advice = this.token ? '' : ' Unauthenticated requests are limited to 60 per hour per IP address; add a GitHub token to raise the limit.';
+      throw new GitHubError('rate-limit', `GitHub API rate limit exhausted (${this.rateLimit.limit ?? 'unknown'} requests/hour).${resetText}${advice}`, { reset: this.rateLimit.reset });
+    }
+    if (res.status === 401) {
+      throw new GitHubError('auth', 'GitHub rejected the access token (HTTP 401). Check the token or remove it.');
+    }
+    if (res.status === 404) {
+      throw new GitHubError('not-found', this.token
+        ? `GitHub returned 404 for ${path}: the repository, ref or path does not exist, or the token lacks access.`
+        : `GitHub returned 404 for ${path}: the repository, ref or path does not exist, or the repository is private (private repositories need a token with Contents: read).`);
+    }
+    if (res.status === 409) {
+      throw new GitHubError('empty', 'The repository is empty (GitHub returned HTTP 409).');
+    }
+    throw new GitHubError('http', `GitHub API request ${path} failed: ${message} (HTTP ${res.status}).`);
+  }
+}
+
+function repoPath(owner, repo) {
+  return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+}
+
+async function resolveRefAndPath(api, owner, repo, segments) {
+  const joined = segments.join('/');
+  for (const kind of ['heads', 'tags']) {
+    const refs = await api.request(`${repoPath(owner, repo)}/git/matching-refs/${kind}/${encodeURIComponent(segments[0])}`);
+    if (!Array.isArray(refs)) continue;
+    const names = refs
+      .map(r => (typeof r.ref === 'string' ? r.ref.replace(`refs/${kind}/`, '') : null))
+      .filter(name => name && (joined === name || joined.startsWith(`${name}/`)))
+      .sort((a, b) => b.length - a.length);
+    if (names.length) {
+      return { ref: names[0], refKind: kind === 'heads' ? 'branch' : 'tag', subPath: joined.slice(names[0].length + 1) };
+    }
+  }
+  if (/^[0-9a-f]{7,40}$/i.test(segments[0])) {
+    return { ref: segments[0], refKind: 'commit', subPath: segments.slice(1).join('/') };
+  }
+  throw new GitHubError('ref', `Could not resolve "${joined}" to a branch, tag or commit of ${owner}/${repo}.`);
+}
+
+async function fetchRepositoryTree(api, owner, repo, commitSha, subPath, onProgress) {
+  const root = await api.request(`${repoPath(owner, repo)}/git/trees/${encodeURIComponent(commitSha)}?recursive=1`);
+  if (!root || !Array.isArray(root.tree)) {
+    throw new GitHubError('tree', `GitHub returned no tree for ${owner}/${repo}@${commitSha.slice(0, 12)}.`);
+  }
+  const prefix = subPath ? `${subPath}/` : '';
+  if (!root.truncated) {
+    const blobs = root.tree
+      .filter(e => e.type === 'blob' && (!subPath || e.path === subPath || e.path.startsWith(prefix)))
+      .map(e => ({ path: e.path, size: typeof e.size === 'number' ? e.size : null, sha: e.sha }));
+    if (subPath && blobs.length === 0) {
+      throw new GitHubError('path', `Path "${subPath}" does not exist in ${owner}/${repo} at ${commitSha.slice(0, 12)}.`);
+    }
+    return { blobs, truncated: false, walkIncomplete: false };
+  }
+
+  // Recursive listing was truncated by GitHub: walk subtrees non-recursively within a request budget.
+  if (onProgress) onProgress('GitHub truncated the recursive tree listing; walking directories individually...');
+  let startSha = root.sha;
+  let startPrefix = '';
+  if (subPath) {
+    for (const segment of subPath.split('/')) {
+      const level = await api.request(`${repoPath(owner, repo)}/git/trees/${encodeURIComponent(startSha)}`);
+      const hit = Array.isArray(level.tree) ? level.tree.find(e => e.path === segment) : null;
+      if (!hit) throw new GitHubError('path', `Path "${subPath}" does not exist in ${owner}/${repo} at ${commitSha.slice(0, 12)}.`);
+      if (hit.type === 'blob') {
+        return { blobs: [{ path: subPath, size: hit.size ?? null, sha: hit.sha }], truncated: true, walkIncomplete: false };
+      }
+      startSha = hit.sha;
+      startPrefix = startPrefix ? `${startPrefix}/${segment}` : segment;
+    }
+  }
+  const blobs = [];
+  const preferred = [{ sha: startSha, prefix: startPrefix }];
+  const normal = [];
+  let budget = INGESTION_LIMITS.maxTreeWalkRequests;
+  while ((preferred.length || normal.length) && budget > 0) {
+    const item = preferred.length ? preferred.shift() : normal.shift();
+    budget--;
+    const level = await api.request(`${repoPath(owner, repo)}/git/trees/${encodeURIComponent(item.sha)}`);
+    (level.tree || []).forEach(e => {
+      const path = item.prefix ? `${item.prefix}/${e.path}` : e.path;
+      if (e.type === 'tree') {
+        if (IGNORED_DIRS.has(e.path.toLowerCase())) return;
+        (RELEVANT_DIR_HINT.test(e.path) ? preferred : normal).push({ sha: e.sha, prefix: path });
+      } else if (e.type === 'blob') {
+        blobs.push({ path, size: typeof e.size === 'number' ? e.size : null, sha: e.sha });
+      }
+    });
+  }
+  return { blobs, truncated: true, walkIncomplete: preferred.length + normal.length > 0 };
+}
+
+// ── Shared analysis core ───────────────────────────────────────────────────────
+
+async function analyzeSelection({ selected, readText, onProgress, signal, title, rawUrlFor, label }) {
+  const host = new ParserHost({ timeoutMs: INGESTION_LIMITS.parseTimeoutMs });
+  const parses = [];
+  const fileCache = new Map();
+  const failures = { read_failed: 0, minified_content: 0, parse_failed: 0, parse_timeout: 0 };
+  const failureSamples = [];
+  let done = 0;
+  try {
+    await runPool(selected, INGESTION_LIMITS.fetchConcurrency, signal, async (file) => {
+      let code;
+      try {
+        code = await readText(file);
+      } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
+        failures.read_failed++;
+        if (failureSamples.length < 8) failureSamples.push(`${file.path}: ${(err && err.message) || err}`);
+        done++;
+        return;
+      }
+      throwIfAborted(signal);
+      if (typeof code !== 'string') {
+        failures.read_failed++;
+        done++;
+        return;
+      }
+      if (code.length > INGESTION_LIMITS.maxFileBytes) {
+        failures.read_failed++;
+        if (failureSamples.length < 8) failureSamples.push(`${file.path}: content exceeds ${INGESTION_LIMITS.maxFileBytes} bytes`);
+        done++;
+        return;
+      }
+      if (isProbablyMinified(code)) {
+        failures.minified_content++;
+        done++;
+        return;
+      }
+      fileCache.set(file.path, code);
+      const outcome = await host.parse(file.path, code, signal);
+      if (outcome.aborted) throw abortError();
+      if (outcome.ok) {
+        parses.push(outcome.result);
+      } else if (outcome.timedOut) {
+        failures.parse_timeout++;
+        if (failureSamples.length < 8) failureSamples.push(`${file.path}: ${outcome.error}`);
+      } else {
+        failures.parse_failed++;
+        if (failureSamples.length < 8) failureSamples.push(`${file.path}: ${outcome.error}`);
+      }
+      done++;
+      if (onProgress) {
+        const pct = 50 + Math.floor((done / Math.max(1, selected.length)) * 40);
+        onProgress(pct, `${label}: parsed ${done}/${selected.length} files (${file.path.split('/').pop()})`);
+      }
+    });
+  } finally {
+    host.terminate();
+  }
+
+  if (onProgress) onProgress(92, 'Resolving types, imports and relations...');
+  const { graph_ir: graphIr, stats } = buildClassModel(parses, { title, rawUrlFor });
+  const hash = await hashGraphIr(graphIr);
+  graphIr.metadata.content_hash = hash.value;
+  if (!hash.value) graphIr.metadata.content_hash_unavailable = hash.reason;
+  return { graphIr, modelStats: stats, fileCache, failures, failureSamples, parsedFiles: parses.length, parserMode: host.mode };
+}
+
+function describeSkips(skipped) {
+  return Object.entries(skipped).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k.replace(/_/g, ' ')}`).join(', ');
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────────
+
+export class GitHubEngine {
+  /**
+   * Parses a GitHub URL. Accepts https://github.com/owner/repo[/tree|blob/<ref and path>],
+   * owner/repo shorthand and git@github.com:owner/repo.git. Returns null when not a GitHub repo.
+   * The ref and sub-path cannot be separated without the API (refs may contain '/'), so the
+   * raw segments after tree/blob are returned for resolution.
+   */
+  static parseRepoUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    let clean = url.trim();
+    clean = clean.replace(/^git@github\.com:/i, '');
+    clean = clean.replace(/^https?:\/\/(www\.)?github\.com\//i, '');
+    clean = clean.replace(/[?#].*$/, '').replace(/\.git$/i, '').replace(/^\/+|\/+$/g, '');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(clean)) return null;
+    const parts = clean.split('/').filter(Boolean).map(p => {
+      try { return decodeURIComponent(p); } catch (_) { return p; }
+    });
+    if (parts.length < 2) return null;
+    const [owner, repo] = parts;
+    if (!/^[A-Za-z0-9-]{1,39}$/.test(owner) || !/^[A-Za-z0-9._-]{1,100}$/.test(repo)) return null;
+    let refSegments = [];
+    if ((parts[2] === 'tree' || parts[2] === 'blob') && parts.length > 3) {
+      refSegments = parts.slice(3);
+    }
+    return { owner, repo: repo.replace(/\.git$/i, ''), refSegments };
+  }
+
+  /**
+   * @param {string} repoUrl
+   * @param {{ onProgress?: (pct:number, message:string)=>void, signal?: AbortSignal, token?: string|null }} options
+   */
+  static async analyzeGitHubRepo(repoUrl, options = {}) {
+    const { onProgress = null, signal = null, token = null } = options;
+    const started = nowMs();
+    const info = this.parseRepoUrl(repoUrl);
+    if (!info) {
+      throw new GitHubError('url', `"${repoUrl}" is not a GitHub repository URL. Expected https://github.com/owner/repo.`);
+    }
+    const { owner, repo } = info;
+    const api = new GitHubApi({ token, signal });
+
+    if (onProgress) onProgress(8, `Resolving ${owner}/${repo}...`);
+    let ref = 'HEAD';
+    let refKind = 'default-branch';
+    let subPath = '';
+    if (info.refSegments.length) {
+      ({ ref, refKind, subPath } = await resolveRefAndPath(api, owner, repo, info.refSegments));
+    }
+    const commitSha = (await api.request(`${repoPath(owner, repo)}/commits/${encodeURIComponent(ref)}`, {
+      accept: 'application/vnd.github.sha',
+      as: 'text'
+    })).trim();
+    if (!/^[0-9a-f]{40}$/i.test(commitSha)) {
+      throw new GitHubError('ref', `GitHub did not return a commit SHA for ${owner}/${repo}@${ref}.`);
+    }
+
+    if (onProgress) onProgress(18, `Listing files at ${commitSha.slice(0, 12)}${subPath ? ` under ${subPath}` : ''}...`);
+    const tree = await fetchRepositoryTree(api, owner, repo, commitSha, subPath, (msg) => onProgress && onProgress(22, msg));
+
+    const rawUrlFor = (path) => `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${commitSha}/${encodePathSegments(path)}`;
+
+    let attributeRules = [];
+    const attrBlob = tree.blobs.find(b => b.path === '.gitattributes');
+    if (attrBlob) {
+      try {
+        const text = token
+          ? await api.request(`${repoPath(owner, repo)}/git/blobs/${attrBlob.sha}`, { accept: 'application/vnd.github.raw+json', as: 'text' })
+          : await (await fetch(rawUrlFor('.gitattributes'), { signal, credentials: 'omit' })).text();
+        attributeRules = parseLinguistAttributes(text);
+      } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
+        attributeRules = [];
+      }
+    }
+
+    const { eligible, skipped } = classifyCandidates(tree.blobs, attributeRules, INGESTION_LIMITS.maxFileBytes);
+    if (eligible.length === 0) {
+      throw new GitHubError('no-sources', `No supported source files were found in ${owner}/${repo}${subPath ? `/${subPath}` : ''} (${tree.blobs.length} files listed; skipped: ${describeSkips(skipped) || 'none'}).`);
+    }
+    const sample = selectSample(eligible, INGESTION_LIMITS.maxRemoteFiles, INGESTION_LIMITS.maxRemoteBytes);
+    if (onProgress) onProgress(30, `Fetching ${sample.selected.length} of ${eligible.length} eligible source files...`);
+
+    const readText = async (file) => {
+      if (token) {
+        return api.request(`${repoPath(owner, repo)}/git/blobs/${file.sha}`, { accept: 'application/vnd.github.raw+json', as: 'text' });
+      }
+      const res = await fetch(rawUrlFor(file.path), { signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (!res.ok) throw new Error(`raw.githubusercontent.com returned HTTP ${res.status}`);
+      return res.text();
+    };
+
+    const analysis = await analyzeSelection({
+      selected: sample.selected,
+      readText,
+      onProgress,
+      signal,
+      title: `${owner}/${repo}${subPath ? `/${subPath}` : ''}`,
+      rawUrlFor: token ? null : rawUrlFor,
+      label: `${owner}/${repo}`
+    });
+
+    const elapsed = Math.round(nowMs() - started);
+    if (onProgress) onProgress(100, `In-browser class model ready for ${owner}/${repo}.`);
+    return {
+      status: 'success',
+      source: {
+        kind: 'github',
+        name: `${owner}/${repo}`,
+        url: `https://github.com/${owner}/${repo}`,
+        owner,
+        repo,
+        ref,
+        ref_kind: refKind,
+        commit: commitSha,
+        sub_path: subPath || null,
+        private_access: Boolean(token)
+      },
+      session_id: `gh:${owner}/${repo}@${commitSha.slice(0, 12)}`,
+      stats: Object.assign({
+        engine: 'in-browser declaration extractor (approximate)',
+        files_listed: tree.blobs.length,
+        files_eligible: eligible.length,
+        files_selected: sample.selected.length,
+        files_parsed: analysis.parsedFiles,
+        files_skipped: skipped,
+        files_failed: analysis.failures,
+        failure_samples: analysis.failureSamples,
+        sample_budget: { max_files: INGESTION_LIMITS.maxRemoteFiles, max_bytes: INGESTION_LIMITS.maxRemoteBytes, hit: sample.budgetHit },
+        module_groups: sample.moduleCount,
+        primary_language: sample.primaryLanguage,
+        tree_truncated: tree.truncated,
+        tree_walk_incomplete: tree.walkIncomplete,
+        api_requests: api.requests,
+        rate_limit: Object.assign({}, api.rateLimit),
+        parser_mode: analysis.parserMode,
+        execution_time_ms: elapsed
+      }, analysis.modelStats),
+      graph_ir: analysis.graphIr,
+      fileCache: analysis.fileCache
+    };
+  }
+
+  /**
+   * Analyzes local files (folder picker, drag and drop, or ZIP entries).
+   * @param {Array<{ path: string, size: number|null, getText: () => Promise<string> }>} fileList
+   * @param {string} codebaseName
+   * @param {{ onProgress?: Function, signal?: AbortSignal, sourceKind?: 'folder'|'zip' }} options
+   */
+  static async analyzeSourceFiles(fileList, codebaseName, options = {}) {
+    const { onProgress = null, signal = null, sourceKind = 'folder' } = options;
+    const started = nowMs();
+    if (!Array.isArray(fileList) || fileList.length === 0) {
+      throw new Error('No files were provided for analysis.');
+    }
+    if (onProgress) onProgress(12, `Scanning ${fileList.length} files in ${codebaseName}...`);
+    const byPath = new Map();
+    fileList.forEach(f => byPath.set(normalizePath(f.path), f));
+
+    let attributeRules = [];
+    const attrPath = Array.from(byPath.keys()).find(p => p === '.gitattributes' || /^[^/]+\/\.gitattributes$/.test(p));
+    if (attrPath) {
+      try {
+        attributeRules = parseLinguistAttributes(await byPath.get(attrPath).getText());
+      } catch (_) {
+        attributeRules = [];
+      }
+    }
+
+    const candidates = Array.from(byPath.entries()).map(([path, f]) => ({ path, size: typeof f.size === 'number' ? f.size : null }));
+    const { eligible, skipped } = classifyCandidates(candidates, attributeRules, INGESTION_LIMITS.maxFileBytes);
+    if (eligible.length === 0) {
+      throw new Error(`No supported source files were found in "${codebaseName}" (${candidates.length} files; skipped: ${describeSkips(skipped) || 'none'}). Supported: Java, Kotlin, Scala, C#, TypeScript, JavaScript, Python, Rust, Go, Swift, C/C++.`);
+    }
+    const sample = selectSample(eligible, INGESTION_LIMITS.maxLocalFiles, INGESTION_LIMITS.maxLocalBytes);
+    if (onProgress) onProgress(30, `Reading ${sample.selected.length} of ${eligible.length} eligible source files...`);
+
+    const analysis = await analyzeSelection({
+      selected: sample.selected,
+      readText: (file) => byPath.get(file.path).getText(),
+      onProgress,
+      signal,
+      title: codebaseName,
+      rawUrlFor: null,
+      label: codebaseName
+    });
+    const elapsed = Math.round(nowMs() - started);
+    if (onProgress) onProgress(100, `In-browser class model ready for ${codebaseName}.`);
+    return {
+      status: 'success',
+      source: { kind: sourceKind, name: codebaseName, url: null },
+      session_id: `${sourceKind}:${codebaseName}:${analysis.graphIr.metadata.content_hash ? analysis.graphIr.metadata.content_hash.slice(7, 19) : Date.now().toString(36)}`,
+      stats: Object.assign({
+        engine: 'in-browser declaration extractor (approximate)',
+        files_listed: candidates.length,
+        files_eligible: eligible.length,
+        files_selected: sample.selected.length,
+        files_parsed: analysis.parsedFiles,
+        files_skipped: skipped,
+        files_failed: analysis.failures,
+        failure_samples: analysis.failureSamples,
+        sample_budget: { max_files: INGESTION_LIMITS.maxLocalFiles, max_bytes: INGESTION_LIMITS.maxLocalBytes, hit: sample.budgetHit },
+        module_groups: sample.moduleCount,
+        primary_language: sample.primaryLanguage,
+        tree_truncated: false,
+        tree_walk_incomplete: false,
+        parser_mode: analysis.parserMode,
+        execution_time_ms: elapsed
+      }, analysis.modelStats),
+      graph_ir: analysis.graphIr,
+      fileCache: analysis.fileCache
+    };
+  }
+
+  /**
+   * Opens a ZIP archive with JSZip and returns lazily-read, size-bounded file items.
+   * Entry contents are streamed and the read is aborted as soon as an entry exceeds the
+   * per-file cap, so a decompression bomb cannot inflate past the limit in memory.
+   */
+  static async readZipArchive(file) {
+    if (typeof JSZip === 'undefined') {
+      throw new Error('The ZIP library (JSZip) is not loaded; check your network connection and reload.');
+    }
+    if (file.size > INGESTION_LIMITS.maxZipArchiveBytes) {
+      throw new Error(`The archive is ${Math.round(file.size / 1048576)} MB; the in-browser limit is ${Math.round(INGESTION_LIMITS.maxZipArchiveBytes / 1048576)} MB.`);
+    }
+    const zip = await JSZip.loadAsync(file);
+    const items = [];
+    let declaredTotal = 0;
+    let entryCount = 0;
+    zip.forEach((relPath, entry) => {
+      entryCount++;
+      if (entry.dir) return;
+      const declared = entry._data && typeof entry._data.uncompressedSize === 'number' ? entry._data.uncompressedSize : null;
+      if (declared !== null) declaredTotal += declared;
+      items.push({
+        path: relPath,
+        size: declared,
+        getText: () => readZipEntryBounded(entry, INGESTION_LIMITS.maxFileBytes)
+      });
+    });
+    if (entryCount > INGESTION_LIMITS.maxZipEntries) {
+      throw new Error(`The archive lists ${entryCount} entries; the in-browser limit is ${INGESTION_LIMITS.maxZipEntries}.`);
+    }
+    if (declaredTotal > INGESTION_LIMITS.maxZipDeclaredBytes) {
+      throw new Error(`The archive declares ${Math.round(declaredTotal / 1048576)} MB of uncompressed data, above the ${Math.round(INGESTION_LIMITS.maxZipDeclaredBytes / 1048576)} MB safety limit.`);
+    }
+    return items;
+  }
+}
+
+function readZipEntryBounded(entry, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    let finished = false;
+    let stream;
+    try {
+      stream = entry.internalStream('uint8array');
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    stream.on('data', (chunk) => {
+      if (finished) return;
+      total += chunk.length;
+      if (total > maxBytes) {
+        finished = true;
+        stream.pause();
+        reject(new Error(`entry inflates beyond ${maxBytes} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    stream.on('error', (err) => {
+      if (finished) return;
+      finished = true;
+      reject(err);
+    });
+    stream.on('end', () => {
+      if (finished) return;
+      finished = true;
+      const buf = new Uint8Array(total);
+      let offset = 0;
+      chunks.forEach(c => { buf.set(c, offset); offset += c.length; });
+      resolve(new TextDecoder('utf-8').decode(buf));
+    });
+    stream.resume();
+  });
+}

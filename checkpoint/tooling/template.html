@@ -1,0 +1,634 @@
+<title>OpenHeart Upgrade Audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one 74rem column, read top to bottom: masthead, severity readout, fix-first list, area ledger, staged roadmap, filterable findings ledger. */
+:root {
+  --paper: #F3F5F6;
+  --surface: #FFFFFF;
+  --ink: #14191C;
+  --ink-2: #4A565D;
+  --rule: #D8DEE1;
+  --accent: #0D6E7A;
+  --accent-soft: #DDEFF1;
+  --crit: #B3261E;
+  --high: #B05000;
+  --med: #7A6100;
+  --low: #52657A;
+  --crit-soft: #FBE4E2;
+  --high-soft: #FCE9DA;
+  --med-soft: #F6EFCF;
+  --low-soft: #E6EBF0;
+  --ok: #1F7A4D;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1315; --surface: #151C1F; --ink: #E5EBED; --ink-2: #9BA9AF; --rule: #283236;
+    --accent: #5BC3CE; --accent-soft: #12343A;
+    --crit: #FF7B72; --high: #FFA15C; --med: #E3C350; --low: #98A9B9;
+    --crit-soft: #3A1715; --high-soft: #3A2410; --med-soft: #332B0C; --low-soft: #1E272F;
+    --ok: #5CCB8F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1315; --surface: #151C1F; --ink: #E5EBED; --ink-2: #9BA9AF; --rule: #283236;
+  --accent: #5BC3CE; --accent-soft: #12343A;
+  --crit: #FF7B72; --high: #FFA15C; --med: #E3C350; --low: #98A9B9;
+  --crit-soft: #3A1715; --high-soft: #3A2410; --med-soft: #332B0C; --low-soft: #1E272F;
+  --ok: #5CCB8F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 74rem; margin: 0 auto; padding-block: 40px 72px; display: grid; gap: 56px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px;
+}
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h2 { font-size: 1.55rem; font-weight: 750; font-stretch: 112%; letter-spacing: -0.005em; }
+h3 { font-size: 1.05rem; font-weight: 700; font-stretch: 105%; }
+.eyebrow, .label {
+  font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2);
+}
+.mono { font-family: var(--f-mono); }
+.muted { color: var(--ink-2); }
+section { display: grid; gap: 18px; min-width: 0; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+.section-head p { margin: 0; color: var(--ink-2); max-width: 60ch; }
+
+/* Masthead */
+.masthead { display: grid; gap: 14px; }
+.masthead h1 { font-size: clamp(2.3rem, 6vw, 4rem); font-weight: 850; font-stretch: 120%; line-height: 1.0; letter-spacing: -0.015em; }
+.lede { font-size: 1.15rem; max-width: 65ch; margin: 0; }
+.scope { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+/* Severity readout */
+.readout { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--rule); background: var(--surface); }
+.readout > div { padding: 14px 16px; border-right: 1px solid var(--rule); display: grid; gap: 2px; min-width: 0; }
+.readout > div:last-child { border-right: 0; }
+.readout .num { font-family: var(--f-display); font-weight: 800; font-stretch: 110%; font-size: 2.2rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.readout .sw { display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: 1px; }
+.c-crit { color: var(--crit); } .c-high { color: var(--high); } .c-med { color: var(--med); } .c-low { color: var(--low); }
+.bg-crit { background: var(--crit); } .bg-high { background: var(--high); } .bg-med { background: var(--med); } .bg-low { background: var(--low); }
+
+/* Pills and chips */
+.pill { display: inline-flex; align-items: center; gap: 5px; font-family: var(--f-mono); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+.pill.sev-critical { background: var(--crit-soft); color: var(--crit); }
+.pill.sev-high { background: var(--high-soft); color: var(--high); }
+.pill.sev-medium { background: var(--med-soft); color: var(--med); }
+.pill.sev-low { background: var(--low-soft); color: var(--low); }
+.chip { font-family: var(--f-mono); font-size: 0.7rem; color: var(--ink-2); border: 1px solid var(--rule); padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+.chip.kind-enhancement { color: var(--accent); border-color: var(--accent); }
+.chip.ver-confirmed { color: var(--ok); border-color: var(--ok); }
+.chip.ver-partially-correct { color: var(--med); border-color: var(--med); }
+.chip.ver-disputed { color: var(--crit); border-color: var(--crit); }
+
+/* Fix-first list */
+.fixfirst { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: rank; border-top: 1px solid var(--rule); }
+.fixfirst li { counter-increment: rank; display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: 4px 12px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.fixfirst li::before { content: counter(rank, decimal-leading-zero); font-family: var(--f-mono); font-weight: 600; font-size: 1.05rem; color: var(--ink-2); grid-row: span 2; padding-top: 1px; }
+.fixfirst .t { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.fixfirst .t a { font-weight: 700; color: var(--ink); text-decoration: none; }
+.fixfirst .t a:hover { text-decoration: underline; }
+.fixfirst .why { margin: 0; color: var(--ink-2); max-width: 75ch; }
+
+/* Area ledger */
+.ledger { display: grid; border-top: 1px solid var(--rule); }
+.area { display: grid; grid-template-columns: 14rem minmax(0, 1fr) 11rem; gap: 10px 24px; padding: 18px 0; border-bottom: 1px solid var(--rule); align-items: start; }
+.area .id { display: grid; gap: 4px; }
+.area .code { font-family: var(--f-mono); font-weight: 600; font-size: 0.85rem; color: var(--accent); }
+.area .art { font-family: var(--f-mono); font-size: 0.75rem; color: var(--ink-2); }
+.area p { margin: 0; max-width: 70ch; }
+.area .strengths { margin: 8px 0 0; padding-left: 1.1rem; color: var(--ink-2); font-size: 0.92rem; }
+.bar { display: flex; height: 10px; background: var(--rule); margin-top: 6px; }
+.bar span { display: block; height: 100%; }
+.counts { font-family: var(--f-mono); font-size: 0.75rem; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+/* Roadmap */
+.stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--rule); background: var(--surface); }
+.stage { padding: 16px; border-right: 1px solid var(--rule); display: grid; gap: 10px; align-content: start; min-width: 0; }
+.stage:last-child { border-right: 0; }
+.stage .goal { margin: 0; color: var(--ink-2); font-size: 0.92rem; }
+.stage ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.stage li { font-size: 0.9rem; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.stage li a { font-family: var(--f-mono); font-size: 0.72rem; white-space: nowrap; }
+
+/* Findings ledger */
+.filters { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--rule); padding: 14px; }
+.filters .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggle { font: inherit; font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 5px 10px; border: 1px solid var(--rule); background: transparent; color: var(--ink-2); border-radius: 3px; cursor: pointer; }
+.toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.toggle:hover { border-color: var(--ink-2); }
+select, input[type="search"] { font: inherit; font-size: 0.9rem; padding: 6px 8px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); border-radius: 3px; min-width: 0; }
+input[type="search"] { flex: 1 1 14rem; }
+.reset { font: inherit; font-size: 0.85rem; background: none; border: 0; color: var(--accent); text-decoration: underline; cursor: pointer; padding: 4px; }
+.count { font-family: var(--f-mono); font-size: 0.78rem; color: var(--ink-2); }
+.list { display: grid; border-top: 1px solid var(--rule); }
+.finding { border-bottom: 1px solid var(--rule); border-left: 4px solid var(--low); background: var(--surface); }
+.finding.sev-critical { border-left-color: var(--crit); }
+.finding.sev-high { border-left-color: var(--high); }
+.finding.sev-medium { border-left-color: var(--med); }
+.finding summary { list-style: none; cursor: pointer; padding: 12px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 12px; align-items: baseline; }
+.finding summary::-webkit-details-marker { display: none; }
+.finding summary .fid { font-family: var(--f-mono); font-size: 0.75rem; color: var(--ink-2); white-space: nowrap; }
+.finding summary .ttl { font-weight: 700; }
+.finding summary .meta { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+.finding[open] summary { border-bottom: 1px dashed var(--rule); }
+.finding .body { padding: 14px 14px 18px; display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 10px 18px; }
+.finding .body .k { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); padding-top: 3px; }
+.finding .body .v { margin: 0; max-width: 78ch; min-width: 0; }
+.files { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.files code { font-family: var(--f-mono); font-size: 0.78rem; background: var(--paper); border: 1px solid var(--rule); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+.empty { padding: 24px; text-align: center; color: var(--ink-2); border-bottom: 1px solid var(--rule); }
+.dropped { font-size: 0.92rem; }
+.dropped li { margin-bottom: 6px; }
+/* Tables: bench suite, capability matrix, measured facts */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+table.wide { min-width: 54rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; background: var(--paper); }
+tbody tr:last-child td { border-bottom: 0; }
+td.first { font-weight: 700; min-width: 9rem; }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill.gap-large { background: var(--crit-soft); color: var(--crit); }
+.pill.gap-medium { background: var(--high-soft); color: var(--high); }
+.pill.gap-small { background: var(--med-soft); color: var(--med); }
+.pill.gap-none { background: var(--low-soft); color: var(--ok); }
+.prose { display: grid; gap: 8px; max-width: 75ch; }
+.prose p, .prose ul { margin: 0; }
+.prose ul { padding-left: 1.2rem; display: grid; gap: 4px; }
+.sources-box summary { cursor: pointer; }
+.sources { font-size: 0.82rem; color: var(--ink-2); overflow-wrap: anywhere; padding-left: 1.2rem; display: grid; gap: 3px; margin: 8px 0 0; }
+footer { border-top: 2px solid var(--ink); padding-top: 14px; display: grid; gap: 10px; color: var(--ink-2); font-size: 0.92rem; }
+footer p { margin: 0; max-width: 80ch; }
+
+@media (max-width: 900px) {
+  .readout { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .readout > div:nth-child(3) { border-right: 0; }
+  .readout > div:nth-child(-n+3) { border-bottom: 1px solid var(--rule); }
+  .area { grid-template-columns: minmax(0, 1fr); }
+  .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage:nth-child(2) { border-right: 0; }
+  .stage:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+}
+@media (max-width: 560px) {
+  .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .readout > div { border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+  .readout > div:nth-child(2n) { border-right: 0; }
+  .stages { grid-template-columns: minmax(0, 1fr); }
+  .stage { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .finding summary { grid-template-columns: minmax(0, 1fr); }
+  .finding summary .meta { justify-content: flex-start; }
+  .finding .body { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .finding .body .v { margin-bottom: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow" id="m-eyebrow"></div>
+    <h1>OpenHeart Upgrade Audit</h1>
+    <p class="lede" id="m-verdict"></p>
+    <div class="scope" id="m-scope"></div>
+  </header>
+
+  <section aria-labelledby="h-readout">
+    <h2 id="h-readout" class="label" style="font-family:var(--f-mono);font-size:0.72rem;font-weight:400;letter-spacing:0.08em">Findings</h2>
+    <div class="readout" id="readout"></div>
+  </section>
+
+  <section id="first" aria-labelledby="h-first">
+    <div class="section-head">
+      <h2 id="h-first">Fix first</h2>
+      <p>The items that block a credible public release, in the order to tackle them.</p>
+    </div>
+    <ol class="fixfirst" id="fixfirst"></ol>
+  </section>
+
+  <section id="areas" aria-labelledby="h-areas">
+    <div class="section-head">
+      <h2 id="h-areas">Area by area</h2>
+      <p>Where each part of the pipeline stands against the leading tools for that job.</p>
+    </div>
+    <div class="ledger" id="ledger"></div>
+  </section>
+
+  <section id="roadmap" aria-labelledby="h-roadmap">
+    <div class="section-head">
+      <h2 id="h-roadmap">Upgrade roadmap</h2>
+      <p>Four stages. Each one makes the next one measurable.</p>
+    </div>
+    <div class="stages" id="stages"></div>
+  </section>
+
+  <section id="bench" aria-labelledby="h-bench">
+    <div class="section-head">
+      <h2 id="h-bench">What benchmark-grade means here</h2>
+      <p id="bench-summary"></p>
+    </div>
+    <div class="tbl-wrap"><table class="wide" id="bench-table"><thead><tr><th scope="col">Output</th><th scope="col">Corpus</th><th scope="col">Oracle</th><th scope="col">Metrics</th><th scope="col">Compare against</th></tr></thead><tbody></tbody></table></div>
+    <div class="prose" id="bench-harness"></div>
+    <details class="sources-box"><summary class="label">Sources</summary><ul class="sources" id="bench-sources"></ul></details>
+  </section>
+
+  <section id="compare" aria-labelledby="h-compare">
+    <div class="section-head">
+      <h2 id="h-compare">Against the best in class</h2>
+      <p id="compare-summary"></p>
+    </div>
+    <div class="tbl-wrap"><table class="wide" id="compare-table"><thead><tr><th scope="col">Dimension</th><th scope="col">OpenHeart today</th><th scope="col">Best in class</th><th scope="col">Gap</th></tr></thead><tbody></tbody></table></div>
+    <div class="prose">
+      <h3>Where OpenHeart could lead once the flaws are fixed</h3>
+      <ul id="compare-diff"></ul>
+    </div>
+    <details class="sources-box"><summary class="label">Sources</summary><ul class="sources" id="compare-sources"></ul></details>
+  </section>
+
+  <section id="measured" aria-labelledby="h-measured">
+    <div class="section-head">
+      <h2 id="h-measured">Measured on this checkout</h2>
+      <p>Automated checks run on the audit machine without a Rust toolchain.</p>
+    </div>
+    <div class="tbl-wrap"><table id="measured-table"><thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">Detail</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="findings" aria-labelledby="h-findings">
+    <div class="section-head">
+      <h2 id="h-findings">All findings</h2>
+      <p>Raw detection results. Open a row for the evidence, file references and the fix.</p>
+    </div>
+    <div class="filters" role="group" aria-label="Filter findings">
+      <div class="row">
+        <span class="label">Severity</span>
+        <div class="toggles" id="f-sev"></div>
+      </div>
+      <div class="row">
+        <span class="label">Kind</span>
+        <div class="toggles" id="f-kind"></div>
+        <label class="label" for="f-area">Area</label>
+        <select id="f-area"></select>
+        <label class="label" for="f-cat">Category</label>
+        <select id="f-cat"></select>
+      </div>
+      <div class="row">
+        <label class="label" for="f-q">Search</label>
+        <input type="search" id="f-q" placeholder="Title, file, algorithm…" autocomplete="off">
+        <button type="button" class="reset" id="f-reset">Clear filters</button>
+        <span class="count" id="f-count" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section id="dropped-sec" aria-labelledby="h-dropped">
+    <div class="section-head">
+      <h2 id="h-dropped">Claims that did not survive verification</h2>
+      <p>Raised by an auditor, then refuted by a second reader of the code. Listed so they are not re-raised.</p>
+    </div>
+    <ul class="dropped" id="dropped"></ul>
+  </section>
+
+  <footer id="method"></footer>
+</div>
+
+<script id="audit-data" type="application/json">__AUDIT_DATA__</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('audit-data').textContent);
+  var SEV = ['critical', 'high', 'medium', 'low'];
+  var SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
+  var SEV_CLASS = { critical: 'crit', high: 'high', medium: 'med', low: 'low' };
+  var byId = {};
+  D.findings.forEach(function (f) { byId[f.id] = f; });
+  var areaName = {};
+  D.areas.forEach(function (a) { areaName[a.code] = a.name; });
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function sevPill(s) { return el('span', 'pill sev-' + s, SEV_LABEL[s]); }
+
+  // Masthead
+  document.getElementById('m-eyebrow').textContent = D.meta.eyebrow;
+  document.getElementById('m-verdict').textContent = D.meta.verdict;
+  var scope = document.getElementById('m-scope');
+  D.meta.scope.forEach(function (s) { scope.appendChild(el('span', null, s)); });
+
+  // Readout
+  var ro = document.getElementById('readout');
+  SEV.forEach(function (s) {
+    var n = D.findings.filter(function (f) { return f.severity === s; }).length;
+    var d = el('div');
+    var lab = el('span', 'label');
+    var sw = el('span', 'sw bg-' + SEV_CLASS[s]);
+    lab.appendChild(sw);
+    lab.appendChild(document.createTextNode(SEV_LABEL[s]));
+    d.appendChild(lab);
+    d.appendChild(el('span', 'num c-' + SEV_CLASS[s], String(n)));
+    ro.appendChild(d);
+  });
+  [['flaw', 'Flaws to fix'], ['enhancement', 'Upgrades to add']].forEach(function (k) {
+    var n = D.findings.filter(function (f) { return f.kind === k[0]; }).length;
+    var d = el('div');
+    d.appendChild(el('span', 'label', k[1]));
+    d.appendChild(el('span', 'num', String(n)));
+    ro.appendChild(d);
+  });
+
+  // Fix first
+  var ff = document.getElementById('fixfirst');
+  D.top.forEach(function (t) {
+    var f = byId[t.id];
+    if (!f) return;
+    var li = el('li');
+    var row = el('div', 't');
+    row.appendChild(sevPill(f.severity));
+    var a = el('a', null, f.title);
+    a.href = '#' + f.id;
+    row.appendChild(a);
+    row.appendChild(el('span', 'chip', f.id));
+    li.appendChild(row);
+    li.appendChild(el('p', 'why', t.why));
+    ff.appendChild(li);
+  });
+
+  // Area ledger
+  var lg = document.getElementById('ledger');
+  D.areas.forEach(function (a) {
+    var fs = D.findings.filter(function (f) { return f.area === a.code; });
+    var row = el('div', 'area');
+    var id = el('div', 'id');
+    id.appendChild(el('span', 'code', a.code));
+    id.appendChild(el('h3', null, a.name));
+    id.appendChild(el('span', 'art', a.artifacts));
+    row.appendChild(id);
+    var mid = el('div');
+    mid.appendChild(el('p', null, a.summary));
+    if (a.strengths && a.strengths.length) {
+      var ul = el('ul', 'strengths');
+      a.strengths.slice(0, 3).forEach(function (s) { ul.appendChild(el('li', null, 'Keep: ' + s)); });
+      mid.appendChild(ul);
+    }
+    row.appendChild(mid);
+    var right = el('div');
+    right.appendChild(el('span', 'label', fs.length + ' findings'));
+    var bar = el('div', 'bar');
+    bar.setAttribute('role', 'img');
+    var parts = [];
+    var counts = el('div', 'counts');
+    SEV.forEach(function (s) {
+      var n = fs.filter(function (f) { return f.severity === s; }).length;
+      if (!n) return;
+      var seg = el('span', 'bg-' + SEV_CLASS[s]);
+      seg.style.width = (100 * n / Math.max(fs.length, 1)) + '%';
+      bar.appendChild(seg);
+      parts.push(n + ' ' + s);
+      counts.appendChild(el('span', 'c-' + SEV_CLASS[s], n + ' ' + SEV_LABEL[s].toLowerCase()));
+    });
+    bar.setAttribute('aria-label', parts.join(', '));
+    right.appendChild(bar);
+    right.appendChild(counts);
+    var link = el('a', null, 'Show these');
+    link.href = '#findings';
+    link.style.fontSize = '0.85rem';
+    link.addEventListener('click', function () { setArea(a.code); });
+    right.appendChild(link);
+    row.appendChild(right);
+    lg.appendChild(row);
+  });
+
+  // Roadmap
+  var st = document.getElementById('stages');
+  D.roadmap.forEach(function (s) {
+    var c = el('div', 'stage');
+    c.appendChild(el('span', 'label', s.stage));
+    c.appendChild(el('h3', null, s.name));
+    c.appendChild(el('p', 'goal', s.goal));
+    var ul = el('ul');
+    s.items.forEach(function (it) {
+      var li = el('li');
+      var a = el('a', null, it.id);
+      a.href = '#' + it.id;
+      li.appendChild(a);
+      li.appendChild(el('span', null, it.label));
+      ul.appendChild(li);
+    });
+    c.appendChild(ul);
+    st.appendChild(c);
+  });
+
+  // Bench suite, capability matrix, measured facts
+  function fillSources(host, srcs) {
+    (srcs || []).forEach(function (s) {
+      var li = el('li');
+      if (/^https?:\/\/\S+$/.test(s)) {
+        var a = el('a', null, s);
+        a.href = s; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        li.appendChild(a);
+      } else {
+        li.textContent = s;
+      }
+      host.appendChild(li);
+    });
+  }
+  function fillRows(tbody, rows, cells) {
+    rows.forEach(function (r) {
+      var tr = el('tr');
+      cells(r).forEach(function (c, i) {
+        var td = el('td', i === 0 ? 'first' : (c.cls || null));
+        if (c.node) td.appendChild(c.node); else td.textContent = c.text != null ? c.text : c;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+  if (D.bench && D.bench.suite && D.bench.suite.length) {
+    document.getElementById('bench-summary').textContent = D.bench.lede || '';
+    fillRows(document.querySelector('#bench-table tbody'), D.bench.suite, function (r) {
+      return [r.output, r.corpus, r.oracle, r.metrics, r.competitors];
+    });
+    var bh = document.getElementById('bench-harness');
+    (D.bench.harness || []).forEach(function (p) { bh.appendChild(el('p', null, p)); });
+    fillSources(document.getElementById('bench-sources'), D.bench.sources);
+  } else {
+    document.getElementById('bench').hidden = true;
+  }
+  if (D.compare && D.compare.matrix && D.compare.matrix.length) {
+    document.getElementById('compare-summary').textContent = D.compare.lede || '';
+    fillRows(document.querySelector('#compare-table tbody'), D.compare.matrix, function (r) {
+      return [r.dimension, r.openheart, r.best_in_class, { node: el('span', 'pill gap-' + r.gap, r.gap) }];
+    });
+    var cd = document.getElementById('compare-diff');
+    (D.compare.differentiators || []).forEach(function (s) { cd.appendChild(el('li', null, s)); });
+    fillSources(document.getElementById('compare-sources'), D.compare.sources);
+  } else {
+    document.getElementById('compare').hidden = true;
+  }
+  if (D.measured && D.measured.length) {
+    fillRows(document.querySelector('#measured-table tbody'), D.measured, function (r) {
+      return [r.name, { text: r.value, cls: 'num' }, r.detail];
+    });
+  } else {
+    document.getElementById('measured').hidden = true;
+  }
+
+  // Findings list
+  var list = document.getElementById('list');
+  var rows = [];
+  D.findings.forEach(function (f) {
+    var d = el('details', 'finding sev-' + f.severity);
+    d.id = f.id;
+    var s = el('summary');
+    s.appendChild(el('span', 'fid', f.id));
+    s.appendChild(el('span', 'ttl', f.title));
+    var meta = el('span', 'meta');
+    meta.appendChild(sevPill(f.severity));
+    meta.appendChild(el('span', 'chip kind-' + f.kind, f.kind));
+    meta.appendChild(el('span', 'chip', f.category));
+    var VER = { confirmed: 'verified', 'partially-correct': 'corrected', unverifiable: 'unconfirmed', added: 'found in review', disputed: 'disputed' };
+    if (f.verdict && VER[f.verdict]) meta.appendChild(el('span', 'chip ver-' + f.verdict, VER[f.verdict]));
+    s.appendChild(meta);
+    d.appendChild(s);
+    var b = el('div', 'body');
+    function kv(k, v) {
+      if (!v) return;
+      b.appendChild(el('div', 'k', k));
+      b.appendChild(el('p', 'v', v));
+    }
+    kv('Area', f.area + ' · ' + (areaName[f.area] || ''));
+    kv('Evidence', f.evidence);
+    kv('Impact', f.impact);
+    kv('Upgrade', f.recommendation);
+    if (f.files && f.files.length) {
+      b.appendChild(el('div', 'k', 'Where'));
+      var fl = el('div', 'v files');
+      f.files.forEach(function (p) { fl.appendChild(el('code', null, p)); });
+      b.appendChild(fl);
+    }
+    kv('Effort', 'Effort ' + f.effort + ' · confidence ' + f.confidence);
+    kv('Review note', f.verifyNote);
+    d.appendChild(b);
+    list.appendChild(d);
+    rows.push({ f: f, el: d, hay: [f.id, f.title, f.evidence, f.impact, f.recommendation, f.category, f.area, (f.files || []).join(' ')].join(' ').toLowerCase() });
+  });
+  var empty = el('div', 'empty', 'No findings match these filters.');
+  empty.hidden = true;
+  list.appendChild(empty);
+
+  // Filters
+  var state = { sev: {}, kind: {}, area: '', cat: '', q: '' };
+  function mkToggles(host, values, labels, key) {
+    values.forEach(function (v) {
+      var b = el('button', 'toggle', labels[v] || v);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () {
+        state[key][v] = !state[key][v];
+        b.setAttribute('aria-pressed', state[key][v] ? 'true' : 'false');
+        apply();
+      });
+      host.appendChild(b);
+    });
+  }
+  mkToggles(document.getElementById('f-sev'), SEV, SEV_LABEL, 'sev');
+  mkToggles(document.getElementById('f-kind'), ['flaw', 'enhancement'], { flaw: 'Flaw', enhancement: 'Upgrade' }, 'kind');
+  var fa = document.getElementById('f-area');
+  fa.appendChild(new Option('All areas', ''));
+  D.areas.forEach(function (a) { fa.appendChild(new Option(a.code + ' · ' + a.name, a.code)); });
+  fa.addEventListener('change', function () { state.area = fa.value; apply(); });
+  var fc = document.getElementById('f-cat');
+  fc.appendChild(new Option('All categories', ''));
+  Array.from(new Set(D.findings.map(function (f) { return f.category; }))).sort().forEach(function (c) { fc.appendChild(new Option(c, c)); });
+  fc.addEventListener('change', function () { state.cat = fc.value; apply(); });
+  var fq = document.getElementById('f-q');
+  fq.addEventListener('input', function () { state.q = fq.value.trim().toLowerCase(); apply(); });
+  document.getElementById('f-reset').addEventListener('click', function () { clearFilters(); apply(); });
+
+  function anyOn(o) { for (var k in o) if (o[k]) return true; return false; }
+  function apply() {
+    var sevOn = anyOn(state.sev), kindOn = anyOn(state.kind), shown = 0;
+    rows.forEach(function (r) {
+      var f = r.f;
+      var ok = (!sevOn || state.sev[f.severity]) && (!kindOn || state.kind[f.kind]) &&
+        (!state.area || f.area === state.area) && (!state.cat || f.category === state.cat) &&
+        (!state.q || r.hay.indexOf(state.q) !== -1);
+      r.el.hidden = !ok;
+      if (ok) shown++;
+    });
+    empty.hidden = shown !== 0;
+    document.getElementById('f-count').textContent = 'Showing ' + shown + ' of ' + rows.length;
+  }
+  function clearFilters() {
+    state.sev = {}; state.kind = {}; state.area = ''; state.cat = ''; state.q = '';
+    document.querySelectorAll('.toggle').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+    fa.value = ''; fc.value = ''; fq.value = '';
+  }
+  function setArea(code) { clearFilters(); state.area = code; fa.value = code; apply(); }
+  apply();
+
+  // Dropped claims
+  var dr = document.getElementById('dropped');
+  if (!D.dropped || !D.dropped.length) {
+    document.getElementById('dropped-sec').hidden = true;
+  } else {
+    D.dropped.forEach(function (x) {
+      var li = el('li');
+      li.appendChild(el('span', 'mono muted', x.id + ' '));
+      li.appendChild(el('strong', null, x.title));
+      li.appendChild(document.createTextNode(' — ' + x.reason));
+      dr.appendChild(li);
+    });
+  }
+
+  // Method footer
+  var ft = document.getElementById('method');
+  D.meta.method.forEach(function (p) { ft.appendChild(el('p', null, p)); });
+
+  // Deep links to a finding
+  function openHash() {
+    var h = (location.hash || '').slice(1);
+    if (!h || !byId[h]) return;
+    var r = rows.filter(function (x) { return x.f.id === h; })[0];
+    if (r.el.hidden) { clearFilters(); apply(); }
+    r.el.open = true;
+    r.el.scrollIntoView({ block: 'start' });
+  }
+  window.addEventListener('hashchange', openHash);
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a) return;
+    var h = a.getAttribute('href').slice(1);
+    if (byId[h]) {
+      e.preventDefault();
+      var r = rows.filter(function (x) { return x.f.id === h; })[0];
+      if (r.el.hidden) { clearFilters(); apply(); }
+      r.el.open = true;
+      r.el.scrollIntoView({ block: 'start' });
+    }
+  });
+  openHash();
+})();
+</script>

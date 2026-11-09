@@ -60,6 +60,9 @@ pub enum TokenType {
     Annotation = 0x10,
     TypeParameter = 0x11,
     LabeledStmt = 0x12,
+    /// Contextual keyword that is also a valid identifier (Kotlin `data`, `value`, `field`, ...).
+    /// Consumers decide from context whether it acts as a keyword.
+    SoftKeyword = 0x13,
 
     // Java-specific extensions (0x80..0xFF)
     JavaAnnotationMarker = 0x80,
@@ -94,6 +97,7 @@ impl TokenType {
             0x10 => TokenType::Annotation,
             0x11 => TokenType::TypeParameter,
             0x12 => TokenType::LabeledStmt,
+            0x13 => TokenType::SoftKeyword,
 
             0x80 => TokenType::JavaAnnotationMarker,
             0x81 => TokenType::JavaGenericDiamond,
@@ -111,16 +115,90 @@ impl fmt::Display for TokenType {
     }
 }
 
+/// Largest line number representable in a sort key (24 bits, 1-based lines).
+pub const SORT_KEY_MAX_LINE: u32 = 0x00FF_FFFF;
+/// Largest byte column representable in a sort key (16 bits, 0-based columns).
+pub const SORT_KEY_MAX_COL: u32 = 0xFFFF;
+/// Largest file id representable in a sort key (16 bits).
+pub const SORT_KEY_MAX_FILE_ID: u32 = 0xFFFF;
+/// Mask that removes the low "flags / duplicate" byte from a sort key, leaving the position.
+pub const SORT_KEY_POSITION_MASK: u64 = !0xFF;
+
+/// A source position that cannot be encoded in the 64-bit sort-key layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortKeyError {
+    FileIdOutOfRange(u32),
+    LineOutOfRange(u32),
+    ColumnOutOfRange(u32),
+}
+
+impl fmt::Display for SortKeyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SortKeyError::FileIdOutOfRange(v) => write!(
+                f,
+                "file id {} exceeds the sort-key limit of {}",
+                v, SORT_KEY_MAX_FILE_ID
+            ),
+            SortKeyError::LineOutOfRange(v) => write!(
+                f,
+                "line {} exceeds the sort-key limit of {}",
+                v, SORT_KEY_MAX_LINE
+            ),
+            SortKeyError::ColumnOutOfRange(v) => write!(
+                f,
+                "byte column {} exceeds the sort-key limit of {}",
+                v, SORT_KEY_MAX_COL
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SortKeyError {}
+
 /// Constructs a packed 64-bit sort key.
 /// Layout:
 /// Bits 63..48 : file_id (u16)
 /// Bits 47..24 : line    (u24)
 /// Bits 23..8  : col     (u16)
 /// Bits  7..0  : flags   (u8, reserved = 0)
+///
+/// Callers that cannot guarantee the ranges must use `try_build_sort_key`, which
+/// reports out-of-range positions instead of wrapping them.
 #[inline(always)]
 pub fn build_sort_key(file_id: u16, line: u32, col: u16) -> u64 {
-    debug_assert!(line <= 0x00FF_FFFF, "line number exceeds 24-bit range");
+    debug_assert!(line <= SORT_KEY_MAX_LINE, "line number exceeds 24-bit range");
     ((file_id as u64) << 48) | (((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8)
+}
+
+/// Range-checked sort-key construction: an unrepresentable position is an error,
+/// never a silently wrapped key.
+#[inline]
+pub fn try_build_sort_key(file_id: u32, line: u32, col: u32) -> Result<u64, SortKeyError> {
+    if file_id > SORT_KEY_MAX_FILE_ID {
+        return Err(SortKeyError::FileIdOutOfRange(file_id));
+    }
+    if line > SORT_KEY_MAX_LINE {
+        return Err(SortKeyError::LineOutOfRange(line));
+    }
+    if col > SORT_KEY_MAX_COL {
+        return Err(SortKeyError::ColumnOutOfRange(col));
+    }
+    Ok(build_sort_key(file_id as u16, line, col as u16))
+}
+
+/// Sort key of a position, saturating the line and column at their maxima. Used for the
+/// exclusive upper bound of a source range: no token can start beyond a saturated
+/// coordinate, because Phase 1 rejects files with unrepresentable token positions.
+#[inline]
+pub fn saturating_sort_key(file_id: u16, line: u32, col: u32) -> u64 {
+    if line > SORT_KEY_MAX_LINE {
+        return build_sort_key(file_id, SORT_KEY_MAX_LINE, SORT_KEY_MAX_COL as u16) | 0xFF;
+    }
+    if col > SORT_KEY_MAX_COL {
+        return build_sort_key(file_id, line, SORT_KEY_MAX_COL as u16) | 0xFF;
+    }
+    build_sort_key(file_id, line, col as u16)
 }
 
 /// Extracts file_id, line, col from a packed sort_key.
@@ -132,7 +210,13 @@ pub fn unpack_sort_key(sort_key: u64) -> (u16, u32, u16) {
     (file_id, line, col)
 }
 
+/// `TokenRecord::_padding` / `TokenEntry::_padding` flag: the token is longer than
+/// `u16::MAX` bytes, so `len` is saturated; the full text is available through `text_id`.
+pub const TOKEN_FLAG_LEN_SATURATED: u8 = 1 << 0;
+
 /// Forward index entry (16 bytes). Sorted by `sort_key` ascending.
+///
+/// `len` is the byte length saturated at `u16::MAX`; `_padding` carries `TOKEN_FLAG_*` bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct TokenRecord {
@@ -144,6 +228,7 @@ pub struct TokenRecord {
 }
 
 /// Backward index entry (16 bytes). Dense array indexed directly by `token_id`.
+/// Field semantics match `TokenRecord`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct TokenEntry {

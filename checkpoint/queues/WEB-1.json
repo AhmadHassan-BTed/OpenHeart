@@ -1,0 +1,899 @@
+[
+ {
+  "id": "WSEC-01",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "DOM XSS: attacker-controlled repo/ZIP file paths and names flow unescaped into innerHTML (and persist via localStorage history)",
+  "files": [
+   "web/js/github-engine.js",
+   "web/index.html"
+  ],
+  "evidence": "analyzeGitHubRepo builds progress text `...: ${file.path.split('/').pop()}` (github-engine.js:123); analyzeSourceFiles does the same for ZIP/folder entries (:218). index.html assigns these verbatim: `hudText.innerHTML = \\`Cloning &amp; Analyzing <strong>${repoName}</strong>: ${msg}\\`` (index.html:915) and `...${name}...: ${msg}` (:971). repoName/name/folderName/zipName come straight from the URL or file names (index.html:813,1035,1058). Names are re-rendered unescaped in the history dropdown: `<span class=\"repo-history-text\">${item.name}</span>` then `dropdown.innerHTML = html` (index.html:1200,1229), persisted in localStorage (:1177). Git permits `<`/`>` in tree paths; a repo file named `<img src=x onerror=...>.java` fires during the per-file progress update regardless of raw-fetch success.",
+  "impact": "Analyzing a malicious public repo, or opening a crafted ZIP/folder, runs arbitrary JS in the studio origin; the history sink makes it persistent across reloads, enabling theft of imported (possibly proprietary) source and origin localStorage.",
+  "recommendation": "Never assign untrusted data via innerHTML: set these status/name nodes with textContent, or build nodes with createElement + textContent. Where markup is required, sanitize with DOMPurify and adopt Trusted Types (require-trusted-types-for 'script'). Escape item.name before the history template. Add the CSP in WSEC-02 as defense in depth.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-R3-1",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "/api/source reads any file the server can access: unauthenticated arbitrary file read on 0.0.0.0 with CORS *",
+  "files": [
+   "src/adapters/server.rs:95-240",
+   "src/adapters/server.rs:32",
+   "src/adapters/server.rs:327",
+   "src/main.rs:534",
+   "web/js/editor.js:161"
+  ],
+  "evidence": "server.rs:96-112 takes the file/path query value and decodes only %2F, %20 and %2B. server.rs:120 places the raw decoded_path first in direct_candidates. server.rs:200-203 calls fs::read_to_string on it, and server.rs:226-233 returns the content in JSON. There is no canonicalize or containment check, unlike the static branch at server.rs:256-272. The server binds 0.0.0.0 (server.rs:32), the default port is 8080 (main.rs:534), and every JSON response sends Access-Control-Allow-Origin: * (server.rs:327). Trigger: GET /api/source?file=/etc/passwd, or file=C:/Users/<u>/.ssh/id_ed25519, or path=..%2F..%2F.aws%2Fcredentials, returns 200 {\"found\":true,\"content\":\"...\"}. A Node mirror of the parsing confirmed that candidate[0] equals the raw path.",
+  "impact": "Anyone on the network can exfiltrate SSH keys, cloud credentials and source code from a machine running `openheart server`. So can any web page the user visits, because a simple GET is readable under ACAO * and the unchecked Host header also allows DNS rebinding.",
+  "recommendation": "Canonicalize the requested path and require it to lie under an allow-listed root (the analyzed repo directory). Drop the raw-path candidates and the walkdir fallbacks. Bind 127.0.0.1 by default, restrict or remove ACAO *, and validate the Host header.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-02",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "critical",
+  "title": "The five compiler-IR diagrams and several UML views are hard-coded templates; Phase 4-8 data has no path to any exporter",
+  "files": [
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/export/plantuml.rs",
+   "src/scpg/diagram/export/mermaid.rs",
+   "src/uma/behavioral/state_machine.rs",
+   "src/uma/behavioral/communication_diagram.rs",
+   "src/uma/behavioral/interaction_overview.rs",
+   "src/uma/behavioral/timing_diagram.rs",
+   "src/uma/structural/composite_diagram.rs",
+   "web/diagrams/cfg.json"
+  ],
+  "evidence": "Exporters receive only (uma, sta, tca) (factory.rs:50-56,314-325), so .cfa, .ssa, .cga and .psa cannot reach any diagram. The JSON cfg/dfg/cdg/callgraph/robdd exporters ignore all inputs and emit OpenHeart's own pipeline ('v0 = load manifest', 'main() -> ingest_sources()') with compiler_hash 0x83D2D2B2 and verified: true (json.rs:1748-2101). PlantUML and Mermaid emit fixed 4-block CFGs, 'var_name: retries', '(amount > 0) -> repository.saveOrder()', and a call chain in HashSet order with a fake SCC loop (plantuml.rs:1253-1450; mermaid.rs:1389-1620). State machines are a 2-state template (state_machine.rs:22-50). Four extractors have empty bodies (communication_diagram.rs:9-11; interaction_overview.rs:9-15; timing_diagram.rs:8-10; composite_diagram.rs:9-11).",
+  "impact": "Every project receives fabricated CFG, DFG, CDG, CG and ROBDD views labelled verified, so README's 19 derived projections are overstated and users cannot tell real views from templates. The committed Pages demo even cites a nonexistent PipelineControlFlow.java.",
+  "recommendation": "Pass a read-only AnalysisDb holding all artifacts to every exporter. Render the CFG from cfa.functions (blocks, typed edges, idom), the DFG from the def-use CSR, the CDG from ssa.cdg, the CG from cga.callee_csr plus sccs, the ROBDD from psa.node_arrays, and state machines from type-state facts. Delete the templates; when data is absent, emit an explicit 'no data' node. Lock each diagram with insta snapshots on 3 or more fixtures, and assert that JSON, PlantUML and Mermaid share the same node and edge sets.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-01",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "critical",
+  "title": "DOM XSS: repo file names, ZIP entries and shared .openheart.json reach innerHTML",
+  "files": [
+   "web/js/github-engine.js:123",
+   "web/js/github-engine.js:218",
+   "web/index.html:915",
+   "web/index.html:971",
+   "web/index.html:1388",
+   "web/index.html:682",
+   "web/index.html:735",
+   "web/index.html:1066",
+   "web/index.html:1200",
+   "web/js/graph-loader.js:212",
+   "web/index.html:984"
+  ],
+  "evidence": "github-engine.js:123 and :218 emit `Parsing AST (...): ${file.path.split('/').pop()}`, and index.html:915 and :971 write that string into `hudText.innerHTML`. Git allows any byte except '/' and NUL in a path, so a repo file named `<img src onerror=alert(document.domain)>.java` passes the extension filter. Running the real engine with a mocked fetch produced exactly that markup. Shared state files reach :1388 (diagram_type; it is uppercased, but numeric character-reference payloads survive), :682 (node textLabel, on hover) and :735 (edge uml_kind). ZIP and folder names reach :1066 and persist into the history dropdown at :1200. There is no CSP. A harmless symptom of the same sink: hovering shows 'Path Illuminated: <>', because `<<class>>` (graph-loader.js:212) is parsed as a tag.",
+  "impact": "Analysing a hostile public repo, ZIP or shared state file runs script on the github.io origin, which all the owner's Pages sites share. That script can read sessionStorage openheart_custom_files, which holds the full source of privately imported folders (index.html:984).",
+  "recommendation": "Ban HTML-string sinks. Build status and HUD text with textContent or DOM nodes (or lit-html, which auto-escapes). Add eslint-plugin-no-unsanitized to CI. Externalise the inline module, then add a strict CSP meta tag plus Trusted Types (require-trusted-types-for 'script'). Use DOMPurify only where markup is genuinely needed. Add regression tests that use payload file names, ZIP entry names and crafted state files.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-02",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "critical",
+  "title": "Studio fabricates diagrams, source code, traceability and 'Verified' metrics",
+  "files": [
+   "web/js/graph-canvas.js:276-300",
+   "web/js/graph-canvas.js:366-384",
+   "web/js/graph-canvas.js:476-578",
+   "web/js/editor.js:211-214",
+   "web/js/editor.js:370-375",
+   "web/js/github-engine.js:526",
+   "web/js/github-engine.js:164",
+   "web/js/github-engine.js:576-577",
+   "web/index.html:825-853",
+   "web/index.html:658-672",
+   "web/js/github-engine.js:103"
+  ],
+  "evidence": "For imported code, projectCustomDiagram returns fixed templates: a state machine Initializing->Ready->ProcessingRequest (graph-canvas.js:366-384), CFG blocks containing `let ctx = InitializeContext();` (:489-504), and DFG/CDG/ROBDD/timing views plus deployment artifacts named `${c.name}.dll` (:276-300, :476-578). editor.js:211-214 and :370-375 invent Java bodies labelled 'Grounded from Deep Program Graph Analysis'. Every class gets `lines: [1, 5, 10]` (github-engine.js:526). The engine also hardcodes `execution_time_ms: 280` and emits a random `compiler_hash` with `verified: true` (:164, :576-577). The progress text '[3/5] Compiling SCPG ... ROBDD' is driven by a timer (index.html:825-853). 'Invariant Verified (ROBDD Sat)' is shown as a default when no data exists (:658-672). files_processed counts all files although at most 30 are parsed (:103, :161).",
+  "impact": "On GitHub Pages, 13 of the 19 projections, every traceability highlight and every 'Verified' badge shown for user code are invented. This contradicts the README and makes any demo or benchmark misleading.",
+  "recommendation": "Delete the synthetic generators. When data is missing, show an explicit empty state, for example 'CFG requires the Rust engine'. Label in-browser results as approximate, for example 'regex, 30/1,234 files'. Show only metrics the engine provides, with provenance: engine version, phase, and a real content hash of the IR (crypto.subtle.digest). Traceability must come from token spans in the IR, not constants. Add a test that fails if the UI claims verification without a corresponding engine field.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-02",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "high",
+  "title": "No Content-Security-Policy, no Trusted Types, and no SRI on five CDN scripts",
+  "files": [
+   "web/index.html",
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "index.html <head> sets only cache-control metas (index.html:4-11) — there is no CSP meta and GitHub Pages cannot send CSP headers, so none exists. cytoscape, dagre, cytoscape-dagre, cytoscape-svg and jszip are loaded from cdnjs/jsdelivr with no `integrity=`/`crossorigin` attributes (index.html:29-34). Trusted Types is not enabled, leaving every innerHTML sink unconstrained. deploy_pages.yml uploads web/ as-is with no header injection step.",
+  "impact": "Any XSS (e.g. WSEC-01) executes with full origin privileges and no containment; a compromise or tampering of cdnjs/jsdelivr yields full studio takeover for all visitors.",
+  "recommendation": "Add a strict CSP via <meta http-equiv=\"Content-Security-Policy\"> (default-src 'self'; script-src 'self' pinned CDNs; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'). Add SRI integrity hashes + crossorigin='anonymous' to all five scripts (or self-host). Enable Trusted Types and route the remaining sinks through a DOMPurify policy.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-03",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "high",
+  "title": "ReDoS: catastrophic backtracking in the in-browser method/field parser regexes freezes the tab",
+  "files": [
+   "web/js/github-engine.js"
+  ],
+  "evidence": "extractMethods uses `/(?:(public|...|def)\\s+)?(?:(abstract|static|final|async)\\s+)*([A-Za-z0-9_<>[\\]]+)?\\s*([a-zA-Z0-9_]+)\\s*\\(([^)]*)\\)\\s*(?:\\{|;|->|:)/g` (github-engine.js:434), run on every analyzed file (:339,:395; GitHub files :115, ZIP/folder :211). The optional type `([...]+)?` adjacent to `\\s*([a-zA-Z0-9_]+)` over the same class, with no match, backtracks exponentially. Measured in Node on the verbatim regex: 1 KB run of one identifier = 0.57 s, 2 KB = 5.1 s, 4 KB = 36 s, 8 KB = 272 s. `.js` is an accepted extension (:89,:183), so a normal minified bundle triggers it.",
+  "impact": "A single long no-paren identifier run (minified JS, a long constant, or a crafted token) hangs the main thread indefinitely — denial of service on analysis for ordinary repositories, not just adversarial ones.",
+  "recommendation": "Replace the hand-rolled regexes with a linear tokenizer, or anchor each to a token boundary via a lookbehind `(?<![A-Za-z0-9_<>[\\]$])` and make the optional return type consume mandatory trailing whitespace so the ambiguous split is removed; an anchored variant processed 1 MB in ~39 ms in testing. Cap per-file size and run parsing in a Web Worker with a timeout.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-R3-2",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Studio silently replaces Rust-engine output with a 30-file regex sampler and labels it 'SCPG ... Verified'",
+  "files": [
+   "web/index.html:862",
+   "web/index.html:881",
+   "web/index.html:912-935",
+   "web/js/github-engine.js:103",
+   "web/js/github-engine.js:161-164",
+   "web/js/github-engine.js:576-577",
+   "src/adapters/server.rs:251-253"
+  ],
+  "evidence": "index.html:862 aborts the /api/analyze fetch after 2500 ms. The server writes its response only after git clone and the full 10-phase pipeline (server.rs:251-253, 429-436). On abort, or on the GitHub Pages deployment where /api/analyze does not exist (deploy_pages.yml uploads web/), index.html:881 and 912 fall back to GitHubEngine. That engine regex-parses only sourceFiles.slice(0, 30) (github-engine.js:103; 80 files for folder or ZIP at :200). It reports files_processed as the count of all discovered files and execution_time_ms as a hard-coded 280 (github-engine.js:161-164). It sets a random compiler_hash with verified: true (:576-577). The badge at index.html:920 shows 'SCPG 0x<base36 timestamp> · Verified'; a Node mirror printed 'SCPG 0xMW94DEQI · Verified'. Non-class projections are further capped at 4-12 classes (graph-canvas.js:240-538).",
+  "impact": "When clone plus analysis takes longer than 2.5 s, or on any import in the hosted studio, users see diagrams of at most the first 30 files in tree order from a regex parser. These are presented as a verified SCPG of the whole repo. In that session the Rust engine's output is never shown, because customGraphIr pins the view (graph-canvas.js:100, 604-617).",
+  "recommendation": "Make /api/analyze asynchronous (job id plus polling) or raise the timeout well above clone time. Label any fallback result as a partial in-browser sample, report the true parsed-file count, and remove the fabricated hash and verified fields.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-04",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Showcase diagrams are not reproducible engine output; hash and 'verified' are constants",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "web/diagrams/statemachine.json",
+   "web/diagrams/usecase.json",
+   "web/diagrams/robdd.json",
+   "web/diagrams/callgraph.json"
+  ],
+  "evidence": "All 18 JSON exporters hardcode compiler_hash \"0x83D2D2B2\" and verified: true (json.rs:415-416 through json.rs:2094). 12 of the 19 committed JSONs have other hashes (e.g. 0x55AA11FF, 0x33DD88AA) that appear nowhere in src, scripts or web. Their content describes OpenHeart itself rather than the sample input: states named 'Lexical Ingestion', an actor 'CI / CD Automation Agent', a BDD variable 'isSyntaxValid'.",
+  "impact": "The public Studio presents hand-written data as engine output, and the 'verified' flag carries no information. This undercuts the README's 14-UML-diagram and traceability claims for anyone benchmarking the tool.",
+  "recommendation": "Regenerate every showcase file from a pinned sample with the CLI in CI and fail on drift. Compute a real content hash with sha2, which is already a dependency. Compute 'verified' or remove it. Mark any illustrative files as illustrative.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-06",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "high",
+  "title": "Traceability stops at Phase 9: exporters ignore UMLLink spans and fabricate file names and line numbers",
+  "files": [
+   "src/uma/structural/class_diagram.rs",
+   "src/scpg/diagram/export/json.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs",
+   "src/scpg/query/navigation.rs"
+  ],
+  "evidence": "Phase 7 computes exact (file_id, line, col) UMLLinkRecords, and Phase 9 copies them into ClassRecord.uml_link (class_diagram.rs:304-319). No exporter under src/scpg reads uml_link, uml_link_node or uml_link_token. The JSON IR the studio loads sets file to '<Name>.java' and lines to [1, 5, 10] (json.rs:267-268; also 580-581, 671-672, 733-734) and hard-codes 'OpenHeartEngine.java' (json.rs:1447). The editor requests /api/source by that guessed name (editor.js:160-161). The server then matches it by file stem across fixed example folders (server.rs:109-224). NavigationEngine::to_source and from_source are linear scans (navigation.rs:9-27).",
+  "impact": "Click-to-source is wrong for Kotlin files, files with several classes, nested classes and duplicate names, and it always highlights lines 1, 5 and 10. The O(1) source-to-diagram traceability claim therefore fails at the UI.",
+  "recommendation": "Attach a source anchor to every diagram node and edge: root-relative path, start/end line and column, and token range, taken from ClassRecord.uml_link and MessageRecord.uml_link_token. Serve sources by (session, file_id), never by name. Make to_source an O(1) index (uml_links is already sorted by sym_id) and from_source an interval-tree lookup. Done = for each fixture class, the JSON anchor equals the declaration position reported by JavaParser or javac.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "E2E-08",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Four separate pipelines (CLI, server, test builder, browser) give different results for the same repository",
+  "files": [
+   "src/main.rs",
+   "src/adapters/server.rs",
+   "src/core/pipeline.rs",
+   "web/js/api.js",
+   "web/js/github-engine.js",
+   "Dockerfile",
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "The CLI analyzes .java/.kt/.kts files, tests included (main.rs:76-99). The server takes 58 extensions and drops test and build dirs and *Test files (server.rs:770-884). It never calls Phase10Stage yet reports 'All 10 phases verified' (server.rs:619-699), and it swallows IO errors with unwrap_or_default (server.rs:536-609). It ignores the client's diagram_types (api.js:36 vs server.rs:366-372) and writes into the git-tracked web/diagrams shared by every session (server.rs:636-691). SCPGPipelineBuilder, the only path the tests use, writes graph.scpg instead of unified.scpg and ignores diagram_formats (pipeline.rs:100,143-148,168). The browser engine regex-parses only the first 30 files and uses a random compiler_hash (github-engine.js:102,576). The Dockerfile runs `openheart serve`, which main.rs rejects (main.rs:532,544; Dockerfile:49).",
+  "impact": "The same repository gives different classes and diagrams depending on entry point. Tests and the F1 harness validate paths the CLI does not run. Concurrent sessions overwrite each other's diagrams, and the Docker image exits at startup.",
+  "recommendation": "Expose one library entry point, Pipeline::run(&AnalysisConfig) -> Result<AnalysisOutputs, PipelineError>, with include/exclude globs, languages and formats. Call it from the CLI, the server and the tests, and delete the copies. Have the server write per-session directories served under /sessions/{id}/ and never touch web/. Add a contract test asserting byte-identical CLI and server outputs for a fixture, fix the Dockerfile CMD, and regenerate the Pages demo from the engine in CI.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Exporters key classes by sanitized simple name, merging same-named types and misattaching edges",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:443-506",
+   "src/scpg/diagram/export/plantuml.rs:211-227",
+   "src/scpg/diagram/export/json.rs:140-146",
+   "src/scpg/diagram/export/json.rs:257-259",
+   "src/scpg/diagram/export/mermaid.rs:660",
+   "src/scpg/diagram/export/mermaid.rs:211-226",
+   "web/diagrams/class.json"
+  ],
+  "evidence": "PlantUML maps names to symbols in `class_by_name: BTreeMap<String,u32>` and keys edges by `(src_name,dst_name)`. JSON uses `id: name.clone()`, and Mermaid keys `class_package_map` by name. As a result, many nested `Builder`s or `a.Config`/`b.Config` collapse into one node. The shipped class.json has 5 duplicate node ids (CurrentState, IDAssigner, Module…). `sanitize` maps `Foo$Bar` and `Foo_Bar` to the same id. Mermaid's fix for duplicate packages appends the root's initial, so `com.a.util` and `com.b.util` both become `util_C`. Since PlantUML 1.2023.2, packages are namespaces, so edges keyed by bare names are also fragile across versions.",
+  "impact": "Common Java codebases, such as those using nested Builders or per-module Config/Utils classes, get merged boxes and edges between the wrong classes. JSON consumers receive ids that are not unique.",
+  "recommendation": "Derive stable unique ids from sym_id or the fully qualified name (SCIP or Kythe-style symbol strings) and print display names separately: PlantUML `class \"Builder\" as C_1234`, Mermaid `class C_1234[\"Builder\"]`, JSON id = FQN, xmi:id = hash(FQN). Resolve edges by symbol, never by name. Done means a test with two inner Builders and two Config packages yields distinct nodes in every format.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-05",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "JSON Graph IR fabricates source provenance and 'verified' metadata",
+  "files": [
+   "src/scpg/diagram/export/json.rs:267-268",
+   "src/scpg/diagram/export/json.rs:580-581",
+   "src/scpg/diagram/export/json.rs:733-734",
+   "src/scpg/diagram/export/json.rs:1393-1394",
+   "src/scpg/diagram/export/json.rs:1447",
+   "src/scpg/diagram/export/json.rs:415-416",
+   "src/uma/types.rs:91",
+   "web/js/editor.js:160"
+  ],
+  "evidence": "Class nodes get `file: Some(format!(\"{}.java\", name))` and `lines: vec![1, 5, 10]`. Sequence, state and object nodes get `\"{name}.java\"` with line 1. The composite root is \"OpenHeartEngine.java\" for every input. Each GraphIR carries the constants `compiler_hash: \"0x83D2D2B2\"` and `verified: true`. Meanwhile every ClassRecord has `uml_link` holding the real file, line and column, and the web editor navigates by `nodeData?.file`. The shipped class.json assigns TypeScript interfaces and Python classes to `.java` files.",
+  "impact": "Click-to-source opens files that do not exist or the wrong lines, which contradicts the 'O(1) bidirectional traceability' headline. The 'verified' flag is meaningless.",
+  "recommendation": "Fill file and range from `class_rec.uml_link` or TRA sym_span, taking the path from tca.file_records, and emit null when unknown. Set compiler_hash to the real snapshot digest. Either drop `verified` or compute it from real checks (unique ids, all edge endpoints resolve). Add a JSON Schema for GraphIR and validate against it in CI. Done means every node with a span maps back to its declaring token range.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-06",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Generated PlantUML and Mermaid is invalid for common inputs, and nothing validates it",
+  "files": [
+   "src/scpg/diagram/export/mermaid.rs:1536",
+   "web/diagrams/dfg.mmd",
+   "src/scpg/diagram/export/plantuml.rs:963-974",
+   "src/scpg/diagram/export/mermaid.rs:143-172",
+   "src/scpg/diagram/export/mermaid.rs:309-328",
+   "src/scpg/diagram/export/plantuml.rs:1037-1058",
+   "web/diagrams/sequence.puml",
+   "src/scpg/diagram/export/mermaid.rs:1263-1269"
+  ],
+  "evidence": "The Mermaid DFG emits `v2_0[\"...join: Block 2\"]\"]` with a stray `\"]`, and the shipped dfg.mmd contains it. PlantUML activity prints `if (eval_branch) then (yes)` for each decision node but never `endif`, then closes the partition `}` while the if is still open. Mermaid places relations inside `namespace {}` blocks (at the package LCA) and nests namespaces, but namespace bodies accept only class statements and nesting needs Mermaid 11.15 or later. The PlantUML sequence declares `act_ExternalActor` but sends messages from an undeclared `part_Actor`; the shipped sample shows both lifelines. Mermaid flowchart ids are raw lifeline names, so a name like `end` breaks parsing.",
+  "impact": "Typical code triggers render errors: any method with an if, and any relation between classes in the same package. The Mermaid DFG never renders at all.",
+  "recommendation": "Print from a typed IR with per-format printers that emit structured blocks (if/else/endif from region analysis), keep relations outside namespaces, and alias every id (`P1`, `C_1234`) with quoted labels. In CI, parse every fixture output with `plantuml -checkonly` and `@mermaid-js/mermaid-cli` (mmdc) or mermaid.parse, and fail on any error. Done means zero parse errors across the fixtures and examples/.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-03",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "high",
+  "title": "Real Rust engine is effectively unreachable; backend results are discarded",
+  "files": [
+   "web/index.html:861-862",
+   "web/index.html:877-884",
+   "web/index.html:888-907",
+   "web/js/graph-canvas.js:604-606",
+   "web/js/graph-canvas.js:625",
+   "src/adapters/server.rs:424-441",
+   "src/adapters/server.rs:636-660"
+  ],
+  "evidence": "index.html:861-862 aborts the /api/analyze request after 2,500 ms. The server, however, runs a synchronous `git clone --depth 1` plus all ten phases before it replies (src/adapters/server.rs:424-441), so real repos fall back to the regex engine. When the backend does answer in time, the UI ignores its payload (index.html:888-907). It re-fetches `diagrams/<type>.json` (graph-canvas.js:625), which the server has overwritten in the shared web/diagrams folder (server.rs:636-660), and any active customGraphIr takes precedence (graph-canvas.js:604-606). Engine `errors` are swallowed silently (index.html:877-884).",
+  "impact": "Users rarely see the engine the README benchmarks. Concurrent users overwrite each other's results, committed demo assets get overwritten, and a previous local codebase can be shown under a new repo's name.",
+  "recommendation": "Turn analysis into an async job API: POST returns a job id, progress arrives via SSE or WebSocket, and the job can be cancelled. Render the returned IR directly from session-scoped artifact URLs, and never write into web/. Show engine errors to the user. Longer term, compile phases 1-9 to WebAssembly (wasm-bindgen plus web-tree-sitter grammars) and run them in a Web Worker, so GitHub Pages runs the same analyzer and the regex engine can be retired.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-04",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "In-browser analyzer builds wrong class models (member leakage, calls as methods, ID collisions)",
+  "files": [
+   "web/js/github-engine.js:337-339",
+   "web/js/github-engine.js:434",
+   "web/js/github-engine.js:404",
+   "web/js/github-engine.js:342",
+   "web/js/github-engine.js:554-556",
+   "web/js/github-engine.js:103",
+   "web/js/github-engine.js:291"
+  ],
+  "evidence": "Members are scanned from `code.slice(match.index + match[0].length)`, which is the rest of the file rather than the class body (github-engine.js:337-339). Running the real code in Node on a 3-class file, C0 got fields f0,f1,f2 and methods m0,helper,m1,helper,m2,helper. methodRegex accepts `name(...);`, so call statements become methods (:434), and fieldRegex captures local variables (:404). Node ids are bare simple names (:342) and edges are resolved by name (:554-556): two `App` classes in different packages produced ids 'App App'. Only the first 30 files in tree order are parsed (:103). Declarations must contain `{`, so Python classes are never found (:291).",
+  "impact": "Class models, relations and LLM exports are wrong for real repos; the default preset, java-design-patterns, has an App.java in every module. Meanwhile the README advertises F1 = 1.0000 and in-browser 'AST parsing'.",
+  "recommendation": "Replace the regexes with web-tree-sitter (tree-sitter-java, -kotlin and -python WASM grammars) and tree-sitter queries. Use fully qualified names, including nesting, as ids, and resolve relations through imports and package scope. Choose files by relevance (src/main, excluding tests and vendor code) instead of an alphabetical prefix. Add golden tests that compare JS output with Rust engine output on shared fixtures and report precision/recall for each relation kind.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-05",
+  "kind": "flaw",
+  "category": "performance",
+  "severity": "high",
+  "title": "Cubic regex backtracking in extractMethods freezes the tab on realistic files",
+  "files": [
+   "web/js/github-engine.js:434",
+   "web/js/github-engine.js:337-339",
+   "web/js/github-engine.js:89-94",
+   "web/js/github-engine.js:109-125",
+   "web/js/github-engine.js:200-220"
+  ],
+  "evidence": "methodRegex `([A-Za-z0-9_<>[\\]]+)?\\s*([a-zA-Z0-9_]+)\\s*\\(` (github-engine.js:434) can split a run of identifier characters in many ways. Timing the real function in Node: a 1 KB run took 0.39 s, 2 KB took 3.6 s and 4 KB took 29 s, roughly O(L^3). It runs on the main thread, once for each preceding class, over the rest of the file (:337-339). On the GitHub path it is applied to .js/.ts blobs with no vendor, minified-file or size filter (:89-94, :109-125), and there is no Worker or timeout. Long hex or identifier constants, such as crypto test vectors or embedded blobs, trigger it.",
+  "impact": "A single file with a few KB of unbroken alphanumeric text hangs the UI for seconds to minutes. The browser may offer to kill the page, and the analysis cannot be cancelled.",
+  "recommendation": "Move ingestion and parsing into a Web Worker with a per-file time budget and an AbortController. Skip blobs over about 512 KB (using the tree `size` field) and minified files (a max-line-length heuristic), and honour linguist-vendored/generated attributes. Replace the regexes with tree-sitter, which parses in linear time. Any regex that remains must be made unambiguous and checked in CI with a ReDoS checker such as recheck or safe-regex2.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-06",
+  "kind": "flaw",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Layout is grid packing, not graph layout; sequence diagrams and large exports break",
+  "files": [
+   "web/js/uml-layout.js:105-123",
+   "web/js/uml-layout.js:463-479",
+   "web/js/uml-layout.js:381-426",
+   "web/js/themes/theme-manager.js:499",
+   "web/index.html:30-31",
+   "web/js/graph-canvas.js:1417-1421",
+   "web/js/graph-canvas.js:9"
+  ],
+  "evidence": "The class/package layout packs at most 2 columns per package and ignores edges (uml-layout.js:105-123). Measured on the deployed class.json, 115 cards form a 1,942x16,000 px column, so the fit zoom is about 0.05. The sequence layout puts every lifeline on one row (:463-479): 20,900x60 px, with 699 messages drawn as taxi edges that collapse onto 71 source-target pairs. The hierarchical layout uses BFS ranks wrapped at 3 nodes per row, with no crossing minimisation and an O(n^2) queue.shift (:381-426). Edges use cytoscape's 'taxi' style (theme-manager.js:499), which does not route around nodes. dagre is loaded but never used (index.html:30-31). A 2x PNG of the sequence view (41,800 px wide) exceeds browser canvas limits (graph-canvas.js:1417-1421).",
+  "impact": "The landing view and the bundled views are unreadable at fit zoom. UML sequence semantics (time order, activations, fragments) are missing, and exports of large views come out blank.",
+  "recommendation": "Adopt elkjs, run in a Web Worker, for example through cytoscape-elk. ELK Layered provides network-simplex layering, layer-sweep crossing minimisation, Brandes-Koepf placement, orthogonal routing and compound nodes. Write a dedicated sequence renderer (lifelines, time-ordered messages, activation bars, alt/loop/par fragments), as PlantUML and Mermaid do. Pass maxWidth/maxHeight to cy.png and tile large exports. Remove dagre. Benchmark crossings and area against Graphviz dot.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-07",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "high",
+  "title": "Theme toggle and overlapping async renders discard user edits and race",
+  "files": [
+   "web/js/graph-canvas.js:721-726",
+   "web/js/graph-canvas.js:698-703",
+   "web/js/graph-canvas.js:623-646",
+   "web/js/graph-canvas.js:593-596",
+   "web/js/graph-canvas.js:51",
+   "web/index.html:638",
+   "web/index.html:778",
+   "web/index.html:452"
+  ],
+  "evidence": "setTheme restyles the graph and then re-runs renderGraph from scratch (graph-canvas.js:721-726). That recomputes the layout, clears undo history (:698-703) and replaces a loaded .openheart.json with the bundled `diagrams/<type>.json` (:623-646). renderGraph destroys cy and then awaits fetches with no generation token (:593-646). Every page load starts two overlapping renders: one from canvas.init (index.html:638, graph-canvas.js:51) and one from initTheme (index.html:778) via setTheme. Sidebar clicks also start renders without awaiting them (index.html:452), so a slower earlier response can replace a later selection.",
+  "impact": "One theme click silently discards manual layout, deletions, collapses and loaded state. Every page load does the work twice. The visible diagram can differ from currentGraphType, so saved states and exports get the wrong label.",
+  "recommendation": "Separate the document model from the view. On a theme change, update the stylesheet and regenerate card images in place inside one cy.batch, keeping positions. Give renderGraph a monotonically increasing render id (or an AbortController) and commit only the latest render. Initialise the theme before the first render. Persist edited layouts in the model rather than in the cytoscape instance.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-06",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Standard interchange: SARIF, GraphML/DOT/GraphSON, SCIP and full XMI 2.5.1",
+  "files": [
+   "src/scpg/diagram/export/xmi.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/diagram/export/json.rs",
+   "web/js/ui.js"
+  ],
+  "evidence": "XMI emits only `Class_<sym_id>` packagedElements in an Eclipse UML2 3.0.0 namespace (src/scpg/diagram/export/xmi.rs:8-18), whatever the diagram type (src/scpg/diagram/factory.rs:140-148). The studio's XMI export is an empty stub (web/js/ui.js:123-127). The JSON graph IR has no schema or version field (src/scpg/diagram/export/json.rs:30-45). src contains no SARIF, GraphML, DOT, GraphSON or SCIP writer.",
+  "impact": "Results cannot flow into GitHub code scanning, Neo4j/Gephi, Sourcegraph, or EA/VP/Papyrus models. Interop is table stakes in both tool categories.",
+  "recommendation": "Emit SARIF 2.1.0 for findings and pattern matches. Emit GraphML, DOT, GraphSON and Neo4j CSV for every SCPG layer, and a SCIP index for code navigation. Write XMI 2.5.1 with attributes, operations, associations, generalizations and diagram interchange, and validate it by round-tripping through Eclipse UML2/Papyrus, EA and VP. Version the JSON IR and publish a JSON Schema for it.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-08",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "high",
+  "title": "Demonstrated large-codebase scale: indexed, parallel, streaming pipeline",
+  "files": [
+   "src/cg/resolution.rs",
+   "src/scpg/query/cfl.rs",
+   "src/adapters/server.rs",
+   "web/js/github-engine.js",
+   "Cargo.toml"
+  ],
+  "evidence": "Every call site rescans all symbols (src/cg/resolution.rs:84,133,185,212,225). CFL reachability scans the full edge list on each pop (src/scpg/query/cfl.rs:27). The server is a single-threaded accept loop that reads one 8 KiB buffer (src/adapters/server.rs:40-48). Cargo.toml:8-16 has no parallelism crate. The browser engine stops at 30 remote / 80 local files (web/js/github-engine.js:103,200).",
+  "impact": "Quadratic hot paths make 1M-LOC targets impractical and undercut the compression story. By contrast, Joern builds a full Linux-kernel CPG and Infer runs on Meta-scale code.",
+  "recommendation": "Index symbols by (parent, name) and store the call graph as CSR adjacency. Parallelise the per-file and per-function phases with rayon. Stream ingestion and artifact writes. Make the server async with bounded request bodies. Publish LOC/s and peak RSS at 100K, 1M and 5M LOC alongside Joern and CodeQL.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-10",
+  "kind": "enhancement",
+  "category": "feature-gap",
+  "severity": "high",
+  "title": "Wire token-anchored traceability into exports and the studio",
+  "files": [
+   "src/scpg/diagram/export/json.rs",
+   "src/scpg/diagram/factory.rs",
+   "src/scpg/query/navigation.rs",
+   "web/js/editor.js",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "JSON nodes get file set to '<Name>.java' and lines set to [1, 5, 10] (src/scpg/diagram/export/json.rs:267-268) or [1] (json.rs:581). No exporter or factory reads the TRA artifact. Navigation is linear despite the 'O(1)'/'O(log n)' comments (src/scpg/query/navigation.rs:8-27). Source files are found through hard-coded example paths (web/js/editor.js:183-193; src/adapters/server.rs:119-198).",
+  "impact": "The headline 'O(1) bidirectional source-to-diagram traceability' (README.md:48) never reaches users. Clicking a diagram element cannot reliably open its code, which IntelliJ and Sourcetrail do by default.",
+  "recommendation": "Emit real UMLLink spans (path, line/column range, token ids, scpg_hash) on every node, edge, member and message. Build the dense backward index for O(1) lookup. Resolve files by file_id from the corpus instead of guessing by name. Add end-to-end tests that check click-to-source lands on the right code.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "COMP-11",
+  "kind": "enhancement",
+  "category": "ux",
+  "severity": "high",
+  "title": "Diagram UX parity: search, semantic filters, focus+context, commit diffs, local rendering",
+  "files": [
+   "web/js/graph-canvas.js",
+   "web/js/icons.js",
+   "web/js/api.js",
+   "web/index.html"
+  ],
+  "evidence": "The canvas offers package collapse, a minimap, focus-by-file and an edge-kind filter (web/js/graph-canvas.js:31,36,728,778). Search exists only as an icon (web/js/icons.js:19), and there is no compare or diff view. PlantUML is rendered by POSTing the diagram source to kroki.io (web/js/api.js:68).",
+  "impact": "Large diagrams are hard to explore. Architecture drift between commits, which IntelliJ revision-as-UML, VP Visual Diff/History, EA Compare and CodeSee Review Maps all serve, is not supported. Sending code-derived diagrams to a third party also blocks use on proprietary code.",
+  "recommendation": "Add fuzzy search and filters by package, visibility, stereotype, pattern and layer. Expand callers, callees and implementations on demand, and aggregate by level of detail beyond about 1K nodes. Add two-commit diff views that colour added, removed and changed elements using the SCPG hashes. Render PlantUML and Mermaid locally by default.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-04",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Loaded .openheart.json / sessionStorage state consumed with no schema validation (innerHTML and fetch sinks)",
+  "files": [
+   "web/index.html",
+   "web/js/graph-canvas.js",
+   "web/js/editor.js"
+  ],
+  "evidence": "The Load-State handler does `JSON.parse(await file.text())` then `canvas.loadDiagramState(savedState)` with no validation (index.html:1383-1385; graph-canvas.js:1383), and echoes `savedState.diagram_type` via `.toUpperCase()` into innerHTML (index.html:1388). Loaded edges' uml_kind reach the layers panel, built with `span.innerHTML = \\`...${conf.icon||'→'}... ${conf.label||item.kind}... (${item.count})\\`` and `color` interpolated into inline style (index.html:735,718,723). Loaded node raw_url is fetched directly: `fetch(nodeData.raw_url||nodeData.rawUrl)` (editor.js:146-149). sessionStorage custom IR is restored and its name injected via innerHTML (index.html:614,631).",
+  "impact": "A shared/hosted state file can inject markup through the layers/HUD sinks, CSS-inject via unvalidated color, and cause the victim's browser to fetch arbitrary attacker URLs (tracking/exfil of file-open), with no integrity checks.",
+  "recommendation": "Validate every loaded state against a strict JSON Schema (allowlist diagram_type and uml_kind enums, reject unknown keys, require same-origin/githubusercontent raw_url). Render layer labels/icons with textContent and validate color against a hex/rgb allowlist. Route any remaining markup through DOMPurify + Trusted Types.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-05",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Orphaned modules shipped to production include a latent raw-innerHTML of third-party Kroki SVG and code egress",
+  "files": [
+   "web/app.js",
+   "web/js/viewer.js",
+   "web/js/api.js"
+  ],
+  "evidence": "app.js imports Logger/StudioState/OrbEngine/APIClient/DiagramViewer/UIController and binds DOM ids (orb-canvas, plantuml-render-container, status-logs, toast-container, btn-fetch, repo-url-input, diagram-tabs) that do not exist in index.html; index.html's inline module imports only icons, graph-canvas, editor, file-tree, github-engine, themes (index.html:409-414) and never loads app.js. The dead viewer.js inserts third-party SVG raw: `viewport.innerHTML = svgText` where svgText is the body of a POST to `https://kroki.io/plantuml/svg` (viewer.js:145-151; api.js:66-74), exfiltrating PlantUML (code structure) to kroki.io and trusting its response.",
+  "impact": "Dead code enlarges and confuses the audit surface and ships an unsanitized third-party-SVG XSS plus code-structure egress that becomes live the moment anyone re-wires these modules.",
+  "recommendation": "Delete the unused modules from the deployed web/ bundle, or if retained, gate behind an explicitly loaded page and sanitize Kroki output with DOMPurify (SVG profile) before insertion; make Kroki egress opt-in and documented.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Diagram files: duplicate copies, communication equals sequence, empty Mermaid files, duplicate ids",
+  "files": [
+   "web/diagrams/manifest.json",
+   "web/diagrams/communication.json",
+   "web/diagrams/class.json",
+   "src/scpg/diagram/export/json.rs",
+   "src/adapters/server.rs",
+   "web/js/graph-loader.js"
+  ],
+  "evidence": "communication.json is byte-identical to sequence.json (diagram_type \"sequence\"). The current exporter only relabels the sequence IR (json.rs:1660-1669). state.json and use_case.json are duplicates because the server writes both alias names (server.rs:648-652). The manifest references no .mmd files. statemachine, callgraph and robdd .mmd are empty headers or comments, against 11, 7 and 5 nodes in JSON. class.json has 0 edges and 5 duplicate ids, and graph-loader.js does not de-duplicate.",
+  "impact": "Only 13 distinct UML diagrams back the 14-diagram claim, and the JSON and Mermaid outputs disagree. Cytoscape requires unique element ids, so the class view can break or lose nodes.",
+  "recommendation": "Give the communication diagram its own IR. Write one canonical file name per type. List .mmd files in the manifest or delete them. Add CI checks for unique ids, a non-empty class edge set, and matching node counts across formats.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-14",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "medium",
+  "title": "14% of the web JavaScript is dead legacy UI code",
+  "files": [
+   "web/app.js",
+   "web/js/ui.js",
+   "web/js/viewer.js",
+   "web/js/api.js",
+   "web/js/orb.js",
+   "web/js/state.js",
+   "web/js/logger.js",
+   "web/js/themes/theme-manager.js"
+  ],
+  "evidence": "Following imports from the inline module in index.html (index.html:408) reaches 14 of the 21 JS files. The unreachable ones are app.js, api.js, logger.js, orb.js, state.js, ui.js and viewer.js: 1,291 of 9,035 lines. index.html never loads app.js. ui.js looks up 45 element ids that index.html does not have (e.g. #orb-canvas at ui.js:46). 17 exports are never imported. theme-manager.js:8 holds a hand-copied DEFAULT_MANIFEST.",
+  "impact": "Contributors and reviewers spend time on code that never runs, and the embedded manifest copy will drift from manifest.json.",
+  "recommendation": "Delete the legacy modules or wire them in. Add ESLint with import/no-unused-modules to CI. Generate the fallback manifest at build time or drop it.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-15",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "The web studio uses a separate regex extractor capped at 80 files",
+  "files": [
+   "web/js/github-engine.js",
+   "README.md",
+   "src/main.rs",
+   "src/adapters/server.rs"
+  ],
+  "evidence": "The GitHub Pages studio finds classes with a regex (github-engine.js:291), falls back to classes derived from file names (:383-392), and parses only the first 80 files (:199-200). README.md:57 calls this client-side AST parsing. The CLI scans only .java/.kt/.kts files and does not exclude tests (main.rs:76-99). The server, which every script uses, accepts about 60 extensions and skips tests (server.rs:790-884).",
+  "impact": "What most users see is not produced by the engine being benchmarked, and results differ by entry point. Any number given without naming the entry point is ambiguous.",
+  "recommendation": "Benchmark the browser extractor, the CLI and the server as separate systems, and record each one's input-selection rules in every result. Disclose the 80-file cap in the UI. Longer term, compile the Rust engine to WASM so a single extractor serves every entry point.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "SCALE-18",
+  "kind": "flaw",
+  "category": "claims-vs-reality",
+  "severity": "medium",
+  "title": "Web studio's in-browser ingestion samples 30–80 files sequentially and reports them as the whole repo",
+  "files": [
+   "web/js/github-engine.js",
+   "web/js/graph-canvas.js",
+   "web/js/uml-layout.js",
+   "README.md"
+  ],
+  "evidence": "web/js/github-engine.js:103 takes sourceFiles.slice(0, 30) (local folders: slice(0, 80) at line 200) and fetches them one at a time with await (112). It then reports files_processed: sourceFiles.length (161, 253) and a hard-coded execution_time_ms: 280 (164). The api.github.com calls (54, 71) are unauthenticated, so they hit the 60-requests-per-hour limit, and the truncated flag of the recursive=1 tree is ignored. graph-canvas.js:681-684 disables textureOnViewport and hideEdgesOnViewport. uml-layout.js:373,382 runs nodes.find per component and a queue.shift BFS, O(N²) in the worst case.",
+  "impact": "For a 1M-LOC repo the browser analyzes under 1% of the files while reporting all of them, and large graphs render without any level of detail.",
+  "recommendation": "Ship the Rust engine as WASM in a Web Worker, using web-tree-sitter grammars. Fetch a single codeload tarball, stream-decompress it with fflate, cache it in OPFS, and report true counts and timings. For large graphs, add package-collapsed level of detail, worker-side ELK.js layout, and Cytoscape's viewport texture and edge hiding, or switch to a WebGL renderer such as sigma.js above 10K nodes.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SCPG-16",
+  "kind": "flaw",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "No large-graph strategy: arbitrary first-N truncation and single giant diagrams that exceed renderer limits",
+  "files": [
+   "src/scpg/diagram/export/plantuml.rs:925-929",
+   "src/scpg/diagram/export/plantuml.rs:958",
+   "src/scpg/diagram/export/plantuml.rs:1033-1067",
+   "src/scpg/diagram/export/mermaid.rs:1457-1459",
+   "src/scpg/diagram/export/mermaid.rs:1584-1589",
+   "src/scpg/diagram/export/json.rs:1358",
+   "web/diagrams/sequence.puml",
+   "web/diagrams/robdd.mmd"
+  ],
+  "evidence": "Views silently keep the first N UMA records: `take(6)` classes × `take(3)` methods for use cases, `take(6)` activities, `take(2)` for ROBDD, `take(12)` objects. The shipped robdd.mmd and callgraph.mmd are empty because the first classes are enums. The sequence exporter puts every scenario in one diagram. The shipped sequence.puml is 110 KB with 699 calls and 699 returns, well beyond PlantUML's default 4096 px limit. Mermaid's maxTextSize (50,000) and maxEdges (500) defaults are ignored.",
+  "impact": "On real repositories, diagrams come out arbitrarily partial, empty or cropped, or the renderer refuses them.",
+  "recommendation": "Add view scoping (focus symbol, package or entry method plus a depth), deterministic size budgets with degree or PageRank ranking, package collapsing or Louvain clustering, one diagram per scenario with `newpage`, renderer-limit checks, and the ELK layout. Done means the examples/ projects produce bounded, renderable diagrams along with a list of omitted elements.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "SRV-12",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "No security headers on server responses; Pages app loads CDN scripts without SRI or CSP",
+  "files": [
+   "src/adapters/server.rs:302-334",
+   "web/index.html:29-34"
+  ],
+  "evidence": "`serve_file`/`respond_json` emit only Content-Type, Content-Length and CORS headers (server.rs:305-333) — no `X-Content-Type-Options: nosniff`, `Content-Security-Policy`, `X-Frame-Options`, or `Referrer-Policy`. index.html pulls five third-party scripts (cytoscape, dagre, cytoscape-dagre, cytoscape-svg, jszip) from cdnjs/jsdelivr with no `integrity`/`crossorigin` attributes (index.html:29-34) and the page defines no CSP meta (confirmed none).",
+  "impact": "MIME-sniffing and clickjacking exposure on the local server; on the public GitHub Pages studio, a compromised or MITM'd CDN can execute arbitrary JS in users' browsers with no subresource-integrity backstop.",
+  "recommendation": "Add `X-Content-Type-Options: nosniff` and a restrictive CSP to all server responses (tower-http `SetResponseHeaderLayer`). On the web app, pin each CDN `<script>` with an `integrity=\"sha384-…\"` SRI hash and `crossorigin=\"anonymous\"`, or vendor the libraries locally, and add a `<meta http-equiv=\"Content-Security-Policy\">` restricting script/connect sources (allowing api.github.com and kroki.io).",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-09",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "medium",
+  "title": "Render-blocking CDN scripts without SRI or CSP; unused libraries shipped",
+  "files": [
+   "web/index.html:29-34",
+   "web/index.html:20-22",
+   "web/index.html:6-8",
+   "web/index.html:408"
+  ],
+  "evidence": "Five synchronous third-party scripts in <head> have no integrity or crossorigin attributes (index.html:29-34): cytoscape 3.26.0 from cdnjs; dagre 0.8.5, cytoscape-dagre 2.5.0 and cytoscape-svg 0.2.0 from jsDelivr; and jszip 3.10.1 from cdnjs. dagre and cytoscape-dagre are never used, because only the 'preset' layout is called. There is no Content-Security-Policy, and the roughly 1,100-line inline module (index.html:408) rules out a strict script-src. Google Fonts adds another third party (:20-22). The http-equiv Cache-Control and Pragma tags (:6-8) are ignored by browsers.",
+  "impact": "A compromised CDN runs arbitrary code on the origin. A blocked CDN leaves 'cytoscape is not defined' and a dead app with no offline mode. Nothing mitigates the XSS in WEB-01.",
+  "recommendation": "Bundle with Vite or esbuild: content-hashed, self-hosted vendor code, with fonts via @fontsource. Failing that, at least add SRI hashes and crossorigin. Remove dagre and cytoscape-dagre. Externalise the inline module and add a CSP meta tag: default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: blob:. Upgrade cytoscape to the current 3.3x release.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-10",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "No Graph-IR validation; the bundled landing IR is internally inconsistent",
+  "files": [
+   "web/js/graph-canvas.js:1383-1393",
+   "web/js/graph-loader.js:26-37",
+   "web/js/graph-canvas.js:1367-1371",
+   "web/diagrams/class.json:194",
+   "web/diagrams/class.json:1874"
+  ],
+  "evidence": "loadDiagramState passes `savedState.elements` straight to cytoscape (graph-canvas.js:1383-1393). loadGraphIrToCytoscape trusts ids and parents (graph-loader.js:26-37). The version and $schema fields are written but never checked (graph-canvas.js:1367-1371). The deployed landing web/diagrams/class.json has 120 nodes with 5 duplicate ids (ScreenType, RawRequirementFeatures, CurrentState, IDAssigner, Module; ScreenType appears at lines 194 and 1874) and zero edges, yet its metadata says `verified: true`. communication.json is byte-identical to sequence.json, and state.json to statemachine.json.",
+  "impact": "cytoscape rejects or drops duplicate ids, and edges attach to the wrong node. Users see a class diagram with no relationships badged as verified, and a 'communication' view that is just the sequence data.",
+  "recommendation": "Define a JSON Schema for the Graph IR and for state files. Validate every load with Ajv (or Zod), checking for unique ids, dangling edges and parents, and parent cycles, and show diagnostics instead of rendering bad data. Check the version field and migrate old files. Add a CI step that validates web/diagrams/* and fails on duplicate ids or identical projections.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-11",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "medium",
+  "title": "Undo/redo, edge filters and selection state are inconsistent",
+  "files": [
+   "web/js/graph-canvas.js:2363-2380",
+   "web/js/graph-canvas.js:698-703",
+   "web/js/graph-canvas.js:1406-1411",
+   "web/js/graph-canvas.js:787",
+   "web/js/graph-canvas.js:2146",
+   "web/js/graph-canvas.js:1205",
+   "web/js/graph-canvas.js:1248",
+   "web/index.html:649"
+  ],
+  "evidence": "When a selected package is deleted, cytoscape's remove() also removes its descendants, but undo only replays `validTargets.union(validTargets.connectedEdges()).jsons()` (graph-canvas.js:2363-2380), so the children never come back. Loading a state file renders with preservePositions, which skips clearing history (:698-703), so old actions replay against the new diagram. hiddenEdgeKinds is never re-applied after a render or load (:1406-1411), and the `edge.layer-hidden` style is never used, so unchecked edge kinds stay visible. Selectors are built by string interpolation (:787, :2146), so a quote in an id throws. selectedNode is never cleared, so Backspace on a focused button deletes a node and arrow-key panning stops (:1205, :1248). The inspector headline shows the stereotype instead of the name (index.html:649).",
+  "impact": "Undo can permanently lose diagram content, and the filter checkboxes and selection misreport what the canvas shows.",
+  "recommendation": "Implement commands over a document model (immer patches or the Yjs UndoManager) that capture descendants() and every connected edge. Clear history on every load. Re-apply filters with class toggles after each render. Replace string-built selectors with `cy.edges().filter(e => e.data('uml_kind') === k)`. Clear the selection on background taps, bind Delete only while the canvas has focus, and take the headline from data.name.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "WEB-12",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "medium",
+  "title": "Code viewer corrupts its own highlighting and fires request storms for missing sources",
+  "files": [
+   "web/js/editor.js:575-582",
+   "web/js/editor.js:523-558",
+   "web/js/editor.js:174-207",
+   "web/js/editor.js:139-225",
+   "web/js/editor.js:146-150"
+  ],
+  "evidence": "highlightSyntax first inserts `<span class=\"syn-string\">`, then its keyword pass matches the word `class` inside that inserted markup (editor.js:575-582). Running the real method, `@Override` becomes `<span <span class=\"syn-keyword\">class</span>=\"syn-annotation\">`, so every line containing a string or annotation shows the literal text `=\"syn-string\">`. render() rebuilds the whole file as DOM on every gutter click and theme change, with one listener per line (:523-558). For an uncached file, loadFile tries raw_url, then /api/source, then up to 21 sequential `examples/...` guesses (:174-207), none of which exist on Pages. Nothing stops a stale response from overwriting a newer one (:139-225).",
+  "impact": "Nearly every real Java or Kotlin file displays junk text, large files stall the panel, and each click on an uncached node costs about 22 round trips and can show the wrong file.",
+  "recommendation": "Use a read-only CodeMirror 6 view (virtualized viewport, Lezer Java/Kotlin grammars, search, folding), or a single-pass tokenizer that escapes each token, as Shiki and Prism do. Resolve sources only from the IR's raw_url and file maps. Cancel superseded loads with an AbortController plus a request id. Add snapshot tests for highlighting.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-13",
+  "kind": "flaw",
+  "category": "robustness",
+  "severity": "medium",
+  "title": "GitHub ingestion ignores rate limits, truncation, slashed branches and sub-paths",
+  "files": [
+   "web/js/github-engine.js:54-80",
+   "web/js/github-engine.js:82-84",
+   "web/js/github-engine.js:28-33",
+   "web/js/github-engine.js:48",
+   "web/js/github-engine.js:111",
+   "web/js/github-engine.js:109-125",
+   "web/index.html:1069-1078"
+  ],
+  "evidence": "Every call is unauthenticated, so the 60 requests/hour per-IP limit applies, and one attempt can spend up to 7 API calls trying six branch guesses (github-engine.js:54-80). A 403 rate-limit response is reported as 'Check if the repository is public' (:82-84). The `truncated` flag is never read: a mocked tree with truncated:true was parsed without complaint. A URL ending in tree/feature/login/src is parsed as branch 'feature' with subPath 'login/src' (:28-33), and subPath is never used (:48). Paths go into raw URLs unencoded, so '#', '?' and '%' break them, for example a `C#/` directory (:111). Files are fetched one at a time (:109-125). ZIP and folder imports have no size caps, so a zip bomb inflates entirely in memory (index.html:1069-1078).",
+  "impact": "Users behind shared IPs hit the limit quickly and get a misleading error. Monorepos, slashed branch names and subfolder URLs analyse the wrong files, and a hostile archive can crash the tab.",
+  "recommendation": "Accept an optional fine-grained PAT kept in memory or sessionStorage, never localStorage. Read X-RateLimit-Remaining/Reset and show the reset time. Resolve refs through git/matching-refs. When the tree is truncated, walk subtrees non-recursively. Honour subPath. Encode each path segment with encodeURIComponent. Fetch through a 6-wide pool with an AbortController. Enforce size limits using the tree `size` field and JSZip's uncompressed sizes.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-14",
+  "kind": "flaw",
+  "category": "architecture",
+  "severity": "medium",
+  "title": "State is scattered across globals, storage keys and a DOM text sentinel",
+  "files": [
+   "web/js/state.js:71",
+   "web/index.html:611-636",
+   "web/index.html:980-988",
+   "web/index.html:935",
+   "web/index.html:800",
+   "web/index.html:1137-1145",
+   "web/index.html:425",
+   "web/js/graph-canvas.js:28",
+   "web/js/graph-canvas.js:1356",
+   "web/js/editor.js:17"
+  ],
+  "evidence": "StudioState (state.js) is never loaded. Live state is split across canvas fields, sessionStorage keys (index.html:611-636, 980-988), seven localStorage keys, and the input text ' (Active Codebase)', which doubles as a mode flag (index.html:800, 999, 1006). Local imports are persisted but GitHub imports are not (index.html:935). A reload therefore restores the previous local codebase, and exports and state files keep the old openheart_custom_name (graph-canvas.js:1356). Only the preset chips clear that state (index.html:1137-1145). localStorage is read at startup without try/catch (index.html:425, graph-canvas.js:28, editor.js:17). When site data is blocked those reads throw and the app never initialises.",
+  "impact": "Reloads and exports can show or name the wrong codebase, and users with site storage blocked get a blank studio.",
+  "recommendation": "Introduce one typed store (a vanilla store or Zustand) with an explicit session model {source, ir, files, layout}. Persist it through a single guarded adapter, for example IndexedDB via idb-keyval with try/catch and an in-memory fallback. Drive the UI from store events, delete the text sentinel, and clear derived state atomically on every import.",
+  "effort": "M",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-15",
+  "kind": "flaw",
+  "category": "accessibility",
+  "severity": "medium",
+  "title": "Fails core WCAG 2.2 AA criteria: keyboard, focus, status messages, reflow, shortcuts",
+  "files": [
+   "web/js/file-tree.js:207-277",
+   "web/style.css:191",
+   "web/style.css:939",
+   "web/style.css:565-567",
+   "web/style.css:1882-1897",
+   "web/js/minimap-navigator.js:272-287",
+   "web/js/graph-canvas.js:894-912",
+   "web/js/graph-canvas.js:921-923"
+  ],
+  "evidence": "index.html has 2 aria-labels and no roles or aria-live regions, while progress and errors are innerHTML updates (fails 4.1.3). Graph nodes can be reached only with a mouse, and file-tree rows are click-handled divs with no tabindex or role (file-tree.js:207-277), failing 2.1.1. Focus outlines are removed (style.css:191, 939) and no :focus-visible rule exists (2.4.7). The global single-key shortcuts M, L, Space and Delete cannot be turned off (minimap-navigator.js:272-287), failing 2.1.4, and Alt is suppressed globally (graph-canvas.js:894-912). The fixed 280px/1fr/380px grid uses overflow:hidden and has no breakpoint below 1024 px (style.css:565-567, 1882-1897), failing 1.4.10. There is no prefers-reduced-motion support, and the wheel handler stops the layers list from scrolling (graph-canvas.js:921-923).",
+  "impact": "Keyboard and screen-reader users cannot operate the studio. It is unusable on phones and tablets or at 200-400% zoom, which also blocks institutional adoption.",
+  "recommendation": "Follow the WAI-ARIA Authoring Practices: a tree view with roving tabindex for files, tabs with role=tab and aria-selected, and menu buttons with aria-expanded and Escape handling. Provide an accessible outline of nodes kept in sync with the canvas (Tab and arrow keys to move, Enter to inspect). Add a polite aria-live status region, :focus-visible styles, a shortcut toggle or canvas-focus-only shortcuts, collapsible side panels for narrow screens and a reduced-motion query. Gate with axe-core in Playwright CI.",
+  "effort": "L",
+  "confidence": "high"
+ },
+ {
+  "id": "WEB-16",
+  "kind": "enhancement",
+  "category": "scalability",
+  "severity": "medium",
+  "title": "Rendering has no level-of-detail, spatial index or cache invalidation",
+  "files": [
+   "web/js/graph-loader.js:196-221",
+   "web/js/uml-card-renderer.js:150-153",
+   "web/js/graph-canvas.js:682-684",
+   "web/js/graph-canvas.js:857-889",
+   "web/js/graph-canvas.js:1335-1352",
+   "web/js/graph-canvas.js:2076-2081",
+   "web/js/minimap-navigator.js:617-619",
+   "web/js/minimap-navigator.js:357-411"
+  ],
+  "evidence": "Every node is a unique SVG data-URI background, regenerated on each render (graph-loader.js:196-221, uml-card-renderer.js:150-153). cytoscape runs with textureOnViewport and hideEdgesOnViewport both false (graph-canvas.js:682-684), while the custom rAF zoom loop calls cy.zoom() every frame (:857-889). With pan lock on, a tap scans every node calling style() and boundingBox() (:1335-1352), and every grab snapshots every node's position (:2076-2081). The loupe caches cytoscape's canvases once and never invalidates them (minimap-navigator.js:617-619), so after a re-render it samples detached canvases. The minimap thumbnail is redrawn only on render, not after moves, deletes or collapses (:357-411).",
+  "impact": "Frame time and texture memory grow with node count, so pan and zoom will likely stutter beyond a few thousand cards (not profiled). The loupe and minimap go stale after routine actions.",
+  "recommendation": "Add level-of-detail rendering: plain rectangles and labels below about 0.35 zoom, full cards above. Turn on textureOnViewport and hideEdgesOnViewport above about 1k elements. For 10k+ nodes, evaluate cytoscape's WebGL renderer (3.31 or later) or sigma.js. Use rbush or flatbush for hit tests, and invalidate the loupe and minimap caches on render and position events. Add a Playwright performance suite at 1k, 10k and 50k nodes that tracks frame times.",
+  "effort": "L",
+  "confidence": "medium"
+ },
+ {
+  "id": "WSEC-06",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "low",
+  "title": "No clickjacking / framing protection on the studio page",
+  "files": [
+   "web/index.html",
+   ".github/workflows/deploy_pages.yml"
+  ],
+  "evidence": "There is no CSP frame-ancestors directive and GitHub Pages does not emit X-Frame-Options; the page contains no frame-busting logic. The studio imports local/proprietary source via Folder/ZIP pickers and exposes destructive-looking controls (Delete node, Clear history).",
+  "impact": "The studio can be embedded in a hostile iframe for UI-redress, tricking a user into loading a local codebase or triggering actions while the attacker frames the page.",
+  "recommendation": "Add frame-ancestors 'none' to the WSEC-02 CSP meta (X-Frame-Options cannot be set on Pages); optionally add a top-frame self-check that neutralizes the UI when framed.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "WSEC-08",
+  "kind": "flaw",
+  "category": "correctness",
+  "severity": "low",
+  "title": "Ad-hoc syntax highlighter emits malformed nested HTML on annotations and strings",
+  "files": [
+   "web/js/editor.js"
+  ],
+  "evidence": "highlightSyntax escapes first (good, so not XSS) but then applies independent regex replacements that nest spans incorrectly: for `    @Override` it produces `<span <span class=\"syn-keyword\">class</span>=\"syn-annotation\">@Override</span>` because the keyword regex rewrites the word `class` inside the annotation span's own attribute (editor.js:560-591). String/keyword/type passes can also overlap and corrupt markup.",
+  "impact": "Broken DOM in the code viewer for common tokens (annotations, lines containing keyword-like words), degrading the flagship code-sync feature and signalling that DIY escaping/markup here is fragile.",
+  "recommendation": "Replace the hand-rolled highlighter with a maintained, escaping-correct library such as highlight.js or Prism (or tokenize once and emit spans from non-overlapping token spans), so highlighting cannot produce malformed or overlapping markup.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-18",
+  "kind": "flaw",
+  "category": "security",
+  "severity": "low",
+  "title": "CDN scripts load without Subresource Integrity",
+  "files": [
+   "web/index.html"
+  ],
+  "evidence": "index.html:29-34 loads cytoscape 3.26.0, dagre 0.8.5, cytoscape-dagre 2.5.0, cytoscape-svg 0.2.0 and jszip 3.10.1 from cdnjs and jsdelivr with no integrity attributes. The only crossorigin attribute is on the fonts preconnect at index.html:21.",
+  "impact": "If one of those CDN paths is compromised, it can run arbitrary script on the published Studio site.",
+  "recommendation": "Add integrity hashes and crossorigin=\"anonymous\", or vendor the libraries into web/vendor.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-19",
+  "kind": "flaw",
+  "category": "documentation",
+  "severity": "low",
+  "title": "Broken relative links and duplicated HTML docs",
+  "files": [
+   "SUPPORT.md",
+   "examples/README.md",
+   "docs/ast/phase2_bp_architecture.html",
+   "web/docs/phase2_bp_architecture.html"
+  ],
+  "evidence": "Across 32 Markdown files with 81 links (49 relative), 3 are broken. SUPPORT.md:32 points to ../README.md, outside the repo. SUPPORT.md:36 points to CONTRIBUTING.md, but the file is docs/contributing.md. examples/README.md:12 points to ./sample_project/, which does not exist. No heading anchors are broken. Five HTML docs are byte-identical copies in docs/ and web/docs/.",
+  "impact": "New users hit dead links, and the duplicated docs will drift apart.",
+  "recommendation": "Fix the three links. Add a link checker such as lychee to CI. Generate web/docs from docs/ during the Pages deploy.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "AUTO-20",
+  "kind": "flaw",
+  "category": "maintainability",
+  "severity": "low",
+  "title": "Hardcoded developer paths, ports and personal URLs",
+  "files": [
+   "src/adapters/server.rs",
+   "src/adapters/web_repo.rs",
+   "ruthless_verify.py",
+   "scripts/benchmark_all_java_design_patterns.py",
+   "scripts/test_ruthless_popular_datasets.py",
+   "scripts/generate_diagrams.py",
+   "web/index.html"
+  ],
+  "evidence": "server.rs:118-195 probes a fixed list that includes ./target_repos/FractalAndroid (124), and target_repos is hardcoded again at 211 and 399-470. Scripts expect untracked datasets (benchmark_all_java_design_patterns.py:28; test_ruthless_popular_datasets.py:83, 190, 236; test_authored_design_patterns.py:129). localhost:8080 is fixed in generate_diagrams.py:8 and ruthless_verify.py:17. Personal repo URLs appear at web_repo.rs:128 and index.html:107. The FractalAndroid owner differs between index.html:1153 and test_diagrams_outputs_refresh.py:143.",
+  "impact": "Behavior depends on the author's disk layout, so results cannot be reproduced on another machine.",
+  "recommendation": "Move paths and ports into CLI flags or environment variables. Add a datasets manifest with pinned commit SHAs. Keep personal URLs to README and docs.",
+  "effort": "S",
+  "confidence": "high"
+ },
+ {
+  "id": "BENCH-19",
+  "kind": "flaw",
+  "category": "ux",
+  "severity": "low",
+  "title": "The layouts' 'zero overlap' guarantees are never measured",
+  "files": [
+   "web/js/uml-layout.js",
+   "web/js/graph-canvas.js"
+  ],
+  "evidence": "web/js/uml-layout.js:4 says 'Guarantees zero overlapping', and web/js/graph-canvas.js:8 promises a '100% Collision-Free Guarantee'. No test or script measures overlaps, crossings or bends.",
+  "impact": "Layout quality is a key user-facing output, yet nothing protects it against regressions and the guarantee cannot be checked.",
+  "recommendation": "Add suite S12: extract node and edge geometry in a headless browser, gate overlap count at 0, and measure crossings, bends, area, aspect ratio and determinism. Compare against Graphviz dot and ELK Layered on identical graphs.",
+  "effort": "M",
+  "confidence": "medium"
+ },
+ {
+  "id": "WSEC-07",
+  "kind": "enhancement",
+  "category": "security",
+  "severity": "low",
+  "title": "Systemic unsafe innerHTML string-templating pattern across the studio",
+  "files": [
+   "web/index.html",
+   "web/js/minimap-navigator.js"
+  ],
+  "evidence": "Beyond the untrusted sinks, ~30 innerHTML assignments build HTML by template string (e.g. index.html:435,446,682,735,803,833,846,898,926,1257,1388; minimap-navigator.js:81,118,297,330). Most are currently fed trusted data, but the uniform pattern means any future data-source change silently becomes an injection, and colors are interpolated into inline style attributes without validation.",
+  "impact": "Fragile, error-prone escaping that invites regressions; contradicts the OWASP DOM XSS guidance to prefer safe sink APIs over string concatenation.",
+  "recommendation": "Introduce a tiny DOM helper (createElement + textContent, or a tagged-template that auto-escapes) and convert sinks to it; enable Trusted Types so raw innerHTML with a string throws, forcing use of the sanitized path. Reserve innerHTML strictly for static, developer-authored constants.",
+  "effort": "M",
+  "confidence": "medium"
+ }
+]

@@ -1,8 +1,10 @@
 //! Do-While Loop CFG builder algorithm.
 
 use crate::ast::BPASTArtifact;
-use crate::cfg::builder::state::CFGBuilderState;
+use crate::cfg::ast_query::children;
+use crate::cfg::builder::state::{CFGBuilderState, FrameKind};
 use crate::cfg::stmts::dispatch_stmt;
+use crate::cfg::stmts::expr::build_branch;
 use crate::core::types::cfg::CFGEdgeType;
 use crate::symbol::SymbolTableArtifact;
 
@@ -12,35 +14,38 @@ pub fn build_do_while(
     bpa: &BPASTArtifact,
     sta: &SymbolTableArtifact,
 ) {
-    let body_node = match bpa.first_child(node) {
-        Some(b) => b,
-        None => return,
-    };
-    let cond_node = match bpa.next_sibling(body_node) {
-        Some(c) => c,
-        None => return,
-    };
+    let labels = state.take_labels();
+    let kids = children(bpa, node);
+    // The condition is always the last child; an empty `do ; while (c);` body is
+    // dropped by Phase 2.
+    let cond = kids.last().copied();
+    let body = if kids.len() >= 2 { Some(kids[0]) } else { None };
 
     let body_entry = state.new_block();
-    state.flush_pending(body_entry);
+    state.goto(body_entry, CFGEdgeType::Uncond);
 
     let cond_block = state.new_block();
     let exit = state.new_block();
 
-    state.push_break(exit, None);
-    state.push_continue(cond_block, None);
+    state.push_frame(
+        FrameKind::Loop {
+            break_target: exit,
+            continue_target: cond_block,
+            continue_edge: CFGEdgeType::Uncond,
+        },
+        labels,
+    );
 
-    state.current_block = body_entry;
-    dispatch_stmt(body_node, state, bpa, sta);
+    if let Some(b) = body {
+        dispatch_stmt(b, state, bpa, sta);
+    }
+    state.goto(cond_block, CFGEdgeType::Uncond);
+    state.pop_frame();
 
-    state.flush_pending(cond_block);
-    state.add_stmt_to_block(cond_block, cond_node, bpa);
-
-    state.pop_continue();
-    state.pop_break();
-
-    state.add_edge(cond_block, body_entry, CFGEdgeType::LoopBack);
-    state.add_edge(cond_block, exit, CFGEdgeType::False);
+    match cond {
+        Some(c) => build_branch(c, body_entry, exit, CFGEdgeType::LoopBack, state, bpa, sta),
+        None => state.add_edge(cond_block, body_entry, CFGEdgeType::LoopBack),
+    }
 
     state.current_block = exit;
 }

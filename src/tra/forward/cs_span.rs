@@ -29,35 +29,30 @@ impl CallSiteSpanIndex {
                 first_token_id: entry.call_token,
                 call_site_id: cs_idx as u32,
                 file_id,
-                line_start: line_start as u16,
+                line_start,
             });
         }
 
-        records.sort_unstable_by_key(|r| (r.file_id, r.first_token_id));
+        records.sort_unstable_by_key(|r| (r.file_id, r.first_token_id, r.call_site_id));
         records
     }
 
     /// O(log N + k) forward query: returns all call_site_ids at token_id in file_id.
+    ///
+    /// Records are sorted by `(file_id, first_token_id)`, so the matches form one contiguous
+    /// run found by two binary searches.
     pub fn forward_cs_query(
         token_id: u32,
         file_id: u16,
         records: &[CallSiteSpanRecord],
     ) -> Vec<u32> {
+        let lower =
+            records.partition_point(|r| (r.file_id, r.first_token_id) < (file_id, token_id));
         let upper =
             records.partition_point(|r| (r.file_id, r.first_token_id) <= (file_id, token_id));
-
-        let mut results = Vec::new();
-        let mut i = upper;
-        while i > 0 {
-            i -= 1;
-            let r = &records[i];
-            if r.file_id != file_id {
-                break;
-            }
-            if r.first_token_id == token_id {
-                results.push(r.call_site_id);
-            }
-        }
-        results
+        records[lower..upper]
+            .iter()
+            .map(|r| r.call_site_id)
+            .collect()
     }
 }
