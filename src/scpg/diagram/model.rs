@@ -333,7 +333,11 @@ impl NodeKind {
     pub fn is_container(&self) -> bool {
         matches!(
             self,
-            Self::Package | Self::Group | Self::StructuredClass | Self::ExecutionNode | Self::Subject
+            Self::Package
+                | Self::Group
+                | Self::StructuredClass
+                | Self::ExecutionNode
+                | Self::Subject
         )
     }
 
@@ -466,7 +470,11 @@ impl EdgeKind {
             | Self::Association
             | Self::Connector
             | Self::CommunicationPath => 2,
-            Self::Call | Self::ControlDependence | Self::DataUse | Self::DataDef | Self::Include => 3,
+            Self::Call
+            | Self::ControlDependence
+            | Self::DataUse
+            | Self::DataDef
+            | Self::Include => 3,
             Self::PhiArgument
             | Self::Provides
             | Self::Requires
@@ -786,16 +794,23 @@ pub enum InteractionEvent {
         deactivates: bool,
     },
     /// Closes an activation that has no reply message (end of a truncated scenario).
-    Deactivate { lifeline: String },
+    Deactivate {
+        lifeline: String,
+    },
     FragmentStart {
         kind: FragmentKind,
         guard: Option<String>,
     },
     /// Starts the next operand of the innermost open fragment (`else` of an `alt`, `and`
     /// of a `par`).
-    FragmentElse { guard: Option<String> },
+    FragmentElse {
+        guard: Option<String>,
+    },
     FragmentEnd,
-    Note { over: String, text: String },
+    Note {
+        over: String,
+        text: String,
+    },
 }
 
 /// An ordered interaction: one sequence diagram page.
@@ -1116,7 +1131,10 @@ impl ViewModel {
         self.reindex();
         if self.omitted_overflow > 0 {
             let overflow = self.omitted_overflow;
-            self.note(format!("{} further omitted element(s) are not listed.", overflow));
+            self.note(format!(
+                "{} further omitted element(s) are not listed.",
+                overflow
+            ));
         }
     }
 
@@ -1160,7 +1178,10 @@ impl ViewModel {
         for node in &self.nodes {
             if let Some(p) = node.parent.as_deref() {
                 if !keys.contains(p) {
-                    failures.push(format!("node '{}' parent '{}' does not resolve", node.key, p));
+                    failures.push(format!(
+                        "node '{}' parent '{}' does not resolve",
+                        node.key, p
+                    ));
                     continue;
                 }
             }
@@ -1169,7 +1190,10 @@ impl ViewModel {
             while let Some(p) = curr {
                 steps += 1;
                 if p == node.key || steps > self.nodes.len() {
-                    failures.push(format!("node '{}' is part of a containment cycle", node.key));
+                    failures.push(format!(
+                        "node '{}' is part of a containment cycle",
+                        node.key
+                    ));
                     break;
                 }
                 curr = parents.get(p).copied().flatten();

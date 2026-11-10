@@ -80,7 +80,12 @@ impl Phase10Stage {
         log_info("══► Starting Stage: Phase 10: SCPG Unified Binary & Engine Bootstrap...");
 
         let (snapshot, encoded) = ScpgSnapshot::build(tca, bpa, sta, cfa, ssa, cga, tra, uma, psa);
-        let report = SCPGSerializer::write_encoded(&encoded, snapshot.source_hash, language_count(tca), out_path)?;
+        let report = SCPGSerializer::write_encoded(
+            &encoded,
+            snapshot.source_hash,
+            language_count(tca),
+            out_path,
+        )?;
 
         let stats = snapshot.stats();
         log_info(&format!(
@@ -125,7 +130,9 @@ impl Phase10Stage {
         uma: &UMLMetadataArtifact,
         psa: &PathSummaryArtifact,
     ) -> IoResult<OpenHeartEngine> {
-        log_info("══► Starting Stage: Phase 10: SCPG Unified Binary & Engine Bootstrap (in memory)...");
+        log_info(
+            "══► Starting Stage: Phase 10: SCPG Unified Binary & Engine Bootstrap (in memory)...",
+        );
 
         let (snapshot, encoded) = ScpgSnapshot::build(tca, bpa, sta, cfa, ssa, cga, tra, uma, psa);
         let bytes = SCPGSerializer::encode(&encoded, snapshot.source_hash, language_count(tca))?;
@@ -146,8 +153,11 @@ impl Phase10Stage {
             stats.symbols, stats.call_edges, stats.sdg_nodes, stats.sdg_edges, stats.navigable_entities, stats.path_summaries
         ));
 
-        let engine =
-            OpenHeartEngine::from_parts(Arc::new(snapshot), DEFAULT_CACHE_CAPACITY, Some(Arc::new(image)));
+        let engine = OpenHeartEngine::from_parts(
+            Arc::new(snapshot),
+            DEFAULT_CACHE_CAPACITY,
+            Some(Arc::new(image)),
+        );
 
         log_info("Phase 10 Complete: OpenHeartEngine bootstrapped over the in-memory snapshot.");
 

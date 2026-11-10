@@ -172,7 +172,10 @@ impl Phase4Stage {
         let mut diagnostics = 0usize;
         for (job, result) in jobs.iter().zip(results) {
             let cfg_data = result.map_err(|e| {
-                format!("CFG construction failed for function sym {}: {}", job.sym_id, e)
+                format!(
+                    "CFG construction failed for function sym {}: {}",
+                    job.sym_id, e
+                )
             })?;
             Self::verify_function_invariants(&cfg_data)?;
             diagnostics += cfg_data.diagnostics.len();
@@ -210,7 +213,12 @@ impl Phase4Stage {
     fn verify_function_invariants(cfg: &FunctionCFGData) -> Result<(), String> {
         // ── Invariant 1: Unique EXIT ──
         let exit_count = cfg.blocks.iter().filter(|b| b.is_exit).count();
-        if exit_count != 1 || !cfg.blocks.get(cfg.exit_block as usize).is_some_and(|b| b.is_exit) {
+        if exit_count != 1
+            || !cfg
+                .blocks
+                .get(cfg.exit_block as usize)
+                .is_some_and(|b| b.is_exit)
+        {
             return Err(format!(
                 "Invariant 1 Violation (Unique EXIT): Function sym {} has {} exit blocks (expected 1 at block {})",
                 cfg.sym_id, exit_count, cfg.exit_block

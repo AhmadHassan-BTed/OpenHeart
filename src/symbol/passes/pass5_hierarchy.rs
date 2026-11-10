@@ -126,7 +126,11 @@ impl Pass5Hierarchy {
                             "{:?} names a supertype of kind {:?} in a clause that requires {}",
                             kind,
                             target_kind,
-                            if expects_interface { "an interface" } else { "a class" }
+                            if expects_interface {
+                                "an interface"
+                            } else {
+                                "a class"
+                            }
                         ),
                     );
                 }
@@ -149,7 +153,10 @@ impl Pass5Hierarchy {
             };
             if new_tok == u32::MAX {
                 // Constant-specific class body: an anonymous subclass of the enum (JLS 8.9.1).
-                let enum_sym = builder.symbol(parent).map(|c| c.type_id).unwrap_or(u32::MAX);
+                let enum_sym = builder
+                    .symbol(parent)
+                    .map(|c| c.type_id)
+                    .unwrap_or(u32::MAX);
                 if builder.symbol_kind(enum_sym) == Some(SymbolKind::SK_ENUM) {
                     builder.add_th_edge(anon, enum_sym, THRelation::TH_EXTENDS);
                     let tr = builder.add_type_ref(crate::symbol::model::TypeRef {
@@ -196,7 +203,10 @@ impl Pass5Hierarchy {
         let lexical = builder.lexical_supertypes.clone();
         for ls in lexical {
             let scope = match builder.owned_scope(ls.sub) {
-                u32::MAX => builder.symbol(ls.sub).map(|s| s.scope_id).unwrap_or(u32::MAX),
+                u32::MAX => builder
+                    .symbol(ls.sub)
+                    .map(|s| s.scope_id)
+                    .unwrap_or(u32::MAX),
                 s => s,
             };
             let tr = lowering.lower_span(builder, scope, ls.first, ls.last, ls.dialect, true);

@@ -140,10 +140,15 @@ impl TraceabilityArtifactBuilder {
                 unsourced
             ));
         }
-        if let Some(bad) = tra.bi_blk.iter().position(|e| {
-            e.first_token_id != NO_SOURCE_TOKEN && e.last_token_id < e.first_token_id
-        }) {
-            violations.push(format!("Invariant 1: BI_blk[{}] has an inverted token range", bad));
+        if let Some(bad) = tra
+            .bi_blk
+            .iter()
+            .position(|e| e.first_token_id != NO_SOURCE_TOKEN && e.last_token_id < e.first_token_id)
+        {
+            violations.push(format!(
+                "Invariant 1: BI_blk[{}] has an inverted token range",
+                bad
+            ));
         }
 
         // Invariant 2.
@@ -166,7 +171,9 @@ impl TraceabilityArtifactBuilder {
         }
 
         // Table consistency.
-        if tra.bi_sym.len() != n_syms || tra.entities.len() != n_syms || tra.uml_slots.len() != n_syms
+        if tra.bi_sym.len() != n_syms
+            || tra.entities.len() != n_syms
+            || tra.uml_slots.len() != n_syms
         {
             violations.push(format!(
                 "per-symbol tables disagree: {} symbols, {} BI_sym, {} entities, {} UML slots",

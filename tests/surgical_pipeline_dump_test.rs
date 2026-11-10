@@ -594,10 +594,21 @@ public class Dog extends Animal {
     }
     println!("  [PASS] All call site call_node values are valid AST pre-order indices");
 
+    // `method_count` is the size of the symbol id space; SCCs cover only the call-graph
+    // nodes (see src/cg/mod.rs), each exactly once.
     let scc_total: usize = cga.sccs.iter().map(|s| s.member_count as usize).sum();
-    assert_eq!(scc_total, cga.method_count as usize);
+    assert_eq!(scc_total, cga.scc_members.len());
+    let mut members = cga.scc_members.clone();
+    members.sort_unstable();
+    members.dedup();
+    assert_eq!(
+        members.len(),
+        cga.scc_members.len(),
+        "a call-graph node is in two SCCs"
+    );
+    assert!(members.iter().all(|&m| m < cga.method_count));
     println!(
-        "  [PASS] SCC total members ({}) == method_count ({})",
+        "  [PASS] SCCs cover {} call-graph nodes exactly once (symbol id space {})",
         scc_total, cga.method_count
     );
 

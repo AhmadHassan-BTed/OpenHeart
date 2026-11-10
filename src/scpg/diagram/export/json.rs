@@ -229,10 +229,17 @@ impl JSONExporter {
     /// Converts a finalized view model to Graph IR.
     pub fn from_model(model: &ViewModel, input_digest: &str) -> GraphIR {
         let checks = model.validate();
-        let nodes: Vec<GraphNodeIR> = model.nodes.iter().map(|n| Self::node_ir(model, n)).collect();
+        let nodes: Vec<GraphNodeIR> = model
+            .nodes
+            .iter()
+            .map(|n| Self::node_ir(model, n))
+            .collect();
         let edges: Vec<GraphEdgeIR> = model.edges.iter().map(Self::edge_ir).collect();
-        let interactions: Vec<InteractionIR> =
-            model.interactions.iter().map(Self::interaction_ir).collect();
+        let interactions: Vec<InteractionIR> = model
+            .interactions
+            .iter()
+            .map(Self::interaction_ir)
+            .collect();
         let content_hash = Self::content_hash(&nodes, &edges, &interactions);
         GraphIR {
             schema_version: GRAPH_IR_SCHEMA_VERSION.to_string(),
@@ -549,7 +556,10 @@ impl JSONExporter {
         });
         let provenance = serde_json::json!({ "enum": ["derived", "heuristic", "unavailable"] });
         let diagram_types: Vec<&str> = ViewKind::ALL.iter().map(|k| k.json_type()).collect();
-        let schema_id = format!("https://openheart.dev/schema/{}.json", GRAPH_IR_SCHEMA_VERSION);
+        let schema_id = format!(
+            "https://openheart.dev/schema/{}.json",
+            GRAPH_IR_SCHEMA_VERSION
+        );
         serde_json::json!({
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$id": schema_id,

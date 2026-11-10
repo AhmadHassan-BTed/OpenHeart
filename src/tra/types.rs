@@ -289,7 +289,8 @@ impl TraceabilityArtifact {
             return None;
         }
         let start = r.first_block as usize;
-        self.bi_blk.get(start..start.checked_add(r.block_count as usize)?)
+        self.bi_blk
+            .get(start..start.checked_add(r.block_count as usize)?)
     }
 
     /// The SSA backward entries of function `sym_id`, indexed by `ssa_id`.
@@ -299,7 +300,8 @@ impl TraceabilityArtifact {
             return None;
         }
         let start = r.first_ssa as usize;
-        self.bi_ssa.get(start..start.checked_add(r.ssa_count as usize)?)
+        self.bi_ssa
+            .get(start..start.checked_add(r.ssa_count as usize)?)
     }
 
     /// The entity record (stable key, content digest, location) of `sym_id`.

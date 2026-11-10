@@ -183,7 +183,8 @@ impl SymbolIndex {
             def_nodes.push(rec.def_node);
             first_tokens.push(rec.first_token_id);
             last_tokens.push(rec.last_token_id);
-            raw_names.push(String::from_utf8_lossy(tca.interner.lookup_text(rec.name_id)).into_owned());
+            raw_names
+                .push(String::from_utf8_lossy(tca.interner.lookup_text(rec.name_id)).into_owned());
         }
 
         let qualified = compute_qualified_names(sta, &raw_names, &parents);
@@ -221,8 +222,16 @@ impl SymbolIndex {
 
     /// Installs per-symbol signature/body fingerprints (computed by the snapshot builder).
     pub fn set_fingerprints(&mut self, signature_fps: Vec<u64>, body_fps: Vec<u64>) {
-        assert_eq!(signature_fps.len(), self.len(), "signature fingerprint count mismatch");
-        assert_eq!(body_fps.len(), self.len(), "body fingerprint count mismatch");
+        assert_eq!(
+            signature_fps.len(),
+            self.len(),
+            "signature fingerprint count mismatch"
+        );
+        assert_eq!(
+            body_fps.len(),
+            self.len(),
+            "body fingerprint count mismatch"
+        );
         self.signature_fps = signature_fps;
         self.body_fps = body_fps;
     }
@@ -360,7 +369,9 @@ impl SymbolIndex {
     }
 
     pub fn has_modifier(&self, sym_id: u32, flag: u16) -> bool {
-        self.modifiers(sym_id).map(|m| m & flag != 0).unwrap_or(false)
+        self.modifiers(sym_id)
+            .map(|m| m & flag != 0)
+            .unwrap_or(false)
     }
 
     pub fn is_private(&self, sym_id: u32) -> bool {
@@ -393,7 +404,9 @@ impl SymbolIndex {
     }
 
     pub fn by_name(&self, name: &str) -> &[u32] {
-        equal_range(&self.name_order, |i| self.names.get_or_empty(i as usize).cmp(name))
+        equal_range(&self.name_order, |i| {
+            self.names.get_or_empty(i as usize).cmp(name)
+        })
     }
 
     /// Resolves a user-supplied symbol reference: a numeric sym_id, a stable id, a fully
@@ -404,7 +417,11 @@ impl SymbolIndex {
             return Vec::new();
         }
         if let Ok(id) = spec.parse::<u32>() {
-            return if self.contains(id) { vec![id] } else { Vec::new() };
+            return if self.contains(id) {
+                vec![id]
+            } else {
+                Vec::new()
+            };
         }
         if spec.starts_with(STABLE_ID_PREFIX) || spec.starts_with(LOCAL_ID_PREFIX) {
             return self.by_stable_id(spec).to_vec();
@@ -530,7 +547,11 @@ where
     memo.into_iter().map(|v| v.unwrap_or_default()).collect()
 }
 
-fn compute_qualified_names(sta: &SymbolTableArtifact, names: &[String], parents: &[u32]) -> Vec<String> {
+fn compute_qualified_names(
+    sta: &SymbolTableArtifact,
+    names: &[String],
+    parents: &[u32],
+) -> Vec<String> {
     let derived = derive_down(parents, |i, parent| {
         let name = names[i].as_str();
         match parent {
@@ -587,8 +608,13 @@ fn compute_stable_ids(
     let mut counters: HashMap<(u32, u8, String, u16), u32> = HashMap::new();
     for (i, slot) in ordinal.iter_mut().enumerate() {
         let kind = kinds[i];
-        let overloadable = kind == SymbolKind::SK_METHOD as u8 || kind == SymbolKind::SK_CONSTRUCTOR as u8;
-        let key_name = if overloadable { names[i].clone() } else { String::new() };
+        let overloadable =
+            kind == SymbolKind::SK_METHOD as u8 || kind == SymbolKind::SK_CONSTRUCTOR as u8;
+        let key_name = if overloadable {
+            names[i].clone()
+        } else {
+            String::new()
+        };
         let arity = if overloadable { param_counts[i] } else { 0 };
         let counter = counters
             .entry((effective_parent[i], kind, key_name, arity))
@@ -606,15 +632,25 @@ fn compute_stable_ids(
                 .map(|s| format!("{}/", escape_identifier(s)))
                 .collect::<String>()
         } else if kind == SymbolKind::SK_EXTERNAL as u8 {
-            let full = if qualified[i].is_empty() { name } else { qualified[i].as_str() };
+            let full = if qualified[i].is_empty() {
+                name
+            } else {
+                qualified[i].as_str()
+            };
             let segments: Vec<&str> = full.split('.').filter(|s| !s.is_empty()).collect();
             match segments.split_last() {
                 Some((last, init)) => {
-                    let mut d: String = init.iter().map(|s| format!("{}/", escape_identifier(s))).collect();
+                    let mut d: String = init
+                        .iter()
+                        .map(|s| format!("{}/", escape_identifier(s)))
+                        .collect();
                     d.push_str(&format!("{}#", escape_identifier(last)));
                     d
                 }
-                None => format!("{}#", escape_identifier(&format!("external${}", ordinal[i]))),
+                None => format!(
+                    "{}#",
+                    escape_identifier(&format!("external${}", ordinal[i]))
+                ),
             }
         } else if is_type_kind(kind) {
             if name.is_empty() {
@@ -623,7 +659,11 @@ fn compute_stable_ids(
                 format!("{}#", escape_identifier(name))
             }
         } else if kind == SymbolKind::SK_METHOD as u8 {
-            format!("{}({}).", escape_identifier(name), disambiguator(param_counts[i], ordinal[i]))
+            format!(
+                "{}({}).",
+                escape_identifier(name),
+                disambiguator(param_counts[i], ordinal[i])
+            )
         } else if kind == SymbolKind::SK_CONSTRUCTOR as u8 {
             format!("`<init>`({}).", disambiguator(param_counts[i], ordinal[i]))
         } else if kind == SymbolKind::SK_STATIC_INIT as u8 {
@@ -631,7 +671,10 @@ fn compute_stable_ids(
         } else if kind == SymbolKind::SK_INSTANCE_INIT as u8 {
             format!("`<instinit>`({}).", ordinal[i])
         } else if kind == SymbolKind::SK_LAMBDA as u8 {
-            format!("{}().", escape_identifier(&format!("lambda${}", ordinal[i])))
+            format!(
+                "{}().",
+                escape_identifier(&format!("lambda${}", ordinal[i]))
+            )
         } else if kind == SymbolKind::SK_FIELD as u8 || kind == SymbolKind::SK_ENUM_CONSTANT as u8 {
             format!("{}.", escape_identifier(name))
         } else if kind == SymbolKind::SK_PARAM as u8 {
@@ -829,7 +872,10 @@ impl TypeHierarchyIndex {
         let mut out = Vec::new();
         for t in types {
             for &c in symbols.children_named(t, name) {
-                if c != method && Self::can_override(symbols, c) && symbols.param_count(c) == Some(arity) {
+                if c != method
+                    && Self::can_override(symbols, c)
+                    && symbols.param_count(c) == Some(arity)
+                {
                     out.push(c);
                 }
             }
@@ -861,7 +907,10 @@ impl TypeHierarchyIndex {
         enc.put_u8s(&self.relation);
     }
 
-    pub fn decode(dec: &mut SectionDecoder<'_>, symbol_count: usize) -> Result<Self, ScpgFormatError> {
+    pub fn decode(
+        dec: &mut SectionDecoder<'_>,
+        symbol_count: usize,
+    ) -> Result<Self, ScpgFormatError> {
         let node_count = dec.u64()? as usize;
         if node_count != symbol_count {
             return Err(dec.malformed(format!(
@@ -874,7 +923,11 @@ impl TypeHierarchyIndex {
         let relation = dec.u8s()?.to_vec();
         dec.expect_len("to", to.len(), from.len())?;
         dec.expect_len("relation", relation.len(), from.len())?;
-        if from.iter().chain(to.iter()).any(|&s| s as usize >= node_count) {
+        if from
+            .iter()
+            .chain(to.iter())
+            .any(|&s| s as usize >= node_count)
+        {
             return Err(dec.malformed("type hierarchy edge references an unknown symbol"));
         }
         let mut index = Self {

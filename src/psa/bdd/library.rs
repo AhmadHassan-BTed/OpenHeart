@@ -428,7 +428,13 @@ impl BDDLibrary {
 
     /// `make_node` with both reduction rules and (when `enforce`) the node budget.
     #[inline]
-    pub(super) fn mk(&mut self, var: u16, lo: u32, hi: u32, enforce: bool) -> Result<u32, BddLimit> {
+    pub(super) fn mk(
+        &mut self,
+        var: u16,
+        lo: u32,
+        hi: u32,
+        enforce: bool,
+    ) -> Result<u32, BddLimit> {
         if lo == hi {
             return Ok(lo);
         }
@@ -516,7 +522,10 @@ fn unbudgeted(r: Result<u32, BddLimit>) -> u32 {
 /// that every variable index is below `n_vars`.
 pub fn verify_node_array(nodes: &[ROBDDNode], n_vars: Option<u16>) -> Result<(), String> {
     if nodes.len() < 2 {
-        return Err(format!("node array has {} entries; terminals missing", nodes.len()));
+        return Err(format!(
+            "node array has {} entries; terminals missing",
+            nodes.len()
+        ));
     }
     if nodes[FALSE_ID as usize] != ROBDDNode::false_terminal() {
         return Err("node 0 is not the FALSE terminal".to_string());
@@ -527,7 +536,10 @@ pub fn verify_node_array(nodes: &[ROBDDNode], n_vars: Option<u16>) -> Result<(),
     let mut seen: FxHashMap<(u16, u32, u32), u32> = fx_map_with_capacity(nodes.len());
     for (id, node) in nodes.iter().enumerate().skip(2) {
         if node.is_terminal() || node.flags != 0 {
-            return Err(format!("node_id={} is marked terminal but is not node 0 or 1", id));
+            return Err(format!(
+                "node_id={} is marked terminal but is not node 0 or 1",
+                id
+            ));
         }
         if let Some(limit) = n_vars {
             if node.var >= limit {

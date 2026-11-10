@@ -79,9 +79,11 @@ impl PatternDetectionRule for ObserverRule {
             if !ev.require(EVIDENCE_REGISTRATION_METHOD, !registrations.is_empty()) {
                 continue;
             }
-            let notifies = methods
-                .iter()
-                .any(|&m| holders.iter().any(|f| ctx.loops_over_and_calls(m, f.name, o)));
+            let notifies = methods.iter().any(|&m| {
+                holders
+                    .iter()
+                    .any(|f| ctx.loops_over_and_calls(m, f.name, o))
+            });
             if !ev.require(EVIDENCE_LOOP_DISPATCH, notifies) {
                 continue;
             }

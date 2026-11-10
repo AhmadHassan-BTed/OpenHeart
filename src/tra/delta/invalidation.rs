@@ -60,15 +60,16 @@ impl StaleDetector {
         }
         records
             .iter()
-            .filter(|r| {
-                stale_old.contains(&r.sym_id) || baseline.entity(r.sym_id).is_none()
-            })
+            .filter(|r| stale_old.contains(&r.sym_id) || baseline.entity(r.sym_id).is_none())
             .map(|r| r.sym_id)
             .collect()
     }
 
     /// The full entity-level delta between two builds.
-    pub fn delta(baseline: &TraceabilityArtifact, current: &TraceabilityArtifact) -> TraceabilityDelta {
+    pub fn delta(
+        baseline: &TraceabilityArtifact,
+        current: &TraceabilityArtifact,
+    ) -> TraceabilityDelta {
         DeltaApplicator::compute_delta(baseline, current)
     }
 }

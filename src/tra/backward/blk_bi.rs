@@ -18,7 +18,10 @@ pub type FunctionBlockRange = (u32, u32, u32);
 pub struct BlockBackwardIndex;
 
 impl BlockBackwardIndex {
-    pub fn build(cfa: &CFGArtifact, bi_sym: &[BISymEntry]) -> (Vec<BIBlkEntry>, Vec<FunctionBlockRange>) {
+    pub fn build(
+        cfa: &CFGArtifact,
+        bi_sym: &[BISymEntry],
+    ) -> (Vec<BIBlkEntry>, Vec<FunctionBlockRange>) {
         let mut bi_blk = Vec::with_capacity(cfa.total_blocks as usize);
         let mut ranges = Vec::with_capacity(cfa.functions.len());
 

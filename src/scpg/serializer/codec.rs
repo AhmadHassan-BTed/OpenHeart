@@ -108,10 +108,7 @@ impl<'a> SectionDecoder<'a> {
         };
         let stored_type = dec.u32()?;
         if stored_type != section as u32 {
-            return Err(dec.malformed(format!(
-                "payload is tagged as section 0x{:X}",
-                stored_type
-            )));
+            return Err(dec.malformed(format!("payload is tagged as section 0x{:X}", stored_type)));
         }
         let schema = dec.u32()?;
         if schema != SECTION_SCHEMA_VERSION {
@@ -143,7 +140,9 @@ impl<'a> SectionDecoder<'a> {
             .pos
             .checked_add(n)
             .filter(|&e| e <= self.bytes.len())
-            .ok_or_else(|| self.malformed(format!("unexpected end of payload at byte {}", self.pos)))?;
+            .ok_or_else(|| {
+                self.malformed(format!("unexpected end of payload at byte {}", self.pos))
+            })?;
         let out = &self.bytes[self.pos..end];
         self.pos = end;
         Ok(out)
@@ -173,7 +172,9 @@ impl<'a> SectionDecoder<'a> {
 
     pub fn u64(&mut self) -> Result<u64, ScpgFormatError> {
         let b = self.take(8)?;
-        Ok(u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+        Ok(u64::from_le_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
     }
 
     /// Reads a column header and validates `count × elem_size` against the remaining bytes.
@@ -234,7 +235,12 @@ impl<'a> SectionDecoder<'a> {
     }
 
     /// Fails unless every column has exactly `expected` elements.
-    pub fn expect_len(&self, column: &str, actual: usize, expected: usize) -> Result<(), ScpgFormatError> {
+    pub fn expect_len(
+        &self,
+        column: &str,
+        actual: usize,
+        expected: usize,
+    ) -> Result<(), ScpgFormatError> {
         if actual != expected {
             return Err(self.malformed(format!(
                 "column '{}' has {} elements, expected {}",

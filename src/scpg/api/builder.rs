@@ -131,7 +131,11 @@ impl EngineBuilder {
         } else {
             None
         };
-        Ok(OpenHeartEngine::from_parts(Arc::new(snapshot), self.cache_capacity, file))
+        Ok(OpenHeartEngine::from_parts(
+            Arc::new(snapshot),
+            self.cache_capacity,
+            file,
+        ))
     }
 
     /// Wraps an in-memory snapshot (no file backing).

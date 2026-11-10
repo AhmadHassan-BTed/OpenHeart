@@ -63,7 +63,11 @@ impl PathSummaryArtifactBuilder {
         // Sort functions by sym_id for O(log n) binary search in Phase 9 (stable, so equal
         // keys keep processing order in the error message below).
         self.functions.sort_by_key(|f| f.sym_id);
-        if let Some(w) = self.functions.windows(2).find(|w| w[0].sym_id == w[1].sym_id) {
+        if let Some(w) = self
+            .functions
+            .windows(2)
+            .find(|w| w[0].sym_id == w[1].sym_id)
+        {
             return Err(format!(
                 "two path summaries were produced for sym_id={}",
                 w[0].sym_id

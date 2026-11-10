@@ -284,7 +284,10 @@ impl<'c, 'a> ModelWriter<'c, 'a> {
             ("xmi:type", xmi_type.to_string()),
             ("xmi:id", id.clone()),
             ("name", name),
-            ("visibility", U::visibility_keyword(class_rec.visibility).to_string()),
+            (
+                "visibility",
+                U::visibility_keyword(class_rec.visibility).to_string(),
+            ),
         ];
         if xmi_type == "uml:Class" {
             attrs.push((
@@ -302,7 +305,8 @@ impl<'c, 'a> ModelWriter<'c, 'a> {
         }
         self.xml.open(tag, &attrs);
         self.source_comment(&id, sym);
-        if class_rec.stereotype == STEREOTYPE_ANNOTATION || class_rec.stereotype == STEREOTYPE_RECORD
+        if class_rec.stereotype == STEREOTYPE_ANNOTATION
+            || class_rec.stereotype == STEREOTYPE_RECORD
         {
             let keyword = if class_rec.stereotype == STEREOTYPE_ANNOTATION {
                 "annotation type"
@@ -392,7 +396,10 @@ impl<'c, 'a> ModelWriter<'c, 'a> {
                 ("xmi:type", "uml:Property".to_string()),
                 ("xmi:id", prop_id.clone()),
                 ("name", fname),
-                ("visibility", U::visibility_keyword(f.visibility).to_string()),
+                (
+                    "visibility",
+                    U::visibility_keyword(f.visibility).to_string(),
+                ),
             ];
             if f.modifiers & SymbolModifiers::STATIC != 0 {
                 attrs.push(("isStatic", "true".to_string()));
@@ -429,7 +436,10 @@ impl<'c, 'a> ModelWriter<'c, 'a> {
                 ("xmi:type", "uml:Operation".to_string()),
                 ("xmi:id", op_id.clone()),
                 ("name", mname),
-                ("visibility", U::visibility_keyword(m.visibility).to_string()),
+                (
+                    "visibility",
+                    U::visibility_keyword(m.visibility).to_string(),
+                ),
             ];
             if m.modifiers & SymbolModifiers::STATIC != 0 {
                 attrs.push(("isStatic", "true".to_string()));
@@ -571,10 +581,15 @@ impl XMIExporter {
             let mut associated: HashSet<u32> = HashSet::new();
             let mut associations = Vec::new();
             for f in &class_rec.fields {
-                if !matches!(f.assoc_kind, ASSOC_ASSOCIATION | ASSOC_AGGREGATION | ASSOC_COMPOSITION) {
+                if !matches!(
+                    f.assoc_kind,
+                    ASSOC_ASSOCIATION | ASSOC_AGGREGATION | ASSOC_COMPOSITION
+                ) {
                     continue;
                 }
-                let target = if f.element_type_sym_id != UNKNOWN_SYM && types.contains(f.element_type_sym_id) {
+                let target = if f.element_type_sym_id != UNKNOWN_SYM
+                    && types.contains(f.element_type_sym_id)
+                {
                     f.element_type_sym_id
                 } else {
                     f.type_sym_id
@@ -597,7 +612,8 @@ impl XMIExporter {
                 });
             }
             let mut usages = Vec::new();
-            let mut supertypes: HashSet<u32> = class_rec.generalization_syms.iter().copied().collect();
+            let mut supertypes: HashSet<u32> =
+                class_rec.generalization_syms.iter().copied().collect();
             supertypes.extend(class_rec.implements_syms.iter().copied());
             supertypes.insert(class_rec.extends_sym);
             let dependencies: BTreeSet<u32> = class_rec.dependency_syms.iter().copied().collect();
@@ -655,7 +671,10 @@ impl XMIExporter {
             &[
                 ("xmi:type", "uml:Comment".to_string()),
                 ("xmi:id", format!("{}_input", model_id)),
-                ("body", format!("Derived by OpenHeart from input sha256:{}", digest)),
+                (
+                    "body",
+                    format!("Derived by OpenHeart from input sha256:{}", digest),
+                ),
             ],
         );
         writer.write_package_contents("", &root);
@@ -772,10 +791,14 @@ impl XMIExporter {
                 &[
                     ("xmi:type", xmi_type.to_string()),
                     ("xmi:id", id.clone()),
-                    ("visibility", U::visibility_keyword(class_rec.visibility).to_string()),
+                    (
+                        "visibility",
+                        U::visibility_keyword(class_rec.visibility).to_string(),
+                    ),
                 ],
             );
-            let mut supertypes: BTreeSet<u32> = class_rec.generalization_syms.iter().copied().collect();
+            let mut supertypes: BTreeSet<u32> =
+                class_rec.generalization_syms.iter().copied().collect();
             if class_rec.extends_sym != UNKNOWN_SYM {
                 supertypes.insert(class_rec.extends_sym);
             }

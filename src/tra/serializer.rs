@@ -635,7 +635,10 @@ fn validate_tables(a: &TraceabilityArtifact) -> io::Result<()> {
             r.sym_id,
         )
     };
-    if a.sym_span.windows(2).any(|w| span_key(&w[0]) > span_key(&w[1])) {
+    if a.sym_span
+        .windows(2)
+        .any(|w| span_key(&w[0]) > span_key(&w[1]))
+    {
         return Err(invalid("TRA symbol spans are not sorted"));
     }
 
@@ -664,8 +667,13 @@ fn validate_tables(a: &TraceabilityArtifact) -> io::Result<()> {
         return Err(invalid("TRA UMLLinks are not strictly sorted by sym_id"));
     }
 
-    if a.function_index.windows(2).any(|w| w[0].sym_id >= w[1].sym_id) {
-        return Err(invalid("TRA function index is not strictly sorted by sym_id"));
+    if a.function_index
+        .windows(2)
+        .any(|w| w[0].sym_id >= w[1].sym_id)
+    {
+        return Err(invalid(
+            "TRA function index is not strictly sorted by sym_id",
+        ));
     }
     for r in &a.function_index {
         let blocks_ok = r.first_block == NO_OFFSET

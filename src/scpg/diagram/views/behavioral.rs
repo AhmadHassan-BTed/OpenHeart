@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use crate::core::types::cfg::CFGEdgeType;
 use crate::scpg::diagram::context::{DiagramContext, EXTERNAL_ACTOR_SYM};
 use crate::scpg::diagram::model::{
     AliasTable, EdgeKind, FragmentKind, Interaction, InteractionEvent, NodeKind, Provenance,
@@ -12,7 +13,6 @@ use crate::scpg::diagram::views::analysis::{block_condition, block_lines, edge_t
 use crate::scpg::diagram::views::{
     function_fqn, function_label, ordered_functions, FunctionBudget,
 };
-use crate::core::types::cfg::CFGEdgeType;
 use crate::uma::types::*;
 
 /// Maximum message lines listed on one communication link.
@@ -34,13 +34,20 @@ pub fn use_case_view(ctx: &DiagramContext) -> ViewModel {
         .map(|s| scenario_title(ctx, s))
         .collect();
     if !entries.is_empty() {
-        let listed: Vec<String> = entries.iter().take(MAX_LISTED_ENTRY_POINTS).cloned().collect();
+        let listed: Vec<String> = entries
+            .iter()
+            .take(MAX_LISTED_ENTRY_POINTS)
+            .cloned()
+            .collect();
         let mut text = format!(
             "Entry points identified for sequence scenarios (candidate use-case realizations): {}",
             listed.join(", ")
         );
         if entries.len() > MAX_LISTED_ENTRY_POINTS {
-            text.push_str(&format!(" and {} more", entries.len() - MAX_LISTED_ENTRY_POINTS));
+            text.push_str(&format!(
+                " and {} more",
+                entries.len() - MAX_LISTED_ENTRY_POINTS
+            ));
         }
         model.note(text);
     }
@@ -209,12 +216,12 @@ fn add_activity(
                     let source_is_decision =
                         kinds.get(&edge.from_node) == Some(&NodeKind::Decision);
                     label = match etype {
-                        CFGEdgeType::True if source_is_decision => Some(
-                            match block_condition(ctx, c, edge.from_node) {
+                        CFGEdgeType::True if source_is_decision => {
+                            Some(match block_condition(ctx, c, edge.from_node) {
                                 Some(cond) => format!("[{}]", cond),
                                 None => "[true]".to_string(),
-                            },
-                        ),
+                            })
+                        }
                         CFGEdgeType::False if source_is_decision => Some("[else]".to_string()),
                         CFGEdgeType::Uncond | CFGEdgeType::LoopBack => None,
                         other => edge_type_label(other).map(|l| format!("[{}]", l)),
@@ -279,7 +286,11 @@ pub fn state_machine_view(ctx: &DiagramContext) -> ViewModel {
             )
             .with_qualified_name(Some(name.clone()))
             .with_span(ctx.symbol_span(sm.state_field_sym))
-            .with_details(vec![format!("{} states, {} transitions", sm.states.len(), sm.transitions.len())])
+            .with_details(vec![format!(
+                "{} states, {} transitions",
+                sm.states.len(),
+                sm.transitions.len()
+            )])
             .with_sym(sm.class_sym_id),
         );
 
@@ -295,7 +306,10 @@ pub fn state_machine_view(ctx: &DiagramContext) -> ViewModel {
             model.add_node(
                 ViewNode::new(
                     state_key(st.state_id),
-                    format!("st_{}_{}_{}", sm.class_sym_id, sm.state_field_sym, st.state_id),
+                    format!(
+                        "st_{}_{}_{}",
+                        sm.class_sym_id, sm.state_field_sym, st.state_id
+                    ),
                     label,
                     NodeKind::State,
                 )
@@ -342,7 +356,12 @@ pub fn state_machine_view(ctx: &DiagramContext) -> ViewModel {
                 .with_parent(Some(group_key.clone())),
             );
             for id in finals {
-                model.add_edge(ViewEdge::new(&state_key(id), &final_key, EdgeKind::Transition, "final"));
+                model.add_edge(ViewEdge::new(
+                    &state_key(id),
+                    &final_key,
+                    EdgeKind::Transition,
+                    "final",
+                ));
             }
         }
 
@@ -395,7 +414,10 @@ pub fn state_machine_view(ctx: &DiagramContext) -> ViewModel {
     }
     budget.finish(&mut model, "state machine(s)");
     if unnamed_states > 0 {
-        model.note(format!("{} state(s) have no recorded name and are labelled by id.", unnamed_states));
+        model.note(format!(
+            "{} state(s) have no recorded name and are labelled by id.",
+            unnamed_states
+        ));
     }
     if !unknown_initial.is_empty() {
         model.note(format!(
@@ -403,12 +425,11 @@ pub fn state_machine_view(ctx: &DiagramContext) -> ViewModel {
             unknown_initial.join(", ")
         ));
     }
-    if ctx
-        .uma
-        .state_machines
-        .iter()
-        .any(|sm| sm.transitions.iter().any(|t| t.from_state == TRANSITION_FROM_ANY))
-    {
+    if ctx.uma.state_machines.iter().any(|sm| {
+        sm.transitions
+            .iter()
+            .any(|t| t.from_state == TRANSITION_FROM_ANY)
+    }) {
         model.note("Transitions whose source state is not constrained by a guard are drawn from every state.");
     }
     model
@@ -460,7 +481,14 @@ impl Lifelines {
             by_sym: HashMap::new(),
         };
         for ll in &seq.lifelines {
-            let key = lifeline_node(ctx, model, aliases, ll.sym_id, ll.type_sym_id, ll.is_actor != 0);
+            let key = lifeline_node(
+                ctx,
+                model,
+                aliases,
+                ll.sym_id,
+                ll.type_sym_id,
+                ll.is_actor != 0,
+            );
             lifelines.by_sym.insert(ll.sym_id, key);
         }
         lifelines
@@ -476,7 +504,14 @@ impl Lifelines {
         if let Some(k) = self.by_sym.get(&sym) {
             return k.clone();
         }
-        let key = lifeline_node(ctx, model, aliases, sym, UNKNOWN_SYM, sym == EXTERNAL_ACTOR_SYM);
+        let key = lifeline_node(
+            ctx,
+            model,
+            aliases,
+            sym,
+            UNKNOWN_SYM,
+            sym == EXTERNAL_ACTOR_SYM,
+        );
         self.by_sym.insert(sym, key.clone());
         key
     }
@@ -500,9 +535,12 @@ fn lifeline_node(
         let key = EXTERNAL_ACTOR_KEY.to_string();
         if !model.has_node(&key) {
             let alias = aliases.alias("actor_", "external", &key);
-            model.add_node(
-                ViewNode::new(key.clone(), alias, "External caller", NodeKind::Actor),
-            );
+            model.add_node(ViewNode::new(
+                key.clone(),
+                alias,
+                "External caller",
+                NodeKind::Actor,
+            ));
         }
         return key;
     }
@@ -511,13 +549,22 @@ fn lifeline_node(
         if !model.has_node(&key) {
             let alias = aliases.alias("ll_unresolved_", "receiver", &key);
             model.add_node(
-                ViewNode::new(key.clone(), alias, "<unresolved receiver>", NodeKind::Lifeline)
-                    .with_provenance(Provenance::Partial),
+                ViewNode::new(
+                    key.clone(),
+                    alias,
+                    "<unresolved receiver>",
+                    NodeKind::Lifeline,
+                )
+                .with_provenance(Provenance::Partial),
             );
         }
         return key;
     }
-    let type_sym = if type_sym != UNKNOWN_SYM { type_sym } else { sym };
+    let type_sym = if type_sym != UNKNOWN_SYM {
+        type_sym
+    } else {
+        sym
+    };
     let type_qn = ctx
         .qualified_name(type_sym)
         .unwrap_or_else(|| format!("<lifeline #{}>", sym));
@@ -525,9 +572,7 @@ fn lifeline_node(
         .display_name(type_sym)
         .unwrap_or_else(|| type_qn.clone());
     let (key, label) = if type_sym != sym {
-        let name = ctx
-            .simple_name(sym)
-            .unwrap_or_else(|| format!("#{}", sym));
+        let name = ctx.simple_name(sym).unwrap_or_else(|| format!("#{}", sym));
         (
             format!("ll:{}#{}", type_qn, sym),
             format!("{} : {}", name, type_label),
@@ -604,8 +649,15 @@ pub fn sequence_view(ctx: &DiagramContext) -> ViewModel {
     let mut without_replies = 0usize;
     for (title, idx) in scenario_order(ctx) {
         let seq = &ctx.uma.sequences[idx];
-        let (interaction, has_replies) =
-            build_interaction(ctx, &mut model, &mut aliases, seq, idx, &title, &mut order_counter);
+        let (interaction, has_replies) = build_interaction(
+            ctx,
+            &mut model,
+            &mut aliases,
+            seq,
+            idx,
+            &title,
+            &mut order_counter,
+        );
         if !has_replies {
             without_replies += 1;
         }
@@ -658,7 +710,10 @@ fn build_interaction(
     let mut starts: BTreeMap<u16, Vec<&CombinedFragment>> = BTreeMap::new();
     let mut ends: BTreeMap<u16, usize> = BTreeMap::new();
     for frag in &seq.combined_fragments {
-        starts.entry(frag.start_message_ordinal).or_default().push(frag);
+        starts
+            .entry(frag.start_message_ordinal)
+            .or_default()
+            .push(frag);
         *ends.entry(frag.end_message_ordinal).or_insert(0) += 1;
     }
     for list in starts.values_mut() {

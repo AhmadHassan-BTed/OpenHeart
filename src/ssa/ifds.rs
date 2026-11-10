@@ -407,7 +407,8 @@ impl SparseDataflowAnalyzer {
         for d in 0..n {
             let rec = &input.ssa_records[d];
             let value = input.value_nodes.get(d).copied().unwrap_or(u32::MAX);
-            if rec.is_phi() || value == u32::MAX || bpa.node_type(value) != ASTNodeType::NN_NEW_EXPR {
+            if rec.is_phi() || value == u32::MAX || bpa.node_type(value) != ASTNodeType::NN_NEW_EXPR
+            {
                 continue;
             }
             let parts = NewParts::of(bpa, Some(src), value);
@@ -507,7 +508,8 @@ impl SparseDataflowAnalyzer {
                         args,
                     }) = crate::cfg::ast_query::call_shape(bpa, src, k)
                     {
-                        if receiver.is_some_and(is_ref) && src.node_text(bpa, name) == Some(&b"close"[..])
+                        if receiver.is_some_and(is_ref)
+                            && src.node_text(bpa, name) == Some(&b"close"[..])
                         {
                             closed = true;
                         }
@@ -517,7 +519,11 @@ impl SparseDataflowAnalyzer {
                     }
                 }
                 ASTNodeType::NN_NEW_EXPR => {
-                    if NewParts::of(bpa, Some(src), k).args.iter().any(|&a| is_ref(a)) {
+                    if NewParts::of(bpa, Some(src), k)
+                        .args
+                        .iter()
+                        .any(|&a| is_ref(a))
+                    {
                         escaped = true;
                     }
                 }
@@ -529,7 +535,8 @@ impl SparseDataflowAnalyzer {
                 ASTNodeType::NN_ASSIGN_EXPR => {
                     let kids = children(bpa, k);
                     if kids.len() == 2 && is_ref(kids[1]) {
-                        let lhs_is_local = bpa.node_type(kids[0]) == ASTNodeType::NN_IDENTIFIER_EXPR
+                        let lhs_is_local = bpa.node_type(kids[0])
+                            == ASTNodeType::NN_IDENTIFIER_EXPR
                             && vars.var_of_occurrence(kids[0]).is_some();
                         if !lhs_is_local {
                             escaped = true;

@@ -114,8 +114,7 @@ impl Phase6Stage {
         sta_bytes: &[u8],
         out_path: &Path,
     ) -> Result<CallGraphArtifact, String> {
-        let timer =
-            PhaseTimer::start("Phase 6: Inter-procedural Call Graph & Points-To Analysis");
+        let timer = PhaseTimer::start("Phase 6: Inter-procedural Call Graph & Points-To Analysis");
 
         let ssa_hash = crc64_ecma(ssa_bytes);
         let sta_hash = crc64_ecma(sta_bytes);
@@ -130,7 +129,8 @@ impl Phase6Stage {
         }
 
         // The analysis recurses over expression nesting; run it on a large stack.
-        let artifact = run_on_large_stack(|| Self::analyze(bpa, sta, tca, cfa, ssa, ssa_hash, sta_hash))?;
+        let artifact =
+            run_on_large_stack(|| Self::analyze(bpa, sta, tca, cfa, ssa, ssa_hash, sta_hash))?;
 
         // Step 7: Assert Invariants (§6.8)
         log_trace("Asserting Phase 6 Invariants 1-3...");
@@ -221,6 +221,7 @@ impl Phase6Stage {
                 let narrowed = resolver.dispatch_on(&ts, selector);
                 if !narrowed.is_empty() && narrowed.len() < res.targets.len() {
                     res.targets = narrowed;
+                    res.resolution = CG_RESOLUTION_POINTS_TO;
                     refined += 1;
                 }
             }
@@ -233,6 +234,8 @@ impl Phase6Stage {
         // Step 5: call-site records and edges
         let mut call_sites = Vec::with_capacity(infos.len());
         let mut edges: Vec<(u32, u32, u32, u8)> = Vec::new();
+        let mut edge_kinds: Vec<SiteEdgeKind> = Vec::new();
+        let mut unresolved_sites: Vec<UnresolvedCallSite> = Vec::new();
         for (i, (info, res)) in infos.iter().zip(resolutions.iter()).enumerate() {
             let site_id = u32::try_from(i).map_err(|_| "call-site count exceeds the u32 range")?;
             let ctx = info.ctx.map(|c| &contexts[c]);
@@ -246,7 +249,12 @@ impl Phase6Stage {
             }
             if let (Some(l), Some(c)) = (info.receiver_local_ssa, ctx) {
                 if let Some(si) = c.ssa_index {
-                    if ssa.functions[si].ifds.nullable_sparse.binary_search(&l).is_ok() {
+                    if ssa.functions[si]
+                        .ifds
+                        .nullable_sparse
+                        .binary_search(&l)
+                        .is_ok()
+                    {
                         flags |= CALL_SITE_FLAG_HAS_NULL_RECEIVER;
                     }
                 }
@@ -264,6 +272,23 @@ impl Phase6Stage {
             ));
             for &callee in &res.targets {
                 edges.push((info.caller_sym, callee, site_id, res.call_type));
+                edge_kinds.push(SiteEdgeKind {
+                    // Every call type the resolver produces has a dispatch kind; reflection
+                    // is never produced (it is not modelled).
+                    dispatch: dispatch_of_edge_type(res.call_type).unwrap_or(CG_DISPATCH_STATIC),
+                    resolution: res.resolution,
+                });
+            }
+            if res.targets.is_empty() {
+                // The resolver states why; a site it left without a cause has a call shape
+                // it did not recognise.
+                let cause = res.unresolved;
+                unresolved_sites.push(UnresolvedCallSite {
+                    call_site_id: site_id,
+                    reason: cause.map_or(CG_UNRESOLVED_CALL_SHAPE, |c| c.reason),
+                    name_id: cause.map_or(u32::MAX, |c| c.name_id),
+                    type_sym: cause.map_or(u32::MAX, |c| c.type_sym),
+                });
             }
         }
 
@@ -328,6 +353,8 @@ impl Phase6Stage {
             points_to_table,
             sccs,
             scc_members,
+            edge_kinds,
+            unresolved_sites,
         })
     }
 

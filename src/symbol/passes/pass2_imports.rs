@@ -98,7 +98,8 @@ impl Pass2Imports {
                 };
                 if let Some((fqn, token)) = target {
                     let binding = NameResolver::bind_qualified_name(builder, &fqn);
-                    let (sym, status) = builder.materialize_binding(binding, tv.text_id(token), token);
+                    let (sym, status) =
+                        builder.materialize_binding(binding, tv.text_id(token), token);
                     builder.add_occurrence(Occurrence {
                         token,
                         node: u32::MAX,

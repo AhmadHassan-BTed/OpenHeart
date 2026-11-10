@@ -102,10 +102,9 @@ impl ActivityDiagramExtractor {
             let label = match node_kind {
                 NODE_KIND_INITIAL | NODE_KIND_FINAL if blk.stmts.is_empty() => None,
                 NODE_KIND_DECISION => {
-                    let cond = blk
-                        .stmts
-                        .last()
-                        .and_then(|&s| LabelExtractor::statement_label(s, bpa, tca, GUARD_LABEL_CHARS));
+                    let cond = blk.stmts.last().and_then(|&s| {
+                        LabelExtractor::statement_label(s, bpa, tca, GUARD_LABEL_CHARS)
+                    });
                     cond_labels[idx] = cond.clone();
                     cond
                 }
@@ -189,7 +188,11 @@ impl ActivityDiagramExtractor {
         })
     }
 
-    fn action_label(stmts: &[u32], bpa: &BPASTArtifact, tca: &TokenCorpusArtifact) -> Option<String> {
+    fn action_label(
+        stmts: &[u32],
+        bpa: &BPASTArtifact,
+        tca: &TokenCorpusArtifact,
+    ) -> Option<String> {
         let parts: Vec<String> = stmts
             .iter()
             .take(ACTION_LABEL_STATEMENTS)
@@ -202,6 +205,9 @@ impl ActivityDiagramExtractor {
         if stmts.len() > ACTION_LABEL_STATEMENTS {
             text.push_str("; ...");
         }
-        Some(crate::uma::label_extraction::truncate_chars(&text, ACTION_LABEL_CHARS))
+        Some(crate::uma::label_extraction::truncate_chars(
+            &text,
+            ACTION_LABEL_CHARS,
+        ))
     }
 }

@@ -105,7 +105,9 @@ impl StateMachineExtractor {
                     continue;
                 }
                 let to = match asg.value {
-                    AssignedValue::Name { text } if is_state_name(text) && text != field_name => text,
+                    AssignedValue::Name { text } if is_state_name(text) && text != field_name => {
+                        text
+                    }
                     _ => continue,
                 };
                 let guards = Self::source_states(index, body, asg.lhs_token, field_name);
@@ -170,7 +172,8 @@ impl StateMachineExtractor {
             .iter()
             .enumerate()
             .map(|(i, &text)| {
-                let name = String::from_utf8_lossy(index.tca.interner.lookup_text(text)).into_owned();
+                let name =
+                    String::from_utf8_lossy(index.tca.interner.lookup_text(text)).into_owned();
                 StateRecord {
                     state_id: i as u32,
                     state_name_id: labels.intern(&name),
@@ -351,9 +354,9 @@ impl StateMachineExtractor {
             let (lhs, rhs) = (&atom[..eq], &atom[eq + 1..]);
             let last_ident = |side: &[u32]| -> Option<u32> {
                 if side.is_empty()
-                    || !side
-                        .iter()
-                        .all(|&tk| scanner.is_ident(tk) || scanner.is(tk, b".") || scanner.is(tk, b"this"))
+                    || !side.iter().all(|&tk| {
+                        scanner.is_ident(tk) || scanner.is(tk, b".") || scanner.is(tk, b"this")
+                    })
                 {
                     return None;
                 }

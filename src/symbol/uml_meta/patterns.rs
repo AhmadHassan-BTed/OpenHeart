@@ -107,9 +107,7 @@ impl<'s> StructuralPatternQueries<'s> {
             None => return false,
         };
         match SymbolKind::from(s.kind) {
-            SymbolKind::SK_ENUM => {
-                self.members_of(sym, SymbolKind::SK_ENUM_CONSTANT).count() == 1
-            }
+            SymbolKind::SK_ENUM => self.members_of(sym, SymbolKind::SK_ENUM_CONSTANT).count() == 1,
             SymbolKind::SK_CLASS => {
                 let kotlin_object = s.flags & SymbolFlags::LEXICAL != 0
                     && s.modifiers & SymbolModifiers::STATIC != 0

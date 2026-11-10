@@ -26,9 +26,14 @@ pub use graph::CallGraphIndex;
 pub use impact::{ImpactAnalyzer, ImpactEntry, ImpactOptions, ImpactReason};
 pub use lang::{EvalLimits, QueryLangError, QueryOutput, Value, RELATIONS, STARTER_QUERIES};
 pub use navigation::{NavigationEngine, NavigationIndex, SourceLocation};
-pub use robdd::{BddQueryError, EdgeConstraint, FunctionPathSummary, PathCount, PathSummaryIndex, ROBDDQueryEngine};
+pub use robdd::{
+    BddQueryError, EdgeConstraint, FunctionPathSummary, PathCount, PathSummaryIndex,
+    ROBDDQueryEngine,
+};
 pub use sdg::SystemDependenceGraph;
-pub use slice::{ProgramSlice, SliceCriterion, SliceDirection, SliceEngine, SliceMode, SliceOptions};
+pub use slice::{
+    ProgramSlice, SliceCriterion, SliceDirection, SliceEngine, SliceMode, SliceOptions,
+};
 pub use snapshot::{ScpgSnapshot, SnapshotStats};
 pub use symbols::{SymbolIndex, TypeHierarchyIndex};
 
@@ -137,7 +142,11 @@ impl QueryEngine {
     pub fn is_reachable(&self, source: u32, target: u32) -> Result<bool, QueryError> {
         self.known_symbol(source)?;
         self.known_symbol(target)?;
-        Ok(self.snapshot.call_graph.is_reachable(source, target).unwrap_or(false))
+        Ok(self
+            .snapshot
+            .call_graph
+            .is_reachable(source, target)
+            .unwrap_or(false))
     }
 
     /// A shortest call chain from `source` to `target`, if any.
@@ -148,7 +157,11 @@ impl QueryEngine {
     }
 
     /// Statement-level two-phase slice (cached).
-    pub fn slice(&self, criterion: SliceCriterion, options: SliceOptions) -> Result<Arc<ProgramSlice>, QueryError> {
+    pub fn slice(
+        &self,
+        criterion: SliceCriterion,
+        options: SliceOptions,
+    ) -> Result<Arc<ProgramSlice>, QueryError> {
         let (method, ast) = match criterion {
             SliceCriterion::Statement { method, ast_node } => (method, ast_node as u64),
             SliceCriterion::Method(method) => (method, u64::MAX),
@@ -170,7 +183,9 @@ impl QueryEngine {
             Some(s) => Arc::new(s),
             None => {
                 return Err(match criterion {
-                    SliceCriterion::Statement { method, ast_node } if self.snapshot.sdg.has_method(method) => {
+                    SliceCriterion::Statement { method, ast_node }
+                        if self.snapshot.sdg.has_method(method) =>
+                    {
                         QueryError::UnknownStatement { method, ast_node }
                     }
                     _ => {
@@ -180,12 +195,17 @@ impl QueryEngine {
                 })
             }
         };
-        self.cache.put(key, Arc::new(QueryResult::Slice(Arc::clone(&result))));
+        self.cache
+            .put(key, Arc::new(QueryResult::Slice(Arc::clone(&result))));
         Ok(result)
     }
 
     /// Backward slice of every statement of `method`.
-    pub fn backward_slice(&self, method: u32, depth_limit: Option<u32>) -> Result<Arc<ProgramSlice>, QueryError> {
+    pub fn backward_slice(
+        &self,
+        method: u32,
+        depth_limit: Option<u32>,
+    ) -> Result<Arc<ProgramSlice>, QueryError> {
         self.slice(
             SliceCriterion::Method(method),
             SliceOptions {
@@ -197,7 +217,11 @@ impl QueryEngine {
     }
 
     /// Forward slice of every statement of `method`.
-    pub fn forward_slice(&self, method: u32, depth_limit: Option<u32>) -> Result<Arc<ProgramSlice>, QueryError> {
+    pub fn forward_slice(
+        &self,
+        method: u32,
+        depth_limit: Option<u32>,
+    ) -> Result<Arc<ProgramSlice>, QueryError> {
         self.slice(
             SliceCriterion::Method(method),
             SliceOptions {
@@ -209,7 +233,12 @@ impl QueryEngine {
     }
 
     /// Realizable-path dependence reachability between two statements.
-    pub fn flows_to(&self, from: (u32, u32), to: (u32, u32), mode: SliceMode) -> Result<bool, QueryError> {
+    pub fn flows_to(
+        &self,
+        from: (u32, u32),
+        to: (u32, u32),
+        mode: SliceMode,
+    ) -> Result<bool, QueryError> {
         for (method, ast_node) in [from, to] {
             if self.snapshot.sdg.statement(method, ast_node).is_none() {
                 return Err(QueryError::UnknownStatement { method, ast_node });
@@ -219,7 +248,11 @@ impl QueryEngine {
     }
 
     /// Change-impact set of `sym_id` (cached).
-    pub fn impact(&self, sym_id: u32, options: ImpactOptions) -> Result<Arc<Vec<ImpactEntry>>, QueryError> {
+    pub fn impact(
+        &self,
+        sym_id: u32,
+        options: ImpactOptions,
+    ) -> Result<Arc<Vec<ImpactEntry>>, QueryError> {
         let params = QueryParams::Ids(vec![
             sym_id as u64,
             options.include_overrides as u64,
@@ -233,10 +266,12 @@ impl QueryEngine {
             }
         }
         let s = &self.snapshot;
-        let entries = ImpactAnalyzer::analyze(&s.symbols, &s.hierarchy, &s.call_graph, sym_id, options)
-            .ok_or(QueryError::UnknownSymbol(sym_id))?;
+        let entries =
+            ImpactAnalyzer::analyze(&s.symbols, &s.hierarchy, &s.call_graph, sym_id, options)
+                .ok_or(QueryError::UnknownSymbol(sym_id))?;
         let result = Arc::new(entries);
-        self.cache.put(key, Arc::new(QueryResult::Impact(Arc::clone(&result))));
+        self.cache
+            .put(key, Arc::new(QueryResult::Impact(Arc::clone(&result))));
         Ok(result)
     }
 
@@ -262,12 +297,20 @@ impl QueryEngine {
     }
 
     /// Feasible paths of a function under edge constraints.
-    pub fn count_paths(&self, sym_id: u32, constraints: &[EdgeConstraint]) -> Result<PathCount, QueryError> {
+    pub fn count_paths(
+        &self,
+        sym_id: u32,
+        constraints: &[EdgeConstraint],
+    ) -> Result<PathCount, QueryError> {
         Ok(self.snapshot.paths.count_paths(sym_id, constraints)?)
     }
 
     /// One feasible path of a function under edge constraints.
-    pub fn path_witness(&self, sym_id: u32, constraints: &[EdgeConstraint]) -> Result<Option<Vec<EdgeConstraint>>, QueryError> {
+    pub fn path_witness(
+        &self,
+        sym_id: u32,
+        constraints: &[EdgeConstraint],
+    ) -> Result<Option<Vec<EdgeConstraint>>, QueryError> {
         Ok(self.snapshot.paths.witness(sym_id, constraints)?)
     }
 
@@ -280,7 +323,8 @@ impl QueryEngine {
             }
         }
         let output = Arc::new(lang::run_program(&self.snapshot, program, self.limits)?);
-        self.cache.put(key, Arc::new(QueryResult::Table(Arc::clone(&output))));
+        self.cache
+            .put(key, Arc::new(QueryResult::Table(Arc::clone(&output))));
         Ok(output)
     }
 }

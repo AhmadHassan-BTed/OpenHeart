@@ -78,8 +78,7 @@ pub trait ASTReductionAdapter: Send + Sync {
     fn classify(&self, kind: &str, node: &Node, ctx: &ReductionContext) -> ReductionDecision;
 
     /// Encode the NodeAttr u32 for a kept node.
-    fn encode_attrs(&self, kind: &str, node: &Node, source: &[u8], ctx: &ReductionContext)
-        -> u32;
+    fn encode_attrs(&self, kind: &str, node: &Node, source: &[u8], ctx: &ReductionContext) -> u32;
 
     /// Returns the tree-sitter Language associated with this adapter.
     fn ts_language(&self) -> tree_sitter::Language;

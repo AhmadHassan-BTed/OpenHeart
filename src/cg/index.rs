@@ -84,7 +84,10 @@ impl<'a> ProgramIndex<'a> {
                 }
             }
             if sym.kind == SymbolKind::SK_METHOD as u8 && sym.name_id != u32::MAX {
-                members.entry((sym.parent_sym, sym.name_id)).or_default().push(id);
+                members
+                    .entry((sym.parent_sym, sym.name_id))
+                    .or_default()
+                    .push(id);
                 methods_by_name.entry(sym.name_id).or_default().push(id);
             }
             if sym.kind == SymbolKind::SK_CONSTRUCTOR as u8 {
@@ -265,13 +268,24 @@ impl<'a> ProgramIndex<'a> {
     }
 
     pub fn direct_supers(&self, class: u32) -> impl Iterator<Item = u32> + '_ {
-        let e = self.extends.get(&class).map(|v| v.as_slice()).unwrap_or(&[]);
-        let i = self.implements.get(&class).map(|v| v.as_slice()).unwrap_or(&[]);
+        let e = self
+            .extends
+            .get(&class)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        let i = self
+            .implements
+            .get(&class)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
         e.iter().chain(i.iter()).copied()
     }
 
     pub fn superclasses(&self, class: u32) -> &[u32] {
-        self.extends.get(&class).map(|v| v.as_slice()).unwrap_or(&[])
+        self.extends
+            .get(&class)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// `class` and all its transitive subtypes.
@@ -464,7 +478,9 @@ impl<'a> ProgramIndex<'a> {
         let mut ty = s.type_id;
         if ty == u32::MAX {
             let parent = self.symbol(s.parent_sym)?;
-            if parent.kind == SymbolKind::SK_LOCAL_VAR as u8 || parent.kind == SymbolKind::SK_FIELD as u8 {
+            if parent.kind == SymbolKind::SK_LOCAL_VAR as u8
+                || parent.kind == SymbolKind::SK_FIELD as u8
+            {
                 ty = parent.type_id;
             }
         }

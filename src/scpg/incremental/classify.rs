@@ -55,7 +55,10 @@ impl<'t> OldText<'t> {
 
     /// 1-based line / byte column of `offset` (the snapshot's position convention).
     fn position_of(&self, offset: usize) -> (u32, u16) {
-        let line_idx = self.starts.partition_point(|&s| s <= offset).saturating_sub(1);
+        let line_idx = self
+            .starts
+            .partition_point(|&s| s <= offset)
+            .saturating_sub(1);
         let col = offset - self.starts[line_idx];
         ((line_idx + 1) as u32, col.min(u16::MAX as usize) as u16)
     }
@@ -76,12 +79,22 @@ impl<'a> DeltaClassifier<'a> {
 
     /// Tokens of `file_id` overlapping `[start, end)` (for an insertion, `start == end`: the
     /// token strictly containing the insertion point).
-    fn overlapping_tokens(&self, old: &OldText<'_>, file_id: u16, start: usize, end: usize) -> Vec<(u32, usize, usize)> {
+    fn overlapping_tokens(
+        &self,
+        old: &OldText<'_>,
+        file_id: u16,
+        start: usize,
+        end: usize,
+    ) -> Vec<(u32, usize, usize)> {
         let mut out = Vec::new();
         let (sl, sc) = old.position_of(start);
         if let Some(t) = self.snapshot.tokens.token_at_or_before(file_id, sl, sc) {
             if let Some((ts, te)) = self.token_bytes(old, t) {
-                let overlaps = if start == end { ts < start && start < te } else { ts < end && start < te };
+                let overlaps = if start == end {
+                    ts < start && start < te
+                } else {
+                    ts < end && start < te
+                };
                 if overlaps {
                     out.push((t, ts, te));
                 }
@@ -89,7 +102,11 @@ impl<'a> DeltaClassifier<'a> {
         }
         if end > start {
             let (el, ec) = old.position_of(end);
-            for &t in self.snapshot.tokens.tokens_starting_in(file_id, (sl, sc), (el, ec)) {
+            for &t in self
+                .snapshot
+                .tokens
+                .tokens_starting_in(file_id, (sl, sc), (el, ec))
+            {
                 if out.iter().any(|&(x, _, _)| x == t) {
                     continue;
                 }
@@ -106,11 +123,16 @@ impl<'a> DeltaClassifier<'a> {
     fn is_trivia_edit(&self, delta: &SourceDelta, old: &OldText<'_>, edit: &TextEdit) -> bool {
         let deleted = &delta.old_text[edit.start_byte..edit.old_end_byte];
         let inserted = &delta.new_text[edit.start_byte..edit.new_end_byte];
-        let tokens = self.overlapping_tokens(old, delta.file_id, edit.start_byte, edit.old_end_byte);
+        let tokens =
+            self.overlapping_tokens(old, delta.file_id, edit.start_byte, edit.old_end_byte);
 
         // Whitespace rewritten between tokens.
         if tokens.is_empty() && is_whitespace_only(deleted) && is_whitespace_only(inserted) {
-            let before = edit.start_byte.checked_sub(1).and_then(|i| delta.old_text.get(i)).copied();
+            let before = edit
+                .start_byte
+                .checked_sub(1)
+                .and_then(|i| delta.old_text.get(i))
+                .copied();
             let after = delta.old_text.get(edit.old_end_byte).copied();
             let would_merge = inserted.is_empty()
                 && !deleted.is_empty()
@@ -125,7 +147,10 @@ impl<'a> DeltaClassifier<'a> {
         }
         let (t, ts, te) = tokens[0];
         let ty = self.snapshot.tokens.token_type(t);
-        let is_block = matches!(ty, Some(TokenType::CommentBlock) | Some(TokenType::CommentDoc));
+        let is_block = matches!(
+            ty,
+            Some(TokenType::CommentBlock) | Some(TokenType::CommentDoc)
+        );
         let is_line = matches!(ty, Some(TokenType::CommentLine));
         if !is_block && !is_line {
             return false;
@@ -145,7 +170,9 @@ impl<'a> DeltaClassifier<'a> {
             rewritten.len() >= 4
                 && rewritten.starts_with(b"/*")
                 && rewritten.ends_with(b"*/")
-                && !rewritten[2..rewritten.len() - 2].windows(2).any(|w| w == b"*/")
+                && !rewritten[2..rewritten.len() - 2]
+                    .windows(2)
+                    .any(|w| w == b"*/")
         } else {
             rewritten.starts_with(b"//") && !rewritten.iter().any(|&b| b == b'\n' || b == b'\r')
         }
@@ -159,7 +186,12 @@ impl<'a> DeltaClassifier<'a> {
         Some((start, end))
     }
 
-    fn classify_edit(&self, delta: &SourceDelta, old: &OldText<'_>, edit: &TextEdit) -> (EditClass, RebuildScope) {
+    fn classify_edit(
+        &self,
+        delta: &SourceDelta,
+        old: &OldText<'_>,
+        edit: &TextEdit,
+    ) -> (EditClass, RebuildScope) {
         if self.is_trivia_edit(delta, old, edit) {
             return (EditClass::Trivia, RebuildScope::Positional);
         }
@@ -221,11 +253,12 @@ impl<'a> DeltaClassifier<'a> {
             .edits
             .iter()
             .map(|edit| {
-                let (class, scope) = if !known_file || !edit.is_valid_for(&delta.old_text, &delta.new_text) {
-                    (EditClass::OutsideDeclarations, RebuildScope::Full)
-                } else {
-                    self.classify_edit(delta, &old, edit)
-                };
+                let (class, scope) =
+                    if !known_file || !edit.is_valid_for(&delta.old_text, &delta.new_text) {
+                        (EditClass::OutsideDeclarations, RebuildScope::Full)
+                    } else {
+                        self.classify_edit(delta, &old, edit)
+                    };
                 EditClassification {
                     edit: edit.clone(),
                     class,

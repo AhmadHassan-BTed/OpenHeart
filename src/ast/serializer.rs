@@ -121,8 +121,9 @@ impl BPASTSerializer {
         ];
 
         let payload: usize = sections.iter().map(|(_, b)| b.len() + SECTION_ALIGN).sum();
-        let mut buf =
-            Vec::with_capacity(BPA_HEADER_SIZE + sections.len() * DIRECTORY_ENTRY_SIZE + payload + 8);
+        let mut buf = Vec::with_capacity(
+            BPA_HEADER_SIZE + sections.len() * DIRECTORY_ENTRY_SIZE + payload + 8,
+        );
 
         // Header (64 bytes)
         buf.extend_from_slice(BPA_MAGIC);
@@ -245,8 +246,8 @@ impl BPASTSerializer {
                 bit_count, node_count
             )));
         }
-        let bit_count = usize::try_from(bit_count)
-            .map_err(|_| invalid_data("bit count overflows usize"))?;
+        let bit_count =
+            usize::try_from(bit_count).map_err(|_| invalid_data("bit count overflows usize"))?;
 
         let n_sections = cur.checked_count(section_count as u64, DIRECTORY_ENTRY_SIZE)?;
         let mut found: [Option<&[u8]>; 6] = [None; 6];
@@ -443,7 +444,11 @@ fn take_section<'a>(
     Ok(bytes)
 }
 
-fn u32_section(found: &[Option<&[u8]>; 6], kind: SectionKind, count: usize) -> io::Result<Vec<u32>> {
+fn u32_section(
+    found: &[Option<&[u8]>; 6],
+    kind: SectionKind,
+    count: usize,
+) -> io::Result<Vec<u32>> {
     Ok(take_section(found, kind, count)?
         .chunks_exact(4)
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))

@@ -86,7 +86,11 @@ pub fn block_lines(
 }
 
 /// Branch condition evaluated at the end of a block (`if`/`while`/`for`/`switch` header).
-pub fn block_condition(ctx: &DiagramContext, cfg: &FunctionCFGData, block_id: u32) -> Option<String> {
+pub fn block_condition(
+    ctx: &DiagramContext,
+    cfg: &FunctionCFGData,
+    block_id: u32,
+) -> Option<String> {
     let blk = cfg.blocks.get(block_id as usize)?;
     let stmt = *blk.stmts.last()?;
     let (first, last) = ctx.stmt_tokens(stmt)?;
@@ -106,7 +110,11 @@ fn block_label(cfg: &FunctionCFGData, block_id: u32) -> String {
     label
 }
 
-fn block_span(ctx: &DiagramContext, cfg: &FunctionCFGData, block_id: u32) -> Option<crate::scpg::diagram::context::SourceSpan> {
+fn block_span(
+    ctx: &DiagramContext,
+    cfg: &FunctionCFGData,
+    block_id: u32,
+) -> Option<crate::scpg::diagram::context::SourceSpan> {
     let blk = cfg.blocks.get(block_id as usize)?;
     if blk.first_token == u32::MAX || blk.last_token < blk.first_token {
         return None;
@@ -114,14 +122,24 @@ fn block_span(ctx: &DiagramContext, cfg: &FunctionCFGData, block_id: u32) -> Opt
     ctx.span_of_tokens(blk.first_token, blk.last_token)
 }
 
-fn function_group(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, details: Vec<String>) -> String {
+fn function_group(
+    ctx: &DiagramContext,
+    model: &mut ViewModel,
+    sym: u32,
+    details: Vec<String>,
+) -> String {
     let key = format!("fn:{}", sym);
     model.add_node(
-        ViewNode::new(key.clone(), format!("fn_{}", sym), function_label(ctx, sym), NodeKind::Group)
-            .with_qualified_name(Some(function_fqn(ctx, sym)))
-            .with_span(ctx.symbol_span(sym))
-            .with_details(details)
-            .with_sym(sym),
+        ViewNode::new(
+            key.clone(),
+            format!("fn_{}", sym),
+            function_label(ctx, sym),
+            NodeKind::Group,
+        )
+        .with_qualified_name(Some(function_fqn(ctx, sym)))
+        .with_span(ctx.symbol_span(sym))
+        .with_details(details)
+        .with_sym(sym),
     );
     key
 }
@@ -134,7 +152,10 @@ pub fn cfg_view(ctx: &DiagramContext) -> ViewModel {
         None => return ViewModel::unavailable(ViewKind::Cfg, MISSING_CFA),
     };
     if cfa.functions.is_empty() {
-        return ViewModel::unavailable(ViewKind::Cfg, "The CFA artifact contains no function bodies.");
+        return ViewModel::unavailable(
+            ViewKind::Cfg,
+            "The CFA artifact contains no function bodies.",
+        );
     }
     let mut model = ViewModel::new(ViewKind::Cfg);
     model.source("cfa");
@@ -182,10 +203,15 @@ fn add_cfg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, cfg: &Function
                 details.push(format!("idom: B{}", d));
             }
         }
-        let mut node = ViewNode::new(key(b), format!("bb_{}_{}", sym, b), block_label(cfg, b), NodeKind::BasicBlock)
-            .with_parent(Some(group.clone()))
-            .with_span(block_span(ctx, cfg, b))
-            .with_details(details);
+        let mut node = ViewNode::new(
+            key(b),
+            format!("bb_{}_{}", sym, b),
+            block_label(cfg, b),
+            NodeKind::BasicBlock,
+        )
+        .with_parent(Some(group.clone()))
+        .with_span(block_span(ctx, cfg, b))
+        .with_details(details);
         if headers.contains(&b) {
             node = node.with_stereotype("loop header");
         }
@@ -258,7 +284,9 @@ pub fn dfg_view(ctx: &DiagramContext) -> ViewModel {
     }
     budget.finish(&mut model, "function(s)");
     if ctx.bpa.is_none() && ctx.tra.is_none() {
-        model.note("Statement text needs the BPA or TRA artifact; statements are labelled by AST node id.");
+        model.note(
+            "Statement text needs the BPA or TRA artifact; statements are labelled by AST node id.",
+        );
     }
     model.note("Solid edges are def-use chains (value → using statement → values it defines); dashed edges are φ-function arguments.");
     model
@@ -292,7 +320,8 @@ fn add_dfg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
         match version_of.get(&ssa_id) {
             Some(&(orig, version)) => format!(
                 "{}_{}",
-                ctx.simple_name(orig).unwrap_or_else(|| format!("#{}", orig)),
+                ctx.simple_name(orig)
+                    .unwrap_or_else(|| format!("#{}", orig)),
                 version
             ),
             None => "⊥".to_string(),
@@ -308,7 +337,9 @@ fn add_dfg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
 
     for rec in &func.ssa_records {
         let is_phi = rec.is_phi();
-        let phi = phi_by_ssa.get(&rec.ssa_id).and_then(|&i| func.phi_records.get(i));
+        let phi = phi_by_ssa
+            .get(&rec.ssa_id)
+            .and_then(|&i| func.phi_records.get(i));
         let label = match phi {
             Some(p) if is_phi => {
                 let args: Vec<String> = p.args.iter().map(|a| value_name(a.arg_ssa_id)).collect();
@@ -318,7 +349,10 @@ fn add_dfg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
         };
         let block = match phi {
             Some(p) if is_phi => p.block_id,
-            _ => stmt_block.get(&rec.def_stmt).copied().unwrap_or(rec.def_block),
+            _ => stmt_block
+                .get(&rec.def_stmt)
+                .copied()
+                .unwrap_or(rec.def_block),
         };
         let mut details = vec![format!("defined in B{}", block)];
         for (flag, text) in [
@@ -345,7 +379,11 @@ fn add_dfg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
                 value_key(rec.ssa_id),
                 format!("ssa_{}_{}", sym, rec.ssa_id),
                 label,
-                if is_phi { NodeKind::SsaPhi } else { NodeKind::SsaValue },
+                if is_phi {
+                    NodeKind::SsaPhi
+                } else {
+                    NodeKind::SsaValue
+                },
             )
             .with_parent(Some(group.clone()))
             .with_details(details)
@@ -357,7 +395,10 @@ fn add_dfg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
     let mut defs_by_stmt: HashMap<u32, Vec<u32>> = HashMap::new();
     for rec in &func.ssa_records {
         if !rec.is_phi() && rec.def_stmt != u32::MAX {
-            defs_by_stmt.entry(rec.def_stmt).or_default().push(rec.ssa_id);
+            defs_by_stmt
+                .entry(rec.def_stmt)
+                .or_default()
+                .push(rec.ssa_id);
         }
     }
     for rec in &func.ssa_records {
@@ -451,7 +492,10 @@ pub fn cdg_view(ctx: &DiagramContext) -> ViewModel {
     }
     budget.finish(&mut model, "function(s)");
     if model.nodes.is_empty() && model.omitted.is_empty() {
-        return ViewModel::unavailable(ViewKind::Cdg, "The SSA artifact contains no control dependence data.");
+        return ViewModel::unavailable(
+            ViewKind::Cdg,
+            "The SSA artifact contains no control dependence data.",
+        );
     }
     if ctx.cfa.is_none() {
         model.note("Block statement text needs the CFA artifact; blocks are labelled by id.");
@@ -460,7 +504,13 @@ pub fn cdg_view(ctx: &DiagramContext) -> ViewModel {
     model
 }
 
-fn add_cdg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &FunctionSSAData, n: usize) {
+fn add_cdg(
+    ctx: &DiagramContext,
+    model: &mut ViewModel,
+    sym: u32,
+    func: &FunctionSSAData,
+    n: usize,
+) {
     let group = function_group(
         ctx,
         model,
@@ -470,8 +520,13 @@ fn add_cdg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
     let cfg = ctx.function_cfg(sym);
     let root = format!("cdg:{}:entry", sym);
     model.add_node(
-        ViewNode::new(root.clone(), format!("cdgroot_{}", sym), "entry", NodeKind::Initial)
-            .with_parent(Some(group.clone())),
+        ViewNode::new(
+            root.clone(),
+            format!("cdgroot_{}", sym),
+            "entry",
+            NodeKind::Initial,
+        )
+        .with_parent(Some(group.clone())),
     );
     let key = |b: usize| format!("cdb:{}:{}", sym, b);
     for b in 0..n {
@@ -484,10 +539,15 @@ fn add_cdg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
             None => (format!("B{}", b), Vec::new(), None),
         };
         model.add_node(
-            ViewNode::new(key(b), format!("cdb_{}_{}", sym, b), label, NodeKind::BasicBlock)
-                .with_parent(Some(group.clone()))
-                .with_details(details)
-                .with_span(span),
+            ViewNode::new(
+                key(b),
+                format!("cdb_{}_{}", sym, b),
+                label,
+                NodeKind::BasicBlock,
+            )
+            .with_parent(Some(group.clone()))
+            .with_details(details)
+            .with_span(span),
         );
     }
     let mut controlled = vec![false; n];
@@ -511,14 +571,24 @@ fn add_cdg(ctx: &DiagramContext, model: &mut ViewModel, sym: u32, func: &Functio
                 None => outcome.to_string(),
             };
             model.add_edge(
-                ViewEdge::new(&key(x), &key(y), EdgeKind::ControlDependence, &k.to_string())
-                    .with_label(Some(label)),
+                ViewEdge::new(
+                    &key(x),
+                    &key(y),
+                    EdgeKind::ControlDependence,
+                    &k.to_string(),
+                )
+                .with_label(Some(label)),
             );
         }
     }
     for (y, is_controlled) in controlled.iter().enumerate() {
         if !is_controlled {
-            model.add_edge(ViewEdge::new(&root, &key(y), EdgeKind::ControlDependence, "entry"));
+            model.add_edge(ViewEdge::new(
+                &root,
+                &key(y),
+                EdgeKind::ControlDependence,
+                "entry",
+            ));
         }
     }
 }
@@ -560,9 +630,13 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
     let mut calls: BTreeMap<(u32, u32), (usize, BTreeSet<u8>)> = BTreeMap::new();
     let mut functions: BTreeSet<u32> = BTreeSet::new();
     for &(caller, callee, site) in &cga.site_to_edge_map {
-        let entry = calls.entry((caller, callee)).or_insert((0, BTreeSet::new()));
+        let entry = calls
+            .entry((caller, callee))
+            .or_insert((0, BTreeSet::new()));
         entry.0 += 1;
-        entry.1.insert(site_type.get(&site).copied().unwrap_or(CG_EDGE_DIRECT));
+        entry
+            .1
+            .insert(site_type.get(&site).copied().unwrap_or(CG_EDGE_DIRECT));
         functions.insert(caller);
         functions.insert(callee);
     }
@@ -624,7 +698,9 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
             continue;
         }
         let start = scc.member_offset as usize;
-        let end = start.saturating_add(scc.member_count as usize).min(cga.scc_members.len());
+        let end = start
+            .saturating_add(scc.member_count as usize)
+            .min(cga.scc_members.len());
         if start >= end {
             continue;
         }
@@ -640,11 +716,20 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
         let label = if scc.scc_class == SCC_CLASS_SELF_RECURSIVE {
             format!("SCC {}: self-recursive", scc.scc_id)
         } else {
-            format!("SCC {}: mutually recursive ({} methods)", scc.scc_id, end - start)
+            format!(
+                "SCC {}: mutually recursive ({} methods)",
+                scc.scc_id,
+                end - start
+            )
         };
         model.add_node(
-            ViewNode::new(key.clone(), format!("scc_{}", scc.scc_id), label, NodeKind::Group)
-                .with_stereotype("recursive"),
+            ViewNode::new(
+                key.clone(),
+                format!("scc_{}", scc.scc_id),
+                label,
+                NodeKind::Group,
+            )
+            .with_stereotype("recursive"),
         );
         for m in members {
             group_of.insert(m, key.clone());
@@ -655,16 +740,25 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
         let mut details = Vec::new();
         if let (Some(psa), Some(idx)) = (ctx.psa, ctx.robdd_index(f)) {
             if let Some(h) = psa.function_dir.get(idx) {
-                details.push(format!("V(G)={} | {}", h.cyclomatic, path_count_text(psa, idx)));
+                details.push(format!(
+                    "V(G)={} | {}",
+                    h.cyclomatic,
+                    path_count_text(psa, idx)
+                ));
             }
         }
         model.add_node(
-            ViewNode::new(format!("fn:{}", f), format!("fn_{}", f), function_label(ctx, f), NodeKind::Function)
-                .with_parent(group_of.get(&f).cloned())
-                .with_qualified_name(Some(function_fqn(ctx, f)))
-                .with_span(ctx.symbol_span(f))
-                .with_details(details)
-                .with_sym(f),
+            ViewNode::new(
+                format!("fn:{}", f),
+                format!("fn_{}", f),
+                function_label(ctx, f),
+                NodeKind::Function,
+            )
+            .with_parent(group_of.get(&f).cloned())
+            .with_qualified_name(Some(function_fqn(ctx, f)))
+            .with_span(ctx.symbol_span(f))
+            .with_details(details)
+            .with_sym(f),
         );
     }
 
@@ -681,8 +775,13 @@ pub fn callgraph_view(ctx: &DiagramContext) -> ViewModel {
             label.push_str(&format!(" ×{}", count));
         }
         model.add_edge(
-            ViewEdge::new(&format!("fn:{}", caller), &format!("fn:{}", callee), EdgeKind::Call, "")
-                .with_label(Some(label)),
+            ViewEdge::new(
+                &format!("fn:{}", caller),
+                &format!("fn:{}", callee),
+                EdgeKind::Call,
+                "",
+            )
+            .with_label(Some(label)),
         );
     }
     model.note("Edge labels give the dispatch kind of the call sites and their count; recursive strongly connected components (Tarjan) are grouped.");
@@ -761,7 +860,10 @@ pub fn robdd_view(ctx: &DiagramContext) -> ViewModel {
         None => return ViewModel::unavailable(ViewKind::Robdd, MISSING_PSA),
     };
     if psa.function_dir.is_empty() {
-        return ViewModel::unavailable(ViewKind::Robdd, "The path-summary artifact contains no functions.");
+        return ViewModel::unavailable(
+            ViewKind::Robdd,
+            "The path-summary artifact contains no functions.",
+        );
     }
     let mut model = ViewModel::new(ViewKind::Robdd);
     model.source("psa");
@@ -852,7 +954,10 @@ pub fn robdd_view(ctx: &DiagramContext) -> ViewModel {
             } else if id == TRUE_ID || node.flags & FLAG_TRUE_TERMINAL != 0 {
                 (NodeKind::BddTrue, "1".to_string())
             } else {
-                (NodeKind::BddVariable, variable_label(cfg, ordering, node.var))
+                (
+                    NodeKind::BddVariable,
+                    variable_label(cfg, ordering, node.var),
+                )
             };
             model.add_node(
                 ViewNode::new(key(id), format!("bdd_{}_{}", sym, id), label, kind)
@@ -886,7 +991,9 @@ pub fn robdd_view(ctx: &DiagramContext) -> ViewModel {
         ));
     }
     if ctx.cfa.is_none() {
-        model.note("Edge variables are labelled by CFA edge id; their endpoints need the CFA artifact.");
+        model.note(
+            "Edge variables are labelled by CFA edge id; their endpoints need the CFA artifact.",
+        );
     }
     model.note("Each variable xᵢ is one CFG edge or one loop entry (the Ball-Larus segment that starts at a loop header); solid edges are the 1 (taken) branch, dashed edges the 0 branch.");
     model

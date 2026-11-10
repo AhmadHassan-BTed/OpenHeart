@@ -91,7 +91,13 @@ pub(crate) struct Traversal {
     pub reached_target: bool,
 }
 
-fn allowed(kind: u8, controller_is_entry: bool, phase: u8, direction: SliceDirection, mode: SliceMode) -> bool {
+fn allowed(
+    kind: u8,
+    controller_is_entry: bool,
+    phase: u8,
+    direction: SliceDirection,
+    mode: SliceMode,
+) -> bool {
     if mode == SliceMode::Thin && kind == DEP_CONTROL && !controller_is_entry {
         return false;
     }
@@ -107,7 +113,10 @@ pub struct SliceEngine;
 
 impl SliceEngine {
     /// SDG nodes of a criterion, or `None` if the criterion is not in the graph.
-    pub fn criterion_nodes(sdg: &SystemDependenceGraph, criterion: SliceCriterion) -> Option<Vec<u32>> {
+    pub fn criterion_nodes(
+        sdg: &SystemDependenceGraph,
+        criterion: SliceCriterion,
+    ) -> Option<Vec<u32>> {
         let nodes: Vec<u32> = match criterion {
             SliceCriterion::Statement { method, ast_node } => {
                 let mut v = Vec::new();
@@ -143,7 +152,11 @@ impl SliceEngine {
             SliceDirection::Backward => sdg.preds(u),
             SliceDirection::Forward => sdg.succs(u),
         };
-        let is_entry = |id: u32| sdg.node(id).map(|nd| nd.kind == NODE_ENTRY).unwrap_or(false);
+        let is_entry = |id: u32| {
+            sdg.node(id)
+                .map(|nd| nd.kind == NODE_ENTRY)
+                .unwrap_or(false)
+        };
         let controller_is_entry = |u: u32, v: u32| match direction {
             SliceDirection::Backward => is_entry(v),
             SliceDirection::Forward => is_entry(u),
@@ -170,7 +183,9 @@ impl SliceEngine {
             }
             let (adj, kinds) = neighbors(u);
             for (&v, &k) in adj.iter().zip(kinds) {
-                if !allowed(k, controller_is_entry(u, v), 1, direction, mode) || dist[v as usize] != u32::MAX {
+                if !allowed(k, controller_is_entry(u, v), 1, direction, mode)
+                    || dist[v as usize] != u32::MAX
+                {
                     continue;
                 }
                 dist[v as usize] = d + 1;
@@ -197,7 +212,9 @@ impl SliceEngine {
             }
             let (adj, kinds) = neighbors(u);
             for (&v, &k) in adj.iter().zip(kinds) {
-                if !allowed(k, controller_is_entry(u, v), 2, direction, mode) || d + 1 >= dist[v as usize] {
+                if !allowed(k, controller_is_entry(u, v), 2, direction, mode)
+                    || d + 1 >= dist[v as usize]
+                {
                     continue;
                 }
                 dist[v as usize] = d + 1;
@@ -217,9 +234,20 @@ impl SliceEngine {
     }
 
     /// Computes a slice; `None` if the criterion has no SDG node (unknown method/statement).
-    pub fn slice(sdg: &SystemDependenceGraph, criterion: SliceCriterion, options: SliceOptions) -> Option<ProgramSlice> {
+    pub fn slice(
+        sdg: &SystemDependenceGraph,
+        criterion: SliceCriterion,
+        options: SliceOptions,
+    ) -> Option<ProgramSlice> {
         let seeds = Self::criterion_nodes(sdg, criterion)?;
-        let traversal = Self::two_phase(sdg, &seeds, options.direction, options.mode, options.depth_limit, None);
+        let traversal = Self::two_phase(
+            sdg,
+            &seeds,
+            options.direction,
+            options.mode,
+            options.depth_limit,
+            None,
+        );
 
         let mut statements: Vec<SliceStatement> = Vec::new();
         let mut entries = Vec::new();
@@ -293,7 +321,14 @@ impl SliceEngine {
         cga: &CallGraphArtifact,
         depth_limit: u32,
     ) -> Vec<u32> {
-        Self::method_level(root_sym, cfa, ssa, cga, depth_limit, SliceDirection::Backward)
+        Self::method_level(
+            root_sym,
+            cfa,
+            ssa,
+            cga,
+            depth_limit,
+            SliceDirection::Backward,
+        )
     }
 
     /// Forward counterpart of `backward_slice`.
@@ -304,6 +339,13 @@ impl SliceEngine {
         cga: &CallGraphArtifact,
         depth_limit: u32,
     ) -> Vec<u32> {
-        Self::method_level(root_sym, cfa, ssa, cga, depth_limit, SliceDirection::Forward)
+        Self::method_level(
+            root_sym,
+            cfa,
+            ssa,
+            cga,
+            depth_limit,
+            SliceDirection::Forward,
+        )
     }
 }

@@ -113,7 +113,10 @@ impl UMABuilder {
         }
         for inst in &a.pattern_instances {
             if inst.score > 100 {
-                return Err(format!("Pattern instance {} has score > 100", inst.instance_id));
+                return Err(format!(
+                    "Pattern instance {} has score > 100",
+                    inst.instance_id
+                ));
             }
         }
         for row in &a.design_patterns {

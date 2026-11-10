@@ -94,13 +94,8 @@ fn jdk_superclass(name: &[u8]) -> Option<&'static [u8]> {
         b"ArrayIndexOutOfBoundsException" | b"StringIndexOutOfBoundsException" => {
             b"IndexOutOfBoundsException"
         }
-        b"AssertionError"
-        | b"LinkageError"
-        | b"VirtualMachineError"
-        | b"ThreadDeath" => b"Error",
-        b"OutOfMemoryError" | b"StackOverflowError" | b"InternalError" => {
-            b"VirtualMachineError"
-        }
+        b"AssertionError" | b"LinkageError" | b"VirtualMachineError" | b"ThreadDeath" => b"Error",
+        b"OutOfMemoryError" | b"StackOverflowError" | b"InternalError" => b"VirtualMachineError",
         b"NoClassDefFoundError" | b"ExceptionInInitializerError" => b"LinkageError",
         _ => return None,
     };

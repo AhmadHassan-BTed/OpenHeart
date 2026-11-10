@@ -48,7 +48,8 @@ impl FileTable {
             table.sizes.push(f.file_size_bytes);
             table.first_tokens.push(f.first_token_id);
             table.token_counts.push(f.file_token_count);
-            let path = String::from_utf8_lossy(tca.interner.lookup_text(f.path_str_offset)).into_owned();
+            let path =
+                String::from_utf8_lossy(tca.interner.lookup_text(f.path_str_offset)).into_owned();
             table.paths.push(&path);
         }
         table
@@ -98,7 +99,8 @@ impl FileTable {
             if candidate == normalized {
                 return Some(file_id);
             }
-            if suffix_match.is_none() && !normalized.is_empty() && candidate.ends_with(&normalized) {
+            if suffix_match.is_none() && !normalized.is_empty() && candidate.ends_with(&normalized)
+            {
                 suffix_match = Some(file_id);
             }
         }
@@ -162,19 +164,20 @@ impl TokenIndex {
     pub fn from_tca(tca: &TokenCorpusArtifact) -> Self {
         // `token_entries` is the dense backward index keyed by token id; fall back to the
         // forward records when a corpus was produced without it.
-        let (sort_keys, lens, types): (Vec<u64>, Vec<u16>, Vec<u8>) = if !tca.token_entries.is_empty() {
-            (
-                tca.token_entries.iter().map(|t| t.sort_key).collect(),
-                tca.token_entries.iter().map(|t| t.len).collect(),
-                tca.token_entries.iter().map(|t| t.token_type).collect(),
-            )
-        } else {
-            (
-                tca.token_records.iter().map(|t| t.sort_key).collect(),
-                tca.token_records.iter().map(|t| t.len).collect(),
-                tca.token_records.iter().map(|t| t.token_type).collect(),
-            )
-        };
+        let (sort_keys, lens, types): (Vec<u64>, Vec<u16>, Vec<u8>) =
+            if !tca.token_entries.is_empty() {
+                (
+                    tca.token_entries.iter().map(|t| t.sort_key).collect(),
+                    tca.token_entries.iter().map(|t| t.len).collect(),
+                    tca.token_entries.iter().map(|t| t.token_type).collect(),
+                )
+            } else {
+                (
+                    tca.token_records.iter().map(|t| t.sort_key).collect(),
+                    tca.token_records.iter().map(|t| t.len).collect(),
+                    tca.token_records.iter().map(|t| t.token_type).collect(),
+                )
+            };
         let mut by_position: Vec<u32> = (0..sort_keys.len() as u32).collect();
         by_position.sort_by_key(|&t| (sort_keys[t as usize], t));
         Self {
@@ -214,7 +217,9 @@ impl TokenIndex {
     }
 
     pub fn token_type(&self, token: u32) -> Option<TokenType> {
-        self.types.get(token as usize).map(|&t| TokenType::from_u8(t))
+        self.types
+            .get(token as usize)
+            .map(|&t| TokenType::from_u8(t))
     }
 
     pub fn is_trivia(&self, token: u32) -> bool {
@@ -230,19 +235,27 @@ impl TokenIndex {
 
     /// Token ids of `file_id` whose start lies in `[from, to)` (position order).
     pub fn tokens_starting_in(&self, file_id: u16, from: (u32, u16), to: (u32, u16)) -> &[u32] {
-        let key = |line: u32, col: u16| ((file_id as u64) << 48) | (((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8);
+        let key = |line: u32, col: u16| {
+            ((file_id as u64) << 48) | (((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8)
+        };
         let lo_key = key(from.0, from.1);
         let hi_key = key(to.0, to.1);
-        let lo = self.by_position.partition_point(|&t| self.sort_keys[t as usize] < lo_key);
-        let hi = self.by_position.partition_point(|&t| self.sort_keys[t as usize] < hi_key);
+        let lo = self
+            .by_position
+            .partition_point(|&t| self.sort_keys[t as usize] < lo_key);
+        let hi = self
+            .by_position
+            .partition_point(|&t| self.sort_keys[t as usize] < hi_key);
         &self.by_position[lo..hi.max(lo)]
     }
 
     /// The last token of `file_id` starting at or before `(line, col)`.
     pub fn token_at_or_before(&self, file_id: u16, line: u32, col: u16) -> Option<u32> {
         let file_lo = (file_id as u64) << 48;
-        let probe = file_lo |(((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8) | 0xFF;
-        let idx = self.by_position.partition_point(|&t| self.sort_keys[t as usize] <= probe);
+        let probe = file_lo | (((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8) | 0xFF;
+        let idx = self
+            .by_position
+            .partition_point(|&t| self.sort_keys[t as usize] <= probe);
         if idx == 0 {
             return None;
         }
@@ -306,7 +319,13 @@ impl AstIndex {
         };
         for node in 0..bpa.node_count {
             let (first, last) = bpa.token_range(node);
-            index.node_types.push(bpa.preorder.node_types.get(node as usize).copied().unwrap_or(0));
+            index.node_types.push(
+                bpa.preorder
+                    .node_types
+                    .get(node as usize)
+                    .copied()
+                    .unwrap_or(0),
+            );
             index.first_tokens.push(first);
             index.last_tokens.push(last);
         }

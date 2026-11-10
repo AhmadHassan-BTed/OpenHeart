@@ -413,7 +413,9 @@ impl<'a> SourceScanner<'a> {
         loop {
             if paren == 0 && self.text_id(t) == sym.name_id && self.is_ident(t) {
                 let prev = self.prev_code(t, file);
-                let after_marker = prev.map(|p| self.is(p, b"@") || self.is(p, b".")).unwrap_or(false);
+                let after_marker = prev
+                    .map(|p| self.is(p, b"@") || self.is(p, b"."))
+                    .unwrap_or(false);
                 if !after_marker {
                     return Some(t);
                 }
@@ -566,8 +568,7 @@ impl<'a> SourceScanner<'a> {
                     continue;
                 }
                 b"(" => {
-                    if paren == 0 && angle == 0 && mode == Mode::Delegation && item_last.is_some()
-                    {
+                    if paren == 0 && angle == 0 && mode == Mode::Delegation && item_last.is_some() {
                         item_called = true;
                     }
                     paren += 1;
@@ -1034,7 +1035,9 @@ impl<'a> SourceScanner<'a> {
                 } else if self.is_ident(code[j])
                     || matches!(
                         self.token_type(code[j]),
-                        TokenType::IntegerLiteral | TokenType::StringLiteral | TokenType::CharLiteral
+                        TokenType::IntegerLiteral
+                            | TokenType::StringLiteral
+                            | TokenType::CharLiteral
                     )
                 {
                     last_label = Some(self.text_id(code[j]));
@@ -1113,15 +1116,24 @@ impl<'s, 'a> BodyWalker<'s, 'a> {
     }
 
     fn tid(&self, i: usize) -> u32 {
-        self.code.get(i).map(|&t| self.scanner.text_id(t)).unwrap_or(u32::MAX)
+        self.code
+            .get(i)
+            .map(|&t| self.scanner.text_id(t))
+            .unwrap_or(u32::MAX)
     }
 
     fn ident(&self, i: usize) -> bool {
-        self.code.get(i).map(|&t| self.scanner.is_ident(t)).unwrap_or(false)
+        self.code
+            .get(i)
+            .map(|&t| self.scanner.is_ident(t))
+            .unwrap_or(false)
     }
 
     fn line(&self, i: usize) -> u32 {
-        self.code.get(i).map(|&t| self.scanner.line_of(t)).unwrap_or(0)
+        self.code
+            .get(i)
+            .map(|&t| self.scanner.line_of(t))
+            .unwrap_or(0)
     }
 
     /// Matching close bracket index, or the last index when unbalanced.
@@ -1199,8 +1211,7 @@ impl<'s, 'a> BodyWalker<'s, 'a> {
                     }
                     break;
                 }
-                if end + 2 <= last && self.txt(end + 1) == b"finally" && self.txt(end + 2) == b"{"
-                {
+                if end + 2 <= last && self.txt(end + 1) == b"finally" && self.txt(end + 2) == b"{" {
                     end = self.close_of(end + 2);
                 }
                 break;
@@ -1421,19 +1432,32 @@ fn continues_expression(t: &[u8]) -> bool {
     matches!(
         t,
         b"." | b"?."
-            | b"," | b"("
-            | b"[" | b"="
-            | b"+" | b"-"
-            | b"*" | b"/"
-            | b"%" | b"&&"
-            | b"||" | b"?"
-            | b":" | b"->"
-            | b"==" | b"!="
-            | b"<" | b">"
-            | b"<=" | b">="
-            | b"&" | b"|"
-            | b"^" | b"?:"
-            | b"+=" | b"-="
+            | b","
+            | b"("
+            | b"["
+            | b"="
+            | b"+"
+            | b"-"
+            | b"*"
+            | b"/"
+            | b"%"
+            | b"&&"
+            | b"||"
+            | b"?"
+            | b":"
+            | b"->"
+            | b"=="
+            | b"!="
+            | b"<"
+            | b">"
+            | b"<="
+            | b">="
+            | b"&"
+            | b"|"
+            | b"^"
+            | b"?:"
+            | b"+="
+            | b"-="
     )
 }
 

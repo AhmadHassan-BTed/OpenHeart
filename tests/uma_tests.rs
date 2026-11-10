@@ -113,7 +113,13 @@ public class UmlMetadataTest {
     assert_eq!(loaded_uma.tra_hash, uma.tra_hash);
 
     // ── Invariant 1 (Class Coverage): Every public class has a ClassRecord ──
-    let target_sym_id = sta.symbol(1).expect("Symbol 1 must exist").symbol_id;
+    // The class under test, found by name (symbol ids depend on the symbol table's order).
+    let target_sym_id = (0..sta.symbol_count)
+        .find(|&id| {
+            sta.qualified_name_of(id)
+                .is_some_and(|q| q == "UmlMetadataTest" || q.ends_with(".UmlMetadataTest"))
+        })
+        .expect("the UmlMetadataTest class symbol must exist");
     let class_rec = uma
         .classes
         .iter()

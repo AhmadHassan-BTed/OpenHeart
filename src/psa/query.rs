@@ -150,7 +150,11 @@ impl<'a> FunctionPathView<'a> {
     }
 
     /// Exact number of paths that take every `required` edge and no `forbidden` edge.
-    pub fn count_paths(&self, required: &[u32], forbidden: &[u32]) -> Result<PathCount, PathQueryError> {
+    pub fn count_paths(
+        &self,
+        required: &[u32],
+        forbidden: &[u32],
+    ) -> Result<PathCount, PathQueryError> {
         let fixed = self.fixed_table(required, forbidden)?;
         count_models(
             self.nodes,

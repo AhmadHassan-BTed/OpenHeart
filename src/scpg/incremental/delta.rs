@@ -50,7 +50,11 @@ impl TextPoint {
     pub fn of_offset(text: &[u8], offset: usize) -> Self {
         let prefix = &text[..offset.min(text.len())];
         let row = prefix.iter().filter(|&&b| b == b'\n').count();
-        let line_start = prefix.iter().rposition(|&b| b == b'\n').map(|p| p + 1).unwrap_or(0);
+        let line_start = prefix
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map(|p| p + 1)
+            .unwrap_or(0);
         Self {
             row,
             column: prefix.len() - line_start,
@@ -146,9 +150,16 @@ impl SourceDelta {
     /// Uses caller-provided edits (e.g. LSP `didChange` ranges). Edits that do not fit the
     /// texts are replaced by the minimal prefix/suffix edit, so classification never reads
     /// outside the texts.
-    pub fn from_edits(file_id: u16, old_text: Vec<u8>, new_text: Vec<u8>, mut edits: Vec<TextEdit>) -> Self {
+    pub fn from_edits(
+        file_id: u16,
+        old_text: Vec<u8>,
+        new_text: Vec<u8>,
+        mut edits: Vec<TextEdit>,
+    ) -> Self {
         edits.sort_by_key(|e| e.start_byte);
-        let overlapping = edits.windows(2).any(|w| w[0].old_end_byte > w[1].start_byte);
+        let overlapping = edits
+            .windows(2)
+            .any(|w| w[0].old_end_byte > w[1].start_byte);
         if overlapping || edits.iter().any(|e| !e.is_valid_for(&old_text, &new_text)) {
             edits = TextEdit::diff(&old_text, &new_text).into_iter().collect();
         }

@@ -117,10 +117,7 @@ impl PathCfg {
                 out_degree[u as usize] += 1;
             }
         }
-        1 + out_degree
-            .iter()
-            .map(|&k| k.saturating_sub(1))
-            .sum::<u64>()
+        1 + out_degree.iter().map(|&k| k.saturating_sub(1)).sum::<u64>()
     }
 }
 

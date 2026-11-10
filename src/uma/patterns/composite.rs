@@ -15,7 +15,15 @@ use crate::uma::patterns::chain::{Evidence, PatternDetectionRule, PatternMatch};
 use crate::uma::patterns::query::{FieldFact, PatternContext};
 use crate::uma::types::*;
 
-const INSERT_OPERATIONS: &[&[u8]] = &[b"add", b"addAll", b"addFirst", b"addLast", b"push", b"offer", b"put"];
+const INSERT_OPERATIONS: &[&[u8]] = &[
+    b"add",
+    b"addAll",
+    b"addFirst",
+    b"addLast",
+    b"push",
+    b"offer",
+    b"put",
+];
 
 pub struct CompositeRule;
 
@@ -43,7 +51,8 @@ impl PatternDetectionRule for CompositeRule {
                 .fields(k)
                 .iter()
                 .filter(|f| {
-                    f.is_collection && (f.element == c || (f.element == UNKNOWN_SYM && takes_component))
+                    f.is_collection
+                        && (f.element == c || (f.element == UNKNOWN_SYM && takes_component))
                 })
                 .collect();
             let mut ev = Evidence::new();
@@ -75,10 +84,9 @@ impl PatternDetectionRule for CompositeRule {
                 .into_iter()
                 .filter(|&l| {
                     !ctx.related(l, k)
-                        && !ctx
-                            .fields(l)
-                            .iter()
-                            .any(|f| f.is_collection && (f.element == c || f.element == UNKNOWN_SYM))
+                        && !ctx.fields(l).iter().any(|f| {
+                            f.is_collection && (f.element == c || f.element == UNKNOWN_SYM)
+                        })
                 })
                 .collect();
             ev.optional(EVIDENCE_CONCRETE_PARTICIPANTS, !leaves.is_empty());

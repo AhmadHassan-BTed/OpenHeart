@@ -147,9 +147,15 @@ impl LRUQueryCache {
     /// A cache holding at most about `capacity` results (rounded up to a multiple of the
     /// shard count). `capacity == 0` disables caching.
     pub fn new(capacity: usize) -> Self {
-        let per_shard = if capacity == 0 { 0 } else { capacity.div_ceil(SHARD_COUNT) };
+        let per_shard = if capacity == 0 {
+            0
+        } else {
+            capacity.div_ceil(SHARD_COUNT)
+        };
         Self {
-            shards: (0..SHARD_COUNT).map(|_| Mutex::new(LruShard::new(per_shard))).collect(),
+            shards: (0..SHARD_COUNT)
+                .map(|_| Mutex::new(LruShard::new(per_shard)))
+                .collect(),
         }
     }
 

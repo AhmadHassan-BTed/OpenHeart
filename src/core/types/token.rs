@@ -167,7 +167,10 @@ impl std::error::Error for SortKeyError {}
 /// reports out-of-range positions instead of wrapping them.
 #[inline(always)]
 pub fn build_sort_key(file_id: u16, line: u32, col: u16) -> u64 {
-    debug_assert!(line <= SORT_KEY_MAX_LINE, "line number exceeds 24-bit range");
+    debug_assert!(
+        line <= SORT_KEY_MAX_LINE,
+        "line number exceeds 24-bit range"
+    );
     ((file_id as u64) << 48) | (((line & 0x00FF_FFFF) as u64) << 24) | ((col as u64) << 8)
 }
 

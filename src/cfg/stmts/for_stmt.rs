@@ -111,7 +111,15 @@ pub fn build_for(
         build_simple(init, state, bpa, sta);
     }
 
-    build_pretest_loop(parts.cond, parts.body, &parts.update, labels, state, bpa, sta);
+    build_pretest_loop(
+        parts.cond,
+        parts.body,
+        &parts.update,
+        labels,
+        state,
+        bpa,
+        sta,
+    );
 }
 
 pub fn build_enhanced_for(

@@ -22,7 +22,11 @@ enum Frame {
     /// Process the sub-DAG rooted at this node and push its result.
     Expand(u32),
     /// Pop the hi and lo results of `source`, combine them, memoize and push.
-    Combine { source: u32, var: u16, quantify: bool },
+    Combine {
+        source: u32,
+        var: u16,
+        quantify: bool,
+    },
 }
 
 #[inline]

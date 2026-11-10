@@ -58,16 +58,23 @@ impl PatternDetectionRule for MediatorRule {
                 .iter()
                 .filter_map(|f| {
                     let r = f.referenced_type();
-                    let hit = colleagues.iter().copied().find(|&col| ctx.is_subtype_of(col, r));
+                    let hit = colleagues
+                        .iter()
+                        .copied()
+                        .find(|&col| ctx.is_subtype_of(col, r));
                     hit.map(|col| (f.name, col))
                 })
                 .collect();
             let mut distinct: Vec<u32> = held.iter().map(|&(_, col)| col).collect();
             distinct.sort_unstable();
             distinct.dedup();
-            if distinct.len() >= 2 || held.iter().any(|&(name, _)| {
-                ctx.fields(cm).iter().any(|f| f.name == name && f.is_collection)
-            }) {
+            if distinct.len() >= 2
+                || held.iter().any(|&(name, _)| {
+                    ctx.fields(cm)
+                        .iter()
+                        .any(|f| f.name == name && f.is_collection)
+                })
+            {
                 mediators.push(cm);
                 coordinates |= ctx.methods(cm).into_iter().any(|m| {
                     held.iter()

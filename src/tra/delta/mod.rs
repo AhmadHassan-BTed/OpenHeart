@@ -57,7 +57,10 @@ pub struct DeltaApplicator;
 
 impl DeltaApplicator {
     /// Diff `old` against `new` by stable keys.
-    pub fn compute_delta(old: &TraceabilityArtifact, new: &TraceabilityArtifact) -> TraceabilityDelta {
+    pub fn compute_delta(
+        old: &TraceabilityArtifact,
+        new: &TraceabilityArtifact,
+    ) -> TraceabilityDelta {
         let old_by_key = key_map(&old.entities);
         let mut matched_old: HashSet<u32> = HashSet::with_capacity(old.entities.len());
 

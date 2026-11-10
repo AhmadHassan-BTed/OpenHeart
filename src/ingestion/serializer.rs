@@ -205,7 +205,11 @@ impl TokenCorpusSerializer {
             .map(|d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
             .unwrap_or(0);
         buf.extend_from_slice(&created_ns.to_le_bytes());
-        debug_assert_eq!(buf.len(), TCA_HEADER_SIZE, "Header must be exactly 64 bytes");
+        debug_assert_eq!(
+            buf.len(),
+            TCA_HEADER_SIZE,
+            "Header must be exactly 64 bytes"
+        );
 
         // ── Section 2: FILE REGISTRY (F * 64 B) ──
         for rec in &artifact.file_records {
@@ -332,8 +336,8 @@ impl TokenCorpusSerializer {
 /// `file_id u16 | skip_reason u8 | reserved u8 | error_count u32 | missing_count u32 |
 ///  range_count u16 | detail_len u16 | ranges (start u32, end u32) x range_count | detail`.
 fn write_diagnostics(buf: &mut Vec<u8>, diagnostics: &[FileDiagnostics]) -> Result<(), String> {
-    let count = u32::try_from(diagnostics.len())
-        .map_err(|_| "too many diagnostics entries".to_string())?;
+    let count =
+        u32::try_from(diagnostics.len()).map_err(|_| "too many diagnostics entries".to_string())?;
     buf.extend_from_slice(&DIAG_SECTION_MAGIC.to_le_bytes());
     buf.extend_from_slice(&count.to_le_bytes());
     for d in diagnostics {

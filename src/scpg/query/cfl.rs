@@ -45,7 +45,14 @@ impl CFLReachability {
         if let Some(actual_in) = sdg.find(from.0, crate::scpg::query::sdg::NODE_ACTUAL_IN, from.1) {
             seeds.push(actual_in);
         }
-        let traversal = SliceEngine::two_phase(sdg, &seeds, SliceDirection::Forward, mode, None, Some(target));
+        let traversal = SliceEngine::two_phase(
+            sdg,
+            &seeds,
+            SliceDirection::Forward,
+            mode,
+            None,
+            Some(target),
+        );
         Some(traversal.reached_target)
     }
 }

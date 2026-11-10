@@ -130,7 +130,11 @@ impl AccessPolicy {
             if normalized == format!("http://{}", host.to_ascii_lowercase()) {
                 return Caller::SameOrigin;
             }
-            if self.cors_origins.iter().any(|allowed| *allowed == normalized) {
+            if self
+                .cors_origins
+                .iter()
+                .any(|allowed| *allowed == normalized)
+            {
                 return Caller::AllowedCrossOrigin(origin.to_string());
             }
             return Caller::CrossSite;

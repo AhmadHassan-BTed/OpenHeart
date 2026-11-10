@@ -141,10 +141,12 @@ impl Pass3Types {
                 }
                 (sym, status)
             }
-            TypeBase::Wildcard(WildcardSyntax::Unbounded) => match b.std_lib.lookup_fqn("java.lang.Object") {
-                Some(idx) => (b.materialize_library(idx), ResolutionStatus::Library),
-                None => (u32::MAX, ResolutionStatus::Unresolved),
-            },
+            TypeBase::Wildcard(WildcardSyntax::Unbounded) => {
+                match b.std_lib.lookup_fqn("java.lang.Object") {
+                    Some(idx) => (b.materialize_library(idx), ResolutionStatus::Library),
+                    None => (u32::MAX, ResolutionStatus::Unresolved),
+                }
+            }
             TypeBase::Wildcard(WildcardSyntax::Extends(bound))
             | TypeBase::Wildcard(WildcardSyntax::Super(bound)) => {
                 Self::bind(tv, adapter, lowering, b, scope, bound, node)

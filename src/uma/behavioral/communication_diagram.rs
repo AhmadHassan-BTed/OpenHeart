@@ -26,10 +26,9 @@ impl CommunicationDiagramExtractor {
                 ) {
                     continue;
                 }
-                match links
-                    .iter_mut()
-                    .find(|l| l.from_lifeline == msg.from_lifeline && l.to_lifeline == msg.to_lifeline)
-                {
+                match links.iter_mut().find(|l| {
+                    l.from_lifeline == msg.from_lifeline && l.to_lifeline == msg.to_lifeline
+                }) {
                     Some(link) => link.message_ordinals.push(msg.ordinal),
                     None => links.push(CommunicationLinkRecord {
                         from_lifeline: msg.from_lifeline,

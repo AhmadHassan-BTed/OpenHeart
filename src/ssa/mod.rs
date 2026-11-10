@@ -88,7 +88,10 @@ impl Phase5Stage {
         let mut unresolved_total = 0u64;
         for (func_cfg, result) in cfa.functions.iter().zip(results) {
             let func_data = result.map_err(|e| {
-                format!("SSA conversion failed for function sym {}: {}", func_cfg.sym_id, e)
+                format!(
+                    "SSA conversion failed for function sym {}: {}",
+                    func_cfg.sym_id, e
+                )
             })?;
             unresolved_total += u64::from(func_data.unresolved_names);
 

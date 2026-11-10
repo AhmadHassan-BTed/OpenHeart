@@ -89,7 +89,15 @@ impl Pass1Discovery {
                 .and_then(|f| file_ranges.get(&f).copied())
                 .unwrap_or((u32::MAX, u32::MAX));
             let unit = Self::open_unit(
-                bpa, ast, &tv, builder, fid, root, token_range, front_end, dialect,
+                bpa,
+                ast,
+                &tv,
+                builder,
+                fid,
+                root,
+                token_range,
+                front_end,
+                dialect,
             );
 
             match front_end {
@@ -617,7 +625,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
                     && b.symbol_at_node(parent) == Some(enclosing)
                     && b.symbol_kind(enclosing) == Some(SymbolKind::SK_ANON_CLASS));
                 if declares_body {
-                    self.declare_initializer(b, node, SymbolKind::SK_INSTANCE_INIT, scope, enclosing)
+                    self.declare_initializer(
+                        b,
+                        node,
+                        SymbolKind::SK_INSTANCE_INIT,
+                        scope,
+                        enclosing,
+                    )
                 } else {
                     (self.open_block(b, scope, enclosing), enclosing)
                 }
@@ -681,9 +695,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             .visibility
             .unwrap_or_else(|| self.adapter.default_visibility_in(kind, encl_kind));
         let modifiers = scan.modifiers
-            | self
-                .adapter
-                .implicit_modifiers(kind, encl_kind, scan.modifiers, scan.visibility, true);
+            | self.adapter.implicit_modifiers(
+                kind,
+                encl_kind,
+                scan.modifiers,
+                scan.visibility,
+                true,
+            );
 
         let header = name_tok.map(|t| parse_java_type_header(&self.tv, t, self.file_end()));
         let body_open = header.as_ref().and_then(|h| h.body_open);
@@ -808,9 +826,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             .visibility
             .unwrap_or_else(|| self.adapter.default_visibility_in(kind, encl_kind));
         let mut modifiers = scan.modifiers
-            | self
-                .adapter
-                .implicit_modifiers(kind, encl_kind, scan.modifiers, scan.visibility, has_body);
+            | self.adapter.implicit_modifiers(
+                kind,
+                encl_kind,
+                scan.modifiers,
+                scan.visibility,
+                has_body,
+            );
         if params
             .last()
             .map(|&p| self.is_spread_parameter(p))
@@ -849,7 +871,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         rec.param_count = u16::try_from(param_count).unwrap_or(u16::MAX);
         let sym = b.create_symbol(rec);
         b.set_parent(sym, enclosing);
-        b.bind_name(scope, Namespace::Method, name_id, sym, name_tok.unwrap_or(0));
+        b.bind_name(
+            scope,
+            Namespace::Method,
+            name_id,
+            sym,
+            name_tok.unwrap_or(0),
+        );
 
         if kind == SymbolKind::SK_METHOD {
             if let Some(t) = name_tok {
@@ -950,9 +978,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             SymbolVisibility::Package
         };
         let modifiers = scan.modifiers
-            | self
-                .adapter
-                .implicit_modifiers(kind, encl_kind, scan.modifiers, scan.visibility, false);
+            | self.adapter.implicit_modifiers(
+                kind,
+                encl_kind,
+                scan.modifiers,
+                scan.visibility,
+                false,
+            );
 
         let declarator_count = declaration
             .map(|d| {
@@ -979,7 +1011,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         );
         let sym = b.create_symbol(rec);
         b.set_parent(sym, enclosing);
-        b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok.unwrap_or(0));
+        b.bind_name(
+            scope,
+            Namespace::Variable,
+            name_id,
+            sym,
+            name_tok.unwrap_or(0),
+        );
 
         if let (Some(t), Some(first_t)) = (name_tok, first_name_tok) {
             let (extra_dims, _, _) = parse_trailing_dims(&self.tv, t + 1, self.file_end());
@@ -1001,9 +1039,9 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         scope: u32,
         enclosing: u32,
     ) -> (u32, u32) {
-        let spread_declarator = self
-            .ast
-            .first_child_of_type(self.bpa, node, ASTNodeType::NN_LOCAL_VAR_DECL);
+        let spread_declarator =
+            self.ast
+                .first_child_of_type(self.bpa, node, ASTNodeType::NN_LOCAL_VAR_DECL);
         let name_tok = self
             .name_token_of(node)
             .or_else(|| spread_declarator.and_then(|d| self.name_token_of(d)));
@@ -1040,7 +1078,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         b.set_parent(sym, enclosing);
         // Record components are reached through the implicit fields synthesized for them.
         if !record_component {
-            b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok.unwrap_or(0));
+            b.bind_name(
+                scope,
+                Namespace::Variable,
+                name_id,
+                sym,
+                name_tok.unwrap_or(0),
+            );
         }
         if let Some(t) = name_tok {
             if scan.end != u32::MAX {
@@ -1088,13 +1132,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
     /// One SK_TYPE_PARAM per type parameter. A tree may keep one node per parameter (its
     /// tokens start at the parameter) or one node for the whole `<...>` list whose children
     /// were dropped (its tokens start at `<`); both are parsed from the tokens.
-    fn declare_type_params(
-        &self,
-        b: &mut SymbolTableBuilder,
-        node: u32,
-        scope: u32,
-        owner: u32,
-    ) {
+    fn declare_type_params(&self, b: &mut SymbolTableBuilder, node: u32, scope: u32, owner: u32) {
         let first = self.bpa.token_range(node).0;
         if !self.tv.valid(first) {
             return;
@@ -1187,8 +1225,7 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
             });
             if let Some(c) = single {
                 implicit.push((self.bpa.token_range(c).0, c));
-            } else if let Some(names) =
-                parse_inferred_lambda_params(&self.tv, ft, self.file_end())
+            } else if let Some(names) = parse_inferred_lambda_params(&self.tv, ft, self.file_end())
             {
                 implicit.extend(names.into_iter().map(|t| (t, u32::MAX)));
             }
@@ -1323,13 +1360,14 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         block: u32,
         enclosing: u32,
     ) {
-        let ident = match self
-            .ast
-            .first_child_of_type(self.bpa, node, ASTNodeType::NN_IDENTIFIER_EXPR)
-        {
-            Some(i) => i,
-            None => return,
-        };
+        let ident =
+            match self
+                .ast
+                .first_child_of_type(self.bpa, node, ASTNodeType::NN_IDENTIFIER_EXPR)
+            {
+                Some(i) => i,
+                None => return,
+            };
         let name_tok = self.bpa.token_range(ident).0;
         if !self.tv.valid(name_tok) {
             return;
@@ -1394,7 +1432,11 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         b.set_parent(sym, enclosing);
         b.bind_name(block, Namespace::Variable, name_id, sym, param.name_tok);
         let union_parts: Vec<(u32, u32)> = if param.alternatives.len() > 1 {
-            param.alternatives.iter().map(|a| (a.first, a.last)).collect()
+            param
+                .alternatives
+                .iter()
+                .map(|a| (a.first, a.last))
+                .collect()
         } else {
             Vec::new()
         };
@@ -1501,7 +1543,13 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
         }
         let sym = b.create_symbol(rec);
         b.set_parent(sym, enclosing);
-        b.bind_name(scope, Namespace::Variable, name_id, sym, name_tok.unwrap_or(0));
+        b.bind_name(
+            scope,
+            Namespace::Variable,
+            name_id,
+            sym,
+            name_tok.unwrap_or(0),
+        );
         if let Some(t) = name_tok {
             define(b, t, node, sym);
         }
@@ -1872,13 +1920,75 @@ impl<'a, 'u> StructuralWalk<'a, 'u> {
 
 /// Language keywords never taken as declaration names by the heuristic namer.
 const HEURISTIC_KEYWORDS: &[&str] = &[
-    "class", "interface", "object", "enum", "fun", "val", "var", "public", "private", "protected",
-    "internal", "data", "sealed", "open", "abstract", "companion", "constructor", "package",
-    "import", "override", "struct", "trait", "impl", "let", "const", "def", "fn", "new", "this",
-    "super", "null", "true", "false", "void", "return", "if", "else", "for", "while", "do",
-    "switch", "case", "break", "continue", "try", "catch", "finally", "throw", "by", "as", "in",
-    "is", "default", "export", "declare", "async", "yield", "await", "function", "static",
-    "final", "readonly", "pub", "get", "set", "extends", "implements", "type", "record",
+    "class",
+    "interface",
+    "object",
+    "enum",
+    "fun",
+    "val",
+    "var",
+    "public",
+    "private",
+    "protected",
+    "internal",
+    "data",
+    "sealed",
+    "open",
+    "abstract",
+    "companion",
+    "constructor",
+    "package",
+    "import",
+    "override",
+    "struct",
+    "trait",
+    "impl",
+    "let",
+    "const",
+    "def",
+    "fn",
+    "new",
+    "this",
+    "super",
+    "null",
+    "true",
+    "false",
+    "void",
+    "return",
+    "if",
+    "else",
+    "for",
+    "while",
+    "do",
+    "switch",
+    "case",
+    "break",
+    "continue",
+    "try",
+    "catch",
+    "finally",
+    "throw",
+    "by",
+    "as",
+    "in",
+    "is",
+    "default",
+    "export",
+    "declare",
+    "async",
+    "yield",
+    "await",
+    "function",
+    "static",
+    "final",
+    "readonly",
+    "pub",
+    "get",
+    "set",
+    "extends",
+    "implements",
+    "type",
+    "record",
 ];
 
 struct HeuristicWalk<'a, 'u> {
@@ -1977,10 +2087,7 @@ impl<'a, 'u> HeuristicWalk<'a, 'u> {
                     | crate::core::types::token::TokenType::CommentDoc
                     | crate::core::types::token::TokenType::Annotation
             )
-            && !self
-                .tv
-                .prev(tok, 0)
-                .is_some_and(|p| self.tv.punct(p, "@"))
+            && !self.tv.prev(tok, 0).is_some_and(|p| self.tv.punct(p, "@"))
             && !HEURISTIC_KEYWORDS.contains(&text)
     }
 
@@ -2007,7 +2114,12 @@ impl<'a, 'u> HeuristicWalk<'a, 'u> {
                 let kw = toks.iter().position(|&t| {
                     matches!(
                         self.tv.text(t),
-                        b"class" | b"interface" | b"enum" | b"struct" | b"trait" | b"record"
+                        b"class"
+                            | b"interface"
+                            | b"enum"
+                            | b"struct"
+                            | b"trait"
+                            | b"record"
                             | b"object"
                     )
                 })?;

@@ -23,7 +23,11 @@ pub const FORCE_MAX_ITERATIONS: usize = 64;
 ///
 /// Items are identified by their seed position `0..n_vars`; `hyperedges` list item indices.
 /// Returns `order[position] = item`.
-pub fn force_ordering(n_vars: usize, hyperedges: &[Vec<usize>], max_iterations: usize) -> Vec<usize> {
+pub fn force_ordering(
+    n_vars: usize,
+    hyperedges: &[Vec<usize>],
+    max_iterations: usize,
+) -> Vec<usize> {
     if n_vars == 0 {
         return Vec::new();
     }

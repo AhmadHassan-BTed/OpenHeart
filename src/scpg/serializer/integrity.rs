@@ -25,7 +25,11 @@ const fn build_crc64_table(poly: u64) -> [u64; 256] {
         let mut crc = i as u64;
         let mut bit = 0;
         while bit < 8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ poly } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ poly
+            } else {
+                crc >> 1
+            };
             bit += 1;
         }
         table[i] = crc;
@@ -168,6 +172,8 @@ impl Fingerprinter {
 
     pub fn finish(self) -> u64 {
         let out: [u8; 32] = self.hasher.finalize().into();
-        u64::from_le_bytes([out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]])
+        u64::from_le_bytes([
+            out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7],
+        ])
     }
 }

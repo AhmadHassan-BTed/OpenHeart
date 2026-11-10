@@ -39,36 +39,101 @@ impl Default for KotlinLexer {
 
 /// Hard keywords (never identifiers).
 const HARD_KEYWORDS: &[&str] = &[
-    "as", "break", "class", "continue", "do", "else", "for", "fun", "if", "in", "interface",
-    "is", "object", "package", "return", "super", "this", "throw", "try", "typealias", "typeof",
-    "val", "var", "when", "while",
+    "as",
+    "break",
+    "class",
+    "continue",
+    "do",
+    "else",
+    "for",
+    "fun",
+    "if",
+    "in",
+    "interface",
+    "is",
+    "object",
+    "package",
+    "return",
+    "super",
+    "this",
+    "throw",
+    "try",
+    "typealias",
+    "typeof",
+    "val",
+    "var",
+    "when",
+    "while",
 ];
 
 /// Soft keywords that only ever appear in keyword position in practice.
 const STRUCTURAL_SOFT_KEYWORDS: &[&str] = &[
-    "by", "catch", "constructor", "finally", "import", "init", "where",
+    "by",
+    "catch",
+    "constructor",
+    "finally",
+    "import",
+    "init",
+    "where",
 ];
 
 /// Modifier and soft keywords that are also common identifiers.
 const CONTEXTUAL_KEYWORDS: &[&str] = &[
-    "abstract", "actual", "annotation", "companion", "const", "crossinline", "data", "delegate",
-    "dynamic", "enum", "expect", "external", "field", "file", "final", "get", "infix", "inline",
-    "inner", "internal", "lateinit", "noinline", "open", "operator", "out", "override", "param",
-    "private", "property", "protected", "public", "receiver", "reified", "sealed", "set",
-    "setparam", "suspend", "tailrec", "value", "vararg",
+    "abstract",
+    "actual",
+    "annotation",
+    "companion",
+    "const",
+    "crossinline",
+    "data",
+    "delegate",
+    "dynamic",
+    "enum",
+    "expect",
+    "external",
+    "field",
+    "file",
+    "final",
+    "get",
+    "infix",
+    "inline",
+    "inner",
+    "internal",
+    "lateinit",
+    "noinline",
+    "open",
+    "operator",
+    "out",
+    "override",
+    "param",
+    "private",
+    "property",
+    "protected",
+    "public",
+    "receiver",
+    "reified",
+    "sealed",
+    "set",
+    "setparam",
+    "suspend",
+    "tailrec",
+    "value",
+    "vararg",
 ];
 
 const OPERATORS_3: &[&str] = &["===", "!==", "..<"];
 const OPERATORS_2: &[&str] = &[
-    "==", "!=", "<=", ">=", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "->", "?.",
-    "?:", "!!", "::", "..",
+    "==", "!=", "<=", ">=", "&&", "||", "++", "--", "+=", "-=", "*=", "/=", "%=", "->", "?.", "?:",
+    "!!", "::", "..",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PrevToken {
     None,
     /// Identifier or keyword ending at the recorded offset.
-    Word { end: usize },
+    Word {
+        end: usize,
+    },
     Other,
 }
 
@@ -153,7 +218,9 @@ impl<'a, 'd> Lexer<'a, 'd> {
 
     #[inline]
     fn starts_with_at(&self, pos: usize, pat: &[u8]) -> bool {
-        self.src.get(pos..).is_some_and(|rest| rest.starts_with(pat))
+        self.src
+            .get(pos..)
+            .is_some_and(|rest| rest.starts_with(pat))
     }
 
     /// Moves to `new_pos`, updating line bookkeeping for every newline crossed.
@@ -212,7 +279,8 @@ impl<'a, 'd> Lexer<'a, 'd> {
                 }
                 b' ' | b'\t' | b'\r' | 0x0C => {
                     let mut end = start;
-                    while end < self.src.len() && matches!(self.src[end], b' ' | b'\t' | b'\r' | 0x0C)
+                    while end < self.src.len()
+                        && matches!(self.src[end], b' ' | b'\t' | b'\r' | 0x0C)
                     {
                         end += 1;
                     }

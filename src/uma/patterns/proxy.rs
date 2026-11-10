@@ -58,12 +58,20 @@ impl PatternDetectionRule for ProxyRule {
                     .methods(p)
                     .into_iter()
                     .chain(ctx.constructors(p))
-                    .any(|m| ctx.assigns_new(m, f.name).map(|t| ctx.is_subtype_of(t, r)).unwrap_or(false))
-                    || ctx.initializer_allocates(f.sym).map(|t| ctx.is_subtype_of(t, r)).unwrap_or(false);
+                    .any(|m| {
+                        ctx.assigns_new(m, f.name)
+                            .map(|t| ctx.is_subtype_of(t, r))
+                            .unwrap_or(false)
+                    })
+                    || ctx
+                        .initializer_allocates(f.sym)
+                        .map(|t| ctx.is_subtype_of(t, r))
+                        .unwrap_or(false);
                 ev.optional(EVIDENCE_ALLOCATES_SUBTYPE, creates);
-                let injected = ctx.constructors(p).into_iter().any(|k| {
-                    ctx.param_types(k).contains(&r) && ctx.assigns_from_name(k, f.name)
-                });
+                let injected = ctx
+                    .constructors(p)
+                    .into_iter()
+                    .any(|k| ctx.param_types(k).contains(&r) && ctx.assigns_from_name(k, f.name));
                 ev.optional(EVIDENCE_ENCAPSULATED, !injected);
                 return vec![PatternMatch::new(PATTERN_PROXY, p, ev)
                     .with(ROLE_PROXY, p)

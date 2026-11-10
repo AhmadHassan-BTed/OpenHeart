@@ -56,7 +56,12 @@ pub fn build_labeled(
 
     let labels = state.take_labels();
     let after = state.new_block();
-    state.push_frame(FrameKind::Labeled { break_target: after }, labels);
+    state.push_frame(
+        FrameKind::Labeled {
+            break_target: after,
+        },
+        labels,
+    );
     dispatch_stmt(inner, state, bpa, sta);
     state.pop_frame();
     state.goto(after, CFGEdgeType::Uncond);

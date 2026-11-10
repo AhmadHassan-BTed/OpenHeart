@@ -51,10 +51,17 @@ impl OpenHeartEngine {
     }
 
     /// Assembles an engine from a snapshot, a cache size and an optional file backing.
-    pub fn from_parts(snapshot: Arc<ScpgSnapshot>, cache_capacity: usize, mmap: Option<Arc<MemoryMappedSCPG>>) -> Self {
+    pub fn from_parts(
+        snapshot: Arc<ScpgSnapshot>,
+        cache_capacity: usize,
+        mmap: Option<Arc<MemoryMappedSCPG>>,
+    ) -> Self {
         Self {
             scpg_hash: snapshot.scpg_hash,
-            query: Arc::new(QueryEngine::with_cache_capacity(Arc::clone(&snapshot), cache_capacity)),
+            query: Arc::new(QueryEngine::with_cache_capacity(
+                Arc::clone(&snapshot),
+                cache_capacity,
+            )),
             incremental: IncrementalEngine::new(snapshot),
             mmap,
             cache_capacity,
@@ -113,12 +120,20 @@ impl OpenHeartEngine {
     }
 
     /// Statement-level backward slice of every statement of `root_sym`.
-    pub fn backward_slice(&self, root_sym: u32, depth: Option<u32>) -> Result<Arc<ProgramSlice>, QueryError> {
+    pub fn backward_slice(
+        &self,
+        root_sym: u32,
+        depth: Option<u32>,
+    ) -> Result<Arc<ProgramSlice>, QueryError> {
         self.query.backward_slice(root_sym, depth)
     }
 
     /// Statement-level forward slice of every statement of `root_sym`.
-    pub fn forward_slice(&self, root_sym: u32, depth: Option<u32>) -> Result<Arc<ProgramSlice>, QueryError> {
+    pub fn forward_slice(
+        &self,
+        root_sym: u32,
+        depth: Option<u32>,
+    ) -> Result<Arc<ProgramSlice>, QueryError> {
         self.query.forward_slice(root_sym, depth)
     }
 
@@ -179,7 +194,10 @@ impl OpenHeartEngine {
         let snapshot = Arc::new(snapshot);
         let result = self.incremental.commit(Arc::clone(&snapshot));
         self.query.cache().clear();
-        self.query = Arc::new(QueryEngine::with_cache_capacity(Arc::clone(&snapshot), self.cache_capacity));
+        self.query = Arc::new(QueryEngine::with_cache_capacity(
+            Arc::clone(&snapshot),
+            self.cache_capacity,
+        ));
         self.scpg_hash = snapshot.scpg_hash;
         self.mmap = None;
         result

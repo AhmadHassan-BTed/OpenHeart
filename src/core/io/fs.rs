@@ -118,6 +118,9 @@ pub fn create_unique_dir(parent: &Path, prefix: &str) -> io::Result<PathBuf> {
     }
     Err(io::Error::new(
         io::ErrorKind::AlreadyExists,
-        format!("could not create a unique directory under {}", parent.display()),
+        format!(
+            "could not create a unique directory under {}",
+            parent.display()
+        ),
     ))
 }

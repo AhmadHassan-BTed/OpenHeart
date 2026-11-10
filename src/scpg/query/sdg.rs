@@ -216,7 +216,12 @@ fn reaching_definitions(
 
 /// Statement of `cfg` enclosing the call expression `call_node`: the last statement in
 /// pre-order that starts at or before the call and (when token ranges are known) contains it.
-fn enclosing_statement(cfg: &FunctionCFGData, call_block: u32, call_node: u32, ast: &AstIndex) -> Option<u32> {
+fn enclosing_statement(
+    cfg: &FunctionCFGData,
+    call_block: u32,
+    call_node: u32,
+    ast: &AstIndex,
+) -> Option<u32> {
     let contains = |stmt: u32| -> bool {
         match (ast.token_range(stmt), ast.token_range(call_node)) {
             (Some((sf, sl)), Some((cf, cl))) => sf <= cf && cl <= sl,
@@ -247,14 +252,22 @@ fn return_statements(cfg: &FunctionCFGData) -> Vec<u32> {
         .edges
         .iter()
         .filter(|&&(_, to, kind)| to == exit && kind == CFGEdgeType::Return)
-        .filter_map(|&(from, _, _)| cfg.blocks.get(from as usize).and_then(|b| b.stmts.last().copied()))
+        .filter_map(|&(from, _, _)| {
+            cfg.blocks
+                .get(from as usize)
+                .and_then(|b| b.stmts.last().copied())
+        })
         .collect();
     if returns.is_empty() {
         returns = cfg
             .edges
             .iter()
             .filter(|&&(_, to, _)| to == exit)
-            .filter_map(|&(from, _, _)| cfg.blocks.get(from as usize).and_then(|b| b.stmts.last().copied()))
+            .filter_map(|&(from, _, _)| {
+                cfg.blocks
+                    .get(from as usize)
+                    .and_then(|b| b.stmts.last().copied())
+            })
             .collect();
     }
     returns.sort_unstable();
@@ -276,13 +289,21 @@ pub struct SystemDependenceGraph {
 }
 
 impl SystemDependenceGraph {
-    pub fn build(cfa: &CFGArtifact, ssa: &SSAArtifact, cg: &CallGraphIndex, ast: &AstIndex) -> Self {
+    pub fn build(
+        cfa: &CFGArtifact,
+        ssa: &SSAArtifact,
+        cg: &CallGraphIndex,
+        ast: &AstIndex,
+    ) -> Self {
         let ssa_by_method: HashMap<u32, &FunctionSSAData> =
             ssa.functions.iter().map(|f| (f.sym_id, f)).collect();
 
         let mut sites_by_caller: HashMap<u32, Vec<usize>> = HashMap::new();
         for (row_idx, site) in cg.call_sites().iter().enumerate() {
-            sites_by_caller.entry(site.caller).or_default().push(row_idx);
+            sites_by_caller
+                .entry(site.caller)
+                .or_default()
+                .push(row_idx);
         }
 
         let mut b = Builder::default();
@@ -473,7 +494,10 @@ impl SystemDependenceGraph {
         }
         let node_methods = order.iter().map(|&i| b.nodes[i as usize].method).collect();
         let node_kinds = order.iter().map(|&i| b.nodes[i as usize].kind).collect();
-        let node_ast = order.iter().map(|&i| b.nodes[i as usize].ast_node).collect();
+        let node_ast = order
+            .iter()
+            .map(|&i| b.nodes[i as usize].ast_node)
+            .collect();
 
         let pred_triples: Vec<(u32, u32, u8)> = b
             .edges
@@ -490,7 +514,8 @@ impl SystemDependenceGraph {
         pred_triples: Vec<(u32, u32, u8)>,
     ) -> Self {
         let n = node_methods.len();
-        let succ_triples: Vec<(u32, u32, u8)> = pred_triples.iter().map(|&(t, f, k)| (f, t, k)).collect();
+        let succ_triples: Vec<(u32, u32, u8)> =
+            pred_triples.iter().map(|&(t, f, k)| (f, t, k)).collect();
         let (pred_offsets, pred_adj, pred_kinds) = csr_from_triples(n, pred_triples, false);
         let (succ_offsets, succ_adj, succ_kinds) = csr_from_triples(n, succ_triples, false);
         Self {
@@ -626,14 +651,20 @@ impl SystemDependenceGraph {
         }
         let mut triples = Vec::with_capacity(pred_adj.len());
         for to in 0..n as u32 {
-            for (&from, &k) in row(&pred_offsets, &pred_adj, to)
-                .iter()
-                .zip(row(&pred_offsets, &pred_kinds, to))
+            for (&from, &k) in
+                row(&pred_offsets, &pred_adj, to)
+                    .iter()
+                    .zip(row(&pred_offsets, &pred_kinds, to))
             {
                 triples.push((to, from, k));
             }
         }
-        Ok(Self::from_parts(node_methods, node_kinds, node_ast, triples))
+        Ok(Self::from_parts(
+            node_methods,
+            node_kinds,
+            node_ast,
+            triples,
+        ))
     }
 }
 

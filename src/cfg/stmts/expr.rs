@@ -71,7 +71,15 @@ pub fn build_branch(
         // back edge) and the edge into `f` stays a false edge.
         let op_true = state.new_block();
         let op_false = state.new_block();
-        build_branch(kids[0], op_true, op_false, CFGEdgeType::True, state, bpa, sta);
+        build_branch(
+            kids[0],
+            op_true,
+            op_false,
+            CFGEdgeType::True,
+            state,
+            bpa,
+            sta,
+        );
         state.add_edge(op_true, f, CFGEdgeType::False);
         state.add_edge(op_false, t, true_edge);
         state.mark_lowered(cond);

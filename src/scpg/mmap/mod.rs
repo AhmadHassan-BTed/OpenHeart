@@ -178,7 +178,8 @@ fn parse(bytes: &[u8]) -> Result<(SCPGHeader, Vec<SectionDirectoryEntry>), ScpgF
     for i in 0..section_count as usize {
         let at = SCPG_HEADER_SIZE + i * SCPG_DIR_ENTRY_SIZE;
         let raw_type = read_u32(bytes, at);
-        let section = SCPGSectionType::from_u32(raw_type).ok_or(ScpgFormatError::UnknownSection(raw_type))?;
+        let section =
+            SCPGSectionType::from_u32(raw_type).ok_or(ScpgFormatError::UnknownSection(raw_type))?;
         if seen.contains(&section) {
             return Err(ScpgFormatError::DuplicateSection(section));
         }
@@ -224,8 +225,10 @@ fn parse(bytes: &[u8]) -> Result<(SCPGHeader, Vec<SectionDirectoryEntry>), ScpgF
     for w in by_offset.windows(2) {
         if w[0].byte_offset + w[0].byte_length > w[1].byte_offset {
             return Err(ScpgFormatError::Overlap {
-                first: SCPGSectionType::from_u32(w[0].section_type).unwrap_or(SCPGSectionType::TokenTable),
-                second: SCPGSectionType::from_u32(w[1].section_type).unwrap_or(SCPGSectionType::TokenTable),
+                first: SCPGSectionType::from_u32(w[0].section_type)
+                    .unwrap_or(SCPGSectionType::TokenTable),
+                second: SCPGSectionType::from_u32(w[1].section_type)
+                    .unwrap_or(SCPGSectionType::TokenTable),
             });
         }
     }
@@ -261,7 +264,10 @@ impl MemoryMappedSCPG {
 
     fn from_backing(backing: Backing) -> Result<Self, ScpgFormatError> {
         let (header, directory) = parse(backing.bytes())?;
-        let verified = directory.iter().map(|_| AtomicU8::new(CHECK_UNKNOWN)).collect();
+        let verified = directory
+            .iter()
+            .map(|_| AtomicU8::new(CHECK_UNKNOWN))
+            .collect();
         Ok(Self {
             header,
             directory,
@@ -278,7 +284,10 @@ impl MemoryMappedSCPG {
         self.backing.bytes().len() as u64
     }
 
-    fn entry(&self, sec_type: SCPGSectionType) -> Result<(usize, &SectionDirectoryEntry), ScpgFormatError> {
+    fn entry(
+        &self,
+        sec_type: SCPGSectionType,
+    ) -> Result<(usize, &SectionDirectoryEntry), ScpgFormatError> {
         self.directory
             .iter()
             .enumerate()
@@ -319,7 +328,8 @@ impl MemoryMappedSCPG {
         let mut digest = ContentDigestBuilder::new();
         let mut sections = Vec::with_capacity(self.directory.len());
         for entry in &self.directory {
-            let ty = SCPGSectionType::from_u32(entry.section_type).ok_or(ScpgFormatError::UnknownSection(entry.section_type))?;
+            let ty = SCPGSectionType::from_u32(entry.section_type)
+                .ok_or(ScpgFormatError::UnknownSection(entry.section_type))?;
             let payload = self.get_section(ty)?;
             digest.section(ty, payload);
             sections.push(SectionReport {
@@ -344,7 +354,11 @@ impl MemoryMappedSCPG {
 
     /// Decodes the query snapshot stored in this file (no analysis phase is re-run).
     pub fn snapshot(&self) -> Result<ScpgSnapshot, ScpgFormatError> {
-        ScpgSnapshot::decode(|ty| self.get_section(ty), self.header.content_digest, self.header.source_hash)
+        ScpgSnapshot::decode(
+            |ty| self.get_section(ty),
+            self.header.content_digest,
+            self.header.source_hash,
+        )
     }
 
     /// Parses the canonical `.cfa` artifact embedded in the `Cfg` section.

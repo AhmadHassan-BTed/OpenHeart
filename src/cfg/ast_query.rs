@@ -263,7 +263,9 @@ pub fn call_shape(bpa: &BPASTArtifact, src: &SourceText<'_>, call: u32) -> Optio
     let kids = children(bpa, call);
     if let Some(&first) = kids.first() {
         let t = bpa.node_type(first);
-        if (t == NN_THIS_EXPR || t == NN_SUPER_EXPR) && src.text_after(bpa, first) == Some(&b"("[..]) {
+        if (t == NN_THIS_EXPR || t == NN_SUPER_EXPR)
+            && src.text_after(bpa, first) == Some(&b"("[..])
+        {
             return Some(CallShape::ConstructorChain {
                 is_super: t == NN_SUPER_EXPR,
                 args: kids[1..].to_vec(),
@@ -316,8 +318,11 @@ impl NewParts {
                 match s.text(t) {
                     Some(b".") => {}
                     Some(b"<") | Some(b"(") | Some(b"[") | Some(b"{") => break,
-                    Some(text) if !text.is_empty()
-                        && (text[0].is_ascii_alphabetic() || text[0] == b'_' || text[0] == b'$') =>
+                    Some(text)
+                        if !text.is_empty()
+                            && (text[0].is_ascii_alphabetic()
+                                || text[0] == b'_'
+                                || text[0] == b'$') =>
                     {
                         last_ident = s.text_id(t);
                     }
@@ -332,7 +337,10 @@ impl NewParts {
             }
         }
 
-        let type_ref = kids.iter().copied().find(|&c| bpa.node_type(c) == NN_TYPE_REF);
+        let type_ref = kids
+            .iter()
+            .copied()
+            .find(|&c| bpa.node_type(c) == NN_TYPE_REF);
         if type_name.is_none() {
             if let (Some(s), Some(tr)) = (src, type_ref) {
                 type_name = s.node_text_id(bpa, tr);

@@ -146,7 +146,11 @@ impl DiagramExporterFactory for PlantUMLFactory {
         PlantUMLExporter::new().export_all(uma, sta, tca)
     }
 
-    fn export_diagram_with_context(&self, diagram_type: &str, ctx: &DiagramContext) -> Option<String> {
+    fn export_diagram_with_context(
+        &self,
+        diagram_type: &str,
+        ctx: &DiagramContext,
+    ) -> Option<String> {
         PlantUMLExporter::new().export_with_context(diagram_type, ctx)
     }
 
@@ -183,7 +187,11 @@ impl DiagramExporterFactory for MermaidFactory {
         MermaidExporter::new().export_all(uma, sta, tca)
     }
 
-    fn export_diagram_with_context(&self, diagram_type: &str, ctx: &DiagramContext) -> Option<String> {
+    fn export_diagram_with_context(
+        &self,
+        diagram_type: &str,
+        ctx: &DiagramContext,
+    ) -> Option<String> {
         MermaidExporter::new().export_with_context(diagram_type, ctx)
     }
 
@@ -231,7 +239,11 @@ impl DiagramExporterFactory for XMIFactory {
         self.export_all_with_context(&DiagramContext::new(uma, sta, tca))
     }
 
-    fn export_diagram_with_context(&self, diagram_type: &str, ctx: &DiagramContext) -> Option<String> {
+    fn export_diagram_with_context(
+        &self,
+        diagram_type: &str,
+        ctx: &DiagramContext,
+    ) -> Option<String> {
         if Self::serves(diagram_type) {
             Some(XMIExporter::export_model(ctx))
         } else {
@@ -274,7 +286,11 @@ impl DiagramExporterFactory for JSONFactory {
         self.export_all_with_context(&DiagramContext::new(uma, sta, tca))
     }
 
-    fn export_diagram_with_context(&self, diagram_type: &str, ctx: &DiagramContext) -> Option<String> {
+    fn export_diagram_with_context(
+        &self,
+        diagram_type: &str,
+        ctx: &DiagramContext,
+    ) -> Option<String> {
         JSONExporter::export_type(diagram_type, ctx)
             .and_then(|ir| serde_json::to_string_pretty(&ir).ok())
     }
@@ -342,7 +358,11 @@ impl DiagramExporterFactory for GraphFactory {
         self.export_all_with_context(&DiagramContext::new(uma, sta, tca))
     }
 
-    fn export_diagram_with_context(&self, diagram_type: &str, ctx: &DiagramContext) -> Option<String> {
+    fn export_diagram_with_context(
+        &self,
+        diagram_type: &str,
+        ctx: &DiagramContext,
+    ) -> Option<String> {
         ViewKind::parse(diagram_type).map(|kind| self.print(kind, ctx))
     }
 

@@ -66,9 +66,12 @@ impl PatternDetectionRule for PrototypeRule {
             }
             ev.optional(
                 EVIDENCE_SUPERTYPE,
-                declared_in.map(|a| ctx.is_abstract_type(a)).unwrap_or(false),
+                declared_in
+                    .map(|a| ctx.is_abstract_type(a))
+                    .unwrap_or(false),
             );
-            let mut pm = PatternMatch::new(PATTERN_PROTOTYPE, c, ev).with(ROLE_CONCRETE_PROTOTYPE, c);
+            let mut pm =
+                PatternMatch::new(PATTERN_PROTOTYPE, c, ev).with(ROLE_CONCRETE_PROTOTYPE, c);
             if let Some(a) = declared_in {
                 pm.bind(ROLE_PROTOTYPE, a);
             }

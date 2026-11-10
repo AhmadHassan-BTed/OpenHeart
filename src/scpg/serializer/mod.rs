@@ -60,7 +60,12 @@ impl SCPGSerializer {
         out_path: &Path,
     ) -> IoResult<u32> {
         let (snapshot, encoded) = ScpgSnapshot::build(tca, bpa, sta, cfa, ssa, cga, tra, uma, psa);
-        let report = Self::write_encoded(&encoded, snapshot.source_hash, language_count(tca), out_path)?;
+        let report = Self::write_encoded(
+            &encoded,
+            snapshot.source_hash,
+            language_count(tca),
+            out_path,
+        )?;
         Ok(report.scpg_hash)
     }
 
@@ -72,7 +77,12 @@ impl SCPGSerializer {
         source_hash: [u8; 32],
         language_count: u32,
     ) -> IoResult<Vec<u8>> {
-        Self::assemble(encoded, source_hash, language_count, creation_timestamp_ns())
+        Self::assemble(
+            encoded,
+            source_hash,
+            language_count,
+            creation_timestamp_ns(),
+        )
     }
 
     /// Writes pre-encoded sections atomically to `out_path`.
@@ -103,17 +113,22 @@ impl SCPGSerializer {
         if count as u64 > SCPG_MAX_SECTION_COUNT as u64 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("{} sections exceed the format maximum {}", count, SCPG_MAX_SECTION_COUNT),
+                format!(
+                    "{} sections exceed the format maximum {}",
+                    count, SCPG_MAX_SECTION_COUNT
+                ),
             ));
         }
         let dir_end = SCPG_HEADER_SIZE + count * SCPG_DIR_ENTRY_SIZE;
-        let overflow = || io::Error::new(io::ErrorKind::InvalidInput, "section layout overflows u64");
+        let overflow =
+            || io::Error::new(io::ErrorKind::InvalidInput, "section layout overflows u64");
 
         let mut entries = Vec::with_capacity(count);
         let mut offset = dir_end as u64;
         for (ty, payload) in &encoded.sections {
             let len = payload.len() as u64;
-            let start = align_up(offset, SectionLayoutPlanner::alignment_for(len)).ok_or_else(overflow)?;
+            let start =
+                align_up(offset, SectionLayoutPlanner::alignment_for(len)).ok_or_else(overflow)?;
             entries.push(SectionDirectoryEntry {
                 section_type: *ty as u32,
                 codec: SectionCodec::Raw as u32,

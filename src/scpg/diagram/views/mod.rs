@@ -7,6 +7,7 @@
 
 pub mod analysis;
 pub mod behavioral;
+pub mod focused;
 pub mod structural;
 
 use std::collections::{BTreeMap, HashMap};
@@ -103,7 +104,10 @@ impl TypeIndex {
                 .map(str::to_string)
                 .or_else(|| ctx.type_fqn(class_rec.sym_id))
                 .unwrap_or_else(|| format!("<unnamed type #{}>", class_rec.sym_id));
-            groups.entry(fqn.clone()).or_default().push(class_rec.sym_id);
+            groups
+                .entry(fqn.clone())
+                .or_default()
+                .push(class_rec.sym_id);
             fqn_by_sym.insert(class_rec.sym_id, fqn);
             package_by_sym.insert(
                 class_rec.sym_id,
@@ -146,9 +150,7 @@ impl TypeIndex {
     }
 
     pub fn package(&self, sym_id: u32) -> Option<&str> {
-        self.package_by_sym
-            .get(&sym_id)
-            .and_then(|p| p.as_deref())
+        self.package_by_sym.get(&sym_id).and_then(|p| p.as_deref())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -429,7 +431,10 @@ pub fn function_fqn(ctx: &DiagramContext, sym_id: u32) -> String {
 }
 
 /// Functions in qualified-name order, deduplicated and filtered by the view focus.
-pub fn ordered_functions(ctx: &DiagramContext, syms: impl Iterator<Item = u32>) -> Vec<(String, u32)> {
+pub fn ordered_functions(
+    ctx: &DiagramContext,
+    syms: impl Iterator<Item = u32>,
+) -> Vec<(String, u32)> {
     let mut seen = std::collections::HashSet::new();
     let mut out: Vec<(String, u32)> = syms
         .filter(|s| seen.insert(*s))

@@ -14,14 +14,20 @@ pub struct TarjanSCC;
 
 impl TarjanSCC {
     /// SCCs over all ids `0..method_count`.
-    pub fn compute(method_count: usize, adj: &[Vec<u32>]) -> Result<(Vec<SCCRecord>, Vec<u32>), String> {
+    pub fn compute(
+        method_count: usize,
+        adj: &[Vec<u32>],
+    ) -> Result<(Vec<SCCRecord>, Vec<u32>), String> {
         let nodes: Vec<u32> = (0..method_count as u32).collect();
         Self::compute_over(&nodes, adj)
     }
 
     /// SCCs of the subgraph induced by `nodes` (ids index `adj`); returns the SCC
     /// records (callee-first, see module docs) and the flat member array.
-    pub fn compute_over(nodes: &[u32], adj: &[Vec<u32>]) -> Result<(Vec<SCCRecord>, Vec<u32>), String> {
+    pub fn compute_over(
+        nodes: &[u32],
+        adj: &[Vec<u32>],
+    ) -> Result<(Vec<SCCRecord>, Vec<u32>), String> {
         let n = adj.len();
         let mut in_set = vec![false; n];
         for &v in nodes {
@@ -117,7 +123,8 @@ impl TarjanSCC {
                 }
             };
 
-            let id = u32::try_from(scc_id).map_err(|_| "SCC count exceeds the u32 range".to_string())?;
+            let id =
+                u32::try_from(scc_id).map_err(|_| "SCC count exceeds the u32 range".to_string())?;
             scc_records.push(SCCRecord::new(id, offset, count, scc_class));
             scc_members.extend_from_slice(raw_members);
         }

@@ -148,10 +148,7 @@ impl BPASTArtifact {
             return u32::MAX;
         };
         let (x, y, x_node) = if pu < pv { (pu, pv, u) } else { (pv, pu, v) };
-        match self
-            .rmq
-            .find_close(&self.bp_encoder, &self.rank_select, x)
-        {
+        match self.rmq.find_close(&self.bp_encoder, &self.rank_select, x) {
             Some(close) if close > y => return x_node,
             Some(_) => {}
             None => return u32::MAX,
@@ -252,7 +249,10 @@ impl BPASTArtifact {
         }
         for (i, &p) in self.preorder.parent_map.iter().enumerate() {
             if p != u32::MAX && p as usize >= i {
-                return Err(format!("node {} has parent {} that does not precede it", i, p));
+                return Err(format!(
+                    "node {} has parent {} that does not precede it",
+                    i, p
+                ));
             }
         }
         Ok(())

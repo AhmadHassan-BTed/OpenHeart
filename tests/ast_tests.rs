@@ -124,10 +124,11 @@ fn test_java_cst_reduction_end_to_end() {
         artifact.node_count
     );
 
-    // Invariant 2: Jump Table Inverse Match
+    // Invariant 2: Jump Table Inverse Match (the table is built on demand from the BP sequence)
+    let jump_table = openheart::ast::jump_table::JumpTableBuilder::build(&artifact.bp_encoder);
     for i in 0..artifact.bp_encoder.bit_count {
-        let m = artifact.jump_table.match_pos[i] as usize;
-        assert_eq!(artifact.jump_table.match_pos[m] as usize, i);
+        let m = jump_table.match_pos[i] as usize;
+        assert_eq!(jump_table.match_pos[m] as usize, i);
     }
 
     // Invariant 4: Parent Map Ordering

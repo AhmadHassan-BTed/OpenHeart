@@ -211,7 +211,10 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                     if let Some(var) = c.vars.var_of_occurrence(expr) {
                         let orig = c.vars.orig_id(var);
                         let types = if orig & ORIG_NODE_TAG == 0 {
-                            index.declared_type(orig).map(|t| vec![t]).unwrap_or_default()
+                            index
+                                .declared_type(orig)
+                                .map(|t| vec![t])
+                                .unwrap_or_default()
                         } else {
                             self.type_of_unregistered_var(orig & !ORIG_NODE_TAG)
                         };
@@ -308,7 +311,8 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                     Some(n) => n,
                     None => return ReceiverType::Unknown,
                 };
-                let statics = self.static_targets(receiver, name_id, args.len(), caller, ctx, depth + 1);
+                let statics =
+                    self.static_targets(receiver, name_id, args.len(), caller, ctx, depth + 1);
                 let mut types: Vec<u32> = statics
                     .iter()
                     .filter_map(|&m| index.return_type(m))
@@ -381,7 +385,12 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
     }
 
     /// CHA over the instantiable subtypes of `receiver_types`, filtered by RTA.
-    fn virtual_targets(&mut self, receiver_types: &[u32], name: u32, arity: Option<usize>) -> Vec<u32> {
+    fn virtual_targets(
+        &mut self,
+        receiver_types: &[u32],
+        name: u32,
+        arity: Option<usize>,
+    ) -> Vec<u32> {
         let mut cha = Vec::new();
         let mut rta = Vec::new();
         let mut any_instantiated = false;
@@ -421,10 +430,18 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
             return CG_EDGE_SPECIAL;
         }
         let syms: Vec<&SymbolRecord> = targets.iter().filter_map(|&t| index.symbol(t)).collect();
-        if !syms.is_empty() && syms.iter().all(|s| (s.modifiers & SymbolModifiers::STATIC) != 0) {
+        if !syms.is_empty()
+            && syms
+                .iter()
+                .all(|s| (s.modifiers & SymbolModifiers::STATIC) != 0)
+        {
             return CG_EDGE_DIRECT;
         }
-        if !syms.is_empty() && syms.iter().all(|s| s.visibility == SymbolVisibility::Private as u8) {
+        if !syms.is_empty()
+            && syms
+                .iter()
+                .all(|s| s.visibility == SymbolVisibility::Private as u8)
+        {
             return CG_EDGE_SPECIAL;
         }
         if matches!(receiver, ReceiverType::Static(_)) {
@@ -492,7 +509,12 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
     }
 
     /// Reason for a constructor lookup in `owners` that matched nothing for `arity`.
-    fn constructor_cause(&self, owners: &[u32], name_id: Option<u32>, arity: Option<usize>) -> UnresolvedCause {
+    fn constructor_cause(
+        &self,
+        owners: &[u32],
+        name_id: Option<u32>,
+        arity: Option<usize>,
+    ) -> UnresolvedCause {
         let index = self.index;
         let first = owners.first().copied();
         if owners.is_empty() {
@@ -544,7 +566,12 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
     ///   project method or constructor (resolution `symbol_table`);
     /// * otherwise the unresolved reason is refined with what Phase 3 established
     ///   (library receiver, ambiguous overloads, implicit default constructor).
-    pub fn apply_symbol_table(&self, site: &SiteInfo, res: &mut Resolution, occ: Option<&Occurrence>) {
+    pub fn apply_symbol_table(
+        &self,
+        site: &SiteInfo,
+        res: &mut Resolution,
+        occ: Option<&Occurrence>,
+    ) {
         let occ = match occ {
             Some(o) => o,
             None => return,
@@ -625,13 +652,11 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
 
         match &site.kind {
             SiteKind::Lambda => {
-                let target = index
-                    .symbol_at_decl(site.call_node)
-                    .filter(|&s| {
-                        index
-                            .symbol(s)
-                            .is_some_and(|r| r.kind == SymbolKind::SK_LAMBDA as u8)
-                    });
+                let target = index.symbol_at_decl(site.call_node).filter(|&s| {
+                    index
+                        .symbol(s)
+                        .is_some_and(|r| r.kind == SymbolKind::SK_LAMBDA as u8)
+                });
                 Resolution {
                     unresolved: match target {
                         Some(_) => None,
@@ -744,9 +769,9 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                 };
                 let owners: Vec<u32> = match &rt {
                     ReceiverType::Implicit => self.caller_class(caller).into_iter().collect(),
-                    ReceiverType::Instance(ts) | ReceiverType::Static(ts) | ReceiverType::Super(ts) => {
-                        ts.clone()
-                    }
+                    ReceiverType::Instance(ts)
+                    | ReceiverType::Static(ts)
+                    | ReceiverType::Super(ts) => ts.clone(),
                     ReceiverType::Unknown => Vec::new(),
                 };
                 let mut targets = Vec::new();
@@ -820,7 +845,11 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                             }
                             if owners.is_empty() {
                                 // A free function call (no enclosing class): not in scope.
-                                UnresolvedCause::new(CG_UNRESOLVED_MEMBER_NOT_FOUND, Some(*name_id), None)
+                                UnresolvedCause::new(
+                                    CG_UNRESOLVED_MEMBER_NOT_FOUND,
+                                    Some(*name_id),
+                                    None,
+                                )
                             } else {
                                 self.member_cause(&owners, Some(*name_id))
                             }

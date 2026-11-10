@@ -229,7 +229,9 @@ impl SequenceDiagramExtractor {
             .map(|b| {
                 b.invocations
                     .iter()
-                    .filter(|inv| ASYNC_ENTRY_OPERATIONS.contains(&index.scanner.text(inv.name_token)))
+                    .filter(|inv| {
+                        ASYNC_ENTRY_OPERATIONS.contains(&index.scanner.text(inv.name_token))
+                    })
                     .map(|inv| (inv.name_token, inv.close_token))
                     .collect()
             })
@@ -317,7 +319,16 @@ impl SequenceDiagramExtractor {
             let last = sc.next_ordinal().saturating_sub(1);
             if sc.next_ordinal() > first {
                 if let Some(b) = body {
-                    Self::record_regions(&mut regions, b, site.call_token, first, last, depth, index, labels);
+                    Self::record_regions(
+                        &mut regions,
+                        b,
+                        site.call_token,
+                        first,
+                        last,
+                        depth,
+                        index,
+                        labels,
+                    );
                 }
                 if targets.len() > 1 {
                     // Polymorphic dispatch: one operand per possible receiver class.
@@ -408,7 +419,9 @@ impl SequenceDiagramExtractor {
                     let names: Vec<String> = c
                         .labels
                         .iter()
-                        .map(|&l| String::from_utf8_lossy(index.tca.interner.lookup_text(l)).into_owned())
+                        .map(|&l| {
+                            String::from_utf8_lossy(index.tca.interner.lookup_text(l)).into_owned()
+                        })
                         .collect();
                     format!("[case {}]", names.join(", "))
                 };
@@ -465,7 +478,12 @@ impl SequenceDiagramExtractor {
                     if depth == 0 {
                         let inner_first = scanner.next_code(open, file).unwrap_or(t);
                         let inner_last = scanner.prev_code(t, file).unwrap_or(open);
-                        return match LabelExtractor::token_span_label(inner_first, inner_last, index.tca, 48) {
+                        return match LabelExtractor::token_span_label(
+                            inner_first,
+                            inner_last,
+                            index.tca,
+                            48,
+                        ) {
                             Some(text) if inner_first < t => format!("[{}]", text),
                             _ => "[loop]".to_string(),
                         };

@@ -69,7 +69,9 @@ impl AssociationDetector {
             .get(&field)
             .map(|s| s.dialect == Dialect::Kotlin)
             .unwrap_or(false);
-        let mult_min = if max == 1 && min == 0 && (kotlin && !nullable || Self::has_non_null_annotation(b, tv, field))
+        let mult_min = if max == 1
+            && min == 0
+            && (kotlin && !nullable || Self::has_non_null_annotation(b, tv, field))
         {
             1
         } else {
@@ -164,16 +166,12 @@ impl AssociationDetector {
             Some(s) if tv.valid(s.first_token_id) => s.first_token_id,
             _ => return false,
         };
-        let limit = b
-            .type_spans
-            .get(&field)
-            .map(|s| s.first)
-            .unwrap_or(first);
+        let limit = b.type_spans.get(&field).map(|s| s.first).unwrap_or(first);
         (first..limit).any(|t| {
             tv.punct(t, "@")
-                && tv.next(t, limit).is_some_and(|n| {
-                    matches!(tv.text(n), b"NonNull" | b"NotNull" | b"Nonnull")
-                })
+                && tv
+                    .next(t, limit)
+                    .is_some_and(|n| matches!(tv.text(n), b"NonNull" | b"NotNull" | b"Nonnull"))
         })
     }
 

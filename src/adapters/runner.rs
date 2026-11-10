@@ -129,7 +129,8 @@ impl LanguageCatalog {
             extensions.sort();
             extensions.dedup();
             let syntax_tree = trees.supports(lang);
-            let declaration_frontend = kebab_case(&format!("{:?}", semantics.front_end(Some(lang))));
+            let declaration_frontend =
+                kebab_case(&format!("{:?}", semantics.front_end(Some(lang))));
             let tier = match (syntax_tree, declaration_frontend.as_str()) {
                 (true, "structural") => "full",
                 (true, _) => "partial",
@@ -364,8 +365,7 @@ pub fn analysis_graph_types() -> Vec<&'static str> {
 pub static UML_DIAGRAM_TYPES: LazyLock<Vec<&'static str>> = LazyLock::new(uml_diagram_types);
 
 /// Canonical identifiers of the program-analysis graphs (see [`analysis_graph_types`]).
-pub static ANALYSIS_GRAPH_TYPES: LazyLock<Vec<&'static str>> =
-    LazyLock::new(analysis_graph_types);
+pub static ANALYSIS_GRAPH_TYPES: LazyLock<Vec<&'static str>> = LazyLock::new(analysis_graph_types);
 
 /// Every canonical diagram identifier: the UML projections followed by the analysis graphs.
 pub fn all_diagram_types() -> Vec<&'static str> {
@@ -659,7 +659,9 @@ impl PipelineError {
     pub fn client_message(&self) -> String {
         match self {
             Self::InvalidInput(_) => "the analysis input is not usable".to_string(),
-            Self::Io { action, .. } => format!("server-side I/O failure while trying to {}", action),
+            Self::Io { action, .. } => {
+                format!("server-side I/O failure while trying to {}", action)
+            }
             Self::Phase { phase, name, .. } => format!("Phase {} ({}) failed", phase, name),
             Self::PhasePanicked { phase, name, .. } => {
                 format!("Phase {} ({}) aborted with an internal error", phase, name)
@@ -833,7 +835,8 @@ impl RunControl {
 // ── Source discovery ─────────────────────────────────────────────────────────
 
 /// Directory names that hold third-party dependencies or tool caches wherever they appear.
-pub const DEPENDENCY_DIRECTORY_NAMES: [&str; 3] = ["node_modules", "bower_components", "__pycache__"];
+pub const DEPENDENCY_DIRECTORY_NAMES: [&str; 3] =
+    ["node_modules", "bower_components", "__pycache__"];
 
 /// Build-output and vendored-dependency directory names. They are excluded only at a
 /// module root (a directory holding one of [`BUILD_DESCRIPTORS`]), so a source package
@@ -946,10 +949,12 @@ pub struct SkipReport {
 impl SkipReport {
     fn record_unsupported(&mut self, path: &Path, recognised: Option<LangId>) {
         match path.extension().and_then(|ext| ext.to_str()) {
-            Some(ext) => *self
-                .unsupported_extensions
-                .entry(ext.to_ascii_lowercase())
-                .or_insert(0) += 1,
+            Some(ext) => {
+                *self
+                    .unsupported_extensions
+                    .entry(ext.to_ascii_lowercase())
+                    .or_insert(0) += 1
+            }
             None => self.without_extension += 1,
         }
         if let Some(lang) = recognised {
@@ -1056,12 +1061,13 @@ impl SourceInventory {
             }
             canonical.push((resolved, meta.len()));
         }
-        let root = common_directory(canonical.iter().map(|(path, _)| path.as_path()))
-            .ok_or_else(|| {
+        let root = common_directory(canonical.iter().map(|(path, _)| path.as_path())).ok_or_else(
+            || {
                 PipelineError::InvalidInput(
                     "the source files share no common directory".to_string(),
                 )
-            })?;
+            },
+        )?;
 
         let catalog = language_catalog();
         let mut inventory = SourceInventory::empty(root, options);
@@ -1366,6 +1372,112 @@ fn is_conventional_test_file(path: &Path, language: &str) -> bool {
 /// outputs are skipped, ignore files are honored when requested, unreadable entries are
 /// logged and skipped rather than aborting, paths are canonicalized and de-duplicated, and
 /// every limit in [`SourceLimits`] is enforced.
+/// Largest build or deployment file [`discover_project_files`] reads.
+pub const MAX_PROJECT_FILE_BYTES: u64 = 1024 * 1024;
+/// Most build and deployment files [`discover_project_files`] returns.
+pub const MAX_PROJECT_FILES: usize = 500;
+
+/// Whether a file name is a build or deployment file the deployment and component views read
+/// (Dockerfile, compose files, Kubernetes-style YAML, Maven, Gradle, npm, .NET, CMake).
+fn is_project_file_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower == "dockerfile"
+        || lower.starts_with("dockerfile.")
+        || lower.ends_with(".dockerfile")
+        || lower == "pom.xml"
+        || lower == "build.gradle"
+        || lower == "build.gradle.kts"
+        || lower == "settings.gradle"
+        || lower == "settings.gradle.kts"
+        || lower == "package.json"
+        || lower == "cmakelists.txt"
+        || lower.ends_with(".csproj")
+        || lower.ends_with(".sln")
+        || lower.ends_with(".yml")
+        || lower.ends_with(".yaml")
+}
+
+/// Whether a YAML file is a compose file or a Kubernetes-style manifest (`apiVersion` and
+/// `kind` at the top level), the only YAML the deployment view reads.
+fn is_deployment_yaml(name: &str, text: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if lower.starts_with("docker-compose") || lower.starts_with("compose") {
+        return true;
+    }
+    let mut api_version = false;
+    let mut kind = false;
+    for line in text.lines() {
+        if line.starts_with("apiVersion:") {
+            api_version = true;
+        } else if line.starts_with("kind:") {
+            kind = true;
+        }
+    }
+    api_version && kind
+}
+
+/// Build and deployment files under `root`, with root-relative paths, in path order. It skips
+/// the directories source discovery skips, files over [`MAX_PROJECT_FILE_BYTES`], files that
+/// are not UTF-8, and YAML that is neither a compose file nor a Kubernetes-style manifest. It
+/// stops after [`MAX_PROJECT_FILES`]. A file root, or an unreadable root, has none.
+pub fn discover_project_files(root: &Path) -> Vec<ProjectFile> {
+    if !root.is_dir() {
+        return Vec::new();
+    }
+    let mut walker = WalkBuilder::new(root);
+    walker
+        .hidden(true)
+        .parents(false)
+        .follow_links(false)
+        .git_global(false)
+        .require_git(false)
+        .filter_entry(|entry| {
+            entry.depth() == 0
+                || !entry.file_type().is_some_and(|kind| kind.is_dir())
+                || matches!(
+                    classify_directory(entry.path(), true),
+                    DirectoryClass::Source | DirectoryClass::Tests
+                )
+        });
+    let mut found: Vec<ProjectFile> = Vec::new();
+    for entry in walker.build().flatten() {
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str() else {
+            continue;
+        };
+        if !is_project_file_name(name) {
+            continue;
+        }
+        if entry
+            .metadata()
+            .map(|m| m.len() > MAX_PROJECT_FILE_BYTES)
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        let lower = name.to_ascii_lowercase();
+        if (lower.ends_with(".yml") || lower.ends_with(".yaml")) && !is_deployment_yaml(name, &text)
+        {
+            continue;
+        }
+        let Ok(relative) = entry.path().strip_prefix(root) else {
+            continue;
+        };
+        found.push(ProjectFile {
+            path: relative.to_string_lossy().replace('\\', "/"),
+            text,
+        });
+    }
+    found.sort_by(|a, b| a.path.cmp(&b.path));
+    found.truncate(MAX_PROJECT_FILES);
+    found
+}
+
 pub fn discover_sources(
     input: &Path,
     options: &DiscoveryOptions,
@@ -1422,7 +1534,10 @@ pub fn discover_sources(
             Ok(entry) => entry,
             Err(err) => {
                 inventory.skipped.unreadable_entries += 1;
-                log_warn(&format!("Skipping unreadable entry during discovery: {}", err));
+                log_warn(&format!(
+                    "Skipping unreadable entry during discovery: {}",
+                    err
+                ));
                 continue;
             }
         };
@@ -1633,8 +1748,8 @@ impl ArtifactPaths {
     /// All ten artifact paths in phase order.
     pub fn all(&self) -> [&Path; 10] {
         [
-            &self.tca, &self.bpa, &self.sta, &self.cfa, &self.ssa, &self.cga, &self.tra,
-            &self.psa, &self.uma, &self.scpg,
+            &self.tca, &self.bpa, &self.sta, &self.cfa, &self.ssa, &self.cga, &self.tra, &self.psa,
+            &self.uma, &self.scpg,
         ]
     }
 }
@@ -1963,7 +2078,9 @@ impl PipelineRun {
                 symbol: ctx.qualified_name(link.sym_id),
                 kind: ctx.kind_of(link.sym_id).map(|kind| {
                     let name = format!("{:?}", kind);
-                    name.strip_prefix("SK_").unwrap_or(&name).to_ascii_lowercase()
+                    name.strip_prefix("SK_")
+                        .unwrap_or(&name)
+                        .to_ascii_lowercase()
                 }),
                 file: if link.has_source() {
                     self.relative_paths
@@ -2197,7 +2314,10 @@ fn write_artifact(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 /// Root-relative path of every corpus file, indexed by file id.
-fn corpus_relative_paths(inventory: &SourceInventory, tca: &TokenCorpusArtifact) -> Vec<Option<String>> {
+fn corpus_relative_paths(
+    inventory: &SourceInventory,
+    tca: &TokenCorpusArtifact,
+) -> Vec<Option<String>> {
     let index = inventory.corpus_path_index();
     (0..tca.file_records.len())
         .map(|position| {
@@ -2265,26 +2385,42 @@ fn execute_phases(
     })?;
 
     let (sta, sta_bytes) = clock.run(3, || {
-        let sta = Phase3Stage::run(&tca, &bpa, &tca_bytes, &bpa_bytes)
-            .map_err(|err| err.to_string())?;
+        let sta =
+            Phase3Stage::run(&tca, &bpa, &tca_bytes, &bpa_bytes).map_err(|err| err.to_string())?;
         let bytes = sta.serialize();
         write_artifact(&paths.sta, &bytes)?;
         Ok((sta, bytes))
     })?;
 
     let (cfa, cfa_bytes) = clock.run(4, || {
-        let cfa =
-            Phase4Stage::run_with_source(&bpa, &sta, Some(&tca), &sta_bytes, &bpa_bytes, &paths.cfa)?;
+        let cfa = Phase4Stage::run_with_source(
+            &bpa,
+            &sta,
+            Some(&tca),
+            &sta_bytes,
+            &bpa_bytes,
+            &paths.cfa,
+        )?;
         Ok((cfa, read_artifact(&paths.cfa)?))
     })?;
 
     let (ssa, ssa_bytes) = clock.run(5, || {
-        let ssa = Phase5Stage::run_with_source(&bpa, &sta, Some(&tca), &cfa, &cfa_bytes, &paths.ssa)?;
+        let ssa =
+            Phase5Stage::run_with_source(&bpa, &sta, Some(&tca), &cfa, &cfa_bytes, &paths.ssa)?;
         Ok((ssa, read_artifact(&paths.ssa)?))
     })?;
 
     let cga = clock.run(6, || {
-        Phase6Stage::run(&bpa, &sta, &cfa, &ssa, &ssa_bytes, &sta_bytes, &paths.cga)
+        Phase6Stage::run_with_source(
+            &bpa,
+            &sta,
+            Some(&tca),
+            &cfa,
+            &ssa,
+            &ssa_bytes,
+            &sta_bytes,
+            &paths.cga,
+        )
     })?;
 
     let (tra, tra_bytes) = clock.run(7, || {
@@ -2352,6 +2488,9 @@ fn execute_phases(
         diagram_gaps,
         relative_paths,
         elapsed: started.elapsed(),
+        project_files: options.project_files.clone(),
+        // A disk run reports skipped inputs in its SourceInventory instead.
+        warnings: Vec::new(),
     })
 }
 

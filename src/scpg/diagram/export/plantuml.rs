@@ -236,7 +236,10 @@ skinparam UsecaseFontColor #ffffff\n\n"
     fn print_unavailable(model: &ViewModel, out: &mut String) {
         Self::print_title(model, out);
         out.push_str("note as notice_unavailable\n");
-        out.push_str(&format!("Not available: {}\n", U::single_line(model.kind.title())));
+        out.push_str(&format!(
+            "Not available: {}\n",
+            U::single_line(model.kind.title())
+        ));
         for note in &model.notes {
             let line = U::single_line(note);
             if line != "end note" {
@@ -341,7 +344,10 @@ skinparam UsecaseFontColor #ffffff\n\n"
         for &i in idxs {
             let node = &model.nodes[i];
             if node.kind.is_container() {
-                let label = node.qualified_name.as_deref().unwrap_or(node.label.as_str());
+                let label = node
+                    .qualified_name
+                    .as_deref()
+                    .unwrap_or(node.label.as_str());
                 let style = if node.kind == NodeKind::Package {
                     ""
                 } else {
@@ -454,7 +460,9 @@ skinparam UsecaseFontColor #ffffff\n\n"
             }
             if let Some(parent) = node.parent.as_deref().and_then(|p| model.node(p)) {
                 class_to_package.insert(node.alias.clone(), parent.alias.clone());
-                *package_class_counts.entry(parent.alias.clone()).or_insert(0) += 1;
+                *package_class_counts
+                    .entry(parent.alias.clone())
+                    .or_insert(0) += 1;
             }
         }
         let raw_edges: Vec<RawEdge> = model
@@ -785,18 +793,17 @@ skinparam UsecaseFontColor #ffffff\n\n"
                         }
                     }
                     InteractionEvent::Deactivate { lifeline } => {
-                        out.push_str(&format!("deactivate {}\n", Self::seq_alias(model, lifeline)));
+                        out.push_str(&format!(
+                            "deactivate {}\n",
+                            Self::seq_alias(model, lifeline)
+                        ));
                     }
-                    InteractionEvent::FragmentStart { kind, guard } => {
-                        match guard {
-                            Some(g) => out.push_str(&format!(
-                                "{} {}\n",
-                                kind.as_str(),
-                                U::plantuml_label(g)
-                            )),
-                            None => out.push_str(&format!("{}\n", kind.as_str())),
+                    InteractionEvent::FragmentStart { kind, guard } => match guard {
+                        Some(g) => {
+                            out.push_str(&format!("{} {}\n", kind.as_str(), U::plantuml_label(g)))
                         }
-                    }
+                        None => out.push_str(&format!("{}\n", kind.as_str())),
+                    },
                     // PlantUML separates the operands of every group kind (`alt`, `par`,
                     // `critical`, ...) with `else`.
                     InteractionEvent::FragmentElse { guard } => match guard {

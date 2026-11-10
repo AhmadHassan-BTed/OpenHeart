@@ -29,12 +29,12 @@ use crate::ingestion::TokenCorpusArtifact;
 use crate::symbol::adapter::{is_primitive_type_id, SemanticAdapter, *};
 use crate::symbol::ast_index::AstIndex;
 use crate::symbol::builder::SymbolTableBuilder;
+use crate::symbol::model::Dialect;
 use crate::symbol::model::{FrontEnd, Occurrence, OccurrenceRole, ResolutionStatus};
 use crate::symbol::passes::pass4_members::Pass4Members;
 use crate::symbol::passes::type_lowering::TypeLowering;
 use crate::symbol::scope_graph::{NameResolver, TypeBinding};
 use crate::symbol::syntax::{count_call_arguments, TokenView, TypeOptions, TypeParser};
-use crate::symbol::model::Dialect;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -395,7 +395,8 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
         let name_id = self.tv.text_id(tok);
         let scope = b.scope_of_node(node);
 
-        let mut variable = NameResolver::lookup_lexical_variable(b, scope, name_id, tok).map(|(v, _)| v);
+        let mut variable =
+            NameResolver::lookup_lexical_variable(b, scope, name_id, tok).map(|(v, _)| v);
         if variable.is_none() {
             for ty in self.enclosing_types(b, node) {
                 if let Some(&f) = self
@@ -577,7 +578,11 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
         self.ast.children(call).iter().copied().find(|&c| {
             self.bpa.node_type(c) == ASTNodeType::NN_IDENTIFIER_EXPR && {
                 let t = self.tok(c);
-                self.tv.valid(t) && self.tv.next(t, limit).is_some_and(|n| self.tv.punct(n, "("))
+                self.tv.valid(t)
+                    && self
+                        .tv
+                        .next(t, limit)
+                        .is_some_and(|n| self.tv.punct(n, "("))
             }
         })
     }
@@ -1032,7 +1037,12 @@ impl<'a, 'u, 'v> Ctx<'a, 'u, 'v> {
         let unresolved = (u32::MAX, ResolutionStatus::Unresolved, Vec::new());
         let children: Vec<u32> = self.ast.children(node).to_vec();
         let name = match children.last() {
-            Some(&n) if self.bpa.node_type(n) == ASTNodeType::NN_IDENTIFIER_EXPR && children.len() >= 2 => n,
+            Some(&n)
+                if self.bpa.node_type(n) == ASTNodeType::NN_IDENTIFIER_EXPR
+                    && children.len() >= 2 =>
+            {
+                n
+            }
             _ => return unresolved,
         };
         let name_id = self.tv.text_id(self.tok(name));

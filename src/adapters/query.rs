@@ -494,8 +494,11 @@ pub fn execute(engine: &OpenHeartEngine, request: &QueryRequest) -> Result<Value
                 "query": "path_summary",
                 "sym_id": sym_id,
                 "summary": to_json(&summary)?,
-                "paths": paths.to_string(),
-                "paths_log2": paths.log2(),
+                // An exact count as a decimal string (it may exceed 2^53); a saturated count
+                // is a lower bound.
+                "paths": paths.value.to_string(),
+                "paths_saturated": paths.saturated,
+                "paths_log2": if paths.value == 0 { 0.0 } else { (paths.value as f64).log2() },
             })
         }
         QueryRequest::Datalog { program } => {
