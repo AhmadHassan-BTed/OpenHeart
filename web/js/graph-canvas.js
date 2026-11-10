@@ -5,8 +5,11 @@
  *      Level 1: Domain Tier Container (Solid border, soft pastel backdrop)
  *      Level 2: Subpackage Container (Dashed border, saturated pastel backdrop)
  *      Level 3: Enclosed 3-Compartment Class Cards (Crisp pure white with drop shadow)
- *  - Deterministic preset layouts (see uml-layout.js)
- *  - Orthogonal taxi wiring
+ *  - Layout by the adaptive layout engine (layout/engine.js: ELK layered/stress layouts, packing,
+ *    overlap removal, sequence and timing layouts), with the legacy deterministic layouts
+ *    (uml-layout.js) as the fallback when the engine is unavailable or fails
+ *  - Edge routes and package boxes from the engine drawn as style bypasses (layout/apply-routes.js);
+ *    an edge whose route a move invalidates falls back to orthogonal taxi wiring
  * Diagram data comes from exactly one session source (studio-store.js): bundled sample files,
  * the Rust analysis server, or the in-browser declaration extractor. Views the active source
  * cannot provide render an explicit empty state; nothing is synthesised.
@@ -14,6 +17,8 @@
 
 import { parsePumlToCytoscape } from './puml-parser.js';
 import { computeDeterministicLayout } from './uml-layout.js';
+import { computeLayout } from './layout/engine.js';
+import { applyLayoutGeometry, attachRouteInvalidation, clearCompoundSizing } from './layout/apply-routes.js';
 import { loadGraphIrToCytoscape, renderCardSvg, cardFromNodeData } from './graph-loader.js';
 import { getTheme, onThemeChange, buildCytoscapeStylesheet, isDarkMode, getCachedManifest } from './themes/index.js';
 import { MinimapNavigator } from './minimap-navigator.js';
@@ -163,10 +168,52 @@ export class InteractiveGraphCanvas {
         emptyReason: pkgNodes.length ? null : 'No packages were recovered from the analyzed files.'
       };
     }
+    const em = studioStore.engineModule;
+    const moduleNote = em && (em.state === 'absent' || em.state === 'failed') && em.reason
+      ? ` The in-browser engine module is not available (${em.reason}).`
+      : '';
     return {
       elements: [],
-      emptyReason: `${this.diagramDisplayName(graphType)} is not available from in-browser analysis. The in-browser extractor recovers type declarations, members and type relations only; control flow, data flow, call graphs, behaviour and deployment views require the OpenHeart Rust engine (run "openheart server" and analyze there).`
+      emptyReason: `${this.diagramDisplayName(graphType)} is not available from in-browser analysis. The in-browser extractor recovers type declarations, members and type relations only; control flow, data flow, call graphs, behaviour and deployment views require the OpenHeart engine: the WebAssembly module (web/engine/openheart.wasm) or the analysis server ("openheart server").${moduleNote}`
     };
+  }
+
+  /**
+   * A view from the in-browser engine module's analysis result (session.analysis.diagrams):
+   * the validated Graph IR when the engine derived it, otherwise the engine's reason. Class
+   * and package views fall back to the in-browser class model when the engine has none.
+   */
+  resolveEngineModuleDiagram(session, graphType) {
+    const analysis = session.analysis;
+    const name = this.diagramDisplayName(graphType);
+    if (!analysis.validated) analysis.validated = new Map();
+    const cached = analysis.validated.get(graphType);
+    const entry = Object.prototype.hasOwnProperty.call(analysis.diagrams, graphType) ? analysis.diagrams[graphType] : null;
+    if (entry && typeof entry === 'object' && Array.isArray(entry.nodes)) {
+      const v = cached || validateGraphIr(entry, { expectedType: graphType });
+      if (!cached) analysis.validated.set(graphType, v);
+      if (v.ok) {
+        const elements = loadGraphIrToCytoscape(v.ir);
+        return { elements, warnings: v.warnings, emptyReason: elements.length ? null : `The engine derived an empty ${name} diagram for this codebase.`, origin: 'wasm-engine', metadata: v.ir.metadata || null, ir: v.ir };
+      }
+      return { elements: [], warnings: v.errors, emptyReason: `The engine's ${name} diagram was rejected: ${v.errors.join(' ')}`, origin: 'wasm-engine', metadata: null, ir: null };
+    }
+    const reason = entry && typeof entry.unavailable === 'string' && entry.unavailable
+      ? entry.unavailable
+      : `the engine result does not include a ${name} diagram`;
+    const normType = String(graphType || '').toLowerCase().replace(/_/g, '');
+    if (session.ir && (normType === 'class' || normType === 'package')) {
+      const { elements, emptyReason } = this.projectInBrowserDiagram(session.ir, graphType);
+      return {
+        elements,
+        warnings: [`The engine could not derive the ${name} diagram (${reason}); this is the in-browser extractor's approximation.`],
+        emptyReason,
+        origin: 'in-browser',
+        metadata: session.ir.metadata || null,
+        ir: normType === 'class' ? session.ir : null
+      };
+    }
+    return { elements: [], warnings: [], emptyReason: `${name} is not available for this codebase: ${reason}.`, origin: 'wasm-engine', metadata: null, ir: null };
   }
 
   async fetchGraphIrElements(url, graphType) {
@@ -209,6 +256,10 @@ export class InteractiveGraphCanvas {
     const session = studioStore.get();
     const kind = session.source.kind;
     const safeType = encodeURIComponent(graphType);
+
+    if (session.analysis && session.analysis.diagrams && (kind === 'github' || kind === 'folder' || kind === 'zip')) {
+      return this.resolveEngineModuleDiagram(session, graphType);
+    }
 
     if (session.ir && (kind === 'github' || kind === 'folder' || kind === 'zip')) {
       const { elements, emptyReason } = this.projectInBrowserDiagram(session.ir, graphType);
@@ -300,7 +351,15 @@ export class InteractiveGraphCanvas {
 
     let resolved;
     if (providedElements) {
-      resolved = { elements: providedElements, warnings: options.warnings || [], emptyReason: null, origin: options.origin || 'state-file', metadata: null, ir: null };
+      resolved = {
+        elements: providedElements,
+        warnings: options.warnings || [],
+        emptyReason: options.emptyReason || null,
+        origin: options.origin || 'state-file',
+        metadata: options.metadata || null,
+        ir: options.ir || null,
+        focus: options.focus || null
+      };
     } else {
       try {
         resolved = await this.resolveDiagramElements(graphType);
@@ -309,6 +368,49 @@ export class InteractiveGraphCanvas {
       }
     }
     if (renderId !== this.renderSeq) return false;
+
+    let elements = resolved.elements;
+    const isEmpty = !elements || elements.length === 0;
+    const emptyReason = isEmpty ? (resolved.emptyReason || 'No diagram data is available for this view.') : null;
+    if (isEmpty) elements = this.emptyStateElements(graphType, emptyReason);
+
+    // Layout runs before the current canvas is torn down: it is asynchronous, and a newer render
+    // started meanwhile must find its own canvas untouched.
+    let safeElements;
+    let layoutInfo = null;
+    if (isEmpty) {
+      safeElements = elements.map(e => Object.assign({}, e, { position: { x: 0, y: 0 } }));
+    } else if (preservePositions) {
+      safeElements = elements;
+    } else {
+      const rect = container.getBoundingClientRect();
+      const viewport = {
+        width: rect && rect.width > 0 ? rect.width : 1600,
+        height: rect && rect.height > 0 ? rect.height : 1000
+      };
+      let layoutElements;
+      try {
+        const r = await computeLayout(elements, graphType, { viewport });
+        layoutElements = r.elements;
+        layoutInfo = r;
+      } catch (err) {
+        console.warn('[OpenHeart Canvas] Layout engine failed, using legacy layout', err);
+        // Geometry the engine left behind belongs to its (abandoned) layout, not the legacy one.
+        elements.forEach(e => {
+          if (e && e.data) {
+            delete e.data.layoutRoute;
+            delete e.data.layoutBox;
+          }
+        });
+        layoutElements = computeDeterministicLayout(elements, graphType);
+      }
+      if (renderId !== this.renderSeq) return false;
+      const nodeIds = new Set(layoutElements.filter(e => e.data && !e.data.source).map(e => e.data.id));
+      safeElements = layoutElements.filter(e => {
+        if (e.data && e.data.source) return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
+        return true;
+      });
+    }
 
     this.currentGraphType = graphType;
     // A loaded state file is a standalone snapshot; its codebase label lasts until the next render.
@@ -327,25 +429,6 @@ export class InteractiveGraphCanvas {
     this.hitIndex = null;
     this.lodActive = false;
 
-    let elements = resolved.elements;
-    const isEmpty = !elements || elements.length === 0;
-    const emptyReason = isEmpty ? (resolved.emptyReason || 'No diagram data is available for this view.') : null;
-    if (isEmpty) elements = this.emptyStateElements(graphType, emptyReason);
-
-    let safeElements;
-    if (isEmpty) {
-      safeElements = elements.map(e => Object.assign({}, e, { position: { x: 0, y: 0 } }));
-    } else if (preservePositions) {
-      safeElements = elements;
-    } else {
-      const layoutElements = computeDeterministicLayout(elements, graphType);
-      const nodeIds = new Set(layoutElements.filter(e => e.data && !e.data.source).map(e => e.data.id));
-      safeElements = layoutElements.filter(e => {
-        if (e.data && e.data.source) return nodeIds.has(e.data.source) && nodeIds.has(e.data.target);
-        return true;
-      });
-    }
-
     if (typeof cytoscape === 'undefined') {
       this.lastRenderMeta = {
         graphType,
@@ -356,7 +439,9 @@ export class InteractiveGraphCanvas {
         ir: null,
         pumlText: null,
         elementCount: 0,
-        largeGraph: false
+        largeGraph: false,
+        layoutStrategy: null,
+        layoutMetrics: null
       };
       if (this.onRenderCompleteCallback) this.onRenderCompleteCallback([], this.lastRenderMeta);
       return false;
@@ -387,6 +472,16 @@ export class InteractiveGraphCanvas {
     }
 
     this.attachEventListeners(container);
+    if (!isEmpty) {
+      // Engine edge routes and package boxes (a preserved snapshot keeps the routes it was saved
+      // with, which match its preserved positions). A move later drops the routes it invalidates.
+      try {
+        applyLayoutGeometry(this.cy);
+        attachRouteInvalidation(this.cy);
+      } catch (err) {
+        console.warn('[OpenHeart Canvas] Could not apply layout routes', err);
+      }
+    }
     if (!preservePositions || isEmpty) {
       this.cy.fit(undefined, 60);
     }
@@ -416,7 +511,10 @@ export class InteractiveGraphCanvas {
       ir: resolved.ir || null,
       pumlText: resolved.pumlText || null,
       elementCount: isEmpty ? 0 : elements.length,
-      largeGraph: large
+      largeGraph: large,
+      layoutStrategy: layoutInfo ? layoutInfo.strategy : null,
+      layoutMetrics: layoutInfo ? layoutInfo.metrics : null,
+      focus: resolved.focus || null
     };
 
     if (this.onRenderCompleteCallback) {
@@ -458,6 +556,12 @@ export class InteractiveGraphCanvas {
         }
       });
     });
+    // Route and package-box bypasses are re-applied in case the new stylesheet dropped them.
+    try {
+      applyLayoutGeometry(cy);
+    } catch (err) {
+      console.warn('[OpenHeart Canvas] Could not re-apply layout routes', err);
+    }
     if (this.minimap) {
       this.minimap.invalidateCaches();
       this.minimap.onGraphRendered();
@@ -496,6 +600,61 @@ export class InteractiveGraphCanvas {
       if (this.onNodeSelectedCallback) this.onNodeSelectedCallback(node.data());
     }
     return true;
+  }
+
+  // ── Exploration API (engine symbols, docs/engine-query-protocol.md section 1) ──
+
+  /** Data of the node the inspector currently shows, or null. */
+  getSelectedNodeData() {
+    return this.selectedNode || null;
+  }
+
+  /**
+   * Ids of the nodes on the current canvas that stand for a program element: an exact
+   * `data.symbol` match first; then, when given, a qualified-name match (diagrams without
+   * engine symbols, such as the in-browser class model).
+   */
+  findNodeIdsBySymbol(symbol, { qualifiedName = null } = {}) {
+    if (!this.cy) return [];
+    const spec = symbol === null || symbol === undefined ? '' : String(symbol);
+    const ids = [];
+    if (spec) {
+      this.cy.nodes().forEach(n => {
+        const d = n.data();
+        if (!d.isNotice && d.symbol === spec) ids.push(d.id);
+      });
+    }
+    if (ids.length === 0 && qualifiedName) {
+      const qn = String(qualifiedName);
+      this.cy.nodes().forEach(n => {
+        const d = n.data();
+        if (!d.isNotice && !d.isPackage && (d.qualifiedName === qn || d.qualified_name === qn)) ids.push(d.id);
+      });
+    }
+    return ids;
+  }
+
+  /** Focuses (and by default inspects) the element for `symbol` when it is on the canvas. */
+  focusSymbol(symbol, { inspect = true, qualifiedName = null } = {}) {
+    const ids = this.findNodeIdsBySymbol(symbol, { qualifiedName });
+    if (ids.length === 0) return false;
+    return this.focusNodeById(ids[0], { inspect });
+  }
+
+  /**
+   * Selects every node on the canvas that stands for one of `symbols` (for example an impact
+   * set) and fits them into view. Returns how many were found.
+   */
+  highlightSymbols(symbols) {
+    if (!this.cy) return 0;
+    const wanted = new Set((symbols || []).filter(s => s !== null && s !== undefined).map(String));
+    const hits = this.cy.nodes().filter(n => !n.data('isNotice') && wanted.has(String(n.data('symbol'))));
+    this.cy.nodes().unselect();
+    if (hits.length) {
+      hits.select();
+      this.cy.animate({ fit: { eles: hits, padding: 80 }, duration: 250 });
+    }
+    return hits.length;
   }
 
   /**
@@ -2140,6 +2299,9 @@ export class InteractiveGraphCanvas {
     const isDomainTier = actualNode.data('isDomainTier');
     const childPackages = children.filter(c => c.data('isPackage') || c.data('isLeafPackage')).length;
     const childTypes = children.length - childPackages;
+
+    // The engine's package box no longer applies once the package's contents are hidden or shown.
+    clearCompoundSizing(actualNode);
 
     this.cy.batch(() => {
       if (isCollapsed) {

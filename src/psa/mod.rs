@@ -326,7 +326,12 @@ impl Phase8Stage {
     where
         F: Fn(&WorkItem) -> FunctionROBDD + Sync,
     {
-        let threads = config.resolved_threads(work.len());
+        // The WebAssembly build has no threads: `scope.spawn` would panic there.
+        let threads = if cfg!(target_arch = "wasm32") {
+            1
+        } else {
+            config.resolved_threads(work.len())
+        };
         if threads <= 1 {
             return work.iter().map(&build_one).collect();
         }

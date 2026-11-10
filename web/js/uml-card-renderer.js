@@ -3,7 +3,7 @@
  * Styles are derived purely from parsed AST types, stereotypes, and visibility tokens.
  * Supports dynamic width/height fitting, high-performance rendering, and Dark Mode themes.
  */
-import { getTheme } from './themes/index.js';
+import { getTheme, getCachedManifest } from './themes/index.js';
 
 /** ── 1. Dynamic UML Class / Interface / Abstract / Enum Card ── */
 export function generateUmlClassCardSvg(classData) {
@@ -397,9 +397,55 @@ export function generateDeploymentNodeSvg(data) {
   return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
 }
 
+/**
+ * Geometry of a self message drawn inside a lifeline card (shared with layout/sequence.js, which
+ * reserves the column space): the loop leaves the lifeline, runs SELF_MESSAGE_LOOP_WIDTH to the
+ * right, SELF_MESSAGE_LOOP_HEIGHT down, and returns to the lifeline with an arrowhead; the label
+ * starts SELF_MESSAGE_LABEL_GAP to the right of the loop.
+ */
+export const SELF_MESSAGE_LOOP_WIDTH = 44;
+export const SELF_MESSAGE_LOOP_HEIGHT = 20;
+export const SELF_MESSAGE_LABEL_GAP = 8;
+
+/** Label box of a self message: same font, padding and border as edge labels. */
+export function selfMessageLabelSize(label) {
+  const str = typeof label === 'string' ? label.trim() : '';
+  if (!str) return { w: 0, h: 0 };
+  const lines = str.split('\n');
+  const longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
+  return { w: Math.ceil(longest * 10 * 0.62 + 2 * 6 + 2), h: Math.ceil(lines.length * 12.5 + 2 * 3 + 2) };
+}
+
+/** Width a self message needs to the right of its lifeline: loop, gap, label and a margin. */
+export function selfMessageReach(label) {
+  const size = selfMessageLabelSize(label);
+  return SELF_MESSAGE_LOOP_WIDTH + (size.w ? SELF_MESSAGE_LABEL_GAP + size.w : 0) + 4;
+}
+
+/** Colour of sequence message edges in the current theme (manifest 'message' kind when loaded). */
+function messageEdgeColour(theme, isDark) {
+  let manifest = null;
+  try {
+    manifest = getCachedManifest();
+  } catch (_) {
+    manifest = null;
+  }
+  const rel = manifest && manifest.relationship_types ? manifest.relationship_types.message : null;
+  const fromManifest = rel ? (isDark ? rel.color_dark : rel.color_light) : null;
+  return fromManifest || (theme.edges && theme.edges.defaultLine) || (isDark ? '#94A3B8' : '#64748B');
+}
+
 /** ── 7. Sequence Participant / Lifeline Header Card ── */
+/**
+ * A participant head, and when lifelineHeight exceeds the head height, a dashed lifeline the full
+ * diagram height. Self messages ({ y, label }, y measured from the card top) are drawn inside the
+ * card at their rows, because Cytoscape can only draw a self edge as a loop around the node
+ * centre. The card's node box stays the head width; when self messages need room the image is
+ * wider (extra width on both sides, so the lifeline stays centred): imageWidth/imageHeight give
+ * its real size and overflow how far it reaches beyond the node box on each side.
+ */
 export function generateSequenceLifelineSvg(data) {
-  const { name = "Participant", isActor = false, width = 180, height = 60, isDark = false } = data;
+  const { name = "Participant", isActor = false, width = 180, height = 60, lifelineHeight = 0, selfMessages = null, isDark = false } = data;
   const theme = getTheme(isDark);
   const t = theme.cards.sequence;
   const cardBg = t.bg;
@@ -407,13 +453,64 @@ export function generateSequenceLifelineSvg(data) {
   const badgeColor = t.badgeColor;
   const textColor = t.textColor;
 
+  // A lifeline taller than the head draws the head at the top and a dashed lifeline below it.
+  const totalHeight = Number.isFinite(lifelineHeight) && lifelineHeight > height ? lifelineHeight : height;
+  const loops = Array.isArray(selfMessages) && totalHeight > height
+    ? selfMessages.filter(m => m && Number.isFinite(m.y) && m.y >= height && m.y <= totalHeight)
+    : [];
+  const reach = loops.reduce((m, msg) => Math.max(m, selfMessageReach(msg.label)), 0);
+  const overflow = Math.max(0, Math.ceil(reach - width / 2));
+  const imageWidth = width + 2 * overflow;
+  const cx = imageWidth / 2;
+  const headX = overflow;
+
+  const lifeline = totalHeight > height
+    ? `\n  <line x1="${cx}" y1="${height}" x2="${cx}" y2="${totalHeight - 2}" stroke="${strokeColor}" stroke-width="1.6" stroke-dasharray="6 5" opacity="0.8" />`
+    : '';
+
+  let selfMarkup = '';
+  if (loops.length) {
+    const colour = messageEdgeColour(theme, isDark);
+    const edges = theme.edges || {};
+    const labelBg = edges.defaultLabelBg || (isDark ? '#1E293B' : '#FFFFFF');
+    const labelText = edges.defaultLabelText || (isDark ? '#F8FAFC' : '#1E293B');
+    const labelBorder = edges.defaultLabelBorder || (isDark ? '#475569' : '#CBD5E1');
+    const right = cx + SELF_MESSAGE_LOOP_WIDTH;
+    const parts = [];
+    for (const msg of loops) {
+      const y = msg.y;
+      const bottom = y + SELF_MESSAGE_LOOP_HEIGHT;
+      const tip = cx + 2;
+      parts.push(`<path d="M ${cx} ${y} H ${right} V ${bottom} H ${tip + 9}" fill="none" stroke="${colour}" stroke-width="2.2" stroke-linejoin="round" />`);
+      parts.push(`<polygon points="${tip},${bottom} ${tip + 10},${bottom - 5} ${tip + 10},${bottom + 5}" fill="${colour}" />`);
+      const size = selfMessageLabelSize(msg.label);
+      if (size.w) {
+        const lx = right + SELF_MESSAGE_LABEL_GAP;
+        const ly = y + SELF_MESSAGE_LOOP_HEIGHT / 2 - size.h / 2;
+        const lines = String(msg.label).trim().split('\n');
+        const tspans = lines.map((line, i) => `<tspan x="${lx + 7}" y="${ly + 13.5 + i * 12.5}">${escapeXml(line)}</tspan>`).join('');
+        parts.push(`<rect x="${lx}" y="${ly}" width="${size.w}" height="${size.h}" fill="${labelBg}" fill-opacity="0.95" stroke="${labelBorder}" stroke-width="1" />`);
+        parts.push(`<text font-family="JetBrains Mono, monospace" font-size="10" font-weight="700" fill="${labelText}">${tspans}</text>`);
+      }
+    }
+    selfMarkup = `\n  ${parts.join('\n  ')}`;
+  }
+
   const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="8" ry="8" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
-  <text x="${width / 2}" y="20" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">${isActor ? '&lt;&lt;actor&gt;&gt;' : '&lt;&lt;participant&gt;&gt;'}</text>
-  <text x="${width / 2}" y="42" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${totalHeight}" viewBox="0 0 ${imageWidth} ${totalHeight}">
+  <rect x="${headX + 1}" y="1" width="${width - 2}" height="${height - 2}" rx="8" ry="8" fill="${cardBg}" stroke="${strokeColor}" stroke-width="1.8" />
+  <text x="${cx}" y="20" font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="700" fill="${badgeColor}" text-anchor="middle">${isActor ? '&lt;&lt;actor&gt;&gt;' : '&lt;&lt;participant&gt;&gt;'}</text>
+  <text x="${cx}" y="42" font-family="JetBrains Mono, sans-serif" font-size="12" font-weight="700" fill="${textColor}" text-anchor="middle">${escapeXml(name)}</text>${lifeline}${selfMarkup}
 </svg>`;
-  return { svg, dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width, height };
+  return {
+    svg,
+    dataUri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    width,
+    height: totalHeight,
+    imageWidth,
+    imageHeight: totalHeight,
+    overflow
+  };
 }
 
 /** ── 8. Use Case Bubble & Actor ── */

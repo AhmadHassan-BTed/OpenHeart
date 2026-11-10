@@ -10,6 +10,10 @@
 //! sequentially in file order, so pre-order ids are deterministic. Files that Phase 1
 //! skipped, lexical-only files (no grammar), and languages without a Phase 2 adapter are
 //! reported, never parsed with another language's grammar.
+//!
+//! Sources are re-read through the same [`SourceProvider`] Phase 1 used: the file system,
+//! or memory ([`ASTStage::run_in_memory_sources`]), in which case the SHA-256 check runs
+//! against the in-memory bytes and the `.bpa` is encoded without being written.
 
 #![forbid(unsafe_code)]
 
@@ -24,12 +28,12 @@ pub mod rmq;
 pub mod serializer;
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
+use crate::core::io::fs::write_atomic;
 use crate::core::io::mmap::MemoryMappedFile;
 use crate::core::logger::{log_info, log_warn, PhaseTimer};
 use crate::core::parallel::{parallel_map_with, resolve_worker_count};
@@ -40,6 +44,7 @@ use crate::core::types::source::{
 use crate::core::types::token::LangId;
 use crate::ingestion::parser::tree_sitter::TreeSitterParser;
 use crate::ingestion::serializer::{crc64_ecma, TokenCorpusArtifact, TokenCorpusSerializer};
+use crate::ingestion::sources::{MemorySources, SourceProvider};
 use adapter::registry::ASTAdapterRegistry;
 use adapter::ASTReductionAdapter;
 pub use builder::{BPASTArtifact, BPASTBuilder};
@@ -122,6 +127,46 @@ impl ASTStage {
         options: ASTStageOptions,
         ast_registry: &ASTAdapterRegistry,
     ) -> io::Result<BPASTArtifact> {
+        Self::run_with_provider(
+            tca,
+            tca_hash,
+            Some(out_path),
+            options,
+            ast_registry,
+            SourceProvider::Disk,
+        )
+        .map(|(artifact, _)| artifact)
+    }
+
+    /// Runs Phase 2 over the in-memory sources Phase 1 ingested
+    /// (`IngestionStage::run_in_memory`) without touching the file system. Returns the
+    /// artifact and its encoded `.bpa` bytes (the hash link Phase 3 records).
+    pub fn run_in_memory_sources(
+        tca: &TokenCorpusArtifact,
+        tca_hash: u64,
+        options: ASTStageOptions,
+        sources: &MemorySources,
+    ) -> io::Result<(BPASTArtifact, Vec<u8>)> {
+        Self::run_with_provider(
+            tca,
+            tca_hash,
+            None,
+            options,
+            &ASTAdapterRegistry::new(),
+            SourceProvider::Memory(sources),
+        )
+    }
+
+    /// Runs Phase 2 re-reading every source through `provider`. The encoded `.bpa` is
+    /// written to `out_path` when one is given and is always returned with the artifact.
+    pub fn run_with_provider(
+        tca: &TokenCorpusArtifact,
+        tca_hash: u64,
+        out_path: Option<&Path>,
+        options: ASTStageOptions,
+        ast_registry: &ASTAdapterRegistry,
+        provider: SourceProvider<'_>,
+    ) -> io::Result<(BPASTArtifact, Vec<u8>)> {
         let timer = PhaseTimer::start("Phase 2: CST Reduction & BP AST Encoding");
         log_info(&format!(
             "TCA binary hash link computed: 0x{:016X}",
@@ -195,7 +240,7 @@ impl ASTStage {
                 batch,
                 workers,
                 || TreeSitterParser::with_timeout(options.parse_timeout_micros),
-                |parser, _, job| Self::load_and_parse(job, parser),
+                |parser, _, job| Self::load_and_parse(job, parser, provider),
             );
             for (job, result) in batch.iter().zip(parsed) {
                 let (source, tree) = result?;
@@ -246,7 +291,16 @@ impl ASTStage {
                 .unwrap_or_else(|| "n/a".to_string())
         );
 
-        BPASTSerializer::write(&artifact, out_path)?;
+        // `BPASTSerializer::write` is `write_atomic(path, to_bytes(..))`; encoding once
+        // here keeps the exact bytes for the caller's hash link.
+        let bytes = BPASTSerializer::to_bytes(&artifact);
+        let destination = match out_path {
+            Some(path) => {
+                write_atomic(path, &bytes)?;
+                path.display().to_string()
+            }
+            None => "memory".to_string(),
+        };
         let summary = format!(
             "Encoded {} BP AST nodes from {} file(s) ({} CST nodes eliminated, {} trivia subtrees dropped, {} ERROR regions) to {}.",
             artifact.node_count,
@@ -254,20 +308,21 @@ impl ASTStage {
             totals.eliminated,
             totals.dropped,
             totals.error_regions,
-            out_path.display()
+            destination
         );
         log_info(&format!("Phase 2 Complete: {}", summary));
         timer.finish(&summary);
 
-        Ok(artifact)
+        Ok((artifact, bytes))
     }
 
     /// Re-reads one file, verifies it against the Phase 1 digest and parses it.
     fn load_and_parse(
         job: &ReduceJob,
         parser: &mut Result<TreeSitterParser, String>,
+        provider: SourceProvider<'_>,
     ) -> io::Result<(Vec<u8>, tree_sitter::Tree)> {
-        let source = fs::read(&job.path).map_err(|e| {
+        let source = provider.read(&job.path).map_err(|e| {
             io::Error::new(
                 e.kind(),
                 format!(

@@ -64,6 +64,17 @@ impl SCPGSerializer {
         Ok(report.scpg_hash)
     }
 
+    /// The complete `.scpg` image of pre-encoded sections, stamped with
+    /// [`creation_timestamp_ns`]: exactly the bytes [`SCPGSerializer::write_encoded`]
+    /// writes, for callers that keep the image in memory.
+    pub fn encode(
+        encoded: &EncodedSections,
+        source_hash: [u8; 32],
+        language_count: u32,
+    ) -> IoResult<Vec<u8>> {
+        Self::assemble(encoded, source_hash, language_count, creation_timestamp_ns())
+    }
+
     /// Writes pre-encoded sections atomically to `out_path`.
     pub fn write_encoded(
         encoded: &EncodedSections,
@@ -71,7 +82,7 @@ impl SCPGSerializer {
         language_count: u32,
         out_path: &Path,
     ) -> IoResult<WriteReport> {
-        let bytes = Self::assemble(encoded, source_hash, language_count, creation_timestamp_ns())?;
+        let bytes = Self::encode(encoded, source_hash, language_count)?;
         write_atomic(out_path, &bytes)?;
         Ok(WriteReport {
             digest: encoded.digest,

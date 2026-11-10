@@ -86,7 +86,7 @@ export function renderCardSvg(card, isDark) {
       return generateDeploymentNodeSvg({ name: card.name, isArtifact: kind === 'artifact', width: 230, isDark });
     case 'participant':
     case 'actor':
-      return generateSequenceLifelineSvg({ name: card.name, isActor: kind === 'actor', width: 200, isDark });
+      return generateSequenceLifelineSvg({ name: card.name, isActor: kind === 'actor', width: 200, lifelineHeight: card.lifelineHeight, selfMessages: card.selfMessages, isDark });
     case 'usecase':
       return generateUseCaseSvg({ name: card.label || card.name, width: 220, isDark });
     case 'object':
@@ -124,8 +124,21 @@ export function cardFromNodeData(data) {
     methods: data.methods || [],
     instructions: data.instructions || [],
     leafPackage: Boolean(data.isLeafPackage),
-    nestLevel: data.nestLevel || 0
+    nestLevel: data.nestLevel || 0,
+    lifelineHeight: data.lifelineHeight,
+    selfMessages: data.selfMessages
   };
+}
+
+/**
+ * Engine identity of a node (docs/engine-query-protocol.md, section 1): `symbol` is the
+ * element's stable id, `function` the enclosing function of a node inside one function's view.
+ * Both are symbol specs the inspector passes to engine queries; absent values stay absent.
+ */
+function symbolSpec(value) {
+  if (typeof value === 'string' && value.length > 0 && value.length <= 2048) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
 }
 
 export function loadGraphIrToCytoscape(graphIr) {
@@ -154,6 +167,8 @@ export function loadGraphIrToCytoscape(graphIr) {
             label: displayLabel,
             rawName: node.name || shortName,
             name: node.name || shortName,
+            qualified_name: node.qualified_name || undefined,
+            symbol: symbolSpec(node.symbol),
             textLabel: displayLabel,
             kind: 'package',
             isPackage: true,
@@ -174,6 +189,8 @@ export function loadGraphIrToCytoscape(graphIr) {
             label: '',
             rawName: node.name || shortName,
             name: node.name || shortName,
+            qualified_name: node.qualified_name || undefined,
+            symbol: symbolSpec(node.symbol),
             textLabel: displayLabel,
             kind: 'package',
             isPackage: false,
@@ -217,6 +234,9 @@ export function loadGraphIrToCytoscape(graphIr) {
         id,
         name: node.name || id,
         qualifiedName: node.qualified_name || null,
+        qualified_name: node.qualified_name || undefined,
+        symbol: symbolSpec(node.symbol),
+        function: symbolSpec(node.function),
         label: '',
         cardLabel: node.label || null,
         textLabel: `${card.stereotype}\n${card.name}`,

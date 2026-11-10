@@ -1,0 +1,14 @@
+{
+  "name": "openheart-layout-gate",
+  "private": true,
+  "description": "Quality gate for the web studio's adaptive diagram layout engine (web/js/layout). Test tooling only; the studio loads elkjs from its CDN.",
+  "type": "module",
+  "scripts": {
+    "gate": "node --experimental-default-type=module run-gate.mjs",
+    "unit": "node --experimental-default-type=module unit-overlap-pack.mjs",
+    "router": "node --experimental-default-type=module test-router.mjs"
+  },
+  "devDependencies": {
+    "elkjs": "0.9.3"
+  }
+}

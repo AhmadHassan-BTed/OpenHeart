@@ -48,12 +48,13 @@ impl Default for EngineBuilder {
 }
 
 impl EngineBuilder {
-    /// Defaults: `./scpg_out`, 512 cached results, memory mapping, structural verification.
+    /// Defaults: `./scpg_out`, 512 cached results, memory mapping (owned reads on `wasm32`,
+    /// which cannot map files), structural verification.
     pub fn new() -> Self {
         Self {
             output_dir: PathBuf::from("./scpg_out"),
             cache_capacity: DEFAULT_CACHE_CAPACITY,
-            enable_mmap: true,
+            enable_mmap: !cfg!(target_arch = "wasm32"),
             verify: VerifyPolicy::Structure,
         }
     }

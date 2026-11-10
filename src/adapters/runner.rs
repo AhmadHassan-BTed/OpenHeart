@@ -14,6 +14,12 @@
 //! observe a [`RunControl`] (cancellation, wall-clock budget, progress) between phases;
 //! [`run_isolated`] additionally moves a whole run onto a thread with an explicit stack
 //! budget, because several CFG/SSA walks recurse proportionally to method size.
+//!
+//! [`run_pipeline_in_memory`] runs the same ten phases over file texts held in memory and
+//! never touches a file system: sources come from a `MemorySources` provider, every
+//! artifact stays in memory, and each hash link is computed from the encoded bytes of the
+//! previous artifact (the bytes a disk run would have written). The WebAssembly build
+//! (`crate::wasm`) uses it, single-threaded.
 
 #![forbid(unsafe_code)]
 
@@ -44,15 +50,18 @@ use crate::core::types::source::SkipReason;
 use crate::core::types::token::LangId;
 use crate::ingestion::adapter::registry::{AdapterRegistry, Frontend};
 use crate::ingestion::manifest::SourceManifest;
-use crate::ingestion::{IngestionReport, IngestionStage, TokenCorpusArtifact};
+use crate::ingestion::{IngestionReport, IngestionStage, MemorySources, TokenCorpusArtifact};
 use crate::psa::{PathSummaryArtifact, Phase8Config, Phase8Stage};
 use crate::scpg::diagram::{
     DiagramContext, DiagramFormat, UniversalDiagramEngine, ViewKind, ViewOptions,
 };
 use crate::scpg::{OpenHeartEngine, Phase10Stage};
+use crate::session::ProjectFile;
 use crate::ssa::{Phase5Stage, SSAArtifact};
 use crate::symbol::{JavaSemanticAdapter, Phase3Stage, SemanticAdapter, SymbolTableArtifact};
-use crate::tra::{Phase7Stage, TraceabilityArtifact};
+use crate::tra::{
+    Phase7Stage, TraceabilityArtifact, TraceabilityArtifactBuilder, TraceabilitySerializer,
+};
 use crate::uma::{Phase9Options, Phase9Stage, UMLMetadataArtifact};
 
 // ── Language catalog ─────────────────────────────────────────────────────────
@@ -1530,10 +1539,16 @@ pub struct PipelineOptions {
     /// Phase 8 node, time and thread budgets.
     pub phase8: Phase8Config,
     /// Worker threads for the parallel phases (1, 2 and 8); `None` keeps each phase's
-    /// default (`OPENHEART_NUM_THREADS` for Phases 1-2).
+    /// default (`OPENHEART_NUM_THREADS` for Phases 1-2). Ignored on `wasm32`, which runs
+    /// every phase on the calling thread.
     pub worker_threads: Option<usize>,
     /// Cancellation, time budget and progress.
     pub control: RunControl,
+    /// Build and deployment files (see [`discover_project_files`]) attached to the diagram
+    /// context of a disk run, for the deployment and component views; a disk run also
+    /// stores them in [`PROJECT_FILES_FILE`]. [`run_pipeline_in_memory`] takes its project
+    /// files as an argument instead.
+    pub project_files: Vec<ProjectFile>,
 }
 
 impl Default for PipelineOptions {
@@ -1545,6 +1560,7 @@ impl Default for PipelineOptions {
             phase8: Phase8Config::default(),
             worker_threads: None,
             control: RunControl::new(),
+            project_files: Vec::new(),
         }
     }
 }
@@ -1565,6 +1581,10 @@ pub const ARTIFACT_FILE_NAMES: [&str; 10] = [
 
 /// Directory of the exported diagrams inside a run directory.
 pub const DIAGRAM_DIR: &str = "diagrams";
+
+/// File inside a run directory holding the run's project files (a JSON array of
+/// `{ "path", "text" }`), written only when the run had any.
+pub const PROJECT_FILES_FILE: &str = "project-files.json";
 
 /// Paths of the ten binary artifacts inside one run directory.
 #[derive(Debug, Clone)]
@@ -1735,11 +1755,15 @@ pub struct IngestionSummary {
 
 impl IngestionSummary {
     fn from_report(report: &IngestionReport, inventory: &SourceInventory) -> Self {
+        Self::from_report_with_index(report, &inventory.corpus_path_index())
+    }
+
+    /// `index` maps each path as recorded in the corpus to its root-relative form.
+    fn from_report_with_index(report: &IngestionReport, index: &HashMap<String, &str>) -> Self {
         let mut summary = Self {
             duplicate_paths_removed: report.duplicate_paths_removed,
             ..Self::default()
         };
-        let index = inventory.corpus_path_index();
         let mut with_errors = Vec::new();
         for (position, file) in report.diagnostics.iter().enumerate() {
             let reason = file.skip_reason;
@@ -1856,7 +1880,8 @@ pub struct TraceLink {
 pub struct PipelineRun {
     /// In-memory phase results.
     pub artifacts: AnalysisArtifacts,
-    /// Where the binary artifacts were written.
+    /// Where the binary artifacts were written. For a [`run_pipeline_in_memory`] run
+    /// nothing was written and these are the bare [`ARTIFACT_FILE_NAMES`].
     pub paths: ArtifactPaths,
     /// Executed phases with timings, in order.
     pub phases: Vec<PhaseRecord>,
@@ -1870,6 +1895,11 @@ pub struct PipelineRun {
     pub relative_paths: Vec<Option<String>>,
     /// Total wall-clock time of phases and export.
     pub elapsed: Duration,
+    /// The project files attached to the diagram context.
+    pub project_files: Vec<ProjectFile>,
+    /// Input files an in-memory run left out, and why (a disk run reports them in its
+    /// [`SourceInventory::skipped`] instead, so this is empty there).
+    pub warnings: Vec<String>,
 }
 
 impl PipelineRun {
@@ -1993,6 +2023,7 @@ impl PipelineRun {
                 })
                 .collect(),
             unavailable_diagrams: self.diagram_gaps.clone(),
+            relative_paths: self.relative_paths.clone(),
             elapsed_ms: duration_ms(self.elapsed),
         }
     }
@@ -2057,6 +2088,9 @@ pub struct RunReport {
     pub diagrams: Vec<DiagramEntry>,
     /// Requested diagrams that could not be produced.
     pub unavailable_diagrams: Vec<DiagramGap>,
+    /// Root-relative path of each corpus file, indexed by file id (`null` when unmapped);
+    /// `crate::session::AnalysisSession::open` reads it back.
+    pub relative_paths: Vec<Option<String>>,
     /// Total wall-clock time in milliseconds.
     pub elapsed_ms: f64,
 }

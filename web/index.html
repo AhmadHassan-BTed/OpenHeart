@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!--
     Content-Security-Policy (delivered as <meta> because GitHub Pages cannot send headers).
-    Scripts: this origin plus three exact, version-pinned CDN files. No inline script.
+    Scripts: this origin plus four exact, version-pinned CDN files. No inline script.
     Trusted Types: raw HTML strings cannot reach DOM sinks; only the 'openheart-static'
     policy (developer-authored constant icon markup) may create TrustedHTML.
     frame-ancestors is ignored in <meta> CSP, so js/main.js refuses to run when framed.
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types openheart-static" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types openheart-static" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>OpenHeart — Program Graph Studio</title>
   <meta name="description" content="OpenHeart SCPG &amp; UML program analysis studio: view the Rust engine's diagrams, or import a GitHub repository, folder or ZIP for an approximate in-browser class model." />
@@ -34,6 +34,8 @@
   <!-- Renderer, SVG export plugin and ZIP reader: exact versions, loaded without blocking parsing. -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/cytoscape-svg@0.2.0/cytoscape-svg.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- Eclipse Layout Kernel (layered and stress layout with orthogonal edge routing), used by js/layout/. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/elkjs@0.9.3/lib/elk.bundled.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script type="module" src="js/main.js"></script>
 </head>

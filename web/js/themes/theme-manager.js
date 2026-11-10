@@ -7,6 +7,30 @@
 import { LightTheme } from './light.js';
 import { DarkTheme } from './dark.js';
 import { localStore } from '../storage.js';
+import { PACKAGE_PADDING, PACKAGE_FALLBACK_PADDING, PACKAGE_LABEL, PACKAGE_FALLBACK_LABEL } from '../layout/geometry.js';
+
+/**
+ * Package box padding and label geometry, shared with the layout engine (layout/geometry.js)
+ * so the space a layout reserves and the box the canvas draws are the same. Labels sit centred
+ * above the box: with text-halign left Cytoscape draws a compound's label outside the box, to
+ * its left, where it collides with neighbouring packages.
+ */
+function packageGeometryStyle(padding, label) {
+  return {
+    'text-valign': 'top',
+    'text-halign': 'center',
+    'text-margin-x': 0,
+    'text-margin-y': -label.marginY,
+    'text-background-padding': `${label.padY}px ${label.padX}px`,
+    'text-border-width': label.border,
+    'font-size': `${label.fontSize}px`,
+    'padding': `${padding}px`
+  };
+}
+
+function packageTierGeometry(tier) {
+  return packageGeometryStyle(PACKAGE_PADDING[tier], PACKAGE_LABEL[tier]);
+}
 
 let themeListeners = [];
 let cachedManifest = null;
@@ -201,23 +225,16 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier0.borderRadius,
-        'text-valign': 'top',
-        'text-halign': 'left',
-        'text-margin-x': 18,
-        'text-margin-y': -14,
         'text-background-color': pkgs.tier0.textBg,
         'text-background-opacity': 1.0,
-        'text-background-padding': '6px 14px',
         'text-background-shape': 'roundrectangle',
-        'text-border-width': 2.0,
         'text-border-color': pkgs.tier0.textBorder,
         'text-border-opacity': 1.0,
         'font-family': 'JetBrains Mono, monospace',
-        'font-size': '12.5px',
         'font-weight': 800,
-        'letter-spacing': '0.03em',
+        'letter-spacing': `${PACKAGE_LABEL[0].letterSpacing}em`,
         'color': pkgs.tier0.textColor,
-        'padding': '44px',
+        ...packageTierGeometry(0),
         'z-index': 1
       }
     },
@@ -234,22 +251,15 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier1.borderRadius,
-        'text-valign': 'top',
-        'text-halign': 'left',
-        'text-margin-x': 16,
-        'text-margin-y': -13,
         'text-background-color': pkgs.tier1.textBg,
         'text-background-opacity': 1.0,
-        'text-background-padding': '5px 12px',
         'text-background-shape': 'roundrectangle',
-        'text-border-width': 1.8,
         'text-border-color': pkgs.tier1.textBorder,
         'text-border-opacity': 1.0,
         'font-family': 'JetBrains Mono, monospace',
-        'font-size': '12px',
         'font-weight': 800,
         'color': pkgs.tier1.textColor,
-        'padding': '38px',
+        ...packageTierGeometry(1),
         'z-index': 2
       }
     },
@@ -266,22 +276,15 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier2.borderRadius,
-        'text-valign': 'top',
-        'text-halign': 'left',
-        'text-margin-x': 16,
-        'text-margin-y': -13,
         'text-background-color': pkgs.tier2.textBg,
         'text-background-opacity': 1.0,
-        'text-background-padding': '5px 12px',
         'text-background-shape': 'roundrectangle',
-        'text-border-width': 1.8,
         'text-border-color': pkgs.tier2.textBorder,
         'text-border-opacity': 1.0,
         'font-family': 'JetBrains Mono, monospace',
-        'font-size': '11.5px',
         'font-weight': 800,
         'color': pkgs.tier2.textColor,
-        'padding': '32px',
+        ...packageTierGeometry(2),
         'z-index': 3
       }
     },
@@ -298,22 +301,15 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier3.borderRadius,
-        'text-valign': 'top',
-        'text-halign': 'left',
-        'text-margin-x': 14,
-        'text-margin-y': -12,
         'text-background-color': pkgs.tier3.textBg,
         'text-background-opacity': 1.0,
-        'text-background-padding': '4px 10px',
         'text-background-shape': 'roundrectangle',
-        'text-border-width': 1.8,
         'text-border-color': pkgs.tier3.textBorder,
         'text-border-opacity': 1.0,
         'font-family': 'JetBrains Mono, monospace',
-        'font-size': '11px',
         'font-weight': 800,
         'color': pkgs.tier3.textColor,
-        'padding': '28px',
+        ...packageTierGeometry(3),
         'z-index': 4
       }
     },
@@ -330,22 +326,15 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.tier4.borderRadius,
-        'text-valign': 'top',
-        'text-halign': 'left',
-        'text-margin-x': 14,
-        'text-margin-y': -12,
         'text-background-color': pkgs.tier4.textBg,
         'text-background-opacity': 1.0,
-        'text-background-padding': '4px 10px',
         'text-background-shape': 'roundrectangle',
-        'text-border-width': 2.0,
         'text-border-color': pkgs.tier4.textBorder,
         'text-border-opacity': 1.0,
         'font-family': 'JetBrains Mono, monospace',
-        'font-size': '11px',
         'font-weight': 800,
         'color': pkgs.tier4.textColor,
-        'padding': '24px',
+        ...packageTierGeometry(4),
         'z-index': 5
       }
     },
@@ -362,22 +351,15 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'border-style': 'solid',
         'shape': 'roundrectangle',
         'border-radius': pkgs.fallback.borderRadius,
-        'text-valign': 'top',
-        'text-halign': 'left',
-        'text-margin-x': 16,
-        'text-margin-y': -13,
         'text-background-color': pkgs.fallback.textBg,
         'text-background-opacity': 1.0,
-        'text-background-padding': '5px 12px',
         'text-background-shape': 'roundrectangle',
-        'text-border-width': 1.5,
         'text-border-color': pkgs.fallback.textBorder,
         'text-border-opacity': 1.0,
         'font-family': 'JetBrains Mono, monospace',
-        'font-size': '11px',
         'font-weight': 800,
         'color': pkgs.fallback.textColor,
-        'padding': '36px',
+        ...packageGeometryStyle(PACKAGE_FALLBACK_PADDING, PACKAGE_FALLBACK_LABEL),
         'z-index': 1
       }
     },
@@ -508,6 +490,16 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
       }
     },
 
+    // ── Edges drawn inside a card (sequence self messages, layout/sequence.js) ──
+    // Hidden from the start: Cytoscape would otherwise compute their loop around the lifeline
+    // centre while the canvas is created, which warns about invalid endpoints.
+    {
+      selector: 'edge[?layoutEmbedded]',
+      style: {
+        'display': 'none'
+      }
+    },
+
     // ── Self-relations draw as loops (taxi routing cannot draw a loop) ──
     {
       selector: 'edge:loop',
@@ -538,6 +530,18 @@ export function buildCytoscapeStylesheet(theme = null, manifest = null) {
         'min-zoomed-font-size': 5,
         'text-wrap': 'ellipsis',
         'text-max-width': 260
+      }
+    },
+
+    // ── Level of detail: a sequence lifeline keeps its card (head, dashed line, self messages) ──
+    // A plain shape would fill the whole lifeline column, the full diagram height.
+    {
+      selector: 'node.lod-low[lifelineHeight]',
+      style: {
+        'background-image': 'data(svgDataUri)',
+        'background-opacity': 0,
+        'border-width': 0,
+        'label': ''
       }
     },
 

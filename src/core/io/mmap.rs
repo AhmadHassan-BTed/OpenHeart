@@ -7,16 +7,21 @@
 //! modify a file in place (they write a temporary file and rename it, see
 //! `core::io::fs::write_atomic`), which is what makes that contract achievable for
 //! artifacts this process produced.
+//!
+//! `wasm32` has no memory mapping (and the WebAssembly build does not link `memmap2`):
+//! there `map` reads an owned copy, exactly like `open`.
 
-use std::fs::{self, File};
+use std::fs;
 use std::io;
 use std::ops::Deref;
 use std::path::Path;
 
+#[cfg(not(target_arch = "wasm32"))]
 use memmap2::Mmap;
 
 enum Backing {
     Owned(Vec<u8>),
+    #[cfg(not(target_arch = "wasm32"))]
     Mapped(Mmap),
 }
 
@@ -34,6 +39,13 @@ impl MemoryMappedFile {
         })
     }
 
+    /// Wraps bytes that are already in memory.
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self {
+            backing: Backing::Owned(bytes),
+        }
+    }
+
     /// Memory-maps `path` read-only without copying it.
     ///
     /// # Safety
@@ -44,8 +56,9 @@ impl MemoryMappedFile {
     /// bytes that safe code observes through `&[u8]`, which is undefined behaviour.
     /// Replacing the file by renaming a new file over it is permitted: the mapping keeps
     /// referring to the old file contents.
+    #[cfg(not(target_arch = "wasm32"))]
     pub unsafe fn map<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let file = File::open(path)?;
+        let file = fs::File::open(path)?;
         // SAFETY: the caller upholds the contract documented above: the mapped file is
         // not truncated or modified in place while this mapping is alive, so the slice
         // handed out by `as_slice` stays valid and immutable.
@@ -55,14 +68,30 @@ impl MemoryMappedFile {
         })
     }
 
+    /// `wasm32` cannot map files: reads an owned copy, as [`MemoryMappedFile::open`] does.
+    ///
+    /// # Safety
+    ///
+    /// Always safe on this target; the signature matches the mapping constructor of the
+    /// other targets.
+    #[cfg(target_arch = "wasm32")]
+    pub unsafe fn map<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        Self::open(path)
+    }
+
     /// True when the bytes are a live memory mapping rather than an owned copy.
     pub fn is_mapped(&self) -> bool {
-        matches!(self.backing, Backing::Mapped(_))
+        match &self.backing {
+            Backing::Owned(_) => false,
+            #[cfg(not(target_arch = "wasm32"))]
+            Backing::Mapped(_) => true,
+        }
     }
 
     pub fn as_slice(&self) -> &[u8] {
         match &self.backing {
             Backing::Owned(bytes) => bytes.as_slice(),
+            #[cfg(not(target_arch = "wasm32"))]
             Backing::Mapped(mmap) => &mmap[..],
         }
     }

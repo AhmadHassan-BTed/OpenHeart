@@ -98,6 +98,8 @@ The CLI accepts these subcommands: `analyze`, `inspect`, `server [PORT]` and `he
 
 XMI export (`xmi.rs`) emits an XMI 2.1 document in the Eclipse UML2 3.0.0 namespace containing one `uml:Class` per class named `Class_<id>`, with no packages, members or relationships. Neither the CLI nor the server writes XMI files. No diagram is checked for UML 2.5 conformance.
 
+**Web studio layout** (`web/js/layout/`): written and tested with `scripts/layout-gate` (10 November 2026). All 54 gate inputs pass every hard check, with deterministic output: the 19 bundled diagrams, the class and package models of `examples/`, `src/` and `web/js/`, and a stress input per diagram type. The hard checks are no overlapping boxes, no edge through an unrelated card or package, and route ends on their nodes. The engine uses ELK (layered with orthogonal routing across package borders, or stress with VPSC overlap removal), its own packing, routing and metrics-scored candidate portfolio, and dedicated sequence and timing layouts. It falls back to the legacy layout (`web/js/uml-layout.js`) when ELK is not loaded, the diagram exceeds 5,000 nodes or 15,000 edges, or the engine fails. Known gaps: about 21 s on 1,700-card models, long edges on dense random graphs, and the Message layer toggle does not hide self messages drawn inside lifelines. The Rust engine's click-to-explore queries and WebAssembly build are specified in [`engine-query-protocol.md`](engine-query-protocol.md) and not yet built.
+
 ---
 
 ## 6. Claims Ledger
