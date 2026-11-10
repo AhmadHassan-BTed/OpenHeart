@@ -160,7 +160,8 @@ pub fn log_enabled(level: LogLevel) -> bool {
     }
     let lvl = level as u8;
     lvl <= CONSOLE_LOG_LEVEL.load(Ordering::Relaxed)
-        || (FILE_SINKS_ACTIVE.load(Ordering::Relaxed) && lvl <= FILE_LOG_LEVEL.load(Ordering::Relaxed))
+        || (FILE_SINKS_ACTIVE.load(Ordering::Relaxed)
+            && lvl <= FILE_LOG_LEVEL.load(Ordering::Relaxed))
 }
 
 fn open_sink(path: &Path, append: bool, max_bytes: u64) -> Option<LogSink> {
@@ -170,7 +171,11 @@ fn open_sink(path: &Path, append: bool, max_bytes: u64) -> Option<LogSink> {
         }
     }
     let file = if append {
-        OpenOptions::new().create(true).append(true).open(path).ok()?
+        OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .ok()?
     } else {
         OpenOptions::new()
             .create(true)
@@ -311,13 +316,19 @@ fn log_event(level: LogLevel, msg: &str) {
     //    build links no file-system calls from here)
     #[cfg(not(target_arch = "wasm32"))]
     {
-        if FILE_SINKS_ACTIVE.load(Ordering::Relaxed) && lvl <= FILE_LOG_LEVEL.load(Ordering::Relaxed)
+        if FILE_SINKS_ACTIVE.load(Ordering::Relaxed)
+            && lvl <= FILE_LOG_LEVEL.load(Ordering::Relaxed)
         {
             let ts = format_timestamp();
             let mut state_guard = LOGGER_STATE.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(ref mut state) = *state_guard {
-                let line =
-                    format!("[{}] [{}] [{}] {}\n", ts, state.session_id, level.label(), msg);
+                let line = format!(
+                    "[{}] [{}] [{}] {}\n",
+                    ts,
+                    state.session_id,
+                    level.label(),
+                    msg
+                );
                 if let Some(ref mut sink) = state.persistent {
                     sink.write_line(&line);
                 }

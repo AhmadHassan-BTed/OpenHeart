@@ -10,7 +10,9 @@ impl DiagramRenderers {
     /// Element count behind each of the 14 UML diagram types. `None` marks a diagram type that
     /// is not statically derivable from the UMA artifact (deployment, use case, timing), so
     /// callers never report a count for a projection that has no data behind it.
-    pub fn render_all_14_diagrams(artifact: &UMLMetadataArtifact) -> Vec<(&'static str, Option<usize>)> {
+    pub fn render_all_14_diagrams(
+        artifact: &UMLMetadataArtifact,
+    ) -> Vec<(&'static str, Option<usize>)> {
         let classes: HashSet<u32> = artifact.classes.iter().map(|c| c.sym_id).collect();
         let mut stereotypes: BTreeSet<String> = artifact
             .pattern_instances
@@ -49,9 +51,6 @@ impl DiagramRenderers {
 
     /// Count of one diagram type in an inventory (`None` when absent or not derivable).
     pub fn count(stats: &[(&'static str, Option<usize>)], name: &str) -> Option<usize> {
-        stats
-            .iter()
-            .find(|(n, _)| *n == name)
-            .and_then(|(_, c)| *c)
+        stats.iter().find(|(n, _)| *n == name).and_then(|(_, c)| *c)
     }
 }

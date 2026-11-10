@@ -387,7 +387,8 @@ impl IngestionStage {
         let mut bytes: u64 = 0;
         for (i, job) in jobs.iter().enumerate() {
             let count = i - start;
-            if count > 0 && (count >= max_count || bytes.saturating_add(job.size) > BATCH_BYTE_BUDGET)
+            if count > 0
+                && (count >= max_count || bytes.saturating_add(job.size) > BATCH_BYTE_BUDGET)
             {
                 out.push(&jobs[start..i]);
                 start = i;

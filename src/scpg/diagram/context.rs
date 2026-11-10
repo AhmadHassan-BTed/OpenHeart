@@ -26,8 +26,7 @@ use crate::scpg::diagram::common::DiagramUtils;
 use crate::ssa::serializer::{FunctionSSAData, SSAArtifact};
 use crate::symbol::adapter::{
     PRIMITIVE_BOOLEAN_ID, PRIMITIVE_BYTE_ID, PRIMITIVE_CHAR_ID, PRIMITIVE_DOUBLE_ID,
-    PRIMITIVE_FLOAT_ID, PRIMITIVE_INT_ID, PRIMITIVE_LONG_ID, PRIMITIVE_SHORT_ID,
-    PRIMITIVE_VOID_ID,
+    PRIMITIVE_FLOAT_ID, PRIMITIVE_INT_ID, PRIMITIVE_LONG_ID, PRIMITIVE_SHORT_ID, PRIMITIVE_VOID_ID,
 };
 use crate::symbol::model::{TypeRefFlags, WildcardKind};
 use crate::symbol::SymbolTableArtifact;
@@ -216,7 +215,9 @@ impl<'a> SourceIndex<'a> {
             last
         };
         let (line_end, col_end, last_token) = match self.token_position(last) {
-            Some((end_file, end_line, end_col)) if end_file == file_id && end_line >= line_start => {
+            Some((end_file, end_line, end_col))
+                if end_file == file_id && end_line >= line_start =>
+            {
                 let len = self.token(last).map(|t| t.len as u32).unwrap_or(0);
                 (end_line, end_col as u32 + len, last)
             }
@@ -342,7 +343,10 @@ impl<'a> SourceIndex<'a> {
     /// read between the header keyword's parentheses. `None` for any other statement shape.
     pub fn condition_text(&self, first: u32, last: u32, max_chars: usize) -> Option<String> {
         let keyword = self.token_text(first)?;
-        if !matches!(keyword, "if" | "while" | "for" | "switch" | "when" | "catch") {
+        if !matches!(
+            keyword,
+            "if" | "while" | "for" | "switch" | "when" | "catch"
+        ) {
             return None;
         }
         let (file_id, _, _) = self.token_position(first)?;
@@ -550,10 +554,22 @@ impl<'a> DiagramContext<'a> {
             }
         };
         if let Some(bpa) = self.bpa {
-            check("bpa", "sta", "the .tca CRC-64", bpa.tca_hash, self.sta.tca_hash);
+            check(
+                "bpa",
+                "sta",
+                "the .tca CRC-64",
+                bpa.tca_hash,
+                self.sta.tca_hash,
+            );
         }
         if let Some(cfa) = self.cfa {
-            check("cfa", "sta", "the .bpa CRC-64", cfa.bpa_hash, self.sta.bpa_hash);
+            check(
+                "cfa",
+                "sta",
+                "the .bpa CRC-64",
+                cfa.bpa_hash,
+                self.sta.bpa_hash,
+            );
             if let Some(cga) = self.cga {
                 check("cfa", "cga", "the .sta CRC-64", cfa.sta_hash, cga.sta_hash);
             }
@@ -562,7 +578,13 @@ impl<'a> DiagramContext<'a> {
             check("ssa", "psa", "the .cfa CRC-64", ssa.cfa_hash, psa.cfa_hash);
         }
         if let (Some(psa), Some(tra)) = (self.psa, self.tra) {
-            check("psa", "tra", "the SSA content digest", psa.ssa_hash, tra.hashes.ssa_hash);
+            check(
+                "psa",
+                "tra",
+                "the SSA content digest",
+                psa.ssa_hash,
+                tra.hashes.ssa_hash,
+            );
         }
         if let Some(tra) = self.tra {
             let expected = tra.hashes.scpg_hash;
@@ -785,7 +807,11 @@ impl<'a> DiagramContext<'a> {
         let mut curr = sym_id;
         for _ in 0..MAX_PARENT_DEPTH {
             let parent = self.parent_of(curr)?;
-            if self.kind_of(parent).map(Self::is_type_kind).unwrap_or(false) {
+            if self
+                .kind_of(parent)
+                .map(Self::is_type_kind)
+                .unwrap_or(false)
+            {
                 return Some(parent);
             }
             curr = parent;
@@ -896,7 +922,10 @@ impl<'a> DiagramContext<'a> {
             let alternatives: Vec<String> = tr
                 .args
                 .iter()
-                .map(|&a| self.type_ref_text(a, depth + 1).unwrap_or_else(|| "?".to_string()))
+                .map(|&a| {
+                    self.type_ref_text(a, depth + 1)
+                        .unwrap_or_else(|| "?".to_string())
+                })
                 .collect();
             return if alternatives.is_empty() {
                 None
@@ -935,7 +964,10 @@ impl<'a> DiagramContext<'a> {
             let args: Vec<String> = tr
                 .args
                 .iter()
-                .map(|&a| self.type_ref_text(a, depth + 1).unwrap_or_else(|| "?".to_string()))
+                .map(|&a| {
+                    self.type_ref_text(a, depth + 1)
+                        .unwrap_or_else(|| "?".to_string())
+                })
                 .collect();
             text.push('<');
             text.push_str(&args.join(", "));

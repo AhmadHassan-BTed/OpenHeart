@@ -138,11 +138,9 @@ where
         let builder = std::thread::Builder::new()
             .name("openheart-analysis".to_string())
             .stack_size(WORKER_STACK_BYTES);
-        match builder.spawn_scoped(scope, move || {
-            match catch_unwind(AssertUnwindSafe(f)) {
-                Ok(r) => r,
-                Err(payload) => Err(format!("panic: {}", panic_message(payload.as_ref()))),
-            }
+        match builder.spawn_scoped(scope, move || match catch_unwind(AssertUnwindSafe(f)) {
+            Ok(r) => r,
+            Err(payload) => Err(format!("panic: {}", panic_message(payload.as_ref()))),
         }) {
             Ok(handle) => match handle.join() {
                 Ok(r) => r,

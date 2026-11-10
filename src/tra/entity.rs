@@ -316,7 +316,12 @@ impl<'a> Context<'a> {
                 let (line_end, _) = token_end(self.tca, last);
                 (file, col, line_start, line_end)
             }
-            None => (UML_LINK_NO_FILE, u16::MAX, UML_LINK_NO_LINE, UML_LINK_NO_LINE),
+            None => (
+                UML_LINK_NO_FILE,
+                u16::MAX,
+                UML_LINK_NO_LINE,
+                UML_LINK_NO_LINE,
+            ),
         }
     }
 }

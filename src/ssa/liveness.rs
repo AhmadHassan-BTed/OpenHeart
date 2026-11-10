@@ -33,7 +33,8 @@ impl LivenessResult {
     #[inline]
     fn test(set: &[u64], words: usize, block: u32, var: u32) -> bool {
         let w = block as usize * words + (var as usize >> 6);
-        set.get(w).is_some_and(|&bits| bits & (1u64 << (var & 63)) != 0)
+        set.get(w)
+            .is_some_and(|&bits| bits & (1u64 << (var & 63)) != 0)
     }
 
     pub fn is_live_in(&self, block_id: u32, var: u32) -> bool {

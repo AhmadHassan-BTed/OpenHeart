@@ -1,6 +1,11 @@
 # Engine query protocol, WebAssembly interface and diagram provenance
 
-Status: specification for work in progress (2026-11-10). Nothing here has been compiled or run yet; see [`status.md`](status.md).
+Status (10 November 2026):
+
+- **Built and verified:** the CLI and server transports; `functions`, `callers`, `callees`, `dependents` and `view` (focus one level deep). `dependencies` returns real calls, while field reads and writes and type uses are returned empty with a note.
+- **Not built yet:** `symbol`/`function` ids on every Graph IR node, and the WebAssembly module (section 4).
+
+See [`../CHECKPOINT.md`](../CHECKPOINT.md), section 0.
 
 This page is the contract shared by the Rust engine (`src/`), the server (`openheart server`), the CLI (`openheart query`), the WebAssembly build (`web/engine/openheart.wasm`) and the web studio (`web/js/engine/`). One JSON protocol answers every interactive question the studio asks when you click an element: who calls this function, what it calls, what it reads, writes and depends on, and which focused diagram to show for it.
 

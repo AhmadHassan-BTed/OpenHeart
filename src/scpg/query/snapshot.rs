@@ -20,9 +20,13 @@ use crate::scpg::query::robdd::PathSummaryIndex;
 use crate::scpg::query::sdg::SystemDependenceGraph;
 use crate::scpg::query::semantic::SemanticIndex;
 use crate::scpg::query::source::{AstIndex, FileTable, TokenIndex};
-use crate::scpg::query::symbols::{is_callable_kind, is_type_kind, SymbolIndex, TypeHierarchyIndex};
+use crate::scpg::query::symbols::{
+    is_callable_kind, is_type_kind, SymbolIndex, TypeHierarchyIndex,
+};
 use crate::scpg::serializer::codec::{SectionDecoder, SectionEncoder};
-use crate::scpg::serializer::integrity::{short_hash, source_tree_hash, ContentDigestBuilder, Fingerprinter};
+use crate::scpg::serializer::integrity::{
+    short_hash, source_tree_hash, ContentDigestBuilder, Fingerprinter,
+};
 use crate::scpg::serializer::layout::SectionLayoutPlanner;
 use crate::scpg::types::{SCPGSectionType, ScpgDigest, ScpgFormatError};
 use crate::ssa::serializer::SSAArtifact;
@@ -111,7 +115,8 @@ impl ScpgSnapshot {
         let navigation = NavigationIndex::build(tra, &tokens, symbols.len());
         let paths = PathSummaryIndex::from_psa(psa);
         let semantic = SemanticIndex::from_uma(uma);
-        let (signature_fps, body_fps) = compute_fingerprints(tca, tra, &symbols, &hierarchy, &call_graph);
+        let (signature_fps, body_fps) =
+            compute_fingerprints(tca, tra, &symbols, &hierarchy, &call_graph);
         symbols.set_fingerprints(signature_fps, body_fps);
 
         let mut snapshot = Self {
@@ -182,27 +187,57 @@ impl ScpgSnapshot {
             Ok(value)
         }
 
-        let symbols = one(SCPGSectionType::SymbolTable, section(SCPGSectionType::SymbolTable)?, SymbolIndex::decode)?;
+        let symbols = one(
+            SCPGSectionType::SymbolTable,
+            section(SCPGSectionType::SymbolTable)?,
+            SymbolIndex::decode,
+        )?;
         let n = symbols.len();
-        let tokens = one(SCPGSectionType::TokenTable, section(SCPGSectionType::TokenTable)?, TokenIndex::decode)?;
-        let files = one(SCPGSectionType::StringTable, section(SCPGSectionType::StringTable)?, FileTable::decode)?;
-        let navigation = one(SCPGSectionType::Traceability, section(SCPGSectionType::Traceability)?, |d| {
-            NavigationIndex::decode(d, n)
-        })?;
-        let hierarchy = one(SCPGSectionType::TypeHierarchy, section(SCPGSectionType::TypeHierarchy)?, |d| {
-            TypeHierarchyIndex::decode(d, n)
-        })?;
+        let tokens = one(
+            SCPGSectionType::TokenTable,
+            section(SCPGSectionType::TokenTable)?,
+            TokenIndex::decode,
+        )?;
+        let files = one(
+            SCPGSectionType::StringTable,
+            section(SCPGSectionType::StringTable)?,
+            FileTable::decode,
+        )?;
+        let navigation = one(
+            SCPGSectionType::Traceability,
+            section(SCPGSectionType::Traceability)?,
+            |d| NavigationIndex::decode(d, n),
+        )?;
+        let hierarchy = one(
+            SCPGSectionType::TypeHierarchy,
+            section(SCPGSectionType::TypeHierarchy)?,
+            |d| TypeHierarchyIndex::decode(d, n),
+        )?;
         let semantic = one(
             SCPGSectionType::SemanticMetadata,
             section(SCPGSectionType::SemanticMetadata)?,
             SemanticIndex::decode,
         )?;
-        let call_graph = one(SCPGSectionType::CallGraph, section(SCPGSectionType::CallGraph)?, CallGraphIndex::decode)?;
-        let ast = one(SCPGSectionType::BpAst, section(SCPGSectionType::BpAst)?, AstIndex::decode)?;
+        let call_graph = one(
+            SCPGSectionType::CallGraph,
+            section(SCPGSectionType::CallGraph)?,
+            CallGraphIndex::decode,
+        )?;
+        let ast = one(
+            SCPGSectionType::BpAst,
+            section(SCPGSectionType::BpAst)?,
+            AstIndex::decode,
+        )?;
         // The canonical CFG is decoded on demand (`cfg_from_section`); only its framing is
         // validated here.
-        one(SCPGSectionType::Cfg, section(SCPGSectionType::Cfg)?, |d| d.u8s().map(|_| ()))?;
-        let sdg = one(SCPGSectionType::SsaDfg, section(SCPGSectionType::SsaDfg)?, SystemDependenceGraph::decode)?;
+        one(SCPGSectionType::Cfg, section(SCPGSectionType::Cfg)?, |d| {
+            d.u8s().map(|_| ())
+        })?;
+        let sdg = one(
+            SCPGSectionType::SsaDfg,
+            section(SCPGSectionType::SsaDfg)?,
+            SystemDependenceGraph::decode,
+        )?;
         let paths = one(
             SCPGSectionType::PathSummaries,
             section(SCPGSectionType::PathSummaries)?,
@@ -230,7 +265,8 @@ impl ScpgSnapshot {
     pub fn cfg_from_section(payload: &[u8]) -> Result<CFGArtifact, ScpgFormatError> {
         let mut dec = SectionDecoder::new(SCPGSectionType::Cfg, payload)?;
         let bytes = dec.u8s()?;
-        let cfa = CFGArtifact::deserialize(bytes).map_err(|e| dec.malformed(format!("embedded .cfa: {}", e)))?;
+        let cfa = CFGArtifact::deserialize(bytes)
+            .map_err(|e| dec.malformed(format!("embedded .cfa: {}", e)))?;
         dec.finish()?;
         Ok(cfa)
     }
@@ -269,7 +305,11 @@ fn token_text(tca: &TokenCorpusArtifact, token: u32) -> Option<(&[u8], u8)> {
 fn is_trivia_type(ty: u8) -> bool {
     matches!(
         TokenType::from_u8(ty),
-        TokenType::CommentLine | TokenType::CommentBlock | TokenType::CommentDoc | TokenType::Whitespace | TokenType::Newline
+        TokenType::CommentLine
+            | TokenType::CommentBlock
+            | TokenType::CommentDoc
+            | TokenType::Whitespace
+            | TokenType::Newline
     )
 }
 
@@ -343,7 +383,9 @@ fn compute_fingerprints(
         };
         // The body only counts as separate when it nests inside the declaration.
         let def = match (decl, def) {
-            (Some((df, dl)), Some((bf, bl))) if df <= bf && bl <= dl && (bf, bl) != (df, dl) => Some((bf, bl)),
+            (Some((df, dl)), Some((bf, bl))) if df <= bf && bl <= dl && (bf, bl) != (df, dl) => {
+                Some((bf, bl))
+            }
             (None, Some(b)) => Some(b),
             _ => None,
         };

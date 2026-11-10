@@ -39,7 +39,11 @@ where
     if n == 0 {
         return Vec::new();
     }
-    let workers = if THREADS_AVAILABLE { workers.max(1).min(n) } else { 1 };
+    let workers = if THREADS_AVAILABLE {
+        workers.max(1).min(n)
+    } else {
+        1
+    };
     if workers == 1 {
         let mut state = init();
         return items

@@ -593,7 +593,9 @@ fn index_sample_roots(config: &ServerConfig) -> Vec<SourceIndex> {
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 /// Counting semaphore bounding concurrent pipelines.
@@ -1203,9 +1205,7 @@ fn run_and_wait(state: &Arc<ServerState>, plan: AnalysisPlan, permit: Permit) ->
         let outcome = execute_guarded(&worker_state, &plan);
         if let Err(mpsc::SendError(unsent)) = sender.send(outcome) {
             let AnalysisOutcome {
-                session,
-                loaded,
-                ..
+                session, loaded, ..
             } = unsent;
             // Release the in-memory analysis before its directory is deleted.
             drop(loaded);
@@ -1466,8 +1466,8 @@ fn resolve_source(
 ) -> Result<ResolvedSource, (u16, String)> {
     match &plan.source {
         AnalysisSource::GitHub(repo) => {
-            let checkout = WebRepoFetcher::checkout(repo, &state.fetch, plan.refresh)
-                .map_err(|err| {
+            let checkout =
+                WebRepoFetcher::checkout(repo, &state.fetch, plan.refresh).map_err(|err| {
                     log_warn(&format!(
                         "[SERVER] Analysis {}: fetching {} failed: {}",
                         plan.session_id,
@@ -1516,7 +1516,10 @@ fn resolve_local_repo(base: &Path, name: &str) -> Result<PathBuf, String> {
                 && !segment.chars().any(char::is_control)
         });
     if !acceptable {
-        return Err(format!("'{}' is not an accepted local repository name", name));
+        return Err(format!(
+            "'{}' is not an accepted local repository name",
+            name
+        ));
     }
     let candidate = segments
         .iter()
@@ -1745,10 +1748,11 @@ fn session_diagram(session: &AnalysisSession, file: &str) -> Option<Response> {
             "text/plain; charset=utf-8"
         }
     };
-    let path = session
-        .dir
-        .join("diagrams")
-        .join(format!("{}.{}", diagram_type, format.file_extension()));
+    let path =
+        session
+            .dir
+            .join("diagrams")
+            .join(format!("{}.{}", diagram_type, format.file_extension()));
     if !path.is_file() {
         return Some(Response::error(
             404,
@@ -1810,7 +1814,10 @@ fn session_query(state: &Arc<ServerState>, request: &Request, id: &str) -> Respo
                     record.id,
                     panic_message(payload.as_ref())
                 ));
-                Err(QueryFailure::new(500, "the query aborted with an internal error"))
+                Err(QueryFailure::new(
+                    500,
+                    "the query aborted with an internal error",
+                ))
             });
             // The client may have stopped waiting; its answer is then dropped.
             let _ = sender.send(answer);

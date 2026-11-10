@@ -58,9 +58,10 @@ impl PatternDetectionRule for AdapterRule {
                         .any(|c| c.method_text != own)
                 });
                 ev.optional(EVIDENCE_TRANSLATED_CALL, translated);
-                let injected = ctx.constructors(a).into_iter().any(|k| {
-                    ctx.param_types(k).contains(&e) && ctx.assigns_from_name(k, f.name)
-                });
+                let injected = ctx
+                    .constructors(a)
+                    .into_iter()
+                    .any(|k| ctx.param_types(k).contains(&e) && ctx.assigns_from_name(k, f.name));
                 ev.optional(EVIDENCE_INJECTED_DELEGATE, injected);
                 out.push(
                     PatternMatch::new(PATTERN_ADAPTER, a, ev)

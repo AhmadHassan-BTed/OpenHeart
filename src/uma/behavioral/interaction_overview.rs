@@ -38,9 +38,10 @@ impl InteractionOverviewExtractor {
             let activity = &activities[activity_index as usize];
             let mut references = Vec::new();
             for site in index.sites_of(seq.entry_method_sym) {
-                let used = seq.messages.iter().any(|m| {
-                    m.call_site_id == site.call_site_id && m.nesting_depth == 1
-                });
+                let used = seq
+                    .messages
+                    .iter()
+                    .any(|m| m.call_site_id == site.call_site_id && m.nesting_depth == 1);
                 // Block 0 is the synthetic entry block; CGA reports 0 when it could
                 // not place the call in a block, so it never anchors a reference.
                 if !used || site.call_block == 0 {

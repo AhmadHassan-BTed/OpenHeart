@@ -39,7 +39,10 @@ fn level_of(nodes: &[ROBDDNode], id: u32, n_vars: usize) -> Result<usize, String
         return Ok(n_vars);
     }
     if node.is_terminal() {
-        return Err(format!("node id {} is a terminal record but not node 0 or 1", id));
+        return Err(format!(
+            "node id {} is a terminal record but not node 0 or 1",
+            id
+        ));
     }
     let v = node.var as usize;
     if v >= n_vars {
@@ -299,7 +302,10 @@ pub fn evaluate(nodes: &[ROBDDNode], root: u32, assignment: &[bool]) -> Result<b
         last_var = Some(node.var);
         current = if value { node.hi } else { node.lo };
     }
-    Err(format!("evaluation from root {} did not reach a terminal", root))
+    Err(format!(
+        "evaluation from root {} did not reach a terminal",
+        root
+    ))
 }
 
 #[cfg(test)]

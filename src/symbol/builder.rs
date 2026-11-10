@@ -347,7 +347,12 @@ impl SymbolTableBuilder {
             .any(|&(s, e)| node >= s && node < e)
     }
 
-    pub fn set_type_ref_resolution(&mut self, pre_idx: u32, resolved: u32, status: ResolutionStatus) {
+    pub fn set_type_ref_resolution(
+        &mut self,
+        pre_idx: u32,
+        resolved: u32,
+        status: ResolutionStatus,
+    ) {
         let i = pre_idx as usize;
         if i >= self.type_ref_resolutions.len() {
             self.type_ref_resolutions.resize(i + 1, u32::MAX);
@@ -414,10 +419,8 @@ impl SymbolTableBuilder {
                         crate::symbol::scope_graph::ROOT_SCOPE,
                         ScopeKind::File,
                     );
-                    self.scope_graph.add_flags(
-                        scope,
-                        crate::symbol::scope_graph::ScopeFlags::PACKAGE,
-                    );
+                    self.scope_graph
+                        .add_flags(scope, crate::symbol::scope_graph::ScopeFlags::PACKAGE);
                     self.set_owned_scope(sym, scope);
                     self.custom_package_names.insert(sym, full.clone());
                     let e = PackageEntry { sym, scope };
@@ -492,7 +495,9 @@ impl SymbolTableBuilder {
         if let Some(sym) = self.symbols.get_mut(symbol_id as usize) {
             sym.qual_name_id = qid;
         }
-        self.types_by_fqn.entry(fqn.to_string()).or_insert(symbol_id);
+        self.types_by_fqn
+            .entry(fqn.to_string())
+            .or_insert(symbol_id);
     }
 
     pub fn set_qualified_name(&mut self, symbol_id: u32, name: &str) {
@@ -746,7 +751,10 @@ impl SymbolTableBuilder {
     pub fn supertype_index(&self) -> HashMap<u32, Vec<u32>> {
         let mut index: HashMap<u32, Vec<u32>> = HashMap::new();
         for e in &self.th_edges {
-            if matches!(e.relation, THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS) {
+            if matches!(
+                e.relation,
+                THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS
+            ) {
                 index.entry(e.from_sym).or_default().push(e.to_sym);
             }
         }
@@ -821,7 +829,10 @@ impl SymbolTableBuilder {
         let mut index_of: HashMap<u32, usize> = HashMap::new();
         let mut adj: Vec<Vec<usize>> = Vec::new();
         for e in &self.th_edges {
-            if !matches!(e.relation, THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS) {
+            if !matches!(
+                e.relation,
+                THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS
+            ) {
                 continue;
             }
             let mut idx = |sym: u32, nodes: &mut Vec<u32>, adj: &mut Vec<Vec<usize>>| -> usize {
@@ -855,7 +866,10 @@ impl SymbolTableBuilder {
         }
 
         for e in &mut self.th_edges {
-            if !matches!(e.relation, THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS) {
+            if !matches!(
+                e.relation,
+                THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS
+            ) {
                 continue;
             }
             let (a, b) = match (index_of.get(&e.from_sym), index_of.get(&e.to_sym)) {
@@ -880,7 +894,13 @@ impl SymbolTableBuilder {
                 members.len(),
                 members
             );
-            self.add_diagnostic(DiagnosticCode::HierarchyCycle, first, token, members, message);
+            self.add_diagnostic(
+                DiagnosticCode::HierarchyCycle,
+                first,
+                token,
+                members,
+                message,
+            );
         }
     }
 
@@ -930,7 +950,10 @@ impl SymbolTableBuilder {
             let mut chain = vec![id];
             let mut cur = self.symbols[id].parent_sym;
             let mut steps = 0usize;
-            while cur != u32::MAX && (cur as usize) < n && desc[cur as usize].is_none() && steps <= n
+            while cur != u32::MAX
+                && (cur as usize) < n
+                && desc[cur as usize].is_none()
+                && steps <= n
             {
                 chain.push(cur as usize);
                 cur = self.symbols[cur as usize].parent_sym;

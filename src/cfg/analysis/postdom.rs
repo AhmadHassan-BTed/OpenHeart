@@ -69,10 +69,10 @@ pub fn compute_post_idom_augmented(
     // Adding `cand -> V` makes `cand` the last reverse-graph child of V, so the DFS can be
     // resumed from `cand` and V moved back to the end of the post-order.
     let add_root = |cand: u32,
-                        aug_succs: &mut Vec<Vec<u32>>,
-                        aug_preds: &mut Vec<Vec<u32>>,
-                        visited: &mut Vec<bool>,
-                        post: &mut Vec<u32>| {
+                    aug_succs: &mut Vec<Vec<u32>>,
+                    aug_preds: &mut Vec<Vec<u32>>,
+                    visited: &mut Vec<bool>,
+                    post: &mut Vec<u32>| {
         aug_succs[cand as usize].push(v);
         aug_preds[v as usize].push(cand);
         if post.last() == Some(&v) {
@@ -86,7 +86,13 @@ pub fn compute_post_idom_augmented(
     let mut infinite_loop_roots = Vec::new();
     for &cand in forward_rpo.iter().rev() {
         if !visited[cand as usize] {
-            add_root(cand, &mut aug_succs, &mut aug_preds, &mut visited, &mut post);
+            add_root(
+                cand,
+                &mut aug_succs,
+                &mut aug_preds,
+                &mut visited,
+                &mut post,
+            );
             infinite_loop_roots.push(cand);
         }
     }

@@ -240,7 +240,10 @@ impl<'g, 'x, 'a> Gen<'g, 'x, 'a> {
 
     fn text_id(&self, node: u32) -> Option<u32> {
         let index = self.input.index;
-        index.src.as_ref().and_then(|s| s.node_text_id(index.bpa, node))
+        index
+            .src
+            .as_ref()
+            .and_then(|s| s.node_text_id(index.bpa, node))
     }
 
     fn alloc(&mut self, node: u32) -> u32 {
@@ -328,7 +331,9 @@ impl<'g, 'x, 'a> Gen<'g, 'x, 'a> {
                 Some(tmp)
             }
             ASTNodeType::NN_THIS_EXPR => Some(self.this_of(fn_sym)),
-            ASTNodeType::NN_NEW_EXPR | ASTNodeType::NN_ARRAY_CREATE | ASTNodeType::NN_ARRAY_INIT => {
+            ASTNodeType::NN_NEW_EXPR
+            | ASTNodeType::NN_ARRAY_CREATE
+            | ASTNodeType::NN_ARRAY_INIT => {
                 let obj = self.alloc(expr);
                 let tmp = self.solver.new_node();
                 self.solver.add_alloc(tmp, obj);
@@ -571,7 +576,12 @@ pub struct AndersonPointsTo;
 
 impl AndersonPointsTo {
     pub fn run(input: &PointsToInput<'_, '_>) -> PointsToResult {
-        let total_ssa: usize = input.ssa.functions.iter().map(|f| f.ssa_records.len()).sum();
+        let total_ssa: usize = input
+            .ssa
+            .functions
+            .iter()
+            .map(|f| f.ssa_records.len())
+            .sum();
         let mut gen = Gen {
             input,
             solver: Andersen::new(total_ssa),

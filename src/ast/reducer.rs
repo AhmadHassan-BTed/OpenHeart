@@ -59,7 +59,12 @@ fn point_key(file_id: u16, p: Point) -> u64 {
 }
 
 /// Tokens whose start lies in `[start, end)`, as an inclusive id range.
-pub fn token_span(tok_table: &[TokenRecord], file_id: u16, start: Point, end: Point) -> Option<(u32, u32)> {
+pub fn token_span(
+    tok_table: &[TokenRecord],
+    file_id: u16,
+    start: Point,
+    end: Point,
+) -> Option<(u32, u32)> {
     if tok_table.is_empty() {
         return None;
     }
@@ -116,7 +121,12 @@ pub fn reduce_file(
     builder: &mut BPASTBuilder,
 ) -> FileReduction {
     let mut stats = ReductionStats::default();
-    let span = token_span(tok_table, file_id, root.start_position(), root.end_position());
+    let span = token_span(
+        tok_table,
+        file_id,
+        root.start_position(),
+        root.end_position(),
+    );
 
     let mut cursor = root.walk();
     let mut ancestors: Vec<&'static str> = Vec::with_capacity(64);
@@ -160,12 +170,12 @@ pub fn reduce_file(
             }
             ReductionDecision::Wrap(outer, inner) => {
                 frame.opened[0] = Some(open_kept(
-                    outer, kind, &node, source, file_id, adapter, tok_table, builder,
-                    &ancestors, &cursor, true,
+                    outer, kind, &node, source, file_id, adapter, tok_table, builder, &ancestors,
+                    &cursor, true,
                 ));
                 frame.opened[1] = Some(open_kept(
-                    inner, kind, &node, source, file_id, adapter, tok_table, builder,
-                    &ancestors, &cursor, false,
+                    inner, kind, &node, source, file_id, adapter, tok_table, builder, &ancestors,
+                    &cursor, false,
                 ));
                 stats.kept += 2;
             }
@@ -231,6 +241,11 @@ fn open_kept(
             builder.set_name_token(idx, name_tok);
         }
     }
-    let span = token_span(tok_table, file_id, node.start_position(), node.end_position());
+    let span = token_span(
+        tok_table,
+        file_id,
+        node.start_position(),
+        node.end_position(),
+    );
     (idx, span)
 }

@@ -83,9 +83,10 @@ impl PatternDetectionRule for DelegationFamilyRule {
                         .any(|a| a != s && impls.contains(&a))
                 })
             });
-            let injected = ctors.iter().chain(methods.iter()).any(|&m| {
-                ctx.param_types(m).contains(&t) && ctx.assigns_from_name(m, f.name)
-            });
+            let injected = ctors
+                .iter()
+                .chain(methods.iter())
+                .any(|&m| ctx.param_types(m).contains(&t) && ctx.assigns_from_name(m, f.name));
 
             let pm = if reassigned || callbacks || sibling_transitions {
                 ev.note(EVIDENCE_INTERNAL_REASSIGNMENT);

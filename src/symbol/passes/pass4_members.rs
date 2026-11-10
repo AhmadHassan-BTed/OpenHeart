@@ -175,7 +175,11 @@ impl Pass4Members {
         }
     }
 
-    fn bind_from_type_ref_children(bpa: &BPASTArtifact, ast: &AstIndex, b: &mut SymbolTableBuilder) {
+    fn bind_from_type_ref_children(
+        bpa: &BPASTArtifact,
+        ast: &AstIndex,
+        b: &mut SymbolTableBuilder,
+    ) {
         for sym_id in 0..b.symbol_count() as u32 {
             let (kind, decl_node, type_id) = match b.symbol(sym_id) {
                 Some(s) => (SymbolKind::from(s.kind), s.decl_node, s.type_id),
@@ -328,7 +332,11 @@ impl Pass4Members {
                     args: Vec::new(),
                     array_dims: 0,
                     wildcard: WildcardKind::None as u8,
-                    flags: if primitive { TypeRefFlags::PRIMITIVE } else { 0 },
+                    flags: if primitive {
+                        TypeRefFlags::PRIMITIVE
+                    } else {
+                        0
+                    },
                     status: if primitive {
                         ResolutionStatus::Primitive as u8
                     } else {
@@ -354,7 +362,11 @@ impl Pass4Members {
     }
 
     /// Primitive pseudo-id or library symbol of a literal token (JLS 3.10).
-    pub(crate) fn literal_type(tv: &TokenView, tok: u32, b: &mut SymbolTableBuilder) -> Option<u32> {
+    pub(crate) fn literal_type(
+        tv: &TokenView,
+        tok: u32,
+        b: &mut SymbolTableBuilder,
+    ) -> Option<u32> {
         use crate::symbol::adapter::*;
         let text = tv.text(tok);
         match tv.kind(tok) {

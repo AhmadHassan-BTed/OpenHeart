@@ -51,10 +51,34 @@ struct KotlinModifiers {
 }
 
 const MODIFIER_WORDS: &[&str] = &[
-    "public", "private", "protected", "internal", "open", "final", "abstract", "sealed", "data",
-    "enum", "annotation", "inner", "value", "inline", "const", "lateinit", "override",
-    "companion", "external", "expect", "actual", "suspend", "tailrec", "operator", "infix",
-    "crossinline", "noinline", "vararg",
+    "public",
+    "private",
+    "protected",
+    "internal",
+    "open",
+    "final",
+    "abstract",
+    "sealed",
+    "data",
+    "enum",
+    "annotation",
+    "inner",
+    "value",
+    "inline",
+    "const",
+    "lateinit",
+    "override",
+    "companion",
+    "external",
+    "expect",
+    "actual",
+    "suspend",
+    "tailrec",
+    "operator",
+    "infix",
+    "crossinline",
+    "noinline",
+    "vararg",
 ];
 
 pub struct KotlinFrontEnd<'a, 'u> {
@@ -134,9 +158,7 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
 
     fn at_declaration_position(&self, t: u32) -> bool {
         match self.tv.prev(t, self.start) {
-            Some(p) => {
-                !(self.tv.punct(p, ".") || self.tv.punct(p, "::") || self.tv.punct(p, "?."))
-            }
+            Some(p) => !(self.tv.punct(p, ".") || self.tv.punct(p, "::") || self.tv.punct(p, "?.")),
             None => true,
         }
     }
@@ -144,7 +166,14 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
     fn starts_declaration(&self, t: u32) -> bool {
         self.tv.punct(t, "@")
             || [
-                "fun", "val", "var", "class", "interface", "object", "init", "constructor",
+                "fun",
+                "val",
+                "var",
+                "class",
+                "interface",
+                "object",
+                "init",
+                "constructor",
                 "typealias",
             ]
             .iter()
@@ -345,7 +374,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         } else {
             SymbolKind::SK_CLASS
         };
-        let name = self.tv.next(kw, self.end).filter(|&n| self.tv.is_ident(n))?;
+        let name = self
+            .tv
+            .next(kw, self.end)
+            .filter(|&n| self.tv.is_ident(n))?;
         let mut bits = mods.bits;
         match kind {
             SymbolKind::SK_INTERFACE | SymbolKind::SK_ANNOTATION_TYPE => {
@@ -395,7 +427,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
                     pos = self.skip_supertypes(colon);
                 }
             }
-            let open = self.tv.sig(pos, self.end).filter(|&o| self.tv.punct(o, "{"));
+            let open = self
+                .tv
+                .sig(pos, self.end)
+                .filter(|&o| self.tv.punct(o, "{"));
             return match open {
                 Some(o) => {
                     let close = self.tv.matching_close(o, self.end)?;
@@ -417,7 +452,16 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         match name {
             Some(n) => {
                 let bits = mods.bits | SymbolModifiers::STATIC | SymbolModifiers::FINAL;
-                self.declare_type(b, SymbolKind::SK_CLASS, Some(n), n + 1, mods, bits, top, true)
+                self.declare_type(
+                    b,
+                    SymbolKind::SK_CLASS,
+                    Some(n),
+                    n + 1,
+                    mods,
+                    bits,
+                    top,
+                    true,
+                )
             }
             // `object : Listener { ... }` is an object expression (anonymous class).
             None => self.declare_type(
@@ -806,7 +850,11 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
                 }
             }
             let name = match self.tv.sig(pos, close) {
-                Some(t) if self.tv.is_ident(t) && !MODIFIER_WORDS.contains(&self.tv.text_str(t)) => t,
+                Some(t)
+                    if self.tv.is_ident(t) && !MODIFIER_WORDS.contains(&self.tv.text_str(t)) =>
+                {
+                    t
+                }
                 Some(t) if self.tv.punct(t, ";") => return t + 1,
                 _ => return pos,
             };
@@ -958,7 +1006,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         let (head, after_head) = parser.parse(pos, TypeOptions::default())?;
         let (receiver, name, mut pos) = match self.tv.sig(after_head, self.end) {
             Some(dot) if self.tv.punct(dot, ".") => {
-                let n = self.tv.next(dot, self.end).filter(|&n| self.tv.is_ident(n))?;
+                let n = self
+                    .tv
+                    .next(dot, self.end)
+                    .filter(|&n| self.tv.is_ident(n))?;
                 (Some((head.first, head.last)), n, n + 1)
             }
             _ => match &head.base {
@@ -982,7 +1033,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
             },
         };
 
-        let open = self.tv.sig(pos, self.end).filter(|&o| self.tv.punct(o, "("))?;
+        let open = self
+            .tv
+            .sig(pos, self.end)
+            .filter(|&o| self.tv.punct(o, "("))?;
         let close = self.tv.matching_close(open, self.end)?;
         pos = close + 1;
         let mut return_span = None;
@@ -999,7 +1053,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
                 pos = self.skip_where_clause(w);
             }
         }
-        let body_open = self.tv.sig(pos, self.end).filter(|&o| self.tv.punct(o, "{"));
+        let body_open = self
+            .tv
+            .sig(pos, self.end)
+            .filter(|&o| self.tv.punct(o, "{"));
         let body_close = match body_open {
             Some(o) => Some(self.tv.matching_close(o, self.end)?),
             None => None,
@@ -1153,7 +1210,17 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
             if self.tv.punct(open, "(") {
                 let close = self.tv.matching_close(open, self.end)?;
                 for param in self.parse_parameters(open, close) {
-                    self.declare_property_symbol(b, param.name, param.first, param.last, param.type_span, mods, is_val, top, local);
+                    self.declare_property_symbol(
+                        b,
+                        param.name,
+                        param.first,
+                        param.last,
+                        param.type_span,
+                        mods,
+                        is_val,
+                        top,
+                        local,
+                    );
                 }
                 return Some((close + 1, None));
             }
@@ -1162,9 +1229,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         let mut parser = TypeParser::new(&self.tv, self.end, Dialect::Kotlin);
         let (head, after_head) = parser.parse(pos, TypeOptions::default())?;
         let name = match self.tv.sig(after_head, self.end) {
-            Some(dot) if self.tv.punct(dot, ".") => {
-                self.tv.next(dot, self.end).filter(|&n| self.tv.is_ident(n))?
-            }
+            Some(dot) if self.tv.punct(dot, ".") => self
+                .tv
+                .next(dot, self.end)
+                .filter(|&n| self.tv.is_ident(n))?,
             _ => match &head.base {
                 TypeBase::Named(segs) if !head.nullable => {
                     let last = segs.last()?;
@@ -1188,8 +1256,9 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
                 }
             }
         }
-        let sym =
-            self.declare_property_symbol(b, name, mods.first, last, type_span, mods, is_val, top, local);
+        let sym = self.declare_property_symbol(
+            b, name, mods.first, last, type_span, mods, is_val, top, local,
+        );
         if !local {
             if let Some(t) = self.tv.sig(next, self.end) {
                 if self.tv.punct(t, "=") || self.tv.word(t, "by") {
@@ -1265,7 +1334,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         kw: u32,
         top: Frame,
     ) -> Option<(u32, Option<Frame>)> {
-        let open = self.tv.next(kw, self.end).filter(|&o| self.tv.punct(o, "("))?;
+        let open = self
+            .tv
+            .next(kw, self.end)
+            .filter(|&o| self.tv.punct(o, "("))?;
         let close = self.tv.matching_close(open, self.end)?;
         let mods = self.modifiers_before(kw);
         let class_name = b.symbol(top.owner).map(|s| s.name_id).unwrap_or(u32::MAX);
@@ -1282,7 +1354,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
                 }
             }
         }
-        let body_open = self.tv.sig(pos, self.end).filter(|&o| self.tv.punct(o, "{"));
+        let body_open = self
+            .tv
+            .sig(pos, self.end)
+            .filter(|&o| self.tv.punct(o, "{"));
         let body_close = match body_open {
             Some(o) => Some(self.tv.matching_close(o, self.end)?),
             None => None,
@@ -1355,7 +1430,10 @@ impl<'a, 'u> KotlinFrontEnd<'a, 'u> {
         kw: u32,
         top: Frame,
     ) -> Option<(u32, Option<Frame>)> {
-        let open = self.tv.next(kw, self.end).filter(|&o| self.tv.punct(o, "{"))?;
+        let open = self
+            .tv
+            .next(kw, self.end)
+            .filter(|&o| self.tv.punct(o, "{"))?;
         let close = self.tv.matching_close(open, self.end)?;
         let kind = if top.static_members {
             SymbolKind::SK_STATIC_INIT

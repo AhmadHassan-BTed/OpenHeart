@@ -111,8 +111,8 @@ fn fnv1a32(bytes: &[u8]) -> u32 {
 /// Appends `_` to names Windows reserves for devices, so cache paths are portable.
 fn safe_component(name: &str) -> String {
     const RESERVED: [&str; 22] = [
-        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7",
-        "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+        "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
     ];
     let stem = name.split('.').next().unwrap_or(name);
     if RESERVED.contains(&stem) {
@@ -472,7 +472,11 @@ impl WebRepoFetcher {
                     log_info(&format!(
                         "[REPO] Removing cached checkout of {} ({})",
                         repo.canonical_url(),
-                        if refresh { "refresh requested" } else { "older than the age limit" }
+                        if refresh {
+                            "refresh requested"
+                        } else {
+                            "older than the age limit"
+                        }
                     ));
                     fs::remove_dir_all(&dir).map_err(io_failure("remove the cached checkout"))?;
                     remove_file_quietly(&meta_path);
@@ -620,7 +624,10 @@ fn validate_ref(git_ref: &str) -> Result<(), String> {
     if valid {
         Ok(())
     } else {
-        Err(format!("'{}' is not an accepted branch or tag name", git_ref))
+        Err(format!(
+            "'{}' is not an accepted branch or tag name",
+            git_ref
+        ))
     }
 }
 
@@ -635,7 +642,10 @@ fn validate_path_segment(segment: &str) -> Result<(), String> {
     if valid {
         Ok(())
     } else {
-        Err(format!("'{}' is not an accepted repository path segment", segment))
+        Err(format!(
+            "'{}' is not an accepted repository path segment",
+            segment
+        ))
     }
 }
 
@@ -956,7 +966,10 @@ fn prune_cache(options: &FetchOptions, keep: &Path) {
                 remove_file_quietly(&meta_path(&dir));
                 count -= 1;
                 total = total.saturating_sub(size);
-                log_info(&format!("[REPO] Evicted cached checkout '{}'", dir.display()));
+                log_info(&format!(
+                    "[REPO] Evicted cached checkout '{}'",
+                    dir.display()
+                ));
             }
             Err(err) => log_warn(&format!(
                 "[REPO] Could not evict cached checkout '{}': {}",
@@ -1005,17 +1018,22 @@ fn normalize_remote(url: &str) -> String {
     trimmed.strip_suffix(".git").unwrap_or(trimmed).to_string()
 }
 
-fn verify_origin(dir: &Path, repo: &GitHubRepoRef, options: &FetchOptions) -> Result<(), FetchError> {
+fn verify_origin(
+    dir: &Path,
+    repo: &GitHubRepoRef,
+    options: &FetchOptions,
+) -> Result<(), FetchError> {
     if !dir.join(".git").is_dir() {
         return Err(FetchError::CacheMismatch {
             detail: format!("'{}' exists but is not a git checkout", dir.display()),
         });
     }
-    let origin = run_git(dir, options, &["config", "--get", "remote.origin.url"]).ok_or_else(
-        || FetchError::CacheMismatch {
-            detail: format!("cannot read remote.origin.url of '{}'", dir.display()),
-        },
-    )?;
+    let origin =
+        run_git(dir, options, &["config", "--get", "remote.origin.url"]).ok_or_else(|| {
+            FetchError::CacheMismatch {
+                detail: format!("cannot read remote.origin.url of '{}'", dir.display()),
+            }
+        })?;
     if normalize_remote(&origin) != normalize_remote(&repo.canonical_url()) {
         return Err(FetchError::CacheMismatch {
             detail: format!(

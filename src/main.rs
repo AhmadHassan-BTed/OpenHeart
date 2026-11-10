@@ -230,7 +230,10 @@ struct HealthArgs {
 
 /// A command-line token after splitting `--name=value` forms.
 enum Token {
-    Option { name: String, inline: Option<String> },
+    Option {
+        name: String,
+        inline: Option<String>,
+    },
     Positional(String),
 }
 
@@ -297,7 +300,10 @@ fn parse_number<T: FromStr>(name: &str, raw: &str) -> Result<T, String> {
 fn parse_port(name: &str, raw: &str) -> Result<u16, String> {
     match raw.trim().parse::<u16>() {
         Ok(port) if port > 0 => Ok(port),
-        _ => Err(format!("{} expects a port between 1 and 65535, got '{}'", name, raw)),
+        _ => Err(format!(
+            "{} expects a port between 1 and 65535, got '{}'",
+            name, raw
+        )),
     }
 }
 
@@ -308,7 +314,11 @@ fn parse_diagram_list(raw: &str) -> Result<Vec<&'static str>, String> {
         _ => {}
     }
     let mut selection = Vec::new();
-    for name in raw.split(',').map(str::trim).filter(|name| !name.is_empty()) {
+    for name in raw
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
         let canonical = canonical_diagram_type(name)
             .ok_or_else(|| format!("unknown diagram type '{}'", name))?;
         if !selection.contains(&canonical) {
@@ -331,9 +341,13 @@ fn parse_format_list(raw: &str) -> Result<Vec<DiagramFormat>, String> {
         ]);
     }
     let mut formats = Vec::new();
-    for name in raw.split(',').map(str::trim).filter(|name| !name.is_empty()) {
-        let format =
-            parse_diagram_format(name).ok_or_else(|| format!("unknown diagram format '{}'", name))?;
+    for name in raw
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+    {
+        let format = parse_diagram_format(name)
+            .ok_or_else(|| format!("unknown diagram format '{}'", name))?;
         if !formats.contains(&format) {
             formats.push(format);
         }
@@ -459,7 +473,9 @@ fn parse_analyze(args: Vec<String>) -> Result<AnalyzeArgs, String> {
     parsed.source = PathBuf::from(source);
     if let Some(output) = positionals.next() {
         if parsed.output.is_some() {
-            return Err("the output directory was given both positionally and with --output".into());
+            return Err(
+                "the output directory was given both positionally and with --output".into(),
+            );
         }
         parsed.output = Some(PathBuf::from(output));
     }
@@ -1013,8 +1029,8 @@ fn inspect_artifact(kind: ArtifactKind, path: &Path, bytes: &[u8]) -> Result<Vec
             ]
         }
         ArtifactKind::PathSummary => {
-            let psa = openheart::psa::PathSummarySerializer::read(path)
-                .map_err(|err| err.to_string())?;
+            let psa =
+                openheart::psa::PathSummarySerializer::read(path).map_err(|err| err.to_string())?;
             vec![
                 "Artifact Type  : Path Summary ROBDD (.psa)".to_string(),
                 format!("Format Version : {}", psa.format_version),
@@ -1045,8 +1061,8 @@ fn inspect_artifact(kind: ArtifactKind, path: &Path, bytes: &[u8]) -> Result<Vec
 }
 
 fn cmd_inspect(path: &Path) -> Result<(), String> {
-    let bytes = fs::read(path)
-        .map_err(|err| format!("Failed to read '{}': {}", path.display(), err))?;
+    let bytes =
+        fs::read(path).map_err(|err| format!("Failed to read '{}': {}", path.display(), err))?;
     log_info(&format!("Inspecting artifact: {}", path.display()));
     log_info(&format!("File Size      : {} bytes", bytes.len()));
     let kind = detect_artifact(&bytes).ok_or_else(|| {
@@ -1119,15 +1135,19 @@ fn answer_query(args: &QueryArgs) -> Result<Value, QueryFailure> {
     let dir = args.dir.clone();
     // Opening the analysis and answering run on a large stack: call-graph, slice and
     // diagram walks recurse with program size, and an overflow would abort the process.
-    run_isolated("openheart-query", stack_bytes, move || -> Result<Value, QueryFailure> {
-        let session = AnalysisSession::open(&dir).map_err(|err| {
-            QueryFailure::new(
-                status_for_io(&err),
-                format!("cannot open the analysis in '{}': {}", dir.display(), err),
-            )
-        })?;
-        execute_session(&session, &request)
-    })
+    run_isolated(
+        "openheart-query",
+        stack_bytes,
+        move || -> Result<Value, QueryFailure> {
+            let session = AnalysisSession::open(&dir).map_err(|err| {
+                QueryFailure::new(
+                    status_for_io(&err),
+                    format!("cannot open the analysis in '{}': {}", dir.display(), err),
+                )
+            })?;
+            execute_session(&session, &request)
+        },
+    )
     .map_err(|reason| QueryFailure::new(500, reason))?
 }
 

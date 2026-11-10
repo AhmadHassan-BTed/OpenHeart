@@ -131,12 +131,18 @@ pub fn truncate_chars(s: &str, max_chars: usize) -> String {
         return s.to_string();
     }
     let keep = max_chars.saturating_sub(3);
-    let cut = s.char_indices().nth(keep).map(|(i, _)| i).unwrap_or(s.len());
+    let cut = s
+        .char_indices()
+        .nth(keep)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len());
     format!("{}...", &s[..cut])
 }
 
 fn needs_space(prev: &[u8], next: &[u8]) -> bool {
-    const NO_SPACE_BEFORE: &[&[u8]] = &[b".", b",", b";", b")", b"]", b"(", b"[", b"++", b"--", b"::", b"?."];
+    const NO_SPACE_BEFORE: &[&[u8]] = &[
+        b".", b",", b";", b")", b"]", b"(", b"[", b"++", b"--", b"::", b"?.",
+    ];
     const NO_SPACE_AFTER: &[&[u8]] = &[b".", b"(", b"[", b"@", b"!", b"::", b"?."];
     if NO_SPACE_BEFORE.contains(&next) || NO_SPACE_AFTER.contains(&prev) {
         return false;

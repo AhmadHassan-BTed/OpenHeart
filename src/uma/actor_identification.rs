@@ -96,9 +96,11 @@ impl ActorIdentifier {
                 continue;
             }
             if sym.first_token_id != u32::MAX {
-                let annotated = index.scanner.annotations(sym).iter().any(|&a| {
-                    HANDLER_ANNOTATIONS.contains(&index.tca.interner.lookup_text(a))
-                });
+                let annotated = index
+                    .scanner
+                    .annotations(sym)
+                    .iter()
+                    .any(|&a| HANDLER_ANNOTATIONS.contains(&index.tca.interner.lookup_text(a)));
                 if annotated {
                     framework.push(EntryPoint {
                         method: id,

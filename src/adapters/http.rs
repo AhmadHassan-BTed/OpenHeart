@@ -292,7 +292,9 @@ fn content_length(headers: &[(String, String)]) -> Result<u64, RequestError> {
             .parse()
             .map_err(|_| RequestError::Malformed("invalid Content-Length"))?;
         if length.is_some_and(|previous| previous != parsed) {
-            return Err(RequestError::Malformed("conflicting Content-Length headers"));
+            return Err(RequestError::Malformed(
+                "conflicting Content-Length headers",
+            ));
         }
         length = Some(parsed);
     }
@@ -322,7 +324,9 @@ fn parse_target(target: &str) -> Result<ParsedTarget, RequestError> {
     };
     let path = percent_decode(raw_path, false)
         .filter(|decoded| !decoded.chars().any(char::is_control))
-        .ok_or(RequestError::Malformed("invalid percent-encoding in the path"))?;
+        .ok_or(RequestError::Malformed(
+            "invalid percent-encoding in the path",
+        ))?;
     let query = parse_query(raw_query)?;
     Ok((path, query))
 }
@@ -332,8 +336,9 @@ fn parse_query(raw: &str) -> Result<Vec<(String, String)>, RequestError> {
     for pair in raw.split('&').filter(|pair| !pair.is_empty()) {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         let decode = |text: &str| {
-            percent_decode(text, true)
-                .ok_or(RequestError::Malformed("invalid percent-encoding in the query"))
+            percent_decode(text, true).ok_or(RequestError::Malformed(
+                "invalid percent-encoding in the query",
+            ))
         };
         pairs.push((decode(key)?, decode(value)?));
     }

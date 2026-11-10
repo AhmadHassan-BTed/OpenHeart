@@ -10,7 +10,9 @@ use crate::ast::BPASTArtifact;
 use crate::cfg::analysis::DominatorTree;
 use crate::cfg::ast_query::subtree_end;
 use crate::cfg::builder::FunctionCFGData;
-use crate::core::types::ssa::{PhiArg, PhiRecord, SSARecord, SSA_FLAG_IS_PARAM_DEF, SSA_FLAG_IS_PHI};
+use crate::core::types::ssa::{
+    PhiArg, PhiRecord, SSARecord, SSA_FLAG_IS_PARAM_DEF, SSA_FLAG_IS_PHI,
+};
 use crate::ssa::liveness::BlockEvents;
 use crate::ssa::names::{DefKind, FunctionVars, VarEvent};
 use crate::ssa::version_stack::VersionStack;
@@ -113,7 +115,11 @@ pub fn rename_function(
 
     let dom = DominatorTree::new(&cfg.idom, 0);
     let mut vstack = VersionStack::new(var_count);
-    let mut stack: Vec<Frame> = if n > 0 { vec![Frame::Enter(0)] } else { Vec::new() };
+    let mut stack: Vec<Frame> = if n > 0 {
+        vec![Frame::Enter(0)]
+    } else {
+        Vec::new()
+    };
     let mut stmt_uses: Vec<(u32, u32)> = Vec::new();
 
     while let Some(frame) = stack.pop() {
@@ -268,9 +274,8 @@ pub fn rename_function(
             use_adj.push(stmt);
             use_blocks.push(blk);
         }
-        def_offsets.push(
-            u32::try_from(use_adj.len()).map_err(|_| "def-use CSR exceeds the u32 range")?,
-        );
+        def_offsets
+            .push(u32::try_from(use_adj.len()).map_err(|_| "def-use CSR exceeds the u32 range")?);
     }
 
     let mut operand_offsets = Vec::with_capacity(total + 1);

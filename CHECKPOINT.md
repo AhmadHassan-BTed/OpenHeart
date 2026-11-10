@@ -4,7 +4,7 @@ Last updated: 10 November 2026. Base commit before this work: `fc218cd`. Branch:
 
 This file is the single place to resume from. Everything needed to continue on any machine is in this file and in [`checkpoint/`](checkpoint/). **Start with section 0**, the most recent session; sections 1 to 5 are the 9 November rewrite state, still valid.
 
-> Status: the **Rust engine is in the coding phase and uncompiled**, by the owner's instruction. The web studio's layout engine (`web/js/layout/`) is written **and tested** (section 0.2).
+> Status: **OpenHeart builds, passes its tests and runs.** The CI steps (`cargo check`, `cargo fmt --check`, `cargo test`) are clean, `openheart analyze` and `openheart query` work, and the call graph has real edges (section 0.5). The web studio's layout engine is written and tested (section 0.2). The owner's instruction to make this hold opened building and testing for this checkpoint.
 
 ---
 
@@ -22,8 +22,9 @@ This file is the single place to resume from. Everything needed to continue on a
 3. **All 19 diagrams in the web, for every source,** including GitHub, folder and ZIP imports.
    - The diagrams must be **derived by the pure Rust engine**, compiled to WebAssembly for the browser.
    - **Click-to-explore:** clicking an element shows its call graph, each function's dependencies, and more.
-4. **Phase rules now.**
-   - The Rust engine stays **coding only**: no `cargo build`, `check`, `test` or `clippy`, and no wasm build, until the owner opens that phase.
+4. **Phase rules.**
+   - Until this checkpoint the Rust engine was coding only. The owner then asked that OpenHeart work, so it was built and tested (`cargo check`, `cargo fmt`, `cargo test`, and `openheart analyze`, `query` and `server`).
+   - From now on, keeping `main` green (build and tests) is part of every change. Ask the owner before the WebAssembly build, and before large new Rust work.
    - The JavaScript layout's **test phase is open**: the quality gate may run.
 5. **Toolchain (approved and installed).**
    - The `wasm32-wasip1` Rust target.
@@ -64,29 +65,33 @@ This file is the single place to resume from. Everything needed to continue on a
 - the `oh_*` WebAssembly exports
 - the Rust module layout
 
-### 0.3 Stopped mid-way (resume these)
+### 0.3 Packages: done for this checkpoint, and still open
 
-Six packages were running in parallel and were stopped by the owner. Their exact briefs, the files they own, and what each had on disk at the stop are in [`checkpoint/session-2026-11-10/agent-briefs.md`](checkpoint/session-2026-11-10/agent-briefs.md).
+Six packages were running in parallel when the owner stopped them. Their briefs, the files they own, and what each had on disk at the stop are in [`checkpoint/session-2026-11-10/agent-briefs.md`](checkpoint/session-2026-11-10/agent-briefs.md). Afterwards, only what `main` needed to build and run was completed; everything else stays open.
 
-| Package | Scope | State at stop |
+| Package | Done (verified at this checkpoint) | Still open |
 |---|---|---|
-| A1 | Real call graph (Phase 6 with token text, symbol-table fallback, dispatch/resolution per edge) and `src/facts/` | `src/cg/*` partly rewritten; `src/facts/` not started |
-| A2 | Query protocol, `POST /api/sessions/<id>/query`, `openheart query`, `server` feature gating | `query.rs`, `server.rs`, `adapters/mod.rs` written; `main.rs` mid-edit |
-| A3 | Symbol ids on nodes, deployment/use case/timing derivations, composite connectors, focused views | `src/project/` parsers written (no `mod.rs`); diagram views not started |
-| A4 | In-memory pipeline, `src/session.rs`, `src/wasm.rs`, `lib.rs`, `Cargo.toml` feature, `.cargo/config.toml`, `scripts/build-wasm.sh` | IO and threading changes in ingestion/ast/core/scpg written; session, wasm, lib.rs, Cargo, build script not started |
-| A5 | Studio: WASI shim, wasm engine loader, program model, import flow for all 19 views, inspector Relations tab | `web/js/engine/*` mostly written (`relations-panel.js` mid-way); `main.js` not wired; no tests run |
-| Router | Speed on the ~1,700-card inputs (16-18 s total now) | Mid-refactor, but the file on disk passes the full 54-input gate |
+| A1 call graph and facts | Phase 6 runs with the token corpus in the runner and in `core/pipeline.rs` (the 0-edge cause). Every edge records its dispatch and resolution kind (points-to refinement included), and unresolved sites keep the resolver's reason. `src/facts/`: `resolve_symbol`, `functions`, `callers`, `callees` (from the engine's call-graph index, with site locations from the token corpus) and `dependents` (from impact analysis at depth 1) | Per-function field reads and writes, and type uses, in `dependencies`/`dependents` (they are returned empty, with a note); wasm32 inline path for Phase 6 |
+| A2 query, server, CLI | `QueryRequest` new variants, `execute_session`, `POST /api/sessions/<id>/query`, `openheart query`, `PathCount` output fixed | Review of the `cfg(feature = "server")` gating in `http.rs`, `security.rs` and `web_repo.rs` |
+| A3 diagrams | `views/focused.rs`: whole-program views, and views focused on a symbol through the builders' existing focus | `symbol`/`function` ids on every Graph IR node; `src/project/` (parsers written, no `mod.rs`, not compiled); deployment, use case and timing derivations; composite connectors; focus deeper than one level |
+| A4 pipeline, session, wasm | `src/session.rs` (`from_run`, `open(dir)` reloading every artifact, `diagram_context`); `discover_project_files`; `PipelineRun` fields; `lib.rs` declares `session` and `facts` | `run_pipeline_in_memory`, `src/wasm.rs`, the `wasm` feature, `.cargo/config.toml`, `scripts/build-wasm.sh`; declaring `project` once it has a `mod.rs` |
+| A5 studio | Nothing new; the studio works as deployed | WASI shim, wasm loader and program model review; `relations-panel.js` finish; `main.js` wiring; tests |
+| Router | Passes the full gate | Speed on about 1,700-card inputs (16-18 s total) |
+
+Tests were updated to the current engine:
+- Format-version assertions use the library's constants.
+- Symbols are found by name, not by hard-coded id.
+- The SCC assertions follow the documented invariant: SCCs cover the call-graph nodes, not the whole symbol-id space.
+- Constructors now get CFGs, so the function counts include them.
+- The engine summary no longer claims "all 14 UML diagrams".
 
 ### 0.4 What remains, in order
 
-1. **Resume A1-A5 in parallel.** Use the same file ownership and the briefs as written, telling each agent to read its partial edits first. Then run one review pass across all five against the contract: names, signatures and handoffs (for example `lib.rs` declarations, and `DiagramContext.project_files`). The packages are complete for the build when the 10 errors in section 0.5 are gone.
-2. **When the owner opens the Rust build phase:**
-   1. `cargo build` (native), and fix compile errors across the parallel edits.
-   2. `openheart analyze examples/test_patterns_codebase <out>`: call edges should be above 0, and all 19 diagrams derived or unavailable with a reason.
-   3. `openheart query <out> '{"query":"callers","symbol":"..."}'`.
-   4. `scripts/build-wasm.sh`, which writes `web/engine/openheart.wasm`.
-   5. The studio end to end in the browser: a GitHub import, all 19 views, the Relations tab.
-   6. Update `docs/status.md` per diagram.
+1. **Finish A1-A5** from the "Still open" column, with the same file ownership and the briefs. Keep `main` green: run `cargo check --all-targets`, `cargo fmt --all -- --check` and `cargo test --all-targets` after each package.
+2. **WebAssembly** (ask the owner first):
+   1. Finish A4's wasm items.
+   2. Run `scripts/build-wasm.sh`.
+   3. Test the studio end to end: a GitHub import, all 19 views, and the Relations tab (A5).
 3. **Layout follow-ups:**
    - Router speed on about 1,700-card inputs.
    - Sprawl on dense random graphs: mean edges of 7-11 card sizes on stress inputs.
@@ -95,28 +100,27 @@ Six packages were running in parallel and were stopped by the owner. Their exact
    - SVG export of overflowing lifeline images is unchecked.
    - Label collisions remain on dense graphs.
    - The stylesheet has invalid Cytoscape properties that predate this work (`border-radius`, `letter-spacing`, `taxi-radius`, `shadow-*`).
-4. **Then sections 3 to 7 below** (the remaining audit fix passes and the new-module wiring).
+4. **Update `docs/status.md`** per diagram as derivations land.
+5. **Then sections 3 to 7 below:** the remaining audit fix passes, and wiring the new modules (`src/ir`, `src/analysis`, `src/derive` and the rest).
 
-### 0.5 Build state at this checkpoint (from CI)
+### 0.5 Build and run state at this checkpoint (verified locally)
 
-CI run 42775453556 on commit `1374c2a` (Rust stable): `cargo check` stops at exactly 10 errors. Each one comes from a package stopped mid-way and disappears when that package is finished. Nothing else fails to compile.
-
-| Error | Location | Resolved by |
-|---|---|---|
-| E0432 unresolved import `crate::facts` | `src/adapters/query.rs:24` | A1 creates `src/facts/` |
-| E0432 unresolved import `crate::scpg::diagram::views::focused` | `src/adapters/query.rs:26` | A3 creates `views/focused.rs` |
-| E0432 unresolved import `crate::session` (×3) | `query.rs:29`, `runner.rs:59`, `server.rs:61` | A4 creates `src/session.rs` and declares `session`, `facts` and `project` in `src/lib.rs` |
-| E0432 unresolved import `crate::adapters::runner::discover_project_files` | `src/adapters/server.rs:48` | A4 |
-| E0599 `robdd::PathCount` has no `Display` and no `log2` | `src/adapters/query.rs:497-498` | A2; `query.rs` is compiled for the first time now that it is declared |
-| E0063 `PipelineRun` initializer missing `project_files`, `warnings` | `src/adapters/runner.rs:2346` | A4 |
-| E0063 `CallGraphArtifact` initializer missing `edge_kinds`, `unresolved_sites` | `src/cg/mod.rs:315` | A1 |
-
-The live studio at `https://ahmadhassan-bted.github.io/OpenHeart/` was checked after this push. All 19 views render, routes are applied, there are no NaN positions and no console errors, and ELK loads under the page's CSP.
+| Check | Result |
+|---|---|
+| `cargo check --all-targets` | 0 errors |
+| `cargo fmt --all -- --check` | clean; the whole tree was formatted once, since it had never been `rustfmt`-clean |
+| `cargo test --all-targets` | 73 passed, 0 failed, 1 ignored (the existing `#[ignore]`) |
+| `openheart analyze examples/test_patterns_codebase <out>` | all 10 phases in 268 ms over 35 files; **68 call sites, 47 call edges** (0 at the previous checkpoint); 57 diagram files, 0 unavailable |
+| `openheart query <out> '{"query":"callees","symbol":"com.patterns.behavioral.templatemethod.DataMiner.mine","depth":2}'` | 7 edges, for example `DataMiner.mine` → `CsvDataMiner.openFile` (virtual, CHA) at `DataMiner.java:5` |
+| `query` operations `functions`, `dependents` and `view`, plus an unknown symbol | all answer per the protocol. The callgraph view focused on `DataMiner.mine` has 8 nodes and 7 edges. The unknown symbol gives a 404 error object and exit code 1 |
+| `openheart server 18734` | `/api/health` reports online; `/api/supported-diagrams` answers; `POST /api/sessions/<id>/query` answers (404 for an unknown session) |
+| Live studio `https://ahmadhassan-bted.github.io/OpenHeart/` | all 19 views render with routes and no console errors (the web code is unchanged since) |
+| Layout gate (`scripts/layout-gate`) | 54/54 inputs pass, deterministic (the web code is unchanged since) |
 
 ### 0.6 Cautions
 
-- **The Rust tree does not compile right now.** A1-A4 stopped mid-edit. Do not open the build phase until their packages are finished and reviewed.
-- **Pushing `main` deploys the studio to GitHub Pages** (`.github/workflows/deploy_pages.yml` runs on push to `main`). A5's studio edits are unreviewed, and `main.js` is not wired yet. Check the studio in a browser before pushing.
+- **Pushing `main` deploys the studio to GitHub Pages** (`.github/workflows/deploy_pages.yml` runs on push to `main`). A5's unfinished studio modules are on `main` but not wired into `main.js`, so they are inert.
+- **`src/project/` and the other undeclared modules** (`src/ir`, `src/analysis`, `src/derive`, and the rest) are not compiled. Declaring one means making it compile.
 - **Commit identity:** commits use the personal identity (`Ahmad Hassan (B-Ted) <ahmadhassan.bted@gmail.com>`). The shell injects a work identity through `GIT_*` variables, so override them on every commit.
 
 ---

@@ -48,7 +48,10 @@ fn is_statement_position(ctx: &ReductionContext) -> bool {
     match ctx.parent_kind() {
         Some(p) if is_statement_container(p) || p == "labeled_statement" => true,
         Some(
-            "if_statement" | "while_statement" | "for_statement" | "enhanced_for_statement"
+            "if_statement"
+            | "while_statement"
+            | "for_statement"
+            | "enhanced_for_statement"
             | "do_statement",
         ) => !matches!(
             ctx.field_name,
@@ -162,7 +165,11 @@ fn enum_has_constant_bodies(enum_decl: &Node) -> bool {
 
 fn has_spread_parameter(decl: &Node) -> bool {
     decl.child_by_field_name("parameters")
-        .is_some_and(|params| children_of(&params).iter().any(|c| c.kind() == "spread_parameter"))
+        .is_some_and(|params| {
+            children_of(&params)
+                .iter()
+                .any(|c| c.kind() == "spread_parameter")
+        })
 }
 
 /// An identifier that is an implicitly typed lambda parameter (`x -> ..`, `(a, b) -> ..`).
@@ -178,10 +185,18 @@ fn is_record_component(ctx: &ReductionContext) -> bool {
 }
 
 /// Visibility, modifiers and lang flags of a declaration after the JLS rules.
-fn declaration_attrs(kind: &str, node: &Node, source: &[u8], ctx: &ReductionContext) -> (u8, u8, u8) {
+fn declaration_attrs(
+    kind: &str,
+    node: &Node,
+    source: &[u8],
+    ctx: &ReductionContext,
+) -> (u8, u8, u8) {
     let mut scan = scan_modifiers(node, source);
     let container = container_of(ctx);
-    let in_interface = matches!(container, Container::InterfaceBody | Container::AnnotationBody);
+    let in_interface = matches!(
+        container,
+        Container::InterfaceBody | Container::AnnotationBody
+    );
 
     let mut implicit_mods = 0u8;
     let mut implicit_visibility: Option<u8> = None;
@@ -308,7 +323,9 @@ fn update_operator(node: &Node) -> (OperatorId, bool) {
 
 fn literal_category(kind: &str) -> u8 {
     match kind {
-        "decimal_integer_literal" | "hex_integer_literal" | "octal_integer_literal"
+        "decimal_integer_literal"
+        | "hex_integer_literal"
+        | "octal_integer_literal"
         | "binary_integer_literal" => NodeAttr::LITERAL_INTEGER,
         "decimal_floating_point_literal" | "hex_floating_point_literal" => NodeAttr::LITERAL_FLOAT,
         "string_literal" => NodeAttr::LITERAL_STRING,
@@ -351,7 +368,10 @@ fn array_dimensions(node: &Node) -> u8 {
     let Some(dims) = node.child_by_field_name("dimensions") else {
         return 0;
     };
-    let count = children_of(&dims).iter().filter(|c| c.kind() == "[").count();
+    let count = children_of(&dims)
+        .iter()
+        .filter(|c| c.kind() == "[")
+        .count();
     u8::try_from(count).unwrap_or(u8::MAX)
 }
 
@@ -537,8 +557,14 @@ impl ASTReductionAdapter for JavaASTReductionAdapter {
             // Literal internals, the `*` of an on-demand import (recorded in the import's
             // aux flags), array dimension brackets (recorded in the type's lang byte),
             // and comments.
-            "string_fragment" | "escape_sequence" | "multiline_string_fragment" | "asterisk"
-            | "dimensions" | "line_comment" | "block_comment" | "comment" => Drop,
+            "string_fragment"
+            | "escape_sequence"
+            | "multiline_string_fragment"
+            | "asterisk"
+            | "dimensions"
+            | "line_comment"
+            | "block_comment"
+            | "comment" => Drop,
 
             // Grouping and disambiguation wrappers (parenthesized_expression, modifiers,
             // formal_parameters, argument_list, class/interface/enum/annotation bodies,
@@ -578,7 +604,9 @@ impl ASTReductionAdapter for JavaASTReductionAdapter {
             {
                 (vis, mods, lang) = declaration_attrs(k, node, source, ctx);
                 match k {
-                    "method_declaration" | "constructor_declaration" | "compact_constructor_declaration" => {
+                    "method_declaration"
+                    | "constructor_declaration"
+                    | "compact_constructor_declaration" => {
                         if node.child_by_field_name("body").is_some() {
                             aux |= NodeAttr::AUX_METHOD_HAS_BODY;
                         }

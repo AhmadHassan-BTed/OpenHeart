@@ -55,8 +55,7 @@ impl StructuralExtractor {
             dependencies,
             metrics,
         } = PackageDiagramExtractor::extract(index, bodies, &class_syms);
-        let components =
-            ComponentDiagramExtractor::extract(index, bodies, &packages, &class_syms);
+        let components = ComponentDiagramExtractor::extract(index, bodies, &packages, &class_syms);
         let composite_structures = CompositeDiagramExtractor::extract(index, &classes);
 
         StructuralRecords {

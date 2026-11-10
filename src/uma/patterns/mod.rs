@@ -55,8 +55,7 @@ impl PatternDetector {
         let matches = Self::deduplicate(matches);
         let mut matches = Self::resolve_conflicts(matches);
         matches.sort_by(|a, b| {
-            (a.kind, a.primary, &a.roles_key())
-                .cmp(&(b.kind, b.primary, &b.roles_key()))
+            (a.kind, a.primary, &a.roles_key()).cmp(&(b.kind, b.primary, &b.roles_key()))
         });
 
         let mut instances = Vec::with_capacity(matches.len());
@@ -155,10 +154,14 @@ impl PatternDetector {
         matches
             .into_iter()
             .filter(|m| match m.kind {
-                PATTERN_ADAPTER => !m.bound(ROLE_ADAPTER).any(|s| concrete_commands.contains(&s)),
+                PATTERN_ADAPTER => !m
+                    .bound(ROLE_ADAPTER)
+                    .any(|s| concrete_commands.contains(&s)),
                 PATTERN_DECORATOR => !m.bound(ROLE_DECORATOR).any(|s| nonterminals.contains(&s)),
                 PATTERN_COMPOSITE => !m.bound(ROLE_COMPOSITE).any(|s| nonterminals.contains(&s)),
-                PATTERN_FACTORY => !m.bound(ROLE_CREATOR).any(|s| abstract_factories.contains(&s)),
+                PATTERN_FACTORY => !m
+                    .bound(ROLE_CREATOR)
+                    .any(|s| abstract_factories.contains(&s)),
                 _ => true,
             })
             .collect()

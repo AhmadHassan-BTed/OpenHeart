@@ -50,9 +50,10 @@ impl PatternDetectionRule for DecoratorRule {
                 if !ev.require(EVIDENCE_FORWARDING_CALL, forwards) {
                     continue;
                 }
-                let injected = ctx.constructors(d).into_iter().any(|k| {
-                    ctx.param_types(k).contains(&c) && ctx.assigns_from_name(k, f.name)
-                });
+                let injected = ctx
+                    .constructors(d)
+                    .into_iter()
+                    .any(|k| ctx.param_types(k).contains(&c) && ctx.assigns_from_name(k, f.name));
                 ev.optional(EVIDENCE_INJECTED_DELEGATE, injected);
                 let line = ctx.descendants(d);
                 let components: Vec<u32> = ctx

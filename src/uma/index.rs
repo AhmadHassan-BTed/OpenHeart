@@ -285,7 +285,9 @@ impl<'a> UMAIndex<'a> {
                     let import_pkg = qual.and_then(|q| q.rsplit_once('.').map(|(p, _)| p));
                     match (import_pkg, self.package_name_of(c)) {
                         // `ip` may also name an enclosing class: `pkg.Outer` for `pkg.Outer.Inner`.
-                        (Some(ip), Some(cp)) if ip != cp && !ip.starts_with(&format!("{}.", cp)) => {
+                        (Some(ip), Some(cp))
+                            if ip != cp && !ip.starts_with(&format!("{}.", cp)) =>
+                        {
                             None
                         }
                         _ => Some(c),
@@ -770,11 +772,13 @@ impl<'a> UMAIndex<'a> {
     }
 
     pub fn constructors(&self, id: u32) -> Vec<u32> {
-        self.children_of_kind(id, SymbolKind::SK_CONSTRUCTOR).collect()
+        self.children_of_kind(id, SymbolKind::SK_CONSTRUCTOR)
+            .collect()
     }
 
     pub fn params(&self, method: u32) -> Vec<u32> {
-        self.children_of_kind(method, SymbolKind::SK_PARAM).collect()
+        self.children_of_kind(method, SymbolKind::SK_PARAM)
+            .collect()
     }
 
     pub fn param_types(&self, method: u32) -> Vec<u32> {
@@ -869,7 +873,10 @@ impl<'a> UMAIndex<'a> {
 
     /// Unique superclass (UNKNOWN_SYM when none or ambiguous).
     pub fn superclass(&self, id: u32) -> u32 {
-        self.superclass.get(id as usize).copied().unwrap_or(UNKNOWN_SYM)
+        self.superclass
+            .get(id as usize)
+            .copied()
+            .unwrap_or(UNKNOWN_SYM)
     }
 
     /// Validated generalization targets (superclass, or super-interfaces of an interface).

@@ -54,8 +54,9 @@ impl PatternDetectionRule for VisitorRule {
                 let mut line = vec![owner];
                 line.extend(ctx.descendants(owner));
                 line.iter().any(|&cls| {
-                    ctx.methods(cls).into_iter().any(|m| {
-                        match ctx.param_named_by_type(m, v) {
+                    ctx.methods(cls)
+                        .into_iter()
+                        .any(|m| match ctx.param_named_by_type(m, v) {
                             Some(pname) => {
                                 let dispatches = ctx
                                     .calls_through(m, pname)
@@ -67,8 +68,7 @@ impl PatternDetectionRule for VisitorRule {
                                 dispatches
                             }
                             None => false,
-                        }
-                    })
+                        })
                 })
             });
             if accepts {
@@ -80,7 +80,10 @@ impl PatternDetectionRule for VisitorRule {
         }
         ev.optional(EVIDENCE_TYPED_COLLECTION, accepting.len() == elements.len());
         let concrete_visitors = ctx.concrete_descendants(v);
-        ev.optional(EVIDENCE_CONCRETE_PARTICIPANTS, !concrete_visitors.is_empty());
+        ev.optional(
+            EVIDENCE_CONCRETE_PARTICIPANTS,
+            !concrete_visitors.is_empty(),
+        );
 
         let element_list: Vec<u32> = elements.into_iter().collect();
         let abstract_elements: Vec<u32> = accept_declarers

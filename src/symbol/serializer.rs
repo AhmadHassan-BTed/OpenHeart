@@ -27,7 +27,9 @@
 //! bytes. The reader is bounds-checked: counts are validated against the remaining input
 //! before anything is allocated, and truncated or malformed input yields `InvalidData`.
 
-use crate::core::types::symbol::{ScopeRecord, SymbolKind, SymbolRecord, THRelation, UMLAssociationRecord};
+use crate::core::types::symbol::{
+    ScopeRecord, SymbolKind, SymbolRecord, THRelation, UMLAssociationRecord,
+};
 use crate::ingestion::serializer::crc64_ecma;
 use crate::symbol::builder::{SymbolTableBuilder, TypeHierarchyEdge};
 use crate::symbol::model::{
@@ -103,7 +105,8 @@ impl SymbolTableArtifact {
 
     /// Canonical qualified name of a type, package or external symbol.
     pub fn qualified_name_of(&self, sym_id: u32) -> Option<&str> {
-        self.symbol(sym_id).and_then(|s| self.qual_name(s.qual_name_id))
+        self.symbol(sym_id)
+            .and_then(|s| self.qual_name(s.qual_name_id))
     }
 
     /// Stable, position-independent descriptor of a symbol (SemanticDB grammar).
@@ -142,7 +145,10 @@ impl SymbolTableArtifact {
     pub fn supertype_index(&self) -> HashMap<u32, Vec<u32>> {
         let mut index: HashMap<u32, Vec<u32>> = HashMap::new();
         for e in &self.th_edges {
-            if matches!(e.relation, THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS) {
+            if matches!(
+                e.relation,
+                THRelation::TH_EXTENDS | THRelation::TH_IMPLEMENTS
+            ) {
                 index.entry(e.from_sym).or_default().push(e.to_sym);
             }
         }
@@ -591,8 +597,14 @@ impl SymbolTableArtifact {
         }
 
         // CSR hierarchy.
-        let rows = n.checked_add(1).ok_or_else(|| invalid("symbol count overflow"))?;
-        r.require(rows.checked_mul(4).ok_or_else(|| invalid("CSR size overflow"))?, "CSR offsets")?;
+        let rows = n
+            .checked_add(1)
+            .ok_or_else(|| invalid("symbol count overflow"))?;
+        r.require(
+            rows.checked_mul(4)
+                .ok_or_else(|| invalid("CSR size overflow"))?,
+            "CSR offsets",
+        )?;
         let mut offsets = Vec::with_capacity(rows);
         for _ in 0..rows {
             offsets.push(r.u32()?);
@@ -659,7 +671,8 @@ impl SymbolTableArtifact {
         let mut imports = Vec::with_capacity(ic);
         for _ in 0..ic {
             let scope = r.u32()?;
-            let kind = ImportKind::from_u8(r.u8()?).ok_or_else(|| invalid("unknown import kind"))?;
+            let kind =
+                ImportKind::from_u8(r.u8()?).ok_or_else(|| invalid("unknown import kind"))?;
             let first_token = r.u32()?;
             let name_token = r.u32()?;
             let path = r.string()?;
@@ -705,7 +718,11 @@ impl SymbolTableArtifact {
             });
         }
 
-        r.require(n.checked_mul(4).ok_or_else(|| invalid("type ref table overflow"))?, "declared types")?;
+        r.require(
+            n.checked_mul(4)
+                .ok_or_else(|| invalid("type ref table overflow"))?,
+            "declared types",
+        )?;
         let mut symbol_type_refs = Vec::with_capacity(n);
         for _ in 0..n {
             symbol_type_refs.push(r.u32()?);
@@ -758,7 +775,11 @@ impl SymbolTableArtifact {
             });
         }
 
-        r.require(n.checked_mul(4).ok_or_else(|| invalid("descriptor table overflow"))?, "descriptors")?;
+        r.require(
+            n.checked_mul(4)
+                .ok_or_else(|| invalid("descriptor table overflow"))?,
+            "descriptors",
+        )?;
         let mut descriptors = Vec::with_capacity(n);
         for _ in 0..n {
             descriptors.push(r.u32()?);

@@ -17,7 +17,9 @@ use crate::core::types::cg::CallGraphArtifact;
 use crate::core::types::symbol::SymbolKind;
 use crate::ingestion::TokenCorpusArtifact;
 use crate::scpg::query::graph::CallGraphIndex;
-use crate::scpg::query::symbols::{is_callable_kind, is_type_kind, SymbolIndex, TypeHierarchyIndex};
+use crate::scpg::query::symbols::{
+    is_callable_kind, is_type_kind, SymbolIndex, TypeHierarchyIndex,
+};
 use crate::symbol::SymbolTableArtifact;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -101,8 +103,13 @@ impl ImpactAnalyzer {
             let kind = symbols.kind(e).unwrap_or(SymbolKind::SK_EXTERNAL as u8);
 
             if is_callable_kind(kind) {
-                next.extend(cg.callers(e).iter().map(|&c| (c, ImpactReason::Caller, false)));
-                if options.include_overrides && !callers_only && kind == SymbolKind::SK_METHOD as u8 {
+                next.extend(
+                    cg.callers(e)
+                        .iter()
+                        .map(|&c| (c, ImpactReason::Caller, false)),
+                );
+                if options.include_overrides && !callers_only && kind == SymbolKind::SK_METHOD as u8
+                {
                     next.extend(
                         hierarchy
                             .overridden_methods(symbols, e)
@@ -117,7 +124,12 @@ impl ImpactAnalyzer {
                     );
                 }
             } else if is_type_kind(kind) {
-                next.extend(hierarchy.subtypes(e).iter().map(|&t| (t, ImpactReason::Subtype, false)));
+                next.extend(
+                    hierarchy
+                        .subtypes(e)
+                        .iter()
+                        .map(|&t| (t, ImpactReason::Subtype, false)),
+                );
                 if options.include_type_dependents {
                     next.extend(
                         hierarchy
@@ -126,7 +138,9 @@ impl ImpactAnalyzer {
                             .map(|&t| (t, ImpactReason::TypeReference, false)),
                     );
                 }
-            } else if kind == SymbolKind::SK_FIELD as u8 || kind == SymbolKind::SK_ENUM_CONSTANT as u8 {
+            } else if kind == SymbolKind::SK_FIELD as u8
+                || kind == SymbolKind::SK_ENUM_CONSTANT as u8
+            {
                 if let Some(owner) = symbols.parent(e) {
                     next.extend(
                         symbols
@@ -181,9 +195,10 @@ impl ImpactAnalyzer {
         let symbols = SymbolIndex::from_artifacts(sta, tca);
         let hierarchy = TypeHierarchyIndex::from_artifacts(sta);
         let cg = CallGraphIndex::build(cga);
-        let mut out: Vec<u32> = Self::analyze(&symbols, &hierarchy, &cg, sym_id, ImpactOptions::default())
-            .map(|entries| entries.into_iter().map(|e| e.sym_id).collect())
-            .unwrap_or_default();
+        let mut out: Vec<u32> =
+            Self::analyze(&symbols, &hierarchy, &cg, sym_id, ImpactOptions::default())
+                .map(|entries| entries.into_iter().map(|e| e.sym_id).collect())
+                .unwrap_or_default();
         out.sort_unstable();
         out
     }

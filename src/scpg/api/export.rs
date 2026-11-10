@@ -146,7 +146,8 @@ pub fn export_ohb_json(s: &ScpgSnapshot, inputs: &ExportInputs<'_>) -> Json {
         })
         .collect();
 
-    let mut components: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
+    let mut components: std::collections::BTreeMap<u32, Vec<u32>> =
+        std::collections::BTreeMap::new();
     for m in 0..s.call_graph.node_count() as u32 {
         if s.call_graph.is_recursive(m) {
             if let Some(c) = s.call_graph.component_of(m) {
@@ -229,7 +230,10 @@ pub fn export_ohb_json(s: &ScpgSnapshot, inputs: &ExportInputs<'_>) -> Json {
                 .collect();
             (Json::Array(methods), Json::Null)
         }
-        None => (Json::Null, json!("no CFG artifact was supplied to the exporter")),
+        None => (
+            Json::Null,
+            json!("no CFG artifact was supplied to the exporter"),
+        ),
     };
 
     let (phi_json, phi_note) = match inputs.ssa {
@@ -254,15 +258,25 @@ pub fn export_ohb_json(s: &ScpgSnapshot, inputs: &ExportInputs<'_>) -> Json {
                 .collect();
             (Json::Array(methods), Json::Null)
         }
-        None => (Json::Null, json!("no SSA artifact was supplied to the exporter")),
+        None => (
+            Json::Null,
+            json!("no SSA artifact was supplied to the exporter"),
+        ),
     };
 
     let (timings, timings_note) = match inputs.phase_timings_ms {
         Some(t) => (
-            Json::Array(t.iter().map(|(name, ms)| json!({ "phase": name, "ms": ms })).collect()),
+            Json::Array(
+                t.iter()
+                    .map(|(name, ms)| json!({ "phase": name, "ms": ms }))
+                    .collect(),
+            ),
             Json::Null,
         ),
-        None => (Json::Null, json!("phase timings are not stored in the snapshot and were not supplied")),
+        None => (
+            Json::Null,
+            json!("phase timings are not stored in the snapshot and were not supplied"),
+        ),
     };
 
     let sdg = if inputs.include_sdg {

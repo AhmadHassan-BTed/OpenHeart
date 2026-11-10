@@ -171,7 +171,9 @@ pub enum ScpgFormatError {
     TooManySections { found: u32, max: u32 },
     #[error("SCPG header checksum mismatch (stored 0x{stored:016X}, computed 0x{computed:016X})")]
     HeaderChecksum { stored: u64, computed: u64 },
-    #[error("SCPG directory checksum mismatch (stored 0x{stored:016X}, computed 0x{computed:016X})")]
+    #[error(
+        "SCPG directory checksum mismatch (stored 0x{stored:016X}, computed 0x{computed:016X})"
+    )]
     DirectoryChecksum { stored: u64, computed: u64 },
     #[error("SCPG header declares {declared} bytes but the file has {actual} bytes")]
     LengthMismatch { declared: u64, actual: u64 },
@@ -184,7 +186,10 @@ pub enum ScpgFormatError {
     #[error("SCPG section {0} is missing")]
     MissingSection(SCPGSectionType),
     #[error("unknown codec {codec} on SCPG section {section}")]
-    UnknownCodec { section: SCPGSectionType, codec: u32 },
+    UnknownCodec {
+        section: SCPGSectionType,
+        codec: u32,
+    },
     #[error("SCPG section {section} range [{offset}, +{length}) lies outside the file")]
     SectionOutOfBounds {
         section: SCPGSectionType,
@@ -192,7 +197,10 @@ pub enum ScpgFormatError {
         length: u64,
     },
     #[error("SCPG section {section} starts at misaligned offset {offset}")]
-    Misaligned { section: SCPGSectionType, offset: u64 },
+    Misaligned {
+        section: SCPGSectionType,
+        offset: u64,
+    },
     #[error("SCPG sections {first} and {second} overlap")]
     Overlap {
         first: SCPGSectionType,

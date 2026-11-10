@@ -60,7 +60,9 @@ impl ObjectDiagramExtractor {
                                     type_sym_id: ty,
                                     label_text_id: labels.intern(&format!(
                                         "{} : {}",
-                                        String::from_utf8_lossy(index.tca.interner.lookup_text(name)),
+                                        String::from_utf8_lossy(
+                                            index.tca.interner.lookup_text(name)
+                                        ),
                                         index.name(ty)
                                     )),
                                     containing_method_sym: UNKNOWN_SYM,
@@ -101,7 +103,10 @@ impl ObjectDiagramExtractor {
                     let (var_name, assigned_field_sym) = match target {
                         Some(asg) => {
                             let field = if !asg.is_declaration && !asg.via_other_receiver {
-                                field_by_name.get(&asg.lhs_text).copied().unwrap_or(UNKNOWN_SYM)
+                                field_by_name
+                                    .get(&asg.lhs_text)
+                                    .copied()
+                                    .unwrap_or(UNKNOWN_SYM)
                             } else {
                                 UNKNOWN_SYM
                             };

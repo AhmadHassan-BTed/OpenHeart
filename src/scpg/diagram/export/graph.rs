@@ -58,7 +58,9 @@ impl GraphExporter {
     fn dot_edge_attrs(edge: &ViewEdge) -> Vec<String> {
         let mut attrs = Vec::new();
         match edge.kind {
-            EdgeKind::Generalization | EdgeKind::Extension => attrs.push("arrowhead=empty".to_string()),
+            EdgeKind::Generalization | EdgeKind::Extension => {
+                attrs.push("arrowhead=empty".to_string())
+            }
             EdgeKind::Realization => attrs.push("arrowhead=empty".to_string()),
             EdgeKind::Aggregation => {
                 attrs.push("dir=both".to_string());
@@ -126,7 +128,12 @@ impl GraphExporter {
             if attrs.is_empty() {
                 out.push_str(&format!("  \"{}\" -> \"{}\";\n", src, dst));
             } else {
-                out.push_str(&format!("  \"{}\" -> \"{}\" [{}];\n", src, dst, attrs.join(", ")));
+                out.push_str(&format!(
+                    "  \"{}\" -> \"{}\" [{}];\n",
+                    src,
+                    dst,
+                    attrs.join(", ")
+                ));
             }
         }
         let mut legend: Vec<String> = Vec::new();
@@ -163,7 +170,10 @@ impl GraphExporter {
         for &i in idxs {
             let node = &model.nodes[i];
             if children.contains_key(&Some(node.key.clone())) {
-                out.push_str(&format!("{}subgraph \"cluster_{}\" {{\n", indent, node.alias));
+                out.push_str(&format!(
+                    "{}subgraph \"cluster_{}\" {{\n",
+                    indent, node.alias
+                ));
                 out.push_str(&format!(
                     "{}  label=\"{}\";\n",
                     indent,
@@ -220,14 +230,24 @@ impl GraphExporter {
             x(model.kind.key())
         ));
         let data = |out: &mut String, key: &str, value: &str| {
-            out.push_str(&format!("      <data key=\"{}\">{}</data>\n", key, U::xml_escape(value)));
+            out.push_str(&format!(
+                "      <data key=\"{}\">{}</data>\n",
+                key,
+                U::xml_escape(value)
+            ));
         };
-        out.push_str(&format!("    <data key=\"g_kind\">{}</data>\n", x(model.kind.key())));
+        out.push_str(&format!(
+            "    <data key=\"g_kind\">{}</data>\n",
+            x(model.kind.key())
+        ));
         out.push_str(&format!(
             "    <data key=\"g_provenance\">{}</data>\n",
             x(model.provenance.as_str())
         ));
-        out.push_str(&format!("    <data key=\"g_digest\">{}</data>\n", x(input_digest)));
+        out.push_str(&format!(
+            "    <data key=\"g_digest\">{}</data>\n",
+            x(input_digest)
+        ));
         if !model.notes.is_empty() {
             out.push_str(&format!(
                 "    <data key=\"g_notes\">{}</data>\n",

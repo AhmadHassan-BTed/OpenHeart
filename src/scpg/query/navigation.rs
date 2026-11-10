@@ -154,7 +154,12 @@ impl NavigationIndex {
         }
     }
 
-    pub fn location(&self, sym_id: u32, files: &FileTable, scpg_hash: u32) -> Option<SourceLocation> {
+    pub fn location(
+        &self,
+        sym_id: u32,
+        files: &FileTable,
+        scpg_hash: u32,
+    ) -> Option<SourceLocation> {
         let s = self.to_source(sym_id)?;
         Some(SourceLocation {
             sym_id,
@@ -250,7 +255,12 @@ impl NavigationIndex {
     }
 
     /// Every entity whose span intersects the position range `[from, to)` of a file.
-    pub fn entities_intersecting(&self, file_id: u16, from: (u32, u16), to: (u32, u16)) -> Vec<EntitySpan> {
+    pub fn entities_intersecting(
+        &self,
+        file_id: u16,
+        from: (u32, u16),
+        to: (u32, u16),
+    ) -> Vec<EntitySpan> {
         let lo_key = position_key(from.0, from.1);
         let hi_key = position_key(to.0, to.1).max(lo_key.saturating_add(1));
         let (lo, hi) = self.file_range(file_id);
@@ -272,7 +282,10 @@ impl NavigationIndex {
         enc.put_u32s(&self.spans.iter().map(|s| s.last_token).collect::<Vec<_>>());
     }
 
-    pub fn decode(dec: &mut SectionDecoder<'_>, symbol_count: usize) -> Result<Self, ScpgFormatError> {
+    pub fn decode(
+        dec: &mut SectionDecoder<'_>,
+        symbol_count: usize,
+    ) -> Result<Self, ScpgFormatError> {
         let stored_symbols = dec.u64()? as usize;
         if stored_symbols != symbol_count {
             return Err(dec.malformed(format!(
@@ -372,13 +385,18 @@ impl NavigationEngine {
             .uml_links
             .iter()
             .filter(|l| {
-                l.line_start != 0 && l.file_id == file_id && l.line_start <= line && l.line_end >= line
+                l.line_start != 0
+                    && l.file_id == file_id
+                    && l.line_start <= line
+                    && l.line_end >= line
             })
             .cloned()
             .collect();
         links.sort_by(|a, b| {
-            let ea = position_key(a.line_end, a.col_end).saturating_sub(position_key(a.line_start, a.col_start));
-            let eb = position_key(b.line_end, b.col_end).saturating_sub(position_key(b.line_start, b.col_start));
+            let ea = position_key(a.line_end, a.col_end)
+                .saturating_sub(position_key(a.line_start, a.col_start));
+            let eb = position_key(b.line_end, b.col_end)
+                .saturating_sub(position_key(b.line_start, b.col_start));
             ea.cmp(&eb).then(a.sym_id.cmp(&b.sym_id))
         });
         links

@@ -120,7 +120,12 @@ public class SystemCompleteTest {
     assert!(is_reach || !is_reach); // Worklist tabulation evaluated cleanly
 
     // ── Slice Engine Test (§10.6.3) ──
-    let bwd_slice = SliceEngine::backward_slice(5, &sta, &ssa, &cga, 3);
+    // Slice from `entryPoint`, found by name (symbol ids depend on the symbol table's order).
+    let symbols = &engine.snapshot().symbols;
+    let entry_point = (0..symbols.len() as u32)
+        .find(|&id| symbols.name(id) == Some("entryPoint"))
+        .expect("the entryPoint method symbol must exist");
+    let bwd_slice = SliceEngine::backward_slice(entry_point, &cfa, &ssa, &cga, 3);
     assert!(!bwd_slice.is_empty());
 
     // ── Navigation Engine Test (§10.5) ──
@@ -161,8 +166,11 @@ public class SystemCompleteTest {
     let json = engine.export_json(&uma, &sta, &tca);
     assert!(json.contains("\"diagram_type\": \"class\""));
 
+    // The summary reports how many diagram types have data and which are not derivable (the
+    // "all 14 UML diagrams" claim was withdrawn; see docs/status.md, claims ledger).
     let summary = engine.summary(&uma);
-    assert!(summary.contains("Generated all 14 UML Diagram Types"));
+    assert!(summary.contains("UML projections:"));
+    assert!(summary.contains("diagram types have data"));
 }
 
 #[test]
@@ -255,6 +263,9 @@ class Config {}
         inner_classes: vec![],
         implements_syms: vec![],
         association_syms: vec![],
+        generalization_syms: vec![],
+        dependency_syms: vec![],
+        qualified_name_id: u32::MAX,
     }];
 
     let packages = vec![openheart::uma::types::PackageRecord {
@@ -273,9 +284,16 @@ class Config {}
         activities: vec![],
         state_machines: vec![],
         sequences: vec![],
+        communications: vec![],
+        interaction_overviews: vec![],
+        object_links: vec![],
         packages,
+        package_dependencies: vec![],
+        package_metrics: vec![],
         components: vec![],
+        composite_structures: vec![],
         design_patterns: vec![],
+        pattern_instances: vec![],
         label_texts: std::collections::HashMap::new(),
     };
 

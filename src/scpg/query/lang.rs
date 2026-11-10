@@ -129,34 +129,146 @@ pub struct RelationSpec {
 }
 
 pub const RELATIONS: &[RelationSpec] = &[
-    RelationSpec { name: "symbol", columns: &["id", "kind", "name"], description: "every symbol with its kind name and simple name" },
-    RelationSpec { name: "qualified_name", columns: &["id", "qualified_name"], description: "fully qualified name of a symbol" },
-    RelationSpec { name: "stable_id", columns: &["id", "stable_id"], description: "SCIP-style stable symbol id" },
-    RelationSpec { name: "parent", columns: &["child", "parent"], description: "lexical nesting of symbols" },
-    RelationSpec { name: "modifier", columns: &["id", "modifier"], description: "declared modifiers (static, final, ...)" },
-    RelationSpec { name: "visibility", columns: &["id", "visibility"], description: "public / private / protected / package" },
-    RelationSpec { name: "param_count", columns: &["id", "count"], description: "declared parameter count of callables" },
-    RelationSpec { name: "calls", columns: &["caller", "callee"], description: "resolved call-graph edges" },
-    RelationSpec { name: "call_site", columns: &["site", "caller", "callee", "kind"], description: "resolved call sites with dispatch kind" },
-    RelationSpec { name: "call_site_location", columns: &["site", "file", "line", "col"], description: "source position of each call site" },
-    RelationSpec { name: "extends", columns: &["sub", "super"], description: "class / interface extension" },
-    RelationSpec { name: "implements", columns: &["sub", "super"], description: "interface implementation" },
-    RelationSpec { name: "uses_type", columns: &["from", "to"], description: "type references" },
-    RelationSpec { name: "creates", columns: &["from", "to"], description: "instantiations" },
-    RelationSpec { name: "association", columns: &["from", "to"], description: "field-based UML associations" },
-    RelationSpec { name: "overrides", columns: &["method", "overridden"], description: "method overriding (name + arity)" },
-    RelationSpec { name: "scc", columns: &["method", "component"], description: "call-graph strongly connected component" },
-    RelationSpec { name: "recursive", columns: &["method"], description: "methods on a call-graph cycle" },
-    RelationSpec { name: "located", columns: &["id", "file", "line_start", "line_end"], description: "source span of a symbol" },
-    RelationSpec { name: "file", columns: &["file", "path"], description: "source files" },
-    RelationSpec { name: "path_count", columns: &["method", "paths"], description: "#SAT feasible paths (ROBDD)" },
-    RelationSpec { name: "cyclomatic", columns: &["method", "complexity"], description: "cyclomatic complexity" },
-    RelationSpec { name: "uml_class", columns: &["class", "stereotype"], description: "UML classifiers" },
-    RelationSpec { name: "design_pattern", columns: &["class", "pattern", "confidence"], description: "detected design pattern participants" },
-    RelationSpec { name: "pattern_role", columns: &["instance", "class", "role"], description: "role bindings of design pattern instances" },
-    RelationSpec { name: "sdg_node", columns: &["node", "method", "kind", "ast"], description: "system dependence graph nodes" },
-    RelationSpec { name: "dep", columns: &["to", "from", "kind"], description: "SDG dependence edges (to depends on from)" },
-    RelationSpec { name: "stmt_location", columns: &["method", "ast", "file", "line"], description: "source line of SDG statements" },
+    RelationSpec {
+        name: "symbol",
+        columns: &["id", "kind", "name"],
+        description: "every symbol with its kind name and simple name",
+    },
+    RelationSpec {
+        name: "qualified_name",
+        columns: &["id", "qualified_name"],
+        description: "fully qualified name of a symbol",
+    },
+    RelationSpec {
+        name: "stable_id",
+        columns: &["id", "stable_id"],
+        description: "SCIP-style stable symbol id",
+    },
+    RelationSpec {
+        name: "parent",
+        columns: &["child", "parent"],
+        description: "lexical nesting of symbols",
+    },
+    RelationSpec {
+        name: "modifier",
+        columns: &["id", "modifier"],
+        description: "declared modifiers (static, final, ...)",
+    },
+    RelationSpec {
+        name: "visibility",
+        columns: &["id", "visibility"],
+        description: "public / private / protected / package",
+    },
+    RelationSpec {
+        name: "param_count",
+        columns: &["id", "count"],
+        description: "declared parameter count of callables",
+    },
+    RelationSpec {
+        name: "calls",
+        columns: &["caller", "callee"],
+        description: "resolved call-graph edges",
+    },
+    RelationSpec {
+        name: "call_site",
+        columns: &["site", "caller", "callee", "kind"],
+        description: "resolved call sites with dispatch kind",
+    },
+    RelationSpec {
+        name: "call_site_location",
+        columns: &["site", "file", "line", "col"],
+        description: "source position of each call site",
+    },
+    RelationSpec {
+        name: "extends",
+        columns: &["sub", "super"],
+        description: "class / interface extension",
+    },
+    RelationSpec {
+        name: "implements",
+        columns: &["sub", "super"],
+        description: "interface implementation",
+    },
+    RelationSpec {
+        name: "uses_type",
+        columns: &["from", "to"],
+        description: "type references",
+    },
+    RelationSpec {
+        name: "creates",
+        columns: &["from", "to"],
+        description: "instantiations",
+    },
+    RelationSpec {
+        name: "association",
+        columns: &["from", "to"],
+        description: "field-based UML associations",
+    },
+    RelationSpec {
+        name: "overrides",
+        columns: &["method", "overridden"],
+        description: "method overriding (name + arity)",
+    },
+    RelationSpec {
+        name: "scc",
+        columns: &["method", "component"],
+        description: "call-graph strongly connected component",
+    },
+    RelationSpec {
+        name: "recursive",
+        columns: &["method"],
+        description: "methods on a call-graph cycle",
+    },
+    RelationSpec {
+        name: "located",
+        columns: &["id", "file", "line_start", "line_end"],
+        description: "source span of a symbol",
+    },
+    RelationSpec {
+        name: "file",
+        columns: &["file", "path"],
+        description: "source files",
+    },
+    RelationSpec {
+        name: "path_count",
+        columns: &["method", "paths"],
+        description: "#SAT feasible paths (ROBDD)",
+    },
+    RelationSpec {
+        name: "cyclomatic",
+        columns: &["method", "complexity"],
+        description: "cyclomatic complexity",
+    },
+    RelationSpec {
+        name: "uml_class",
+        columns: &["class", "stereotype"],
+        description: "UML classifiers",
+    },
+    RelationSpec {
+        name: "design_pattern",
+        columns: &["class", "pattern", "confidence"],
+        description: "detected design pattern participants",
+    },
+    RelationSpec {
+        name: "pattern_role",
+        columns: &["instance", "class", "role"],
+        description: "role bindings of design pattern instances",
+    },
+    RelationSpec {
+        name: "sdg_node",
+        columns: &["node", "method", "kind", "ast"],
+        description: "system dependence graph nodes",
+    },
+    RelationSpec {
+        name: "dep",
+        columns: &["to", "from", "kind"],
+        description: "SDG dependence edges (to depends on from)",
+    },
+    RelationSpec {
+        name: "stmt_location",
+        columns: &["method", "ast", "file", "line"],
+        description: "source line of SDG statements",
+    },
 ];
 
 /// A curated starter library: `(name, description, program)`.
@@ -223,12 +335,18 @@ fn materialize(name: &str, s: &ScpgSnapshot) -> Vec<Vec<Value>> {
         }
         "qualified_name" => {
             for i in 0..n {
-                out.push(vec![Value::int(i), Value::str(syms.qualified_name(i).unwrap_or(""))]);
+                out.push(vec![
+                    Value::int(i),
+                    Value::str(syms.qualified_name(i).unwrap_or("")),
+                ]);
             }
         }
         "stable_id" => {
             for i in 0..n {
-                out.push(vec![Value::int(i), Value::str(syms.stable_id(i).unwrap_or(""))]);
+                out.push(vec![
+                    Value::int(i),
+                    Value::str(syms.stable_id(i).unwrap_or("")),
+                ]);
             }
         }
         "parent" => {
@@ -250,13 +368,19 @@ fn materialize(name: &str, s: &ScpgSnapshot) -> Vec<Vec<Value>> {
         }
         "visibility" => {
             for i in 0..n {
-                out.push(vec![Value::int(i), Value::str(visibility_name(syms.visibility(i).unwrap_or(0)))]);
+                out.push(vec![
+                    Value::int(i),
+                    Value::str(visibility_name(syms.visibility(i).unwrap_or(0))),
+                ]);
             }
         }
         "param_count" => {
             for i in 0..n {
                 if syms.kind(i).map(is_callable_kind).unwrap_or(false) {
-                    out.push(vec![Value::int(i), Value::int(syms.param_count(i).unwrap_or(0))]);
+                    out.push(vec![
+                        Value::int(i),
+                        Value::int(syms.param_count(i).unwrap_or(0)),
+                    ]);
                 }
             }
         }
@@ -353,7 +477,10 @@ fn materialize(name: &str, s: &ScpgSnapshot) -> Vec<Vec<Value>> {
         }
         "uml_class" => {
             for c in &s.semantic.classes {
-                out.push(vec![Value::int(c.sym_id), Value::str(stereotype_name(c.stereotype))]);
+                out.push(vec![
+                    Value::int(c.sym_id),
+                    Value::str(stereotype_name(c.stereotype)),
+                ]);
             }
         }
         "design_pattern" => {
@@ -367,7 +494,11 @@ fn materialize(name: &str, s: &ScpgSnapshot) -> Vec<Vec<Value>> {
         }
         "pattern_role" => {
             for p in &s.semantic.patterns {
-                out.push(vec![Value::int(p.instance_id), Value::int(p.class_sym), Value::int(p.role)]);
+                out.push(vec![
+                    Value::int(p.instance_id),
+                    Value::int(p.class_sym),
+                    Value::int(p.role),
+                ]);
             }
         }
         "sdg_node" => {
@@ -386,7 +517,11 @@ fn materialize(name: &str, s: &ScpgSnapshot) -> Vec<Vec<Value>> {
             for to in 0..s.sdg.node_count() as u32 {
                 let (froms, kinds) = s.sdg.preds(to);
                 for (&from, &k) in froms.iter().zip(kinds) {
-                    out.push(vec![Value::int(to), Value::int(from), Value::str(dependence_name(k))]);
+                    out.push(vec![
+                        Value::int(to),
+                        Value::int(from),
+                        Value::str(dependence_name(k)),
+                    ]);
                 }
             }
         }
@@ -508,7 +643,11 @@ fn tokenize(src: &str) -> Result<Vec<Spanned>, QueryLangError> {
                 let ch = chars[i];
                 advance(&mut i, &mut line, &mut col, ch);
             }
-            toks.push(Spanned { tok, line: tl, col: tc });
+            toks.push(Spanned {
+                tok,
+                line: tl,
+                col: tc,
+            });
             continue;
         }
         if c == '"' {
@@ -531,13 +670,23 @@ fn tokenize(src: &str) -> Result<Vec<Spanned>, QueryLangError> {
                             't' => '\t',
                             '\\' => '\\',
                             '"' => '"',
-                            other => return Err(parse_error(line, col, format!("unknown escape '\\{}'", other))),
+                            other => {
+                                return Err(parse_error(
+                                    line,
+                                    col,
+                                    format!("unknown escape '\\{}'", other),
+                                ))
+                            }
                         });
                     }
                     other => s.push(other),
                 }
             }
-            toks.push(Spanned { tok: Tok::Str(s), line: tl, col: tc });
+            toks.push(Spanned {
+                tok: Tok::Str(s),
+                line: tl,
+                col: tc,
+            });
             continue;
         }
         if c.is_ascii_digit() {
@@ -546,10 +695,14 @@ fn tokenize(src: &str) -> Result<Vec<Spanned>, QueryLangError> {
                 digits.push(d);
                 advance(&mut i, &mut line, &mut col, d);
             }
-            let v = digits
-                .parse::<u64>()
-                .map_err(|_| parse_error(tl, tc, format!("integer '{}' is out of range", digits)))?;
-            toks.push(Spanned { tok: Tok::Int(v), line: tl, col: tc });
+            let v = digits.parse::<u64>().map_err(|_| {
+                parse_error(tl, tc, format!("integer '{}' is out of range", digits))
+            })?;
+            toks.push(Spanned {
+                tok: Tok::Int(v),
+                line: tl,
+                col: tc,
+            });
             continue;
         }
         if c.is_alphabetic() || c == '_' {
@@ -560,12 +713,22 @@ fn tokenize(src: &str) -> Result<Vec<Spanned>, QueryLangError> {
             }
             let tok = if word == "_" {
                 Tok::Wild
-            } else if word.starts_with('_') || word.chars().next().map(|f| f.is_uppercase()).unwrap_or(false) {
+            } else if word.starts_with('_')
+                || word
+                    .chars()
+                    .next()
+                    .map(|f| f.is_uppercase())
+                    .unwrap_or(false)
+            {
                 Tok::Var(word)
             } else {
                 Tok::Ident(word)
             };
-            toks.push(Spanned { tok, line: tl, col: tc });
+            toks.push(Spanned {
+                tok,
+                line: tl,
+                col: tc,
+            });
             continue;
         }
         return Err(parse_error(tl, tc, format!("unexpected character '{}'", c)));
@@ -613,7 +776,10 @@ impl Parser {
     }
 
     fn here(&self) -> (usize, usize) {
-        self.toks.get(self.pos).map(|s| (s.line, s.col)).unwrap_or(self.end)
+        self.toks
+            .get(self.pos)
+            .map(|s| (s.line, s.col))
+            .unwrap_or(self.end)
     }
 
     fn error(&self, message: impl Into<String>) -> QueryLangError {
@@ -669,7 +835,11 @@ impl Parser {
             return Ok(Literal::Neg(self.atom()?));
         }
         let is_atom = matches!(self.peek(), Some(Tok::Ident(_)))
-            && self.toks.get(self.pos + 1).map(|s| s.tok == Tok::LParen).unwrap_or(false);
+            && self
+                .toks
+                .get(self.pos + 1)
+                .map(|s| s.tok == Tok::LParen)
+                .unwrap_or(false);
         if is_atom {
             return Ok(Literal::Pos(self.atom()?));
         }
@@ -760,7 +930,11 @@ struct CompiledRule {
     var_count: usize,
 }
 
-fn compile_rule(head_rel: &str, head_args: &[Term], body: &[Literal]) -> Result<CompiledRule, QueryLangError> {
+fn compile_rule(
+    head_rel: &str,
+    head_args: &[Term],
+    body: &[Literal],
+) -> Result<CompiledRule, QueryLangError> {
     let mut var_ids: HashMap<String, usize> = HashMap::new();
     let mut bound: Vec<bool> = Vec::new();
     let mut steps = Vec::new();
@@ -908,11 +1082,15 @@ fn compile_rule(head_rel: &str, head_args: &[Term], body: &[Literal]) -> Result<
     if let Some(lit) = pending.first() {
         let unbound = match lit {
             Literal::Neg(a) => a.args.iter().find_map(|t| match t {
-                Term::Var(v) if !var_ids.get(v).map(|&id| bound[id]).unwrap_or(false) => Some(v.clone()),
+                Term::Var(v) if !var_ids.get(v).map(|&id| bound[id]).unwrap_or(false) => {
+                    Some(v.clone())
+                }
                 _ => None,
             }),
             Literal::Cmp(l, _, r) => [l, r].into_iter().find_map(|t| match t {
-                Term::Var(v) if !var_ids.get(v).map(|&id| bound[id]).unwrap_or(false) => Some(v.clone()),
+                Term::Var(v) if !var_ids.get(v).map(|&id| bound[id]).unwrap_or(false) => {
+                    Some(v.clone())
+                }
                 _ => None,
             }),
             Literal::Pos(_) => None,
@@ -967,7 +1145,10 @@ impl Relation {
     }
 
     fn ensure_index(&mut self, col: usize) {
-        let entry = self.indexes.entry(col).or_insert_with(|| (0, HashMap::new()));
+        let entry = self
+            .indexes
+            .entry(col)
+            .or_insert_with(|| (0, HashMap::new()));
         for i in entry.0..self.tuples.len() {
             if let Some(v) = self.tuples[i].get(col) {
                 entry.1.entry(v.clone()).or_default().push(i as u32);
@@ -1015,7 +1196,17 @@ impl Evaluator {
     fn prepare_indexes(&mut self, rules: &[&CompiledRule]) {
         for rule in rules {
             for step in &rule.steps {
-                if let Step::Scan { rel, index_col: Some(c), .. } | Step::Neg { rel, index_col: Some(c), .. } = step {
+                if let Step::Scan {
+                    rel,
+                    index_col: Some(c),
+                    ..
+                }
+                | Step::Neg {
+                    rel,
+                    index_col: Some(c),
+                    ..
+                } = step
+                {
                     if let Some(r) = self.rels.get_mut(rel) {
                         r.ensure_index(*c);
                     }
@@ -1063,7 +1254,11 @@ impl Evaluator {
             return Ok(());
         };
         match step {
-            Step::Scan { rel, args, index_col } => {
+            Step::Scan {
+                rel,
+                args,
+                index_col,
+            } => {
                 let Some(r) = self.rels.get(rel) else {
                     return Ok(());
                 };
@@ -1116,14 +1311,20 @@ impl Evaluator {
                 }
                 Ok(())
             }
-            Step::Neg { rel, args, index_col } => {
+            Step::Neg {
+                rel,
+                args,
+                index_col,
+            } => {
                 let exists = match self.rels.get(rel) {
                     None => false,
                     Some(r) => {
                         let matches = |tuple: &Vec<Value>| {
-                            args.iter().enumerate().all(|(j, op)| match Self::arg_value(op, bindings) {
-                                Some(v) => &tuple[j] == v,
-                                None => true,
+                            args.iter().enumerate().all(|(j, op)| {
+                                match Self::arg_value(op, bindings) {
+                                    Some(v) => &tuple[j] == v,
+                                    None => true,
+                                }
                             })
                         };
                         let indexed = index_col.and_then(|c| {
@@ -1131,7 +1332,9 @@ impl Evaluator {
                             r.postings(c, v)
                         });
                         match indexed {
-                            Some(postings) => postings.iter().any(|&t| matches(&r.tuples[t as usize])),
+                            Some(postings) => {
+                                postings.iter().any(|&t| matches(&r.tuples[t as usize]))
+                            }
                             None => r.tuples.iter().any(matches),
                         }
                     }
@@ -1154,7 +1357,11 @@ impl Evaluator {
         }
     }
 
-    fn eval_rule(&self, rule: &CompiledRule, ranges: &[(usize, usize)]) -> Result<Vec<Vec<Value>>, QueryLangError> {
+    fn eval_rule(
+        &self,
+        rule: &CompiledRule,
+        ranges: &[(usize, usize)],
+    ) -> Result<Vec<Vec<Value>>, QueryLangError> {
         let mut bindings = vec![None; rule.var_count];
         let mut out = Vec::new();
         self.join(rule, 0, &mut bindings, ranges, &mut out)?;
@@ -1165,13 +1372,19 @@ impl Evaluator {
         rule.steps
             .iter()
             .map(|s| match s {
-                Step::Scan { rel, .. } => (0, self.rels.get(rel).map(|r| r.tuples.len()).unwrap_or(0)),
+                Step::Scan { rel, .. } => {
+                    (0, self.rels.get(rel).map(|r| r.tuples.len()).unwrap_or(0))
+                }
                 _ => (0, 0),
             })
             .collect()
     }
 
-    fn eval_stratum(&mut self, rules: &[&CompiledRule], stratum_rels: &HashSet<String>) -> Result<(), QueryLangError> {
+    fn eval_stratum(
+        &mut self,
+        rules: &[&CompiledRule],
+        stratum_rels: &HashSet<String>,
+    ) -> Result<(), QueryLangError> {
         let mut deltas: HashMap<String, (usize, usize)> = HashMap::new();
         let mut first = true;
         loop {
@@ -1184,11 +1397,15 @@ impl Evaluator {
                     continue;
                 }
                 for (p, step) in rule.steps.iter().enumerate() {
-                    let Step::Scan { rel, .. } = step else { continue };
+                    let Step::Scan { rel, .. } = step else {
+                        continue;
+                    };
                     if !stratum_rels.contains(rel) {
                         continue;
                     }
-                    let Some(&(dlo, dhi)) = deltas.get(rel) else { continue };
+                    let Some(&(dlo, dhi)) = deltas.get(rel) else {
+                        continue;
+                    };
                     if dlo >= dhi {
                         continue;
                     }
@@ -1201,7 +1418,12 @@ impl Evaluator {
 
             let before: HashMap<String, usize> = stratum_rels
                 .iter()
-                .map(|r| (r.clone(), self.rels.get(r).map(|x| x.tuples.len()).unwrap_or(0)))
+                .map(|r| {
+                    (
+                        r.clone(),
+                        self.rels.get(r).map(|x| x.tuples.len()).unwrap_or(0),
+                    )
+                })
                 .collect();
             for (rel, tuples) in derived {
                 let target = self.rels.entry(rel).or_default();
@@ -1240,7 +1462,11 @@ fn atoms_of(body: &[Literal]) -> impl Iterator<Item = (&Atom, bool)> {
 }
 
 /// Parses, checks and evaluates a program against a snapshot.
-pub fn run_program(snapshot: &ScpgSnapshot, source: &str, limits: EvalLimits) -> Result<QueryOutput, QueryLangError> {
+pub fn run_program(
+    snapshot: &ScpgSnapshot,
+    source: &str,
+    limits: EvalLimits,
+) -> Result<QueryOutput, QueryLangError> {
     let toks = tokenize(source)?;
     let end = toks.last().map(|t| (t.line, t.col + 1)).unwrap_or((1, 1));
     let mut parser = Parser { toks, pos: 0, end };
@@ -1252,7 +1478,10 @@ pub fn run_program(snapshot: &ScpgSnapshot, source: &str, limits: EvalLimits) ->
     };
 
     // Arity table: built-ins first, then rule heads.
-    let mut arity: HashMap<String, usize> = RELATIONS.iter().map(|r| (r.name.to_string(), r.columns.len())).collect();
+    let mut arity: HashMap<String, usize> = RELATIONS
+        .iter()
+        .map(|r| (r.name.to_string(), r.columns.len()))
+        .collect();
     let mut idb: Vec<String> = Vec::new();
     for rule in &rules {
         let name = &rule.head.name;
@@ -1274,7 +1503,10 @@ pub fn run_program(snapshot: &ScpgSnapshot, source: &str, limits: EvalLimits) ->
             }
         }
     }
-    let bodies = rules.iter().map(|r| r.body.as_slice()).chain(std::iter::once(query.as_slice()));
+    let bodies = rules
+        .iter()
+        .map(|r| r.body.as_slice())
+        .chain(std::iter::once(query.as_slice()));
     for body in bodies.clone() {
         for (atom, _) in atoms_of(body) {
             match arity.get(&atom.name) {
@@ -1320,7 +1552,10 @@ pub fn run_program(snapshot: &ScpgSnapshot, source: &str, limits: EvalLimits) ->
     // Compile rules and the query.
     let mut compiled: Vec<(usize, CompiledRule)> = Vec::new();
     for rule in &rules {
-        compiled.push((stratum[&rule.head.name], compile_rule(&rule.head.name, &rule.head.args, &rule.body)?));
+        compiled.push((
+            stratum[&rule.head.name],
+            compile_rule(&rule.head.name, &rule.head.args, &rule.body)?,
+        ));
     }
     let mut columns: Vec<String> = Vec::new();
     for (atom, negated) in atoms_of(&query) {
@@ -1361,7 +1596,11 @@ pub fn run_program(snapshot: &ScpgSnapshot, source: &str, limits: EvalLimits) ->
         derived_total: 0,
     };
     for level in 0..=query_stratum {
-        let rules_here: Vec<&CompiledRule> = compiled.iter().filter(|(s, _)| *s == level).map(|(_, r)| r).collect();
+        let rules_here: Vec<&CompiledRule> = compiled
+            .iter()
+            .filter(|(s, _)| *s == level)
+            .map(|(_, r)| r)
+            .collect();
         if rules_here.is_empty() {
             continue;
         }

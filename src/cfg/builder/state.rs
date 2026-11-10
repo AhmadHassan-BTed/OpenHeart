@@ -357,7 +357,9 @@ impl<'a> CFGBuilderState<'a> {
             None
         } else {
             let candidates: Vec<usize> = (floor..self.control.len())
-                .filter(|&i| !self.control[i].labels.is_empty() && (!require_loop || self.is_loop(i)))
+                .filter(|&i| {
+                    !self.control[i].labels.is_empty() && (!require_loop || self.is_loop(i))
+                })
                 .collect();
             match candidates.len() {
                 0 => {

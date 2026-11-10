@@ -117,15 +117,21 @@ fn detect(c: u32, ctx: &PatternContext<'_>) -> Option<PatternMatch> {
         .collect();
     let accessor_uses_field = accessors.iter().any(|&m| {
         ctx.body(m)
-            .map(|b| field_names.iter().any(|&n| b.returns_name(n) || b.assigns(n)))
+            .map(|b| {
+                field_names
+                    .iter()
+                    .any(|&n| b.returns_name(n) || b.assigns(n))
+            })
             .unwrap_or(false)
     });
     ev.optional(EVIDENCE_ACCESSOR_RETURNS_FIELD, accessor_uses_field);
     let is_final_or_lazy = self_fields.iter().any(|&(_, fin)| fin)
         || holder.map(|h| h.2).unwrap_or(false)
-        || accessors
-            .iter()
-            .any(|&m| field_names.iter().any(|&n| ctx.assigns_new(m, n) == Some(c)));
+        || accessors.iter().any(|&m| {
+            field_names
+                .iter()
+                .any(|&n| ctx.assigns_new(m, n) == Some(c))
+        });
     ev.optional(EVIDENCE_ENCAPSULATED, is_final_or_lazy);
 
     Some(PatternMatch::new(PATTERN_SINGLETON, c, ev).with(ROLE_SINGLETON, c))

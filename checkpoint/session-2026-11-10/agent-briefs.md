@@ -1,5 +1,7 @@
 # Agent briefs, 10 November 2026 session
 
+> **After the stop,** only what `main` needed to build and run was completed: `src/session.rs`, `src/facts/`, `views/focused.rs`, Phase 6 with the token corpus, and the per-edge kinds. `CHECKPOINT.md` section 0.3 lists, per package, what is done and what is still open. The briefs below apply to the "Still open" items. `main` now builds and its tests pass, so keep it that way: run `cargo check --all-targets`, `cargo fmt --all -- --check` and `cargo test --all-targets` after each change.
+
 These are the exact work packages that were running when the owner stopped the session. To resume one, start a fresh agent with its brief below. Prepend this:
 
 > "Resume an interrupted package. The files listed under *State at stop* already contain your earlier, unreviewed partial edits: read them first, keep what is right, finish the rest."

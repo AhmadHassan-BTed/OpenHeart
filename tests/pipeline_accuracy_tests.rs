@@ -94,7 +94,10 @@ public class PaymentProcessor {
 
     // Ruthlessly inspect Phase 1 outputs
     let read_tca = TokenCorpusSerializer::read(&tca_path).unwrap();
-    assert_eq!(read_tca.format_version(), 1);
+    assert_eq!(
+        read_tca.format_version(),
+        openheart::ingestion::serializer::TCA_VERSION
+    );
     assert_eq!(read_tca.file_records.len(), 2);
     assert!(read_tca.token_records.len() > 100);
 
@@ -121,7 +124,10 @@ public class PaymentProcessor {
 
     // Ruthlessly inspect Phase 3 outputs
     let read_sta = SymbolTableArtifact::deserialize(&sta_bytes).unwrap();
-    assert_eq!(read_sta.format_version, 1);
+    assert_eq!(
+        read_sta.format_version,
+        openheart::symbol::serializer::STA_FORMAT_VERSION
+    );
     assert!(read_sta.symbol_count >= 15);
     assert!(read_sta.scope_count >= 15);
 
@@ -138,8 +144,13 @@ public class PaymentProcessor {
 
     // Ruthlessly inspect Phase 4 outputs
     let read_cfa = CFGArtifact::deserialize(&cfa_bytes).unwrap();
-    assert_eq!(read_cfa.format_version, 1);
-    assert_eq!(read_cfa.function_count, 2);
+    assert_eq!(
+        read_cfa.format_version,
+        openheart::cfg::serializer::CFA_FORMAT_VERSION
+    );
+    // OrderService's constructor, processOrder and PaymentProcessor.execute: every body,
+    // constructors included, gets a CFG.
+    assert_eq!(read_cfa.function_count, 3);
 
     for func in &read_cfa.functions {
         // Assert Inv 1: ENTRY is block 0
@@ -170,7 +181,10 @@ public class PaymentProcessor {
 
     // Ruthlessly inspect Phase 5 outputs
     let read_ssa = SSASerializer::read(&ssa_path).unwrap();
-    assert_eq!(read_ssa.format_version, 1);
+    assert_eq!(
+        read_ssa.format_version,
+        openheart::ssa::serializer::SSA_VERSION
+    );
     assert_eq!(
         read_ssa.cfa_hash,
         openheart::ingestion::serializer::crc64_ecma(&cfa_bytes)
@@ -217,9 +231,15 @@ public class PaymentProcessor {
 
     // Ruthlessly inspect Phase 6 outputs
     let read_cga = CGASerializer::deserialize(&cga_path).unwrap();
-    assert_eq!(read_cga.format_version, 1);
+    assert_eq!(
+        read_cga.format_version,
+        openheart::cg::serializer::CGA_FORMAT_VERSION
+    );
     assert_eq!(read_cga.method_count, sta_artifact.symbol_count);
-    assert_eq!(read_cga.sccs.len(), sta_artifact.symbol_count as usize);
+    // SCCs cover the call-graph nodes only (see src/cg/mod.rs): the three functions, none
+    // recursive, so three singleton SCCs.
+    assert_eq!(read_cga.sccs.len(), 3);
+    assert_eq!(read_cga.scc_members.len(), 3);
 
     // Verify Invariant 4: Hash link verification
     let ssa_bytes = fs::read(&ssa_path).unwrap();

@@ -433,7 +433,9 @@ impl ClassDiagramExtractor {
                         continue;
                     }
                     match asg.value {
-                        AssignedValue::New { type_text, .. } if allocates_target(type_text, ctor) => {
+                        AssignedValue::New { type_text, .. }
+                            if allocates_target(type_text, ctor) =>
+                        {
                             allocated = true;
                         }
                         // Assigned from a parameter or another reference: shared, not owned.
@@ -496,7 +498,12 @@ impl ClassDiagramExtractor {
 
     /// TRA link when recorded; otherwise the declaring token range; otherwise an
     /// explicit unknown location (file `UML_LINK_UNKNOWN_FILE`, line 0).
-    fn uml_link(index: &UMAIndex<'_>, id: u32, sym: &SymbolRecord, scpg_hash: u32) -> UMLLinkRecord {
+    fn uml_link(
+        index: &UMAIndex<'_>,
+        id: u32,
+        sym: &SymbolRecord,
+        scpg_hash: u32,
+    ) -> UMLLinkRecord {
         if let Some(link) = index.uml_link(id) {
             if uml_link_is_known(&link) {
                 return link;

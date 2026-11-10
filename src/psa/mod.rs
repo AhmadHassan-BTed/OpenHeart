@@ -146,7 +146,15 @@ impl Phase8Stage {
         cfa_bytes: &[u8],
         out: &Path,
     ) -> io::Result<PathSummaryArtifact> {
-        Self::try_run_with(cfa, ssa, cga, cfa_bytes, None, &Phase8Config::default(), out)
+        Self::try_run_with(
+            cfa,
+            ssa,
+            cga,
+            cfa_bytes,
+            None,
+            &Phase8Config::default(),
+            out,
+        )
     }
 
     /// Run Phase 8 over Phase 4 CFGs with explicit configuration and optional canonical

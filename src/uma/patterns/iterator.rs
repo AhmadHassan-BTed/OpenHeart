@@ -97,7 +97,10 @@ fn declares_iteration_protocol(t: u32, ctx: &PatternContext<'_>) -> bool {
         .any(|&m| ctx.param_count(m) == 0 && UMAIndex::is_boolean(ctx.return_type(m)));
     let has_next = methods.iter().any(|&m| {
         let r = ctx.return_type(m);
-        ctx.param_count(m) == 0 && r != UNKNOWN_SYM && !UMAIndex::is_void(r) && !UMAIndex::is_boolean(r)
+        ctx.param_count(m) == 0
+            && r != UNKNOWN_SYM
+            && !UMAIndex::is_void(r)
+            && !UMAIndex::is_boolean(r)
     });
     has_test && has_next
 }

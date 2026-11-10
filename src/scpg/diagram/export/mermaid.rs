@@ -204,7 +204,10 @@ impl MermaidExporter {
         ));
         out.push_str(&format!("    %% title: {}\n", U::single_line(&model.title)));
         if !model.sources.is_empty() {
-            out.push_str(&format!("    %% derived from: {}\n", model.sources.join(", ")));
+            out.push_str(&format!(
+                "    %% derived from: {}\n",
+                model.sources.join(", ")
+            ));
         }
         if model.is_unavailable() {
             Self::print_unavailable(model, &mut out);
@@ -290,7 +293,10 @@ impl MermaidExporter {
                 continue;
             }
             match node.parent.as_deref().and_then(|p| model.node(p)) {
-                Some(parent) => by_container.entry(parent.alias.clone()).or_default().push(idx),
+                Some(parent) => by_container
+                    .entry(parent.alias.clone())
+                    .or_default()
+                    .push(idx),
                 None => top.push(idx),
             }
         }
@@ -326,7 +332,8 @@ impl MermaidExporter {
                 NodeKind::Object => Some("object"),
                 _ => None,
             };
-            let mut stereotypes: Vec<String> = implied.map(|s| vec![s.to_string()]).unwrap_or_default();
+            let mut stereotypes: Vec<String> =
+                implied.map(|s| vec![s.to_string()]).unwrap_or_default();
             stereotypes.extend(node.stereotypes.iter().cloned());
             if !stereotypes.is_empty() {
                 let text = stereotypes
@@ -337,7 +344,11 @@ impl MermaidExporter {
                 out.push_str(&format!("    <<{}>> {}\n", text, node.alias));
             }
             for member in &node.members {
-                out.push_str(&format!("    {} : {}\n", node.alias, Self::member_text(member)));
+                out.push_str(&format!(
+                    "    {} : {}\n",
+                    node.alias,
+                    Self::member_text(member)
+                ));
             }
             if node.members.is_empty() {
                 for detail in &node.details {
@@ -383,7 +394,11 @@ impl MermaidExporter {
                     Some(list) => list
                         .iter()
                         .map(|p| match (&p.type_name, &p.name) {
-                            (Some(ty), Some(n)) => format!("{} {}", U::mermaid_class_text(ty), U::mermaid_class_text(n)),
+                            (Some(ty), Some(n)) => format!(
+                                "{} {}",
+                                U::mermaid_class_text(ty),
+                                U::mermaid_class_text(n)
+                            ),
                             (None, Some(n)) => U::mermaid_class_text(n),
                             (Some(ty), None) => U::mermaid_class_text(ty),
                             (None, None) => "?".to_string(),
@@ -392,7 +407,12 @@ impl MermaidExporter {
                         .join(", "),
                     None => member.param_list(),
                 };
-                let mut text = format!("{}{}({})", member.visibility, U::mermaid_class_text(&member.name), params);
+                let mut text = format!(
+                    "{}{}({})",
+                    member.visibility,
+                    U::mermaid_class_text(&member.name),
+                    params
+                );
                 if member.is_abstract {
                     text.push('*');
                 } else if member.is_static {
@@ -673,9 +693,18 @@ impl MermaidExporter {
         let print_edges = |scope: Option<String>, indent: &str, out: &mut String| {
             if let Some(edges) = edges_by_scope.get(&scope) {
                 for edge in edges {
-                    if let (Some(s), Some(d)) = (state_ref(edge.source.as_str()), state_ref(edge.target.as_str())) {
+                    if let (Some(s), Some(d)) = (
+                        state_ref(edge.source.as_str()),
+                        state_ref(edge.target.as_str()),
+                    ) {
                         match &edge.label {
-                            Some(l) => out.push_str(&format!("{}{} --> {} : {}\n", indent, s, d, Self::plain(l))),
+                            Some(l) => out.push_str(&format!(
+                                "{}{} --> {} : {}\n",
+                                indent,
+                                s,
+                                d,
+                                Self::plain(l)
+                            )),
                             None => out.push_str(&format!("{}{} --> {}\n", indent, s, d)),
                         }
                     }
@@ -727,7 +756,9 @@ impl MermaidExporter {
             return ("[/", "\\]");
         }
         match node.kind {
-            NodeKind::Initial | NodeKind::Final | NodeKind::SsaValue | NodeKind::Actor => ("([", "])"),
+            NodeKind::Initial | NodeKind::Final | NodeKind::SsaValue | NodeKind::Actor => {
+                ("([", "])")
+            }
             NodeKind::Decision | NodeKind::Merge => ("{", "}"),
             NodeKind::Fork | NodeKind::Join | NodeKind::InteractionUse => ("[[", "]]"),
             NodeKind::SsaPhi => ("{{", "}}"),
@@ -741,7 +772,9 @@ impl MermaidExporter {
     fn node_text(node: &ViewNode) -> String {
         let mut text = match node.kind {
             NodeKind::Component => format!("«component» {}", node.label),
-            NodeKind::InteractionUse if !node.label.starts_with("ref") => format!("ref: {}", node.label),
+            NodeKind::InteractionUse if !node.label.starts_with("ref") => {
+                format!("ref: {}", node.label)
+            }
             _ => node.label.clone(),
         };
         if !node.stereotypes.is_empty() {

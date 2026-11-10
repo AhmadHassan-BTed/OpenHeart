@@ -132,7 +132,13 @@ impl ASTReductionAdapter for GenericASTReductionAdapter {
         }
     }
 
-    fn encode_attrs(&self, kind: &str, node: &Node, _source: &[u8], _ctx: &ReductionContext) -> u32 {
+    fn encode_attrs(
+        &self,
+        kind: &str,
+        node: &Node,
+        _source: &[u8],
+        _ctx: &ReductionContext,
+    ) -> u32 {
         let mut aux = 0u8;
         let op_id = match kind {
             "binary_expression" => operator_of(node, OperatorArity::Binary),

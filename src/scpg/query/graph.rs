@@ -262,7 +262,11 @@ impl CallGraphIndex {
 
     /// Resolved targets of the call site stored at row `site_row` of `call_sites()`.
     pub fn site_targets(&self, site_row: usize) -> &[u32] {
-        row(&self.site_target_offsets, &self.site_target_adj, site_row as u32)
+        row(
+            &self.site_target_offsets,
+            &self.site_target_adj,
+            site_row as u32,
+        )
     }
 
     pub fn points_to(&self) -> &[(u32, u32)] {
@@ -462,8 +466,20 @@ impl CallGraphIndex {
         let callee_kinds = dec.u8s()?.to_vec();
         let caller_offsets = dec.u32s()?;
         let caller_adj = dec.u32s()?;
-        dec.check_csr("callees", &callee_offsets, &callee_adj, node_count, Some(node_count))?;
-        dec.check_csr("callers", &caller_offsets, &caller_adj, node_count, Some(node_count))?;
+        dec.check_csr(
+            "callees",
+            &callee_offsets,
+            &callee_adj,
+            node_count,
+            Some(node_count),
+        )?;
+        dec.check_csr(
+            "callers",
+            &caller_offsets,
+            &caller_adj,
+            node_count,
+            Some(node_count),
+        )?;
         dec.expect_len("callee_kinds", callee_kinds.len(), callee_adj.len())?;
 
         let site_ids = dec.u32s()?;
@@ -499,7 +515,13 @@ impl CallGraphIndex {
             .collect();
         let site_target_offsets = dec.u32s()?;
         let site_target_adj = dec.u32s()?;
-        dec.check_csr("site_targets", &site_target_offsets, &site_target_adj, n_sites, Some(node_count))?;
+        dec.check_csr(
+            "site_targets",
+            &site_target_offsets,
+            &site_target_adj,
+            n_sites,
+            Some(node_count),
+        )?;
 
         let component_count = dec.u64()? as usize;
         let component_of = dec.u32s()?;
@@ -530,7 +552,9 @@ impl CallGraphIndex {
             REACH_KIND_CLOSURE => {
                 let words = dec.u64()? as usize;
                 let bits = dec.u64s()?;
-                if words != component_count.div_ceil(64).max(1) || bits.len() != words * component_count {
+                if words != component_count.div_ceil(64).max(1)
+                    || bits.len() != words * component_count
+                {
                     return Err(dec.malformed("closure bitset has the wrong shape"));
                 }
                 ReachIndex::Closure { words, bits }
@@ -542,7 +566,9 @@ impl CallGraphIndex {
                 dec.expect_len("grail_rank", rank.len(), GRAIL_LABELINGS * component_count)?;
                 ReachIndex::Grail { low, rank }
             }
-            other => return Err(dec.malformed(format!("unknown reachability index kind {}", other))),
+            other => {
+                return Err(dec.malformed(format!("unknown reachability index kind {}", other)))
+            }
         };
 
         // The stored index was produced from the same DAG, so it is reused instead of rebuilt.

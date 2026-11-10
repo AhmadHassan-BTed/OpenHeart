@@ -81,7 +81,10 @@ public class Calculator {
     )
     .unwrap();
 
-    assert_eq!(ssa_artifact.format_version, 1);
+    assert_eq!(
+        ssa_artifact.format_version,
+        openheart::ssa::serializer::SSA_VERSION
+    );
     assert!(ssa_artifact.function_count >= 1);
     assert!(ssa_artifact.total_ssa_vars >= 1);
 

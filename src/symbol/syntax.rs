@@ -479,7 +479,14 @@ pub struct TypeParamSyntax {
 pub fn is_java_primitive(text: &[u8]) -> bool {
     matches!(
         text,
-        b"boolean" | b"byte" | b"short" | b"char" | b"int" | b"long" | b"float" | b"double"
+        b"boolean"
+            | b"byte"
+            | b"short"
+            | b"char"
+            | b"int"
+            | b"long"
+            | b"float"
+            | b"double"
             | b"void"
     )
 }
@@ -1462,7 +1469,11 @@ pub struct CatchParamSyntax {
 }
 
 /// Parses `catch ( {modifiers} Type {| Type} name )`; Phase 2 drops `catch_formal_parameter`.
-pub fn parse_catch_parameter(tv: &TokenView, catch_tok: u32, limit: u32) -> Option<CatchParamSyntax> {
+pub fn parse_catch_parameter(
+    tv: &TokenView,
+    catch_tok: u32,
+    limit: u32,
+) -> Option<CatchParamSyntax> {
     if !tv.word(catch_tok, "catch") {
         return None;
     }
@@ -1520,5 +1531,12 @@ pub fn count_call_arguments(tv: &TokenView, open: u32, limit: u32) -> Option<(u1
         }
         pos = t + 1;
     }
-    Some((if saw_token { commas.saturating_add(1) } else { 0 }, close))
+    Some((
+        if saw_token {
+            commas.saturating_add(1)
+        } else {
+            0
+        },
+        close,
+    ))
 }

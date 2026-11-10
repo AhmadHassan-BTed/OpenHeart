@@ -20,7 +20,8 @@ pub mod delta;
 
 pub use classify::DeltaClassifier;
 pub use delta::{
-    EditClass, EditClassification, RebuildPlan, RebuildScope, SourceDelta, TextEdit, TextPoint, UpdateResult,
+    EditClass, EditClassification, RebuildPlan, RebuildScope, SourceDelta, TextEdit, TextPoint,
+    UpdateResult,
 };
 
 use std::collections::HashMap;
@@ -38,7 +39,11 @@ impl RebuildPlanner {
     /// Plans the rebuild of one file delta against `snapshot`.
     pub fn plan(snapshot: &ScpgSnapshot, delta: &SourceDelta) -> RebuildPlan {
         let edits = DeltaClassifier::new(snapshot).classify(delta);
-        let scope = edits.iter().map(|e| e.scope).max().unwrap_or(RebuildScope::None);
+        let scope = edits
+            .iter()
+            .map(|e| e.scope)
+            .max()
+            .unwrap_or(RebuildScope::None);
 
         let mut dirty_methods = Vec::new();
         let mut dirty_declarations = Vec::new();
@@ -56,7 +61,13 @@ impl RebuildPlanner {
 
         let mut affected = Vec::new();
         for &m in &dirty_methods {
-            affected.extend(snapshot.call_graph.transitive_callers(m, None).into_iter().map(|(c, _)| c));
+            affected.extend(
+                snapshot
+                    .call_graph
+                    .transitive_callers(m, None)
+                    .into_iter()
+                    .map(|(c, _)| c),
+            );
         }
         for &d in &dirty_declarations {
             if let Some(entries) = ImpactAnalyzer::analyze(
@@ -71,7 +82,9 @@ impl RebuildPlanner {
         }
         affected.sort_unstable();
         affected.dedup();
-        affected.retain(|s| dirty_methods.binary_search(s).is_err() && dirty_declarations.binary_search(s).is_err());
+        affected.retain(|s| {
+            dirty_methods.binary_search(s).is_err() && dirty_declarations.binary_search(s).is_err()
+        });
 
         RebuildPlan {
             file_id: delta.file_id,
@@ -127,8 +140,10 @@ impl SnapshotDiff {
                 diff.added.push(entry);
                 continue;
             };
-            let sig_changed = old.symbols.signature_fingerprint(old_id) != new.symbols.signature_fingerprint(new_id);
-            let body_changed = old.symbols.body_fingerprint(old_id) != new.symbols.body_fingerprint(new_id);
+            let sig_changed = old.symbols.signature_fingerprint(old_id)
+                != new.symbols.signature_fingerprint(new_id);
+            let body_changed =
+                old.symbols.body_fingerprint(old_id) != new.symbols.body_fingerprint(new_id);
             if sig_changed {
                 diff.signature_changed.push(entry);
             } else if body_changed {
@@ -154,7 +169,8 @@ impl SnapshotDiff {
     }
 
     pub fn scope(&self) -> RebuildScope {
-        if !self.added.is_empty() || !self.removed.is_empty() || !self.signature_changed.is_empty() {
+        if !self.added.is_empty() || !self.removed.is_empty() || !self.signature_changed.is_empty()
+        {
             RebuildScope::Structural
         } else if !self.body_changed.is_empty() {
             RebuildScope::Behavioral
@@ -285,7 +301,8 @@ impl IncrementalEngine {
             .count();
 
         let total = new_snapshot.symbols.len().max(1);
-        let changed_count = diff.added.len() + diff.signature_changed.len() + diff.body_changed.len();
+        let changed_count =
+            diff.added.len() + diff.signature_changed.len() + diff.body_changed.len();
         fn names(v: &[(String, u32)]) -> Vec<String> {
             v.iter().map(|(s, _)| s.clone()).collect()
         }

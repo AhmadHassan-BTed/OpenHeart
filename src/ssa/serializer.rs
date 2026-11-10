@@ -141,7 +141,10 @@ impl SSAArtifact {
             buf.push(0);
             put_u32(
                 buf,
-                func.def_blocks.get(i).copied().unwrap_or(ssa.def_block as u32),
+                func.def_blocks
+                    .get(i)
+                    .copied()
+                    .unwrap_or(ssa.def_block as u32),
             );
         }
         for i in 0..n {
@@ -160,14 +163,23 @@ impl SSAArtifact {
             }
         }
 
-        put_u32(buf, checked_u32(func.def_use.def_offsets.len(), "def-use offsets")?);
+        put_u32(
+            buf,
+            checked_u32(func.def_use.def_offsets.len(), "def-use offsets")?,
+        );
         put_u32s(buf, &func.def_use.def_offsets);
-        put_u32(buf, checked_u32(func.def_use.use_adj.len(), "def-use size")?);
+        put_u32(
+            buf,
+            checked_u32(func.def_use.use_adj.len(), "def-use size")?,
+        );
         put_u32s(buf, &func.def_use.use_adj);
         put_u32(buf, checked_u32(func.use_blocks.len(), "use blocks")?);
         put_u32s(buf, &func.use_blocks);
 
-        put_u32(buf, checked_u32(func.operands.offsets.len(), "operand offsets")?);
+        put_u32(
+            buf,
+            checked_u32(func.operands.offsets.len(), "operand offsets")?,
+        );
         put_u32s(buf, &func.operands.offsets);
         put_u32(buf, checked_u32(func.operands.adj.len(), "operand size")?);
         put_u32s(buf, &func.operands.adj);
@@ -186,14 +198,23 @@ impl SSAArtifact {
         }
         buf.extend_from_slice(&func.cdg.cd_types);
 
-        put_u32(buf, checked_u32(func.ifds.taint_sparse.len(), "taint facts")?);
+        put_u32(
+            buf,
+            checked_u32(func.ifds.taint_sparse.len(), "taint facts")?,
+        );
         for &(ssa, src) in &func.ifds.taint_sparse {
             put_u32(buf, ssa);
             buf.extend_from_slice(&src.to_le_bytes());
         }
-        put_u32(buf, checked_u32(func.ifds.nullable_sparse.len(), "nullness facts")?);
+        put_u32(
+            buf,
+            checked_u32(func.ifds.nullable_sparse.len(), "nullness facts")?,
+        );
         put_u32s(buf, &func.ifds.nullable_sparse);
-        put_u32(buf, checked_u32(func.ifds.type_state_sparse.len(), "type-state facts")?);
+        put_u32(
+            buf,
+            checked_u32(func.ifds.type_state_sparse.len(), "type-state facts")?,
+        );
         for &(ssa, st) in &func.ifds.type_state_sparse {
             put_u32(buf, ssa);
             buf.extend_from_slice(&st.to_le_bytes());
@@ -261,7 +282,9 @@ impl SSAArtifact {
             let flags = c.u8()?;
             let _pad = c.u8()?;
             let def_block = c.u32()?;
-            ssa_records.push(SSARecord::new(ssa_id, orig, def_stmt, version, flags, def_block));
+            ssa_records.push(SSARecord::new(
+                ssa_id, orig, def_stmt, version, flags, def_block,
+            ));
             def_blocks.push(def_block);
         }
         let value_nodes = c.u32s(n)?;
@@ -369,7 +392,8 @@ impl SSAArtifact {
         let total_phi_funcs = c.u32()?;
 
         let mut dc = Cursor::new(payload, SSA_HEADER_SIZE);
-        let mut dir = Vec::with_capacity((function_count as usize).min(payload.len() / DIR_ENTRY_SIZE));
+        let mut dir =
+            Vec::with_capacity((function_count as usize).min(payload.len() / DIR_ENTRY_SIZE));
         for _ in 0..function_count {
             let sym_id = dc.u32()?;
             let offset = dc.u32()? as usize;

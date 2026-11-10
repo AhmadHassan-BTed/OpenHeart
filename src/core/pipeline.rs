@@ -365,7 +365,10 @@ impl SCPGPipelineBuilder {
         let temp = std::env::temp_dir();
         create_unique_dir(&temp, "openheart-scpg").map_err(|e| {
             PipelineError::io(
-                format!("Failed to create a private output directory under {}", temp.display()),
+                format!(
+                    "Failed to create a private output directory under {}",
+                    temp.display()
+                ),
                 e,
             )
         })
@@ -391,14 +394,12 @@ impl SCPGPipelineBuilder {
 
         // Phase 1: Ingestion
         let manifest = SourceManifest::new(self.source_files.clone());
-        let (tca, report) =
-            PipelineStageTemplate::execute(&IngestionStage, &manifest, &tca_path).map_err(
-                |message| PipelineError::Stage {
-                    phase: 1,
-                    stage: "Lexical Ingestion",
-                    message,
-                },
-            )?;
+        let (tca, report) = PipelineStageTemplate::execute(&IngestionStage, &manifest, &tca_path)
+            .map_err(|message| PipelineError::Stage {
+            phase: 1,
+            stage: "Lexical Ingestion",
+            message,
+        })?;
         let skipped = report
             .diagnostics
             .iter()
@@ -417,13 +418,14 @@ impl SCPGPipelineBuilder {
             tca: &tca,
             tca_hash: report.tca_hash(),
         };
-        let bpa = PipelineStageTemplate::execute(&ASTStage, &request, &bpa_path).map_err(
-            |message| PipelineError::Stage {
-                phase: 2,
-                stage: "CST Reduction & BP AST Encoding",
-                message,
-            },
-        )?;
+        let bpa =
+            PipelineStageTemplate::execute(&ASTStage, &request, &bpa_path).map_err(|message| {
+                PipelineError::Stage {
+                    phase: 2,
+                    stage: "CST Reduction & BP AST Encoding",
+                    message,
+                }
+            })?;
         let bpa_bytes = read_artifact(&bpa_path)?;
 
         // Phase 3: Symbols & Scope Graph
@@ -431,9 +433,8 @@ impl SCPGPipelineBuilder {
             Phase3Stage::run(&tca, &bpa, &report.tca_bytes, &bpa_bytes).map_err(|e| e.to_string())
         })?;
         let sta_bytes = sta.serialize();
-        write_atomic(&sta_path, &sta_bytes).map_err(|e| {
-            PipelineError::io(format!("Failed to write {}", sta_path.display()), e)
-        })?;
+        write_atomic(&sta_path, &sta_bytes)
+            .map_err(|e| PipelineError::io(format!("Failed to write {}", sta_path.display()), e))?;
 
         // Phase 4: CFG
         let cfa = timed(4, "Control Flow Graph", || {
@@ -449,12 +450,23 @@ impl SCPGPipelineBuilder {
 
         // Phase 6: Call Graph
         let cga = timed(6, "Call Graph & Points-To", || {
-            Phase6Stage::run(&bpa, &sta, &cfa, &ssa, &ssa_bytes, &sta_bytes, &cga_path)
+            Phase6Stage::run_with_source(
+                &bpa,
+                &sta,
+                Some(&tca),
+                &cfa,
+                &ssa,
+                &ssa_bytes,
+                &sta_bytes,
+                &cga_path,
+            )
         })?;
 
         // Phase 7: Traceability
         let tra = timed(7, "Traceability Index", || {
-            Ok(Phase7Stage::run(&tca, &bpa, &sta, &cfa, &ssa, &cga, &tra_path))
+            Ok(Phase7Stage::run(
+                &tca, &bpa, &sta, &cfa, &ssa, &cga, &tra_path,
+            ))
         })?;
         let tra_bytes = read_artifact(&tra_path)?;
 

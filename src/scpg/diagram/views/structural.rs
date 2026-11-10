@@ -7,11 +7,11 @@ use crate::scpg::diagram::context::DiagramContext;
 use crate::scpg::diagram::model::{
     AliasTable, EdgeKind, NodeKind, Provenance, ViewEdge, ViewKind, ViewModel, ViewNode,
 };
-use crate::symbol::model::OccurrenceRole;
 use crate::scpg::diagram::views::{
     classifier_node, ensure_package_chain, function_label, multiplicity, settle_provenance,
     type_display, TypeIndex,
 };
+use crate::symbol::model::OccurrenceRole;
 use crate::uma::types::*;
 
 /// Restricts a model to the focus (matching nodes and their direct neighbours).
@@ -105,7 +105,12 @@ pub fn class_view(ctx: &DiagramContext) -> ViewModel {
             unknown_params
         ));
     }
-    if ctx.uma.design_patterns.iter().any(|d| d.class_sym != UNKNOWN_SYM) {
+    if ctx
+        .uma
+        .design_patterns
+        .iter()
+        .any(|d| d.class_sym != UNKNOWN_SYM)
+    {
         let mut text = "Pattern stereotypes «Pattern N%» list every detected pattern of a class with the Phase 9 structural-evidence score, which is uncalibrated.".to_string();
         if ctx.options.min_pattern_score > 0 {
             text.push_str(&format!(
@@ -115,7 +120,12 @@ pub fn class_view(ctx: &DiagramContext) -> ViewModel {
         }
         model.note(text);
     }
-    if ctx.uma.classes.iter().any(|c| c.fields.iter().any(|f| f.is_collection != 0)) {
+    if ctx
+        .uma
+        .classes
+        .iter()
+        .any(|c| c.fields.iter().any(|f| f.is_collection != 0))
+    {
         model.note("Attributes whose declared type is a collection or array show that type as written; their element multiplicity is shown on the association end when the element type is a declared classifier.");
     }
     apply_focus(ctx, &mut model);
@@ -214,7 +224,9 @@ fn add_class_relations(
     }
 
     for &target in &class_rec.dependency_syms {
-        if target == class_rec.sym_id || associated.contains(&target) || supertypes.contains(&target)
+        if target == class_rec.sym_id
+            || associated.contains(&target)
+            || supertypes.contains(&target)
         {
             continue;
         }
@@ -261,8 +273,8 @@ pub fn object_view(ctx: &DiagramContext) -> ViewModel {
         } else {
             None
         };
-        let type_name = type_display(ctx, obj.type_sym_id)
-            .unwrap_or_else(|| "<unresolved type>".to_string());
+        let type_name =
+            type_display(ctx, obj.type_sym_id).unwrap_or_else(|| "<unresolved type>".to_string());
         let label = ctx
             .uma
             .label(obj.label_text_id)
@@ -532,7 +544,11 @@ pub fn component_view(ctx: &DiagramContext) -> ViewModel {
             .provided_interfaces
             .iter()
             .map(|i| (i, EdgeKind::Provides))
-            .chain(comp.required_interfaces.iter().map(|i| (i, EdgeKind::Requires)))
+            .chain(
+                comp.required_interfaces
+                    .iter()
+                    .map(|i| (i, EdgeKind::Requires)),
+            )
         {
             let iface_name = types
                 .fqn(iface)
@@ -802,7 +818,10 @@ pub fn profile_view(ctx: &DiagramContext) -> ViewModel {
         model.add_node(
             ViewNode::new(key.clone(), alias, label, NodeKind::Stereotype)
                 .with_qualified_name(Some(fqn))
-                .with_span(ctx.span_of_link(&class_rec.uml_link).or_else(|| ctx.symbol_span(sym)))
+                .with_span(
+                    ctx.span_of_link(&class_rec.uml_link)
+                        .or_else(|| ctx.symbol_span(sym)),
+                )
                 .with_sym(sym)
                 .with_details(details),
         );
@@ -815,9 +834,7 @@ pub fn profile_view(ctx: &DiagramContext) -> ViewModel {
 
     let mut by_kind: BTreeMap<u8, (usize, u8, u8)> = BTreeMap::new();
     for inst in &ctx.uma.pattern_instances {
-        let entry = by_kind
-            .entry(inst.pattern_kind)
-            .or_insert((0, u8::MAX, 0));
+        let entry = by_kind.entry(inst.pattern_kind).or_insert((0, u8::MAX, 0));
         entry.0 += 1;
         entry.1 = entry.1.min(inst.score);
         entry.2 = entry.2.max(inst.score);
@@ -835,10 +852,15 @@ pub fn profile_view(ctx: &DiagramContext) -> ViewModel {
             format!("evidence score {}–{}%", min_score, max_score)
         });
         model.add_node(
-            ViewNode::new(key.clone(), format!("st_pattern_{}", name), name, NodeKind::Stereotype)
-                .with_qualified_name(Some(format!("GoF::{}", name)))
-                .with_details(details)
-                .with_provenance(Provenance::Heuristic),
+            ViewNode::new(
+                key.clone(),
+                format!("st_pattern_{}", name),
+                name,
+                NodeKind::Stereotype,
+            )
+            .with_qualified_name(Some(format!("GoF::{}", name)))
+            .with_details(details)
+            .with_provenance(Provenance::Heuristic),
         );
         let meta = ensure_metaclass(&mut model, "Class");
         model.add_edge(

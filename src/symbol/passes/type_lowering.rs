@@ -12,8 +12,10 @@ use crate::symbol::builder::SymbolTableBuilder;
 use crate::symbol::model::{
     Dialect, Occurrence, OccurrenceRole, ResolutionStatus, TypeRef, TypeRefFlags, WildcardKind,
 };
-use crate::symbol::scope_graph::{Namespace, NameResolver, ScopeFlags};
-use crate::symbol::syntax::{TokenView, TypeBase, TypeOptions, TypeParser, TypeSyntax, WildcardSyntax};
+use crate::symbol::scope_graph::{NameResolver, Namespace, ScopeFlags};
+use crate::symbol::syntax::{
+    TokenView, TypeBase, TypeOptions, TypeParser, TypeSyntax, WildcardSyntax,
+};
 use std::collections::HashMap;
 
 pub struct TypeLowering<'v, 'a> {
@@ -48,7 +50,9 @@ impl<'v, 'a> TypeLowering<'v, 'a> {
                 if sg.has_flag(s, ScopeFlags::PACKAGE) || sg.has_flag(s, ScopeFlags::ROOT) {
                     break;
                 }
-                if let Some(sym) = sg.lookup_in_scope(s, Namespace::Type, name_id, name_tok).next()
+                if let Some(sym) = sg
+                    .lookup_in_scope(s, Namespace::Type, name_id, name_tok)
+                    .next()
                 {
                     return (sym, ResolutionStatus::Project);
                 }

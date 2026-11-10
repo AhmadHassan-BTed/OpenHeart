@@ -235,9 +235,10 @@ impl FeasibilityFilter {
         let mut ids: Vec<u32> = guards
             .iter()
             .flat_map(|g| match g {
-                EdgeGuard::Requires { literals, .. } => {
-                    literals.iter().map(|l| l.predicate_id).collect::<Vec<u32>>()
-                }
+                EdgeGuard::Requires { literals, .. } => literals
+                    .iter()
+                    .map(|l| l.predicate_id)
+                    .collect::<Vec<u32>>(),
                 EdgeGuard::Never { .. } => Vec::new(),
             })
             .collect();

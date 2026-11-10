@@ -49,7 +49,10 @@ impl PatternDetectionRule for CommandRule {
                 if f.is_static || f.is_collection || !ctx.is_user_type(r) || ctx.related(r, c) {
                     continue;
                 }
-                if overrides.iter().any(|&m| ctx.forwards_through(m, f.name, r, false)) {
+                if overrides
+                    .iter()
+                    .any(|&m| ctx.forwards_through(m, f.name, r, false))
+                {
                     receivers.insert(r);
                     delegated = true;
                 }

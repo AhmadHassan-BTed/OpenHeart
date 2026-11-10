@@ -105,7 +105,13 @@ pub fn build_path_formula(
 
     // ── Flow conservation of every reachable block ────────────────────────────
     for &b in graph.topo_order() {
-        conjuncts.push(build_block_constraint(b, graph, levels, function_start, bdd)?);
+        conjuncts.push(build_block_constraint(
+            b,
+            graph,
+            levels,
+            function_start,
+            bdd,
+        )?);
     }
 
     // ── Edges that can lie on no path ─────────────────────────────────────────

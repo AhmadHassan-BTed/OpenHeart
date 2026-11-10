@@ -102,11 +102,20 @@ impl PathSummaryIndex {
         order.sort_by_key(|&i| psa.function_dir[i].sym_id);
         for i in order {
             let h = &psa.function_dir[i];
-            if index.functions.last().map(|f| f.sym_id == h.sym_id).unwrap_or(false) {
+            if index
+                .functions
+                .last()
+                .map(|f| f.sym_id == h.sym_id)
+                .unwrap_or(false)
+            {
                 continue;
             }
             let nodes = psa.node_arrays.get(i).map(|v| v.as_slice()).unwrap_or(&[]);
-            let ordering = psa.ordering_tables.get(i).map(|v| v.as_slice()).unwrap_or(&[]);
+            let ordering = psa
+                .ordering_tables
+                .get(i)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
             index.functions.push(FunctionPathSummary {
                 sym_id: h.sym_id,
                 n_vars: h.n_vars,
@@ -142,7 +151,9 @@ impl PathSummaryIndex {
     }
 
     fn function(&self, sym_id: u32) -> Result<&FunctionPathSummary, BddQueryError> {
-        let f = self.summary(sym_id).ok_or(BddQueryError::UnknownFunction(sym_id))?;
+        let f = self
+            .summary(sym_id)
+            .ok_or(BddQueryError::UnknownFunction(sym_id))?;
         if f.n_nodes < 2 {
             return Err(BddQueryError::NodesUnavailable(sym_id));
         }
@@ -155,7 +166,11 @@ impl PathSummaryIndex {
     }
 
     /// Per-variable restriction from edge constraints.
-    fn restriction(&self, f: &FunctionPathSummary, constraints: &[EdgeConstraint]) -> Result<Vec<Option<bool>>, BddQueryError> {
+    fn restriction(
+        &self,
+        f: &FunctionPathSummary,
+        constraints: &[EdgeConstraint],
+    ) -> Result<Vec<Option<bool>>, BddQueryError> {
         let ordering = self.ordering_of(f);
         let n_vars = f.n_vars as usize;
         let mut restricted = vec![None; n_vars];
@@ -169,14 +184,20 @@ impl PathSummaryIndex {
                     edge_id: c.edge_id,
                 })?;
             match restricted[var] {
-                Some(prev) if prev != c.taken => return Err(BddQueryError::Contradiction(c.edge_id)),
+                Some(prev) if prev != c.taken => {
+                    return Err(BddQueryError::Contradiction(c.edge_id))
+                }
                 _ => restricted[var] = Some(c.taken),
             }
         }
         Ok(restricted)
     }
 
-    fn evaluate(&self, f: &FunctionPathSummary, restricted: &[Option<bool>]) -> Result<Evaluation, BddQueryError> {
+    fn evaluate(
+        &self,
+        f: &FunctionPathSummary,
+        restricted: &[Option<bool>],
+    ) -> Result<Evaluation, BddQueryError> {
         let n_vars = f.n_vars as usize;
         let n_nodes = f.n_nodes as usize;
         let base = f.node_offset as usize;
@@ -201,10 +222,14 @@ impl PathSummaryIndex {
             prefix[v + 1] = prefix[v] + restricted[v].is_some() as u64;
         }
         // Free (unrestricted) variables strictly between levels a < b.
-        let free_between = |a: usize, b: usize| -> u64 { (b - a - 1) as u64 - (prefix[b] - prefix[a + 1]) };
+        let free_between =
+            |a: usize, b: usize| -> u64 { (b - a - 1) as u64 - (prefix[b] - prefix[a + 1]) };
 
         if (f.root as usize) >= n_nodes {
-            return Err(malformed(format!("root {} outside {} nodes", f.root, n_nodes)));
+            return Err(malformed(format!(
+                "root {} outside {} nodes",
+                f.root, n_nodes
+            )));
         }
         let mut memo: Vec<Option<u128>> = vec![None; n_nodes];
         let mut saturated = false;
@@ -216,7 +241,10 @@ impl PathSummaryIndex {
             }
             let x = vars[id as usize] as usize;
             if x >= n_vars {
-                return Err(malformed(format!("node {} has variable {} ≥ {}", id, x, n_vars)));
+                return Err(malformed(format!(
+                    "node {} has variable {} ≥ {}",
+                    id, x, n_vars
+                )));
             }
             let mut pending = false;
             for (child, value) in [(lo[id as usize], false), (hi[id as usize], true)] {
@@ -224,10 +252,16 @@ impl PathSummaryIndex {
                     continue;
                 }
                 if (child as usize) >= n_nodes {
-                    return Err(malformed(format!("node {} has child {} outside the array", id, child)));
+                    return Err(malformed(format!(
+                        "node {} has child {} outside the array",
+                        id, child
+                    )));
                 }
                 if level(child) <= x {
-                    return Err(malformed(format!("node {} violates the variable ordering", id)));
+                    return Err(malformed(format!(
+                        "node {} violates the variable ordering",
+                        id
+                    )));
                 }
                 if !is_terminal(child) && memo[child as usize].is_none() {
                     stack.push(child);
@@ -247,7 +281,8 @@ impl PathSummaryIndex {
                     FALSE_ID => 0,
                     c => memo[c as usize].unwrap_or(0),
                 };
-                let contribution = mul_pow2(child_count, free_between(x, level(child)), &mut saturated);
+                let contribution =
+                    mul_pow2(child_count, free_between(x, level(child)), &mut saturated);
                 total = add_sat(total, contribution, &mut saturated);
             }
             memo[id as usize] = Some(total);
@@ -269,23 +304,45 @@ impl PathSummaryIndex {
     }
 
     /// Number of satisfying edge assignments (feasible paths) under `constraints`.
-    pub fn count_paths(&self, sym_id: u32, constraints: &[EdgeConstraint]) -> Result<PathCount, BddQueryError> {
+    pub fn count_paths(
+        &self,
+        sym_id: u32,
+        constraints: &[EdgeConstraint],
+    ) -> Result<PathCount, BddQueryError> {
         let f = self.function(sym_id)?;
         let restricted = self.restriction(f, constraints)?;
         Ok(self.evaluate(f, &restricted)?.total)
     }
 
-    pub fn is_feasible(&self, sym_id: u32, constraints: &[EdgeConstraint]) -> Result<bool, BddQueryError> {
+    pub fn is_feasible(
+        &self,
+        sym_id: u32,
+        constraints: &[EdgeConstraint],
+    ) -> Result<bool, BddQueryError> {
         Ok(self.count_paths(sym_id, constraints)?.value > 0)
     }
 
-    pub fn paths_through_edge(&self, sym_id: u32, edge_id: u32) -> Result<PathCount, BddQueryError> {
-        self.count_paths(sym_id, &[EdgeConstraint { edge_id, taken: true }])
+    pub fn paths_through_edge(
+        &self,
+        sym_id: u32,
+        edge_id: u32,
+    ) -> Result<PathCount, BddQueryError> {
+        self.count_paths(
+            sym_id,
+            &[EdgeConstraint {
+                edge_id,
+                taken: true,
+            }],
+        )
     }
 
     /// One satisfying assignment under `constraints` (`any_sat`), or `None` if infeasible.
     /// Edges not listed are don't-care for the returned path.
-    pub fn witness(&self, sym_id: u32, constraints: &[EdgeConstraint]) -> Result<Option<Vec<EdgeConstraint>>, BddQueryError> {
+    pub fn witness(
+        &self,
+        sym_id: u32,
+        constraints: &[EdgeConstraint],
+    ) -> Result<Option<Vec<EdgeConstraint>>, BddQueryError> {
         let f = self.function(sym_id)?;
         let restricted = self.restriction(f, constraints)?;
         let eval = self.evaluate(f, &restricted)?;
@@ -305,13 +362,19 @@ impl PathSummaryIndex {
         let mut id = f.root;
         while id != TRUE_ID && id != FALSE_ID {
             let x = self.node_vars[base + id as usize] as usize;
-            let (lo, hi) = (self.node_lo[base + id as usize], self.node_hi[base + id as usize]);
+            let (lo, hi) = (
+                self.node_lo[base + id as usize],
+                self.node_hi[base + id as usize],
+            );
             let value = match restricted[x] {
                 Some(v) => v,
                 None => count_of(lo) == 0,
             };
             if let Some(&edge_id) = ordering.get(x) {
-                assignment.push(EdgeConstraint { edge_id, taken: value });
+                assignment.push(EdgeConstraint {
+                    edge_id,
+                    taken: value,
+                });
             }
             id = if value { hi } else { lo };
         }

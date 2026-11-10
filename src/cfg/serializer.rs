@@ -86,7 +86,12 @@ impl<'b> Cursor<'b> {
             .pos
             .checked_add(n)
             .filter(|&e| e <= self.bytes.len())
-            .ok_or_else(|| format!("artifact truncated at offset {} (need {} bytes)", self.pos, n))?;
+            .ok_or_else(|| {
+                format!(
+                    "artifact truncated at offset {} (need {} bytes)",
+                    self.pos, n
+                )
+            })?;
         let s = &self.bytes[self.pos..end];
         self.pos = end;
         Ok(s)
@@ -117,7 +122,10 @@ impl<'b> Cursor<'b> {
     /// allocating.
     pub(crate) fn u32s(&mut self, n: usize) -> Result<Vec<u32>, String> {
         if n > (self.bytes.len() - self.pos.min(self.bytes.len())) / 4 {
-            return Err(format!("artifact array length {} exceeds the remaining bytes", n));
+            return Err(format!(
+                "artifact array length {} exceeds the remaining bytes",
+                n
+            ));
         }
         (0..n).map(|_| self.u32()).collect()
     }
@@ -199,19 +207,35 @@ impl CFGArtifact {
 
         // Loop forest
         buf.extend_from_slice(&func.loop_info.loop_depth);
-        put_u32(buf, checked_u32(func.loop_info.back_edges.len(), "back edge count")?);
+        put_u32(
+            buf,
+            checked_u32(func.loop_info.back_edges.len(), "back edge count")?,
+        );
         for &(t, h) in &func.loop_info.back_edges {
             put_u32(buf, t);
             put_u32(buf, h);
         }
-        put_u32(buf, checked_u32(func.loop_info.headers.len(), "loop count")?);
+        put_u32(
+            buf,
+            checked_u32(func.loop_info.headers.len(), "loop count")?,
+        );
         for (i, &h) in func.loop_info.headers.iter().enumerate() {
             put_u32(buf, h);
-            put_u32(buf, func.loop_info.loop_parent.get(i).copied().unwrap_or(u32::MAX));
+            put_u32(
+                buf,
+                func.loop_info
+                    .loop_parent
+                    .get(i)
+                    .copied()
+                    .unwrap_or(u32::MAX),
+            );
         }
         put_u32(
             buf,
-            checked_u32(func.loop_info.irreducible_edges.len(), "irreducible edge count")?,
+            checked_u32(
+                func.loop_info.irreducible_edges.len(),
+                "irreducible edge count",
+            )?,
         );
         for &(a, b) in &func.loop_info.irreducible_edges {
             put_u32(buf, a);
@@ -219,9 +243,15 @@ impl CFGArtifact {
         }
 
         // Lowered nodes, diagnostics
-        put_u32(buf, checked_u32(func.lowered_nodes.len(), "lowered node count")?);
+        put_u32(
+            buf,
+            checked_u32(func.lowered_nodes.len(), "lowered node count")?,
+        );
         put_u32s(buf, &func.lowered_nodes);
-        put_u32(buf, checked_u32(func.diagnostics.len(), "diagnostic count")?);
+        put_u32(
+            buf,
+            checked_u32(func.diagnostics.len(), "diagnostic count")?,
+        );
         for d in &func.diagnostics {
             buf.extend_from_slice(&[d.kind as u8, 0, 0, 0]);
             put_u32(buf, d.node);
@@ -360,14 +390,24 @@ impl CFGArtifact {
         for b in 0..n {
             let (s, t) = (succ_offsets[b] as usize, succ_offsets[b + 1] as usize);
             if s > t || t > e {
-                return Err(format!("CFA corrupt successor offsets in function sym {}", sym_id));
+                return Err(format!(
+                    "CFA corrupt successor offsets in function sym {}",
+                    sym_id
+                ));
             }
             for k in s..t {
-                edges.push((checked_u32(b, "block id")?, succ_adj[k], CFGEdgeType::from(edge_types[k])));
+                edges.push((
+                    checked_u32(b, "block id")?,
+                    succ_adj[k],
+                    CFGEdgeType::from(edge_types[k]),
+                ));
             }
         }
         if edges.len() != e {
-            return Err(format!("CFA edge count mismatch in function sym {}", sym_id));
+            return Err(format!(
+                "CFA edge count mismatch in function sym {}",
+                sym_id
+            ));
         }
 
         Ok(FunctionCFGData {
@@ -437,7 +477,8 @@ impl CFGArtifact {
         let sta_hash = c.u64()?;
         let bpa_hash = c.u64()?;
 
-        let mut dir = Vec::with_capacity((function_count as usize).min(payload.len() / DIR_ENTRY_SIZE));
+        let mut dir =
+            Vec::with_capacity((function_count as usize).min(payload.len() / DIR_ENTRY_SIZE));
         let mut dc = Cursor::new(payload, CFA_HEADER_SIZE);
         for _ in 0..function_count {
             let sym_id = dc.u32()?;

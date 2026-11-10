@@ -84,9 +84,7 @@ impl SourceIndex {
                 .entry(stem)
                 .or_default()
                 .push(file.relative.clone());
-            index
-                .files
-                .insert(file.relative.clone(), file.path.clone());
+            index.files.insert(file.relative.clone(), file.path.clone());
         }
         index
     }
@@ -217,7 +215,10 @@ impl SessionStore {
             let name = entry.file_name().to_string_lossy().into_owned();
             if is_session_id(&name) && entry.file_type()?.is_dir() {
                 if let Err(err) = fs::remove_dir_all(entry.path()) {
-                    log_warn(&format!("Could not remove stale session '{}': {}", name, err));
+                    log_warn(&format!(
+                        "Could not remove stale session '{}': {}",
+                        name, err
+                    ));
                 }
             }
         }

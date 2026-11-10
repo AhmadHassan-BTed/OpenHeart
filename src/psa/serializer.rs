@@ -123,7 +123,9 @@ impl PathSummarySerializer {
             .windows(2)
             .any(|w| w[0].sym_id >= w[1].sym_id)
         {
-            return Err(invalid("PSA function directory is not strictly sorted by sym_id"));
+            return Err(invalid(
+                "PSA function directory is not strictly sorted by sym_id",
+            ));
         }
         for (i, header) in artifact.function_dir.iter().enumerate() {
             if header.n_vars as usize != artifact.ordering_tables[i].len()
@@ -343,7 +345,9 @@ impl<'a> PsaFileView<'a> {
             function_dir.push(FunctionPSAHeader::from_bytes(&entry));
         }
         if function_dir.windows(2).any(|w| w[0].sym_id >= w[1].sym_id) {
-            return Err(invalid("PSA function directory is not strictly sorted by sym_id"));
+            return Err(invalid(
+                "PSA function directory is not strictly sorted by sym_id",
+            ));
         }
 
         // ── Locate the variable-length sections (checked prefix sums) ─────────
@@ -354,8 +358,9 @@ impl<'a> PsaFileView<'a> {
                 ordering_offset: ordering_end,
                 nodes_offset: 0,
             });
-            ordering_end = section_end(ordering_end, header.n_vars, ORDERING_ENTRY_SIZE, data.len())
-                .ok_or_else(|| overrun("variable ordering table", header.sym_id))?;
+            ordering_end =
+                section_end(ordering_end, header.n_vars, ORDERING_ENTRY_SIZE, data.len())
+                    .ok_or_else(|| overrun("variable ordering table", header.sym_id))?;
         }
         let mut nodes_end = ordering_end;
         let mut counted_nodes: u64 = 0;
@@ -465,7 +470,10 @@ impl<'a> PsaFileView<'a> {
             ))
         })?;
         verify_node_array(&arr, Some(n_vars)).map_err(|msg| {
-            invalid(format!("PSA node array of sym_id={}: {}", header.sym_id, msg))
+            invalid(format!(
+                "PSA node array of sym_id={}: {}",
+                header.sym_id, msg
+            ))
         })?;
         if header.root_node != PSA_NO_ROOT && header.root_node as usize >= arr.len() {
             return Err(invalid(format!(

@@ -68,7 +68,9 @@ impl NameResolver {
                 if sg.has_flag(s, ScopeFlags::PACKAGE) || sg.has_flag(s, ScopeFlags::ROOT) {
                     break;
                 }
-                if let Some(sym) = sg.lookup_in_scope(s, Namespace::Type, name_id, at_token).next()
+                if let Some(sym) = sg
+                    .lookup_in_scope(s, Namespace::Type, name_id, at_token)
+                    .next()
                 {
                     return TypeBinding::Symbol(sym);
                 }
@@ -149,12 +151,15 @@ impl NameResolver {
         }
 
         match found.len() {
-            1 => found.pop().map(|(_, binding)| binding).unwrap_or_else(|| {
-                TypeBinding::Unresolved {
-                    simple: name.to_string(),
-                    candidates: Vec::new(),
-                }
-            }),
+            1 => {
+                found
+                    .pop()
+                    .map(|(_, binding)| binding)
+                    .unwrap_or_else(|| TypeBinding::Unresolved {
+                        simple: name.to_string(),
+                        candidates: Vec::new(),
+                    })
+            }
             0 => {
                 if open_candidates.len() == 1 {
                     TypeBinding::InferredPackage(open_candidates.remove(0))

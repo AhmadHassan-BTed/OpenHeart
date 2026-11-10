@@ -24,8 +24,8 @@ mod session;
 pub mod web_repo;
 
 pub use runner::{
-    discover_sources, run_isolated, run_pipeline, DiscoveryOptions, PipelineError,
-    PipelineOptions, PipelineRun, SourceInventory, SourceLimits, WorkDir,
+    discover_sources, run_isolated, run_pipeline, DiscoveryOptions, PipelineError, PipelineOptions,
+    PipelineRun, SourceInventory, SourceLimits, WorkDir,
 };
 #[cfg(feature = "server")]
 pub use server::{OpenHeartServer, ServerConfig};

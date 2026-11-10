@@ -81,14 +81,24 @@ impl SemanticIndex {
                 role: p.role,
             })
             .collect();
-        patterns.sort_by_key(|p| (p.instance_id, p.role, p.class_sym, p.pattern_kind, p.confidence));
+        patterns.sort_by_key(|p| {
+            (
+                p.instance_id,
+                p.role,
+                p.class_sym,
+                p.pattern_kind,
+                p.confidence,
+            )
+        });
         patterns.dedup();
 
-        let mut activity_methods: Vec<u32> = uma.activities.iter().map(|a| a.function_sym_id).collect();
+        let mut activity_methods: Vec<u32> =
+            uma.activities.iter().map(|a| a.function_sym_id).collect();
         activity_methods.sort_unstable();
         activity_methods.dedup();
 
-        let mut state_machine_classes: Vec<u32> = uma.state_machines.iter().map(|s| s.class_sym_id).collect();
+        let mut state_machine_classes: Vec<u32> =
+            uma.state_machines.iter().map(|s| s.class_sym_id).collect();
         state_machine_classes.sort_unstable();
         state_machine_classes.dedup();
 
@@ -118,15 +128,69 @@ impl SemanticIndex {
 
     pub fn encode(&self, enc: &mut SectionEncoder) {
         enc.put_u32s(&self.classes.iter().map(|c| c.sym_id).collect::<Vec<_>>());
-        enc.put_u8s(&self.classes.iter().map(|c| c.stereotype).collect::<Vec<_>>());
-        enc.put_u8s(&self.classes.iter().map(|c| c.design_pattern).collect::<Vec<_>>());
-        enc.put_u32s(&self.classes.iter().map(|c| c.extends_sym).collect::<Vec<_>>());
-        enc.put_u16s(&self.classes.iter().map(|c| c.field_count).collect::<Vec<_>>());
-        enc.put_u16s(&self.classes.iter().map(|c| c.method_count).collect::<Vec<_>>());
-        enc.put_u32s(&self.patterns.iter().map(|p| p.class_sym).collect::<Vec<_>>());
-        enc.put_u16s(&self.patterns.iter().map(|p| p.pattern_kind).collect::<Vec<_>>());
-        enc.put_u16s(&self.patterns.iter().map(|p| p.confidence).collect::<Vec<_>>());
-        enc.put_u32s(&self.patterns.iter().map(|p| p.instance_id).collect::<Vec<_>>());
+        enc.put_u8s(
+            &self
+                .classes
+                .iter()
+                .map(|c| c.stereotype)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u8s(
+            &self
+                .classes
+                .iter()
+                .map(|c| c.design_pattern)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u32s(
+            &self
+                .classes
+                .iter()
+                .map(|c| c.extends_sym)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u16s(
+            &self
+                .classes
+                .iter()
+                .map(|c| c.field_count)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u16s(
+            &self
+                .classes
+                .iter()
+                .map(|c| c.method_count)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u32s(
+            &self
+                .patterns
+                .iter()
+                .map(|p| p.class_sym)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u16s(
+            &self
+                .patterns
+                .iter()
+                .map(|p| p.pattern_kind)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u16s(
+            &self
+                .patterns
+                .iter()
+                .map(|p| p.confidence)
+                .collect::<Vec<_>>(),
+        );
+        enc.put_u32s(
+            &self
+                .patterns
+                .iter()
+                .map(|p| p.instance_id)
+                .collect::<Vec<_>>(),
+        );
         enc.put_u8s(&self.patterns.iter().map(|p| p.role).collect::<Vec<_>>());
         enc.put_u32s(&self.activity_methods);
         enc.put_u32s(&self.state_machine_classes);
