@@ -1,10 +1,107 @@
 # OpenHeart rewrite checkpoint
 
-Last updated: 9 November 2026. Base commit before this work: `fc218cd`. Branch: `main`.
+Last updated: 10 November 2026. Base commit before this work: `fc218cd`. Branch: `main`.
 
-This file is the single place to resume from. Everything needed to continue on any machine is in this file and in [`checkpoint/`](checkpoint/).
+This file is the single place to resume from. Everything needed to continue on any machine is in this file and in [`checkpoint/`](checkpoint/). **Start with section 0**, the most recent session; sections 1 to 5 are the 9 November rewrite state, still valid.
 
-> Status: **coding phase, uncompiled.** Nothing in this checkpoint has been compiled, tested or verified, by the owner's instruction. Expect build errors until the integration and build steps below are done.
+> Status: the **Rust engine is in the coding phase and uncompiled**, by the owner's instruction. The web studio's layout engine (`web/js/layout/`) is written **and tested** (section 0.2).
+
+---
+
+## 0. Session of 10 November 2026: resume here
+
+### 0.1 What the owner asked for and decided
+
+1. **Diagram layout.**
+   - Build a highly sophisticated, adaptive layout: components near their parts, everything untangled, nothing placed far from what it relates to, a clean, intuitive placement.
+   - Use proven premade solutions where they fit (ELK.js was chosen for the canvas); write our own where none fits.
+   - **The core Rust engine gets no new dependency.**
+2. **Process.**
+   - Work directly on `main`, with no worktrees or branches.
+   - Use parallel agents with written contracts, even for pieces that depend on each other through those contracts, without lowering quality.
+3. **All 19 diagrams in the web, for every source,** including GitHub, folder and ZIP imports.
+   - The diagrams must be **derived by the pure Rust engine**, compiled to WebAssembly for the browser.
+   - **Click-to-explore:** clicking an element shows its call graph, each function's dependencies, and more.
+4. **Phase rules now.**
+   - The Rust engine stays **coding only**: no `cargo build`, `check`, `test` or `clippy`, and no wasm build, until the owner opens that phase.
+   - The JavaScript layout's **test phase is open**: the quality gate may run.
+5. **Toolchain (approved and installed).**
+   - The `wasm32-wasip1` Rust target.
+   - wasi-sdk 34 at `C:\Users\ahmad_hassan\wasi-sdk-34` (clang 23.1). Its 619 MB download's SHA-256 matched GitHub's published digest.
+   - Rust 1.99.1 (stable MSVC) is on this machine.
+
+### 0.2 Done
+
+**Adaptive layout engine** (`web/js/layout/`):
+
+| Module | What it does |
+|---|---|
+| `geometry.js` | One source of truth for package padding, label bands and edge-label sizes, shared with the stylesheet |
+| `semantics.js` | A profile per diagram type: family, conventional directions, relationship roles as ELK priorities, first/last-layer pinning, spacing |
+| `model.js` | The containment model, pruning of empty package chains, edge roles, parallel-message merging for communication diagrams |
+| `engine.js` | The pipeline. Components, detached-child packing, a candidate portfolio scored by metrics, the deterministic work budget, write-back. Candidates: ELK layered, stress + VPSC + routing, and a "cluster" strategy (packages laid out bottom-up, arranged by stress with aspect correction, mirrored toward their partners, cross-package edges routed) |
+| `elk-backend.js` | ELK layered (INCLUDE_CHILDREN, orthogonal routing) and stress |
+| `router.js` | Orthogonal obstacle-avoiding router with nudging |
+| `overlap.js` | VPSC overlap removal and compaction |
+| `pack.js` | Flexible grid and skyline packing |
+| `metrics.js` | Quality metrics and score |
+| `sequence.js` | Sequence diagrams (lifelines, one row per message, self messages drawn in the lifeline card) and timing |
+| `apply-routes.js` | Draws routes and package boxes exactly in Cytoscape; moves invalidate only what they break |
+
+**Wiring:**
+- `web/js/graph-canvas.js` awaits the engine, with the legacy `uml-layout.js` as fallback, and applies geometry. It also re-applies geometry after a theme change and clears package sizing on collapse.
+- The theme takes its package geometry from `geometry.js`, and labels are centred above packages.
+- `web/index.html` loads `elkjs@0.9.3/lib/elk.bundled.js`, which is also added to the CSP.
+
+**Quality gate:** `scripts/layout-gate` (how to run: its README). Last full result:
+- All 54 inputs pass every hard check, with deterministic output: 19 bundled diagrams, 12 real-code class/package models, 9 synthetic graphs, and a stress input for each diagram type.
+- In the live browser, ELK loads under the CSP with no console errors, drawn bends match the routes to 0.002 px, and labels land where ELK reserved them.
+
+**Contract** for the Rust and studio work: [`docs/engine-query-protocol.md`](docs/engine-query-protocol.md):
+- symbol ids on diagram nodes
+- the query JSON protocol (functions, callers, callees, dependencies, dependents, focused views)
+- the CLI, server and WebAssembly transports
+- the `oh_*` WebAssembly exports
+- the Rust module layout
+
+### 0.3 Stopped mid-way (resume these)
+
+Six packages were running in parallel and were stopped by the owner. Their exact briefs, the files they own, and what each had on disk at the stop are in [`checkpoint/session-2026-11-10/agent-briefs.md`](checkpoint/session-2026-11-10/agent-briefs.md).
+
+| Package | Scope | State at stop |
+|---|---|---|
+| A1 | Real call graph (Phase 6 with token text, symbol-table fallback, dispatch/resolution per edge) and `src/facts/` | `src/cg/*` partly rewritten; `src/facts/` not started |
+| A2 | Query protocol, `POST /api/sessions/<id>/query`, `openheart query`, `server` feature gating | `query.rs`, `server.rs`, `adapters/mod.rs` written; `main.rs` mid-edit |
+| A3 | Symbol ids on nodes, deployment/use case/timing derivations, composite connectors, focused views | `src/project/` parsers written (no `mod.rs`); diagram views not started |
+| A4 | In-memory pipeline, `src/session.rs`, `src/wasm.rs`, `lib.rs`, `Cargo.toml` feature, `.cargo/config.toml`, `scripts/build-wasm.sh` | IO and threading changes in ingestion/ast/core/scpg written; session, wasm, lib.rs, Cargo, build script not started |
+| A5 | Studio: WASI shim, wasm engine loader, program model, import flow for all 19 views, inspector Relations tab | `web/js/engine/*` mostly written (`relations-panel.js` mid-way); `main.js` not wired; no tests run |
+| Router | Speed on the ~1,700-card inputs (about 21 s total now) | Mid-refactor; the file on disk still passes a three-case gate run |
+
+### 0.4 What remains, in order
+
+1. **Resume A1-A5 in parallel.** Use the same file ownership and the briefs as written, telling each agent to read its partial edits first. Then run one review pass across all five against the contract: names, signatures and handoffs (for example `lib.rs` declarations, and `DiagramContext.project_files`).
+2. **When the owner opens the Rust build phase:**
+   1. `cargo build` (native), and fix compile errors across the parallel edits.
+   2. `openheart analyze examples/test_patterns_codebase <out>`: call edges should be above 0, and all 19 diagrams derived or unavailable with a reason.
+   3. `openheart query <out> '{"query":"callers","symbol":"..."}'`.
+   4. `scripts/build-wasm.sh`, which writes `web/engine/openheart.wasm`.
+   5. The studio end to end in the browser: a GitHub import, all 19 views, the Relations tab.
+   6. Update `docs/status.md` per diagram.
+3. **Layout follow-ups:**
+   - Router speed on about 1,700-card inputs.
+   - Sprawl on dense random graphs: mean edges of 7-11 card sizes on stress inputs.
+   - The aspect correction made the random 120-function call graph worse (keep the better of corrected and uncorrected).
+   - The Message layer toggle doesn't hide self messages drawn in lifelines.
+   - SVG export of overflowing lifeline images is unchecked.
+   - Label collisions remain on dense graphs.
+   - The stylesheet has invalid Cytoscape properties that predate this work (`border-radius`, `letter-spacing`, `taxi-radius`, `shadow-*`).
+4. **Then sections 3 to 7 below** (the remaining audit fix passes and the new-module wiring).
+
+### 0.5 Cautions
+
+- **The Rust tree does not compile right now.** A1-A4 stopped mid-edit. Do not open the build phase until their packages are finished and reviewed.
+- **Pushing `main` deploys the studio to GitHub Pages** (`.github/workflows/deploy_pages.yml` runs on push to `main`). A5's studio edits are unreviewed, and `main.js` is not wired yet. Check the studio in a browser before pushing.
+- **Commit identity:** commits use the personal identity (`Ahmad Hassan (B-Ted) <ahmadhassan.bted@gmail.com>`). The shell injects a work identity through `GIT_*` variables, so override them on every commit.
 
 ---
 

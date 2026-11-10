@@ -5,12 +5,19 @@
 //! or server thread. Each job is wrapped in `catch_unwind`, so a panic in one function is
 //! reported as an error for that job instead of tearing down the process. Results are
 //! returned in input order, which keeps the merged artifacts deterministic.
+//!
+//! `wasm32` has no threads: every job runs on the calling thread, whose stack the module
+//! reserves at link time (`-zstack-size`, see `.cargo/config.toml`). `catch_unwind` is a
+//! no-op there (panics abort), so isolation reduces to the jobs' own error results.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Stack size for analysis worker threads.
 pub const WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
+
+/// Whether worker threads can be spawned on this target.
+const THREADS_AVAILABLE: bool = !cfg!(target_arch = "wasm32");
 
 fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
@@ -43,6 +50,9 @@ where
 {
     if items.is_empty() {
         return Vec::new();
+    }
+    if !THREADS_AVAILABLE {
+        return items.iter().map(|item| run_isolated(item, &f)).collect();
     }
 
     let workers = std::thread::available_parallelism()
@@ -111,12 +121,19 @@ where
         .collect()
 }
 
-/// Runs a single closure on a large-stack worker thread with panic isolation.
+/// Runs a single closure on a large-stack worker thread with panic isolation. On `wasm32`
+/// it runs on the calling thread (the module's stack is sized at link time).
 pub fn run_on_large_stack<R, F>(f: F) -> Result<R, String>
 where
     R: Send,
     F: FnOnce() -> Result<R, String> + Send,
 {
+    if !THREADS_AVAILABLE {
+        return match catch_unwind(AssertUnwindSafe(f)) {
+            Ok(r) => r,
+            Err(payload) => Err(format!("panic: {}", panic_message(payload.as_ref()))),
+        };
+    }
     std::thread::scope(|scope| {
         let builder = std::thread::Builder::new()
             .name("openheart-analysis".to_string())

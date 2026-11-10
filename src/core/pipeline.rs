@@ -350,6 +350,18 @@ impl SCPGPipelineBuilder {
             })?;
             return Ok(dir);
         }
+        // WASI has no temporary directory (`std::env::temp_dir` panics there); the
+        // WebAssembly build runs `adapters::runner::run_pipeline_in_memory` instead.
+        if cfg!(target_os = "wasi") {
+            return Err(PipelineError::io(
+                "No output directory was given and this target has no temporary directory"
+                    .to_string(),
+                std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "std::env::temp_dir is unavailable on WASI",
+                ),
+            ));
+        }
         let temp = std::env::temp_dir();
         create_unique_dir(&temp, "openheart-scpg").map_err(|e| {
             PipelineError::io(

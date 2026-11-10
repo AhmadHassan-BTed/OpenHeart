@@ -11,11 +11,20 @@
 //!   thread with a time budget;
 //! * runs the shared [`runner`](crate::adapters::runner) pipeline (all 10 phases) per
 //!   analysis into a private session directory, never into the served `web/` tree;
+//! * answers engine queries (`POST /api/sessions/<id>/query`, protocol in
+//!   `docs/engine-query-protocol.md`) from each session's analysis, kept in memory for the
+//!   most recently queried sessions and reopened from the session directory otherwise;
 //! * confines `/api/source` to the files an analysis (or a configured sample root) indexed.
+//!
+//! Routes: `GET /api/health`, `/api/version`, `/api/supported-languages`,
+//! `/api/supported-diagrams`, `/api/patterns`, `/api/source`; `POST /api/analyze`;
+//! `GET /api/jobs/<id>`; `GET /api/sessions/<id>`, `/api/sessions/<id>/report`,
+//! `/api/sessions/<id>/diagrams/<type>.<ext>`; `POST /api/sessions/<id>/query`; every
+//! other `GET` serves the web studio.
 
 #![forbid(unsafe_code)]
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::fs;
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::panic::{self, AssertUnwindSafe};
@@ -32,17 +41,24 @@ use crate::adapters::env;
 use crate::adapters::http::{
     percent_encode_path, read_request, write_response, Request, RequestLimits, Response,
 };
+use crate::adapters::query::{
+    execute_session, parse_request, status_for_io, QueryFailure, QueryRequest,
+};
 use crate::adapters::runner::{
-    canonical_diagram_type, canonicalize_clean, discover_sources, panic_message,
-    parse_diagram_format, pipeline_stack_bytes_from_env, run_pipeline, DiscoveryOptions,
-    PipelineOptions, PipelineRun, SourceInventory, SourceLimits, ANALYSIS_GRAPH_TYPES,
-    DEFAULT_PIPELINE_STACK_BYTES, RUN_REPORT_FILE, SOURCE_LANGUAGES, UML_DIAGRAM_TYPES,
+    canonical_diagram_type, canonicalize_clean, discover_project_files, discover_sources,
+    panic_message, parse_diagram_format, pipeline_stack_bytes_from_env, run_pipeline,
+    DiscoveryOptions, PipelineOptions, PipelineRun, SourceInventory, SourceLimits,
+    ANALYSIS_GRAPH_TYPES, DEFAULT_PIPELINE_STACK_BYTES, RUN_REPORT_FILE, SOURCE_LANGUAGES,
+    UML_DIAGRAM_TYPES,
 };
 use crate::adapters::security::{self, AccessPolicy, Caller, Denial};
 use crate::adapters::session::{self, AnalysisSession, SessionStore, SourceIndex, SourceLookup};
 use crate::adapters::web_repo::{CheckedOutRepo, FetchOptions, GitHubRepoRef, WebRepoFetcher};
 use crate::core::logger::{log_debug, log_error, log_info, log_warn};
 use crate::scpg::diagram::DiagramFormat;
+// The server's `AnalysisSession` is the session record (directory, summary, source index);
+// the analysis a query reads is the protocol's session, named `QuerySession` here.
+use crate::session::AnalysisSession as QuerySession;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
@@ -98,6 +114,11 @@ pub struct ServerConfig {
     pub max_concurrent_analyses: usize,
     /// Completed analysis sessions kept on disk.
     pub max_sessions: usize,
+    /// Sessions whose analysis stays in memory for queries, most recently used first; a
+    /// query on any other session reopens its analysis from the session directory.
+    pub max_loaded_sessions: usize,
+    /// Time one query may take before the client receives 504.
+    pub query_timeout: Duration,
     /// Largest accepted request body in bytes.
     pub max_body_bytes: usize,
     /// Time allowed to receive one request.
@@ -130,6 +151,8 @@ impl Default for ServerConfig {
             worker_threads: 8,
             max_concurrent_analyses: 2,
             max_sessions: 8,
+            max_loaded_sessions: 8,
+            query_timeout: Duration::from_secs(120),
             max_body_bytes: 64 * 1024,
             request_timeout: Duration::from_secs(15),
             analysis_timeout: Duration::from_secs(600),
@@ -177,6 +200,12 @@ impl ServerConfig {
         }
         if let Some(count) = env::number::<usize>("OPENHEART_MAX_SESSIONS")? {
             config.max_sessions = count.clamp(1, 1024);
+        }
+        if let Some(count) = env::number::<usize>("OPENHEART_MAX_LOADED_SESSIONS")? {
+            config.max_loaded_sessions = count.clamp(1, 1024);
+        }
+        if let Some(secs) = env::number::<u64>("OPENHEART_QUERY_TIMEOUT_SECS")? {
+            config.query_timeout = Duration::from_secs(secs.max(1));
         }
         if let Some(kib) = env::number::<usize>("OPENHEART_MAX_BODY_KB")? {
             config.max_body_bytes = kib.clamp(1, 16 * 1024) * 1024;
@@ -421,6 +450,7 @@ struct ServerState {
     local_repos: Option<PathBuf>,
     fetch: FetchOptions,
     sessions: SessionStore,
+    loaded: LoadedSessions,
     jobs: JobStore,
     analyses: Arc<Semaphore>,
     sample_sources: Vec<SourceIndex>,
@@ -491,6 +521,7 @@ impl ServerState {
         let sample_sources = index_sample_roots(&config);
         let analyses = Semaphore::new(config.max_concurrent_analyses);
         let jobs = JobStore::new(config.max_sessions.saturating_mul(4));
+        let loaded = LoadedSessions::new(config.max_loaded_sessions);
         let session_cookie = format!("openheart_session_{}", config.port);
 
         Ok(Self {
@@ -501,6 +532,7 @@ impl ServerState {
             local_repos,
             fetch,
             sessions,
+            loaded,
             jobs,
             analyses,
             sample_sources,
@@ -672,6 +704,80 @@ impl JobStore {
     }
 }
 
+/// A loaded analysis and the session it belongs to.
+type LoadedEntry = (String, Arc<QuerySession>);
+
+/// Analyses kept in memory for queries, least recently used first. Holds at most
+/// `capacity` entries and only those of sessions the [`SessionStore`] still registers;
+/// eviction drops the least recently used entry. Dropped analyses are released outside the
+/// lock.
+struct LoadedSessions {
+    entries: Mutex<VecDeque<LoadedEntry>>,
+    capacity: usize,
+}
+
+impl LoadedSessions {
+    fn new(capacity: usize) -> Self {
+        Self {
+            entries: Mutex::new(VecDeque::new()),
+            capacity: capacity.max(1),
+        }
+    }
+
+    /// The loaded analysis of session `id`, now the most recently used.
+    fn get(&self, id: &str) -> Option<Arc<QuerySession>> {
+        let mut entries = lock(&self.entries);
+        let position = entries.iter().position(|(key, _)| key == id)?;
+        let entry = entries.remove(position)?;
+        let analysis = Arc::clone(&entry.1);
+        entries.push_back(entry);
+        Some(analysis)
+    }
+
+    /// Keeps `analysis` as the most recently used analysis of session `id` and returns it.
+    /// When another request loaded the same session meanwhile, that copy is kept instead.
+    fn insert(&self, id: &str, analysis: QuerySession) -> Arc<QuerySession> {
+        let analysis = Arc::new(analysis);
+        let (kept, evicted) = {
+            let mut entries = lock(&self.entries);
+            let position = entries.iter().position(|(key, _)| key == id);
+            let existing = position.and_then(|index| entries.remove(index));
+            match existing {
+                Some(existing) => {
+                    let kept = Arc::clone(&existing.1);
+                    entries.push_back(existing);
+                    (kept, Vec::new())
+                }
+                None => {
+                    entries.push_back((id.to_string(), Arc::clone(&analysis)));
+                    let excess = entries.len().saturating_sub(self.capacity);
+                    let evicted = entries.drain(..excess).collect::<Vec<LoadedEntry>>();
+                    (Arc::clone(&analysis), evicted)
+                }
+            }
+        };
+        drop(evicted);
+        kept
+    }
+
+    /// Drops the analyses of sessions the store no longer registers.
+    fn forget_unregistered(&self, sessions: &SessionStore) {
+        let mut removed = Vec::new();
+        {
+            let mut entries = lock(&self.entries);
+            for entry in std::mem::take(&mut *entries) {
+                if sessions.get(&entry.0).is_some() {
+                    entries.push_back(entry);
+                } else {
+                    removed.push(entry);
+                }
+            }
+        }
+        // Released here, after the lock.
+        drop(removed);
+    }
+}
+
 // ── Routing ──────────────────────────────────────────────────────────────────
 
 fn route(state: &Arc<ServerState>, request: &Request) -> Response {
@@ -744,6 +850,9 @@ fn dispatch_route(state: &Arc<ServerState>, request: &Request) -> Response {
     let path = request.path.as_str();
     let method = request.method.as_str();
     let read = method == "GET" || method == "HEAD";
+    if let Some(id) = query_session_id(path) {
+        return session_query(state, request, id);
+    }
     match path {
         "/api/health" if read => health(state),
         "/api/version" if read => version(),
@@ -776,11 +885,22 @@ fn allowed_methods(path: &str) -> Option<&'static str> {
         | "/api/patterns"
         | "/api/source" => Some("GET, HEAD"),
         "/api/analyze" => Some("POST"),
+        _ if query_session_id(path).is_some() => Some("POST"),
         _ if path.starts_with("/api/jobs/") || path.starts_with("/api/sessions/") => {
             Some("GET, HEAD")
         }
         _ => None,
     }
+}
+
+/// Last path segment of the query endpoint, `/api/sessions/<id>/query`.
+const QUERY_SEGMENT: &str = "query";
+
+/// The session id of `/api/sessions/<id>/query`; `None` for every other path.
+fn query_session_id(path: &str) -> Option<&str> {
+    let rest = path.strip_prefix("/api/sessions/")?;
+    let (id, tail) = rest.split_once('/')?;
+    (tail == QUERY_SEGMENT).then_some(id)
 }
 
 // ── Informational endpoints ──────────────────────────────────────────────────
@@ -954,6 +1074,8 @@ struct AnalysisOutcome {
     status: u16,
     body: Value,
     session: Option<AnalysisSession>,
+    /// The finished analysis, kept in memory for queries (`None` when it could not be).
+    loaded: Option<QuerySession>,
 }
 
 impl AnalysisOutcome {
@@ -962,6 +1084,7 @@ impl AnalysisOutcome {
             status,
             body: failure_body(Some(session_id), logs, &message),
             session: None,
+            loaded: None,
         }
     }
 }
@@ -1079,7 +1202,14 @@ fn run_and_wait(state: &Arc<ServerState>, plan: AnalysisPlan, permit: Permit) ->
         let _permit = permit;
         let outcome = execute_guarded(&worker_state, &plan);
         if let Err(mpsc::SendError(unsent)) = sender.send(outcome) {
-            if let Some(session) = unsent.session {
+            let AnalysisOutcome {
+                session,
+                loaded,
+                ..
+            } = unsent;
+            // Release the in-memory analysis before its directory is deleted.
+            drop(loaded);
+            if let Some(session) = session {
                 worker_state.sessions.discard(&session.dir);
             }
             log_warn(&format!(
@@ -1122,11 +1252,26 @@ fn complete(state: &ServerState, outcome: AnalysisOutcome) -> Response {
     let response = Response::json(outcome.status, &outcome.body);
     match outcome.session {
         Some(session) => {
-            let session = state.sessions.insert(session);
+            let session = register(state, session, outcome.loaded);
             response.header("Set-Cookie", &state.session_cookie(&session.id))
         }
         None => response,
     }
+}
+
+/// Registers a finished session and keeps its analysis loaded for queries. The loaded
+/// analyses of sessions the store evicted to make room are dropped with them.
+fn register(
+    state: &ServerState,
+    session: AnalysisSession,
+    loaded: Option<QuerySession>,
+) -> Arc<AnalysisSession> {
+    let session = state.sessions.insert(session);
+    if let Some(analysis) = loaded {
+        state.loaded.insert(&session.id, analysis);
+    }
+    state.loaded.forget_unregistered(&state.sessions);
+    session
 }
 
 fn start_job(state: &Arc<ServerState>, plan: AnalysisPlan, permit: Permit) -> Response {
@@ -1137,7 +1282,7 @@ fn start_job(state: &Arc<ServerState>, plan: AnalysisPlan, permit: Permit) -> Re
         let _permit = permit;
         let outcome = execute_guarded(&worker_state, &plan);
         if let Some(session) = outcome.session {
-            worker_state.sessions.insert(session);
+            register(&worker_state, session, outcome.loaded);
         }
         worker_state
             .jobs
@@ -1248,6 +1393,7 @@ fn execute_analysis(state: &ServerState, plan: &AnalysisPlan) -> AnalysisOutcome
 
     let summary = session_summary(plan, &resolved.repository, &inventory, &run);
     let body = success_body(plan, &resolved.repository, &inventory, &run, logs);
+    let loaded = load_for_queries(id, &resolved.root, &inventory, run);
     let session = AnalysisSession {
         id: id.to_string(),
         dir,
@@ -1259,7 +1405,57 @@ fn execute_analysis(state: &ServerState, plan: &AnalysisPlan) -> AnalysisOutcome
         status: 200,
         body,
         session: Some(session),
+        loaded,
     }
+}
+
+/// Keeps a finished run in memory for queries, with the build and deployment files under
+/// the analysed root and the text of every analysed source. A failure here does not fail
+/// the analysis: queries then reopen the session from its directory.
+fn load_for_queries(
+    id: &str,
+    root: &Path,
+    inventory: &SourceInventory,
+    run: PipelineRun,
+) -> Option<QuerySession> {
+    let project_files = discover_project_files(root);
+    let sources = read_source_texts(id, inventory);
+    let built = panic::catch_unwind(AssertUnwindSafe(move || {
+        QuerySession::from_run(run, project_files, sources)
+    }));
+    match built {
+        Ok(analysis) => Some(analysis),
+        Err(payload) => {
+            log_warn(&format!(
+                "[SERVER] Analysis {}: its results could not be kept in memory for queries \
+                 ({}); queries reopen them from the session directory",
+                id,
+                panic_message(payload.as_ref())
+            ));
+            None
+        }
+    }
+}
+
+/// The text of every analysed source file, keyed by its root-relative path. A file that can
+/// no longer be read is left out and logged, never replaced.
+fn read_source_texts(id: &str, inventory: &SourceInventory) -> BTreeMap<String, String> {
+    let mut texts = BTreeMap::new();
+    for file in &inventory.files {
+        match fs::read(&file.path) {
+            Ok(bytes) => {
+                texts.insert(
+                    file.relative.clone(),
+                    String::from_utf8_lossy(&bytes).into_owned(),
+                );
+            }
+            Err(err) => log_warn(&format!(
+                "[SERVER] Analysis {}: source '{}' could not be read back for queries: {}",
+                id, file.relative, err
+            )),
+        }
+    }
+    texts
 }
 
 /// Fetches or locates the analysis input, returning `(status, client message)` on failure.
@@ -1567,6 +1763,120 @@ fn read_file_response(path: &Path, content_type: &str) -> Response {
         Ok(bytes) => Response::new(200, content_type, bytes).header("Cache-Control", "no-store"),
         Err(_) => Response::error(404, "not found"),
     }
+}
+
+// ── Queries ──────────────────────────────────────────────────────────────────
+
+/// `POST /api/sessions/<id>/query`: answers one request of the engine query protocol
+/// (`docs/engine-query-protocol.md`) from the session's analysis. Every response of this
+/// endpoint, failures included, is protocol JSON; a failure is
+/// `{ "error": { "status": <status>, "message": "<reason>" } }` sent with that status.
+///
+/// The query runs on its own thread with the pipeline's stack size (deep call-graph and
+/// diagram walks must not overflow a worker's default stack) and a time budget.
+fn session_query(state: &Arc<ServerState>, request: &Request, id: &str) -> Response {
+    if request.method != "POST" {
+        return query_error(405, "the query endpoint accepts POST requests only")
+            .header("Allow", "POST");
+    }
+    let Some(record) = state.sessions.get(id) else {
+        return query_error(404, "unknown or expired analysis session");
+    };
+    if !request.has_json_body() {
+        return query_error(
+            415,
+            "POST /api/sessions/<id>/query expects a JSON body with Content-Type: \
+             application/json",
+        );
+    }
+    let query = match parse_request(&request.body) {
+        Ok(query) => query,
+        Err(failure) => return failure_response(&failure),
+    };
+
+    let (sender, receiver) = mpsc::channel::<Result<Value, QueryFailure>>();
+    let worker_state = Arc::clone(state);
+    let spawned = thread::Builder::new()
+        .name(format!("openheart-query-{}", id))
+        .stack_size(state.config.pipeline_stack_bytes)
+        .spawn(move || {
+            let answer = panic::catch_unwind(AssertUnwindSafe(|| {
+                answer_query(&worker_state, &record, &query)
+            }))
+            .unwrap_or_else(|payload| {
+                log_error(&format!(
+                    "[SERVER] A '{}' query on session {} panicked: {}",
+                    query.name(),
+                    record.id,
+                    panic_message(payload.as_ref())
+                ));
+                Err(QueryFailure::new(500, "the query aborted with an internal error"))
+            });
+            // The client may have stopped waiting; its answer is then dropped.
+            let _ = sender.send(answer);
+        });
+    if let Err(err) = spawned {
+        log_error(&format!("[SERVER] Cannot start a query thread: {}", err));
+        return query_error(500, "the query could not be started");
+    }
+
+    match receiver.recv_timeout(state.config.query_timeout) {
+        Ok(Ok(answer)) => Response::json(200, &answer),
+        Ok(Err(failure)) => failure_response(&failure),
+        Err(RecvTimeoutError::Timeout) => query_error(
+            504,
+            &format!(
+                "the query exceeded its time budget of {} s",
+                state.config.query_timeout.as_secs()
+            ),
+        ),
+        Err(RecvTimeoutError::Disconnected) => {
+            query_error(500, "the query worker terminated unexpectedly")
+        }
+    }
+}
+
+/// Answers `query` from the loaded analysis of `record`, reopening it from the session
+/// directory when it is not in memory.
+fn answer_query(
+    state: &ServerState,
+    record: &AnalysisSession,
+    query: &QueryRequest,
+) -> Result<Value, QueryFailure> {
+    let analysis = match state.loaded.get(&record.id) {
+        Some(analysis) => analysis,
+        None => {
+            let reopened = QuerySession::open(&record.dir).map_err(|err| {
+                log_warn(&format!(
+                    "[SERVER] Session {}: cannot reopen its analysis for queries: {}",
+                    record.id, err
+                ));
+                // The I/O detail names server paths; the client gets its kind, the log
+                // the rest.
+                QueryFailure::new(
+                    status_for_io(&err),
+                    format!(
+                        "the analysis of this session could not be reopened from disk ({}); \
+                         the server log has the details",
+                        err.kind()
+                    ),
+                )
+            })?;
+            let analysis = state.loaded.insert(&record.id, reopened);
+            // The session may have been evicted while it was being reopened.
+            state.loaded.forget_unregistered(&state.sessions);
+            analysis
+        }
+    };
+    execute_session(&analysis, query)
+}
+
+fn failure_response(failure: &QueryFailure) -> Response {
+    Response::json(failure.status, &failure.to_json())
+}
+
+fn query_error(status: u16, message: &str) -> Response {
+    failure_response(&QueryFailure::new(status, message))
 }
 
 fn web_asset(state: &ServerState, request: &Request) -> Response {

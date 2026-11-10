@@ -20,7 +20,20 @@ fn unique_suffix() -> String {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let seq = UNIQUE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    format!("{}-{:x}-{}", std::process::id(), nanos, seq)
+    format!("{}-{:x}-{}", process_id(), nanos, seq)
+}
+
+/// The process id, which makes temporary names unique across processes. WASI has no
+/// process ids (`std::process::id` panics there), and a WebAssembly instance is the only
+/// writer of its own memory, so the counter and clock suffice.
+#[cfg(not(target_os = "wasi"))]
+fn process_id() -> u32 {
+    std::process::id()
+}
+
+#[cfg(target_os = "wasi")]
+fn process_id() -> u32 {
+    0
 }
 
 fn write_and_sync(file: &mut fs::File, bytes: &[u8]) -> io::Result<()> {

@@ -1,15 +1,22 @@
 /**
  * OpenHeart Studio Session Store
  * The single source of truth for what the studio is showing:
- *   { source: { kind, name, url, ... }, ir, engine, stats, provenance }
+ *   { source: { kind, name, url, ... }, ir, engine, stats, provenance, analysis }
  * kinds: 'bundled' (sample files in web/diagrams), 'engine' (Rust analysis server response),
- *        'github' | 'folder' | 'zip' (in-browser declaration extractor).
- * Every import replaces the whole session atomically, so names, IR, sources and provenance
- * can never belong to different codebases. Persistence goes through the guarded adapter.
+ *        'github' | 'folder' | 'zip' (files read in the browser: the in-browser declaration
+ *        extractor's class model in `ir`, plus, when web/engine/openheart.wasm is present, the
+ *        engine module's result in `analysis`).
+ * `analysis` ({ transport: 'wasm', diagrams, summary, warnings, provenance }) and the program
+ * model that answers inspector queries live in memory only: an engine instance cannot survive
+ * a reload, so a restored session falls back to the class model and says so.
+ * Every import replaces the whole session atomically, so names, IR, sources, provenance and
+ * the program model can never belong to different codebases. Persistence goes through the
+ * guarded adapter.
  */
 
 import { sessionStore } from './storage.js';
 import { validateGraphIr } from './graph-ir-validate.js';
+import { createServerProgramModel } from './engine/program-model.js';
 
 const SESSION_KEY = 'openheart_session_v2';
 const FILES_KEY = 'openheart_session_files_v2';
@@ -24,12 +31,26 @@ export function bundledSession() {
     ir: null,
     engine: null,
     stats: null,
+    analysis: null,
     provenance: {
       engine: 'Bundled sample files (web/diagrams)',
       approximate: false,
       content_hash: null
     }
   };
+}
+
+/** The persisted form of a session: everything except the in-memory engine result. */
+function persistableSession(session) {
+  const copy = Object.assign({}, session);
+  delete copy.analysis;
+  if (session.analysis) {
+    copy.analysis_note = {
+      transport: session.analysis.transport,
+      functions: session.analysis.summary && Number.isFinite(session.analysis.summary.functions) ? session.analysis.summary.functions : null
+    };
+  }
+  return copy;
 }
 
 function cleanString(value, max) {
@@ -42,10 +63,49 @@ class StudioStore {
     this.files = new Map();
     this.listeners = new Set();
     this.lastPersistOk = true;
+    this.programModel = null;
+    this.engineModule = { state: 'unknown', reason: null, mode: null };
   }
 
   get() {
     return this.session;
+  }
+
+  /**
+   * The program model that answers inspector queries for the active session, or null:
+   * the in-browser engine session of a GitHub/folder/ZIP import, or the analysis server's
+   * session for an engine import (created on first use, also after a reload).
+   */
+  getProgramModel() {
+    if (this.programModel && !this.programModel.closed) return this.programModel;
+    const s = this.session;
+    if (s.source.kind === 'engine' && s.engine && s.engine.session_id) {
+      this.programModel = createServerProgramModel(s.engine.session_id, { label: `OpenHeart analysis server (session ${s.engine.session_id})` });
+      return this.programModel;
+    }
+    return null;
+  }
+
+  /** Why the active session has no program model (for the inspector), or null. */
+  programModelGap() {
+    if (this.getProgramModel()) return null;
+    const s = this.session;
+    if (s.source.kind === 'bundled') return 'The bundled sample diagrams are static files; there is no analysis to query. Analyze a repository, folder or ZIP first.';
+    if (s.source.kind === 'engine') return 'The analysis server did not report a session id for this analysis, so it cannot be queried.';
+    if (s.analysis_note) return 'The in-browser engine session ended when the page was reloaded; analyze the codebase again to query it.';
+    const em = this.engineModule;
+    if (em.state === 'absent' || em.state === 'failed') return `Relations need the OpenHeart engine, and the engine module is not available: ${em.reason}. The in-browser class model has no call or data-flow facts.`;
+    return 'Relations need the OpenHeart engine (the WebAssembly module or the analysis server); this session was analyzed by the in-browser declaration extractor only.';
+  }
+
+  /** True when the active session carries the engine module's diagrams. */
+  hasEngineDiagrams() {
+    return Boolean(this.session.analysis && this.session.analysis.diagrams);
+  }
+
+  /** Records the engine module's availability ({ state, reason, mode }) for the UI. */
+  setEngineModuleStatus(status) {
+    this.engineModule = Object.assign({ state: 'unknown', reason: null, mode: null }, status || {});
   }
 
   getFiles() {
@@ -83,19 +143,29 @@ class StudioStore {
    * Replaces the active session atomically.
    * @param {object} session
    * @param {Map<string,string>} files source text by path (local imports and fetched GitHub files)
+   * @param {{ programModel?: object|null }} [options] the program model of an in-browser engine session
    */
-  replace(session, files = new Map()) {
+  replace(session, files = new Map(), { programModel = null } = {}) {
+    this.closeProgramModel();
+    if (session.analysis === undefined) session.analysis = null;
     this.session = session;
     this.files = files instanceof Map ? files : new Map();
+    this.programModel = programModel;
     this.persist();
     this.emit();
   }
 
   reset() {
+    this.closeProgramModel();
     this.session = bundledSession();
     this.files = new Map();
     this.clearPersisted();
     this.emit();
+  }
+
+  closeProgramModel() {
+    if (this.programModel) this.programModel.close();
+    this.programModel = null;
   }
 
   persist() {
@@ -105,7 +175,7 @@ class StudioStore {
       this.lastPersistOk = true;
       return;
     }
-    const ok = sessionStore.setJson(SESSION_KEY, { v: 2, session: this.session });
+    const ok = sessionStore.setJson(SESSION_KEY, { v: 2, session: persistableSession(this.session) });
     let filesOk = true;
     if (LOCAL_KINDS.has(this.session.source.kind) && this.files.size > 0) {
       // Local sources cannot be re-fetched, so they are kept for this tab only (sessionStorage),
@@ -164,9 +234,14 @@ class StudioStore {
       },
       ir: null,
       engine: null,
+      analysis: null,
       stats: s.stats && typeof s.stats === 'object' ? s.stats : null,
       provenance: s.provenance && typeof s.provenance === 'object' ? s.provenance : null
     };
+    if (s.analysis_note && typeof s.analysis_note === 'object' && s.analysis_note.transport === 'wasm') {
+      session.analysis_note = { transport: 'wasm', functions: Number.isFinite(s.analysis_note.functions) ? s.analysis_note.functions : null };
+      warnings.push('This codebase was analyzed by the in-browser engine module, whose results live in memory only. After the reload the studio shows the in-browser class model; analyze the codebase again for all views and relations.');
+    }
     if (s.ir) {
       const v = validateGraphIr(s.ir, {});
       if (!v.ok) {

@@ -192,7 +192,14 @@ fn open_sink(path: &Path, append: bool, max_bytes: u64) -> Option<LogSink> {
     })
 }
 
+/// Opens the persistent and session log files. The WebAssembly build has no file system:
+/// there this only starts a console session and the file sinks stay inactive.
 pub fn init_dual_logger(persistent_path: Option<&Path>, session_path: Option<&Path>) {
+    #[cfg(target_arch = "wasm32")]
+    let (persistent_path, session_path): (Option<&Path>, Option<&Path>) = {
+        let _ = (persistent_path, session_path);
+        (None, None)
+    };
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -300,17 +307,23 @@ fn log_event(level: LogLevel, msg: &str) {
         }
     }
 
-    // 2. Persistent and session file sinks
-    if FILE_SINKS_ACTIVE.load(Ordering::Relaxed) && lvl <= FILE_LOG_LEVEL.load(Ordering::Relaxed) {
-        let ts = format_timestamp();
-        let mut state_guard = LOGGER_STATE.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(ref mut state) = *state_guard {
-            let line = format!("[{}] [{}] [{}] {}\n", ts, state.session_id, level.label(), msg);
-            if let Some(ref mut sink) = state.persistent {
-                sink.write_line(&line);
-            }
-            if let Some(ref mut sink) = state.session {
-                sink.write_line(&line);
+    // 2. Persistent and session file sinks (never opened on wasm32, so the WebAssembly
+    //    build links no file-system calls from here)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        if FILE_SINKS_ACTIVE.load(Ordering::Relaxed) && lvl <= FILE_LOG_LEVEL.load(Ordering::Relaxed)
+        {
+            let ts = format_timestamp();
+            let mut state_guard = LOGGER_STATE.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(ref mut state) = *state_guard {
+                let line =
+                    format!("[{}] [{}] [{}] {}\n", ts, state.session_id, level.label(), msg);
+                if let Some(ref mut sink) = state.persistent {
+                    sink.write_line(&line);
+                }
+                if let Some(ref mut sink) = state.session {
+                    sink.write_line(&line);
+                }
             }
         }
     }

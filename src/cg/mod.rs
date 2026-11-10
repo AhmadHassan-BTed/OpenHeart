@@ -15,7 +15,17 @@
 //!   (`SSAArtifact::global_ssa_base()[f] + local id`); `u32::MAX` means none;
 //! * `CallSite::call_block` is `u32::MAX` when the call is not evaluated by a CFG block
 //!   (initializer code); `PointsToEntry::alloc_type_sym_id == u32::MAX` denotes an array
-//!   or an allocation whose type did not resolve to a single symbol.
+//!   or an allocation whose type did not resolve to a single symbol;
+//! * `edge_kinds[i]` is the dispatch and resolution kind of `site_to_edge_map[i]`;
+//!   `unresolved_sites` lists every call site with no target and why.
+//!
+//! The Phase 3 selection recorded for each call node (`Call` / `Instantiation`
+//! occurrences) is combined with Phase 6's own resolution before points-to analysis:
+//! it narrows non-virtual same-arity candidate sets and supplies the target of sites
+//! Phase 6 cannot resolve (resolution `symbol_table`).
+//!
+//! On `wasm32` targets (no threads) the analysis runs inline on the calling thread
+//! instead of on a spawned large-stack worker.
 
 pub mod call_sites;
 pub mod index;
@@ -32,6 +42,7 @@ pub use scc::*;
 pub use serializer::*;
 
 use crate::ast::BPASTArtifact;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::cfg::parallel::run_on_large_stack;
 use crate::cfg::serializer::CFGArtifact;
 use crate::cfg::source::SourceText;

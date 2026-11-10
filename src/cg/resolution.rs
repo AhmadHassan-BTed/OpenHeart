@@ -15,9 +15,13 @@
 //! 3. **Points-to refinement** (see `points_to.rs`): when the receiver's points-to set
 //!    has only known allocation types, the targets are re-dispatched on exactly those.
 //!
-//! Receivers whose type cannot be inferred fall back to every method with the same name
-//! and arity, and the site is flagged polymorphic. Implicit default constructors,
-//! anonymous-class methods and reflective calls have no symbol and yield no edge.
+//! A call whose receiver type cannot be inferred yields **no** edge: matching every method
+//! of the same name and arity would be a guess. The site is recorded as unresolved with
+//! its reason (`UnresolvedCause`), and the Phase 3 selection for the same AST node, when
+//! there is one, supplies the target instead (`apply_symbol_table`, resolution
+//! `symbol_table`). Implicit default constructors, anonymous-class constructors and
+//! reflective calls have no symbol and yield no edge either; they are listed with their
+//! reason.
 
 use crate::cfg::ast_query::{call_shape, children, CallShape, NewParts};
 use crate::cg::call_sites::{FunctionContext, SiteInfo, SiteKind};
@@ -25,9 +29,31 @@ use crate::cg::index::ProgramIndex;
 use crate::core::types::symbol::*;
 use crate::core::types::*;
 use crate::ssa::names::ORIG_NODE_TAG;
-use std::collections::{HashMap, HashSet};
+use crate::symbol::model::{Occurrence, ResolutionStatus};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 pub const MOD_ABSTRACT: u16 = SymbolModifiers::ABSTRACT;
+
+/// Why a call site resolved to no target (see `CG_UNRESOLVED_*`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnresolvedCause {
+    /// `CG_UNRESOLVED_*`.
+    pub reason: u8,
+    /// Text id of the written name (method or type name), or `u32::MAX`.
+    pub name_id: u32,
+    /// Type symbol the reason refers to, or `u32::MAX`.
+    pub type_sym: u32,
+}
+
+impl UnresolvedCause {
+    fn new(reason: u8, name_id: Option<u32>, type_sym: Option<u32>) -> Self {
+        Self {
+            reason,
+            name_id: name_id.unwrap_or(u32::MAX),
+            type_sym: type_sym.unwrap_or(u32::MAX),
+        }
+    }
+}
 
 /// Static type information about a receiver expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +78,10 @@ pub struct Resolution {
     pub receiver_types: Vec<u32>,
     /// Selector `(name, arity)` of a virtual call, used for points-to re-dispatch.
     pub selector: Option<(u32, Option<usize>)>,
+    /// How `targets` was established (`CG_RESOLUTION_*`; the default 0 is `exact`).
+    pub resolution: u8,
+    /// Why `targets` is empty (`None` while targets exist).
+    pub unresolved: Option<UnresolvedCause>,
 }
 
 /// Dispatch Resolver for Call Sites (§6.2.3, §6.2.4)
@@ -411,6 +441,182 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
         }
     }
 
+    fn is_external(&self, sym: u32) -> bool {
+        self.index
+            .symbol(sym)
+            .is_some_and(|s| s.kind == SymbolKind::SK_EXTERNAL as u8)
+    }
+
+    /// First library (external) type among `types` and their transitive supertypes, in
+    /// breadth-first order: a member that is not found in project code may be inherited
+    /// from it.
+    fn external_in_hierarchy(&self, types: &[u32]) -> Option<u32> {
+        let mut seen: HashSet<u32> = HashSet::new();
+        let mut work: VecDeque<u32> = VecDeque::new();
+        for &t in types {
+            if seen.insert(t) {
+                work.push_back(t);
+            }
+        }
+        let mut guard = 0usize;
+        while let Some(t) = work.pop_front() {
+            if self.is_external(t) {
+                return Some(t);
+            }
+            for s in self.index.direct_supers(t) {
+                if seen.insert(s) {
+                    work.push_back(s);
+                }
+            }
+            guard += 1;
+            if guard > 1 << 16 {
+                break;
+            }
+        }
+        None
+    }
+
+    /// Reason for a member lookup that found nothing in `owners` (and their supertypes).
+    fn member_cause(&self, owners: &[u32], name_id: Option<u32>) -> UnresolvedCause {
+        if owners.is_empty() {
+            return UnresolvedCause::new(CG_UNRESOLVED_RECEIVER_TYPE_UNKNOWN, name_id, None);
+        }
+        match self.external_in_hierarchy(owners) {
+            Some(lib) => UnresolvedCause::new(CG_UNRESOLVED_LIBRARY_MEMBER, name_id, Some(lib)),
+            None => UnresolvedCause::new(
+                CG_UNRESOLVED_MEMBER_NOT_FOUND,
+                name_id,
+                owners.first().copied(),
+            ),
+        }
+    }
+
+    /// Reason for a constructor lookup in `owners` that matched nothing for `arity`.
+    fn constructor_cause(&self, owners: &[u32], name_id: Option<u32>, arity: Option<usize>) -> UnresolvedCause {
+        let index = self.index;
+        let first = owners.first().copied();
+        if owners.is_empty() {
+            return UnresolvedCause::new(CG_UNRESOLVED_TYPE_UNKNOWN, name_id, None);
+        }
+        if let Some(&lib) = owners.iter().find(|&&o| self.is_external(o)) {
+            return UnresolvedCause::new(CG_UNRESOLVED_LIBRARY_MEMBER, name_id, Some(lib));
+        }
+        let declares_any = owners.iter().any(|&o| !index.constructors_of(o).is_empty());
+        if !declares_any && arity.map_or(true, |a| a == 0) {
+            UnresolvedCause::new(CG_UNRESOLVED_IMPLICIT_CONSTRUCTOR, name_id, first)
+        } else {
+            UnresolvedCause::new(CG_UNRESOLVED_NO_MATCHING_CONSTRUCTOR, name_id, first)
+        }
+    }
+
+    /// Call type of an edge whose target came from the Phase 3 symbol table, derived from
+    /// the call syntax and the target's declaration.
+    fn symbol_table_call_type(&self, site: &SiteInfo, current: u8, target: u32) -> u8 {
+        let index = self.index;
+        let rec = match index.symbol(target) {
+            Some(r) => r,
+            None => return current,
+        };
+        let node_type = index.bpa.node_type(site.call_node);
+        if rec.kind == SymbolKind::SK_CONSTRUCTOR as u8
+            || node_type == ASTNodeType::NN_NEW_EXPR
+            || matches!(site.kind, SiteKind::ConstructorChain { .. })
+        {
+            CG_EDGE_CONSTRUCTOR
+        } else if node_type == ASTNodeType::NN_METHOD_REF {
+            CG_EDGE_DYNAMIC
+        } else if (rec.modifiers & SymbolModifiers::STATIC) != 0 {
+            CG_EDGE_DIRECT
+        } else if current == CG_EDGE_SPECIAL || rec.visibility == SymbolVisibility::Private as u8 {
+            CG_EDGE_SPECIAL
+        } else if index.is_interface(rec.parent_sym) {
+            CG_EDGE_INTERFACE
+        } else {
+            CG_EDGE_VIRTUAL
+        }
+    }
+
+    /// Combines the Phase 6 resolution of `site` with the selection Phase 3 recorded for
+    /// the same AST node (`occ`, a `Call` or `Instantiation` occurrence):
+    /// * a non-virtual site with several same-arity candidates is narrowed to the Phase 3
+    ///   choice when that choice is one of them (Phase 3 compares argument types);
+    /// * a site without targets takes the Phase 3 target when Phase 3 bound it to a
+    ///   project method or constructor (resolution `symbol_table`);
+    /// * otherwise the unresolved reason is refined with what Phase 3 established
+    ///   (library receiver, ambiguous overloads, implicit default constructor).
+    pub fn apply_symbol_table(&self, site: &SiteInfo, res: &mut Resolution, occ: Option<&Occurrence>) {
+        let occ = match occ {
+            Some(o) => o,
+            None => return,
+        };
+        let index = self.index;
+        let status = ResolutionStatus::from_u8(occ.status);
+        let target = occ.symbol;
+        let target_rec = if target == u32::MAX {
+            None
+        } else {
+            index.symbol(target)
+        };
+        let callable = target_rec.is_some_and(|s| {
+            s.kind == SymbolKind::SK_METHOD as u8 || s.kind == SymbolKind::SK_CONSTRUCTOR as u8
+        });
+        let project = status == Some(ResolutionStatus::Project);
+
+        if !res.targets.is_empty() {
+            if callable
+                && project
+                && res.resolution == CG_RESOLUTION_EXACT
+                && res.targets.len() > 1
+                && res.targets.contains(&target)
+            {
+                res.targets = vec![target];
+            }
+            return;
+        }
+        if callable && project {
+            res.call_type = self.symbol_table_call_type(site, res.call_type, target);
+            res.targets = vec![target];
+            res.resolution = CG_RESOLUTION_SYMBOL_TABLE;
+            res.receiver_types.clear();
+            res.selector = None;
+            res.unresolved = None;
+            return;
+        }
+
+        let (name_id, type_sym, current) = match res.unresolved {
+            Some(u) => (u.name_id, u.type_sym, u.reason),
+            None => (u32::MAX, u32::MAX, 0),
+        };
+        let target_is_type = target_rec.is_some_and(|s| {
+            crate::cg::index::is_class_like(s.kind) || s.kind == SymbolKind::SK_EXTERNAL as u8
+        });
+        let refined = match status {
+            Some(ResolutionStatus::Library) => Some(UnresolvedCause {
+                reason: CG_UNRESOLVED_LIBRARY_MEMBER,
+                name_id,
+                type_sym: if target_is_type { target } else { type_sym },
+            }),
+            Some(ResolutionStatus::Ambiguous) => Some(UnresolvedCause {
+                reason: CG_UNRESOLVED_AMBIGUOUS,
+                name_id,
+                type_sym,
+            }),
+            Some(ResolutionStatus::Project)
+                if target_is_type && current != CG_UNRESOLVED_ANONYMOUS_CLASS =>
+            {
+                Some(UnresolvedCause {
+                    reason: CG_UNRESOLVED_IMPLICIT_CONSTRUCTOR,
+                    name_id,
+                    type_sym: target,
+                })
+            }
+            _ => None,
+        };
+        if let Some(r) = refined {
+            res.unresolved = Some(r);
+        }
+    }
+
     /// Resolve targets for a call site.
     pub fn resolve(&mut self, site: &SiteInfo, contexts: &[FunctionContext]) -> Resolution {
         let index = self.index;
@@ -427,6 +633,14 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                             .is_some_and(|r| r.kind == SymbolKind::SK_LAMBDA as u8)
                     });
                 Resolution {
+                    unresolved: match target {
+                        Some(_) => None,
+                        None => Some(UnresolvedCause::new(
+                            CG_UNRESOLVED_LAMBDA_WITHOUT_SYMBOL,
+                            None,
+                            None,
+                        )),
+                    },
                     targets: target.into_iter().collect(),
                     call_type: CG_EDGE_DYNAMIC,
                     ..Resolution::default()
@@ -439,52 +653,82 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                     ASTNodeType::NN_METHOD_REF | ASTNodeType::NN_LAMBDA_EXPR => CG_EDGE_DYNAMIC,
                     _ => CG_EDGE_VIRTUAL,
                 },
+                unresolved: Some(UnresolvedCause::new(
+                    if index.src.is_none() {
+                        CG_UNRESOLVED_NO_SOURCE_TEXT
+                    } else {
+                        CG_UNRESOLVED_CALL_SHAPE
+                    },
+                    None,
+                    None,
+                )),
                 ..Resolution::default()
             },
             SiteKind::New {
-                type_name, args, ..
+                type_name,
+                args,
+                anonymous,
+                ..
             } => {
                 // `new T(..) { .. }` runs a constructor of T as well (for class types);
                 // the anonymous subclass itself has no symbol.
                 let mut targets = Vec::new();
-                if let Some(t) = type_name {
-                    for c in self.named_types(*t) {
-                        targets.extend(index.constructors_of(c).iter().copied().filter(|&k| {
-                            index
-                                .symbol(k)
-                                .is_some_and(|s| s.param_count as usize == args.len())
-                        }));
-                    }
+                let owners: Vec<u32> = match type_name {
+                    Some(t) => self.named_types(*t),
+                    None => Vec::new(),
+                };
+                for &c in &owners {
+                    targets.extend(index.constructors_of(c).iter().copied().filter(|&k| {
+                        index
+                            .symbol(k)
+                            .is_some_and(|s| s.param_count as usize == args.len())
+                    }));
                 }
                 targets.sort_unstable();
                 targets.dedup();
+                let unresolved = if !targets.is_empty() {
+                    None
+                } else if *anonymous && !owners.is_empty() {
+                    Some(UnresolvedCause::new(
+                        CG_UNRESOLVED_ANONYMOUS_CLASS,
+                        *type_name,
+                        owners.first().copied(),
+                    ))
+                } else {
+                    Some(self.constructor_cause(&owners, *type_name, Some(args.len())))
+                };
                 Resolution {
                     targets,
                     call_type: CG_EDGE_CONSTRUCTOR,
+                    unresolved,
                     ..Resolution::default()
                 }
             }
             SiteKind::ConstructorChain { is_super, args } => {
                 let mut targets = Vec::new();
-                if let Some(c) = self.caller_class(caller) {
-                    let owners: Vec<u32> = if *is_super {
-                        index.superclasses(c).to_vec()
-                    } else {
-                        vec![c]
-                    };
-                    for o in owners {
-                        targets.extend(index.constructors_of(o).iter().copied().filter(|&k| {
-                            index
-                                .symbol(k)
-                                .is_some_and(|s| s.param_count as usize == args.len())
-                        }));
-                    }
+                let owners: Vec<u32> = match self.caller_class(caller) {
+                    Some(c) if *is_super => index.superclasses(c).to_vec(),
+                    Some(c) => vec![c],
+                    None => Vec::new(),
+                };
+                for &o in &owners {
+                    targets.extend(index.constructors_of(o).iter().copied().filter(|&k| {
+                        index
+                            .symbol(k)
+                            .is_some_and(|s| s.param_count as usize == args.len())
+                    }));
                 }
                 targets.sort_unstable();
                 targets.dedup();
+                let unresolved = if targets.is_empty() {
+                    Some(self.constructor_cause(&owners, None, Some(args.len())))
+                } else {
+                    None
+                };
                 Resolution {
                     targets,
                     call_type: CG_EDGE_CONSTRUCTOR,
+                    unresolved,
                     ..Resolution::default()
                 }
             }
@@ -517,9 +761,25 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                 }
                 targets.sort_unstable();
                 targets.dedup();
+                let unresolved = if !targets.is_empty() {
+                    None
+                } else if rt == ReceiverType::Unknown {
+                    Some(UnresolvedCause::new(
+                        CG_UNRESOLVED_RECEIVER_TYPE_UNKNOWN,
+                        *name_id,
+                        None,
+                    ))
+                } else if *is_new {
+                    Some(self.constructor_cause(&owners, None, None))
+                } else if name_id.is_none() {
+                    Some(UnresolvedCause::new(CG_UNRESOLVED_CALL_SHAPE, None, None))
+                } else {
+                    Some(self.member_cause(&owners, *name_id))
+                };
                 Resolution {
                     targets,
                     call_type: CG_EDGE_DYNAMIC,
+                    unresolved,
                     ..Resolution::default()
                 }
             }
@@ -537,32 +797,42 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                 let statics = self.static_targets(*receiver, *name_id, arity, caller, ctx, 0);
 
                 if statics.is_empty() {
-                    if rt == ReceiverType::Unknown {
-                        // Receiver type unknown: every method with this name and arity.
-                        let mut cands: Vec<u32> = index
-                            .methods_named(*name_id)
-                            .iter()
-                            .copied()
-                            .filter(|&m| {
-                                index.symbol(m).is_some_and(|s| {
-                                    let pc = s.param_count as usize;
-                                    pc == arity
-                                        || ((s.modifiers & SymbolModifiers::VARARGS) != 0
-                                            && arity + 1 >= pc)
-                                })
-                            })
-                            .collect();
-                        cands.sort_unstable();
-                        cands.dedup();
-                        return Resolution {
-                            targets: cands,
-                            call_type: CG_EDGE_VIRTUAL,
-                            ..Resolution::default()
-                        };
-                    }
+                    // No compile-time candidate. An unknown receiver type is not replaced
+                    // by every same-named method: that would be a guess.
+                    let cause = match &rt {
+                        ReceiverType::Unknown => UnresolvedCause::new(
+                            CG_UNRESOLVED_RECEIVER_TYPE_UNKNOWN,
+                            Some(*name_id),
+                            None,
+                        ),
+                        ReceiverType::Implicit => {
+                            // The caller's class and its lexically enclosing classes.
+                            let mut owners = Vec::new();
+                            let mut class = self.caller_class(caller);
+                            let mut guard = 0;
+                            while let Some(c) = class {
+                                owners.push(c);
+                                class = index.enclosing_class(c);
+                                guard += 1;
+                                if guard > 64 {
+                                    break;
+                                }
+                            }
+                            if owners.is_empty() {
+                                // A free function call (no enclosing class): not in scope.
+                                UnresolvedCause::new(CG_UNRESOLVED_MEMBER_NOT_FOUND, Some(*name_id), None)
+                            } else {
+                                self.member_cause(&owners, Some(*name_id))
+                            }
+                        }
+                        ReceiverType::Instance(ts)
+                        | ReceiverType::Static(ts)
+                        | ReceiverType::Super(ts) => self.member_cause(ts, Some(*name_id)),
+                    };
                     return Resolution {
                         targets: Vec::new(),
                         call_type: self.classify(&[], &rt),
+                        unresolved: Some(cause),
                         ..Resolution::default()
                     };
                 }
@@ -608,6 +878,8 @@ impl<'r, 'a> DispatchResolver<'r, 'a> {
                     call_type,
                     receiver_types,
                     selector: Some(selector),
+                    resolution: CG_RESOLUTION_CHA,
+                    unresolved: None,
                 }
             }
         }

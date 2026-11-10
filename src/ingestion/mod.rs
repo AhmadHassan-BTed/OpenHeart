@@ -9,6 +9,11 @@
 //! Nothing is dropped silently: unsupported languages, oversized files, parse timeouts and
 //! token positions that the sort-key layout cannot encode each mark the file as skipped
 //! with a reason in its `FileDiagnostics` and a warning in the log.
+//!
+//! Sources come from a [`SourceProvider`]: the file system (CLI, server) or memory
+//! ([`IngestionStage::run_in_memory`], the WebAssembly build). In memory, paths are taken
+//! exactly as supplied, nothing is canonicalized, and the corpus is encoded into bytes
+//! without being written anywhere.
 
 #![forbid(unsafe_code)]
 
@@ -19,12 +24,12 @@ pub mod interner;
 pub mod manifest;
 pub mod parser;
 pub mod serializer;
+pub mod sources;
 pub mod walker;
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use sha2::{Digest, Sha256};
 
@@ -46,6 +51,7 @@ use crate::ingestion::manifest::SourceManifest;
 use crate::ingestion::parser::tree_sitter::TreeSitterParser;
 use crate::ingestion::parser::ParseError;
 pub use crate::ingestion::serializer::{crc64_ecma, TokenCorpusArtifact, TokenCorpusSerializer};
+pub use crate::ingestion::sources::{MemorySources, SourceProvider};
 use crate::ingestion::walker::{walk_cst_with_diagnostics, RawToken};
 
 /// Maximum number of files a corpus can hold: file ids are 16-bit in the sort-key layout.
@@ -65,7 +71,7 @@ pub struct IngestionReport {
     pub file_paths: Vec<PathBuf>,
     /// Manifest entries dropped because they resolve to an already-listed file.
     pub duplicate_paths_removed: usize,
-    /// The exact `.tca` bytes written to the output path.
+    /// The exact `.tca` bytes (written to the output path when there is one).
     pub tca_bytes: Vec<u8>,
 }
 
@@ -121,9 +127,35 @@ impl IngestionStage {
         out_path: &Path,
         adapter_reg: &AdapterRegistry,
     ) -> Result<(TokenCorpusArtifact, IngestionReport), String> {
+        Self::run_with_provider(manifest, Some(out_path), adapter_reg, SourceProvider::Disk)
+    }
+
+    /// Runs Phase 1 over in-memory sources without touching the file system: the manifest
+    /// lists the paths held by `sources`, and the `.tca` bytes are returned in the report
+    /// instead of being written.
+    pub fn run_in_memory(
+        manifest: SourceManifest,
+        sources: &MemorySources,
+    ) -> Result<(TokenCorpusArtifact, IngestionReport), String> {
+        Self::run_with_provider(
+            manifest,
+            None,
+            &AdapterRegistry::new(),
+            SourceProvider::Memory(sources),
+        )
+    }
+
+    /// Runs Phase 1 reading every source through `provider`. The encoded corpus is
+    /// written to `out_path` when one is given and is always returned in the report.
+    pub fn run_with_provider(
+        manifest: SourceManifest,
+        out_path: Option<&Path>,
+        adapter_reg: &AdapterRegistry,
+        provider: SourceProvider<'_>,
+    ) -> Result<(TokenCorpusArtifact, IngestionReport), String> {
         let timer = PhaseTimer::start("Phase 1: Lexical Ingestion");
 
-        let (files, duplicate_paths_removed) = Self::resolve_files(&manifest.file_paths)?;
+        let (files, duplicate_paths_removed) = Self::resolve_files(&manifest.file_paths, provider)?;
         if files.len() > MAX_CORPUS_FILES {
             return Err(format!(
                 "Manifest lists {} files; a .tca corpus holds at most {} (16-bit file ids)",
@@ -139,14 +171,9 @@ impl IngestionStage {
 
         let mut jobs = Vec::with_capacity(files.len());
         for (idx, path) in files.iter().enumerate() {
-            let meta = fs::metadata(path)
+            let stat = provider
+                .stat(path)
                 .map_err(|e| format!("Failed to read metadata for {:?}: {}", path, e))?;
-            let mtime_ns = meta
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX))
-                .unwrap_or(0);
             let mut lang = AdapterRegistry::detect(&manifest.language_overrides, path);
             if lang == LangId::Unknown {
                 // Extensions claimed by frontends registered at runtime.
@@ -162,8 +189,8 @@ impl IngestionStage {
                 file_id: idx as u16,
                 path: path.clone(),
                 lang,
-                size: meta.len(),
-                mtime_ns,
+                size: stat.size,
+                mtime_ns: stat.mtime_ns,
             });
         }
 
@@ -183,7 +210,7 @@ impl IngestionStage {
                 batch,
                 workers,
                 || TreeSitterParser::with_timeout(manifest.parse_timeout_micros),
-                |parser, _, job| Self::process_file(job, adapter_reg, parser, &manifest),
+                |parser, _, job| Self::process_file(job, adapter_reg, parser, &manifest, provider),
             );
 
             for (job, outcome) in batch.iter().zip(outcomes) {
@@ -262,18 +289,32 @@ impl IngestionStage {
             | ((manifest.filter.include_block_comments as u16) << 2)
             | ((manifest.filter.include_doc_comments as u16) << 3);
 
-        log_info(&format!(
-            "Serializing .tca binary artifact to {}...",
-            out_path.display()
-        ));
-        let tca_bytes = TokenCorpusSerializer::write(
-            &artifact,
-            &files,
-            flags,
-            source_tree_hash,
-            &diagnostics,
-            out_path,
-        )?;
+        let tca_bytes = match out_path {
+            Some(out_path) => {
+                log_info(&format!(
+                    "Serializing .tca binary artifact to {}...",
+                    out_path.display()
+                ));
+                TokenCorpusSerializer::write(
+                    &artifact,
+                    &files,
+                    flags,
+                    source_tree_hash,
+                    &diagnostics,
+                    out_path,
+                )?
+            }
+            None => {
+                log_info("Encoding the .tca binary artifact in memory...");
+                TokenCorpusSerializer::to_bytes(
+                    &artifact,
+                    &files,
+                    flags,
+                    source_tree_hash,
+                    &diagnostics,
+                )?
+            }
+        };
 
         let report = IngestionReport {
             diagnostics,
@@ -296,15 +337,31 @@ impl IngestionStage {
 
     /// Sorts the manifest and removes entries that resolve to the same file (through
     /// `..`, symlinks or case-insensitive file systems), keeping the first spelling.
-    fn resolve_files(paths: &[PathBuf]) -> Result<(Vec<PathBuf>, usize), String> {
+    /// In-memory sources have no file system to resolve against: they are identified by
+    /// the exact path supplied, and every manifest entry must be held by the provider.
+    fn resolve_files(
+        paths: &[PathBuf],
+        provider: SourceProvider<'_>,
+    ) -> Result<(Vec<PathBuf>, usize), String> {
         let mut sorted: Vec<PathBuf> = paths.to_vec();
         sorted.sort_unstable();
         let mut seen: HashSet<PathBuf> = HashSet::with_capacity(sorted.len());
         let mut files = Vec::with_capacity(sorted.len());
         let mut duplicates = 0usize;
         for path in sorted {
-            let canonical = fs::canonicalize(&path)
-                .map_err(|e| format!("Failed to resolve source file {:?}: {}", path, e))?;
+            let canonical = match provider {
+                SourceProvider::Disk => fs::canonicalize(&path)
+                    .map_err(|e| format!("Failed to resolve source file {:?}: {}", path, e))?,
+                SourceProvider::Memory(sources) => {
+                    if !sources.contains(&path.to_string_lossy()) {
+                        return Err(format!(
+                            "Source file {:?} is not among the in-memory sources",
+                            path
+                        ));
+                    }
+                    path.clone()
+                }
+            };
             if seen.insert(canonical) {
                 files.push(path);
             } else {
@@ -375,6 +432,7 @@ impl IngestionStage {
         registry: &AdapterRegistry,
         parser: &mut Result<TreeSitterParser, String>,
         manifest: &SourceManifest,
+        provider: SourceProvider<'_>,
     ) -> Result<FileOutcome, String> {
         let diagnostics = FileDiagnostics::new(job.file_id);
 
@@ -401,7 +459,8 @@ impl IngestionStage {
             ));
         }
 
-        let source = fs::read(&job.path)
+        let source = provider
+            .read(&job.path)
             .map_err(|e| format!("Failed to read source file {:?}: {}", job.path, e))?;
         if source.len() as u64 > manifest.max_file_size_bytes {
             // The file grew between metadata and read.

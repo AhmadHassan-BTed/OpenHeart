@@ -505,6 +505,93 @@ function describeSkips(skipped) {
   return Object.entries(skipped).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k.replace(/_/g, ' ')}`).join(', ');
 }
 
+// ── Project (build and deployment) files for the engine module ─────────────────
+
+export const PROJECT_FILE_LIMITS = Object.freeze({
+  maxFiles: 60,
+  maxFileBytes: 256 * 1024,
+  maxTotalBytes: 3 * 1024 * 1024
+});
+
+const K8S_DIR_HINT = /^(k8s|kube|kubernetes|manifests?|deploy|deployments?|deployment|helm|charts?|templates|kustomize|overlays|base|infra|ops|openshift)$/;
+const K8S_NAME_HINT = /(deployment|service|ingress|statefulset|daemonset|configmap|cronjob|job|pod|kustomization|namespace|route|hpa|networkpolicy|secret)/;
+
+/**
+ * Classifies a path as a build or deployment file the engine's deployment and component
+ * views read (Dockerfile, compose, Kubernetes manifests, Maven, Gradle, npm, .NET, CMake).
+ * Returns the file kind or null.
+ */
+export function projectFileKind(path) {
+  const p = normalizePath(path);
+  const segments = p.toLowerCase().split('/');
+  const base = segments[segments.length - 1];
+  if (segments.slice(0, -1).some(seg => IGNORED_DIRS.has(seg))) return null;
+  if (base === 'dockerfile' || base === 'containerfile' || base.startsWith('dockerfile.') || base.endsWith('.dockerfile')) return 'docker';
+  if (/^(docker-)?compose(\.[a-z0-9_-]+)?\.ya?ml$/.test(base)) return 'compose';
+  if (base === 'pom.xml') return 'maven';
+  if (/^(build|settings)\.gradle(\.kts)?$/.test(base)) return 'gradle';
+  if (base === 'package.json') return 'npm';
+  if (/\.(csproj|fsproj|vbproj|sln)$/.test(base)) return 'dotnet';
+  if (base === 'cmakelists.txt') return 'cmake';
+  if (/\.ya?ml$/.test(base)) {
+    const inK8sDir = segments.slice(0, -1).some(seg => K8S_DIR_HINT.test(seg));
+    if (inK8sDir || K8S_NAME_HINT.test(base)) return 'kubernetes';
+  }
+  return null;
+}
+
+function looksLikeKubernetesManifest(text) {
+  return /^\s*apiVersion\s*:/m.test(text) && /^\s*kind\s*:/m.test(text);
+}
+
+/**
+ * Reads the build and deployment files among `candidates` ({ path, size }) within
+ * PROJECT_FILE_LIMITS, shallow paths first. Read failures are counted, never fatal
+ * (except cancellation and GitHub rate-limit or authentication errors).
+ */
+async function collectProjectFiles(candidates, readText, signal) {
+  const picked = [];
+  candidates.forEach(c => {
+    const path = normalizePath(c.path);
+    const kind = projectFileKind(path);
+    if (!kind) return;
+    if (typeof c.size === 'number' && c.size > PROJECT_FILE_LIMITS.maxFileBytes) return;
+    picked.push({ path, kind, size: typeof c.size === 'number' ? c.size : null, source: c });
+  });
+  picked.sort((a, b) => (a.path.split('/').length - b.path.split('/').length) || (a.path < b.path ? -1 : 1));
+  const stats = { found: picked.length, read: 0, failed: 0, skipped: 0, by_kind: {} };
+  const files = [];
+  let total = 0;
+  for (const item of picked) {
+    throwIfAborted(signal);
+    if (files.length >= PROJECT_FILE_LIMITS.maxFiles || (item.size !== null && total + item.size > PROJECT_FILE_LIMITS.maxTotalBytes)) {
+      stats.skipped++;
+      continue;
+    }
+    let text;
+    try {
+      text = await readText(item.source);
+    } catch (err) {
+      if (err && (err.name === 'AbortError' || err.code === 'rate-limit' || err.code === 'auth')) throw err;
+      stats.failed++;
+      continue;
+    }
+    if (typeof text !== 'string' || text.length > PROJECT_FILE_LIMITS.maxFileBytes || total + text.length > PROJECT_FILE_LIMITS.maxTotalBytes) {
+      stats.skipped++;
+      continue;
+    }
+    if (item.kind === 'kubernetes' && !looksLikeKubernetesManifest(text)) {
+      stats.skipped++;
+      continue;
+    }
+    total += text.length;
+    files.push({ path: item.path, text });
+    stats.read++;
+    stats.by_kind[item.kind] = (stats.by_kind[item.kind] || 0) + 1;
+  }
+  return { files, stats };
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 export class GitHubEngine {
@@ -539,7 +626,7 @@ export class GitHubEngine {
    * @param {{ onProgress?: (pct:number, message:string)=>void, signal?: AbortSignal, token?: string|null }} options
    */
   static async analyzeGitHubRepo(repoUrl, options = {}) {
-    const { onProgress = null, signal = null, token = null } = options;
+    const { onProgress = null, signal = null, token = null, collectProjectFiles: wantProjectFiles = false } = options;
     const started = nowMs();
     const info = this.parseRepoUrl(repoUrl);
     if (!info) {
@@ -608,6 +695,12 @@ export class GitHubEngine {
       label: `${owner}/${repo}`
     });
 
+    let project = { files: [], stats: null };
+    if (wantProjectFiles) {
+      if (onProgress) onProgress(96, `Reading build and deployment files of ${owner}/${repo}...`);
+      project = await collectProjectFiles(tree.blobs, readText, signal);
+    }
+
     const elapsed = Math.round(nowMs() - started);
     if (onProgress) onProgress(100, `In-browser class model ready for ${owner}/${repo}.`);
     return {
@@ -642,10 +735,12 @@ export class GitHubEngine {
         api_requests: api.requests,
         rate_limit: Object.assign({}, api.rateLimit),
         parser_mode: analysis.parserMode,
+        project_files: project.stats,
         execution_time_ms: elapsed
       }, analysis.modelStats),
       graph_ir: analysis.graphIr,
-      fileCache: analysis.fileCache
+      fileCache: analysis.fileCache,
+      projectFiles: project.files
     };
   }
 
@@ -656,7 +751,7 @@ export class GitHubEngine {
    * @param {{ onProgress?: Function, signal?: AbortSignal, sourceKind?: 'folder'|'zip' }} options
    */
   static async analyzeSourceFiles(fileList, codebaseName, options = {}) {
-    const { onProgress = null, signal = null, sourceKind = 'folder' } = options;
+    const { onProgress = null, signal = null, sourceKind = 'folder', collectProjectFiles: wantProjectFiles = false } = options;
     const started = nowMs();
     if (!Array.isArray(fileList) || fileList.length === 0) {
       throw new Error('No files were provided for analysis.');
@@ -692,6 +787,11 @@ export class GitHubEngine {
       rawUrlFor: null,
       label: codebaseName
     });
+    let project = { files: [], stats: null };
+    if (wantProjectFiles) {
+      if (onProgress) onProgress(96, `Reading build and deployment files of ${codebaseName}...`);
+      project = await collectProjectFiles(candidates, (c) => byPath.get(normalizePath(c.path)).getText(), signal);
+    }
     const elapsed = Math.round(nowMs() - started);
     if (onProgress) onProgress(100, `In-browser class model ready for ${codebaseName}.`);
     return {
@@ -713,10 +813,12 @@ export class GitHubEngine {
         tree_truncated: false,
         tree_walk_incomplete: false,
         parser_mode: analysis.parserMode,
+        project_files: project.stats,
         execution_time_ms: elapsed
       }, analysis.modelStats),
       graph_ir: analysis.graphIr,
-      fileCache: analysis.fileCache
+      fileCache: analysis.fileCache,
+      projectFiles: project.files
     };
   }
 

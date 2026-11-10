@@ -1,29 +1,38 @@
 //! OpenHeart CLI Engine Executable Entry Point.
 //! Authored by Ahmad Hassan (B-Ted).
 //!
-//! Subcommands: `analyze`, `inspect`, `server` (alias `serve`), `health`, `help`,
-//! `version`. Unknown options are errors, never silently ignored. Exit codes: 0 success,
-//! 1 runtime failure, 2 invalid command line.
+//! Subcommands: `analyze`, `inspect`, `query`, `help`, `version`, and with the `server`
+//! feature `server` (alias `serve`) and `health`. Unknown options are errors, never
+//! silently ignored. Exit codes: 0 success, 1 runtime failure (for `query`: the request
+//! failed), 2 invalid command line.
 
 #![forbid(unsafe_code)]
 
 use std::env;
 use std::ffi::OsString;
 use std::fs;
+#[cfg(feature = "server")]
 use std::io::{Read, Write};
+#[cfg(feature = "server")]
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, ToSocketAddrs};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+#[cfg(feature = "server")]
+use std::time::Duration;
+use std::time::Instant;
 
+use serde_json::Value;
+
+use openheart::adapters::query::{execute_session, parse_request, status_for_io, QueryFailure};
 use openheart::adapters::runner::{
     all_diagram_types, canonical_diagram_type, discover_sources, panic_message,
     parse_diagram_format, pipeline_stack_bytes_from_env, run_isolated, run_pipeline,
     DiscoveryOptions, PipelineOptions, SourceInventory, SourceLimits, WorkDir,
     DEFAULT_DIAGRAM_FORMATS, MAX_CORPUS_FILES, RUN_REPORT_FILE, UML_DIAGRAM_TYPES,
 };
+#[cfg(feature = "server")]
 use openheart::adapters::{OpenHeartServer, ServerConfig};
 use openheart::ast::serializer::BPASTSerializer;
 use openheart::cfg::serializer::CFGArtifact;
@@ -34,6 +43,7 @@ use openheart::core::logger::{
 use openheart::ingestion::TokenCorpusSerializer;
 use openheart::scpg::diagram::DiagramFormat;
 use openheart::scpg::OpenHeartEngine;
+use openheart::session::AnalysisSession;
 use openheart::ssa::serializer::SSASerializer;
 use openheart::symbol::serializer::SymbolTableArtifact;
 
@@ -41,11 +51,46 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const EXIT_FAILURE: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 
+/// Usage of the subcommands that need the `server` feature.
+#[cfg(feature = "server")]
+const SERVER_USAGE: &str = r#"
+    server [PORT] [OPTIONS]                                         (alias: serve)
+        Launches the native OpenHeart HTTP backend for the web studio and REST API.
+        Engine queries: POST /api/sessions/<id>/query with a 'query' request body.
+        Options:
+          --host <ADDR>          Interface to bind (default 127.0.0.1). Any non-loopback
+                                 bind requires an access token (OPENHEART_API_TOKEN, or
+                                 one generated and printed at startup).
+          -p, --port <PORT>      Port (default 8080)
+          --workspace <DIR>      Clone cache and session directory (default ./target_repos)
+          --web-root <DIR>       Web studio directory (default ./web)
+          --source-root <DIR>    Sample source tree served by /api/source (repeatable)
+          --local-repos <DIR>    Allow analyzing sub-directories of DIR by name
+          --allow-clone          Enable server-side git clone (default: loopback binds only)
+          --no-clone             Disable server-side git clone
+        All settings also read OPENHEART_* environment variables (see .env.example).
+
+    health [--host <ADDR>] [-p | --port <PORT>]
+        Probes a running server's /api/health endpoint; exits 0 when it answers 200.
+"#;
+
+/// Without the `server` feature the `server` and `health` subcommands do not exist.
+#[cfg(not(feature = "server"))]
+const SERVER_USAGE: &str = "";
+
+/// Usage example of the `server` subcommand.
+#[cfg(feature = "server")]
+const SERVER_EXAMPLE: &str = "\n    openheart server --port 8080";
+
+/// Without the `server` feature there is no `server` example.
+#[cfg(not(feature = "server"))]
+const SERVER_EXAMPLE: &str = "";
+
 fn print_usage() {
     println!(
         r#"
 ================================================================================
- OPENHEART SCPG ENGINE v{} :: MAINTAINED BY AHMAD HASSAN (B-TED)
+ OPENHEART SCPG ENGINE v{version} :: MAINTAINED BY AHMAD HASSAN (B-TED)
  High-Performance Succinct Compositional Program Graph Static Analysis Engine
 ================================================================================
 
@@ -87,24 +132,17 @@ SUBCOMMANDS:
         .cga, .tra, .psa, .uma, .scpg) and prints its header fields. The line
         'Checksum' states whether a CRC-64 was actually verified.
 
-    server [PORT] [OPTIONS]                                         (alias: serve)
-        Launches the native OpenHeart HTTP backend for the web studio and REST API.
-        Options:
-          --host <ADDR>          Interface to bind (default 127.0.0.1). Any non-loopback
-                                 bind requires an access token (OPENHEART_API_TOKEN, or
-                                 one generated and printed at startup).
-          -p, --port <PORT>      Port (default 8080)
-          --workspace <DIR>      Clone cache and session directory (default ./target_repos)
-          --web-root <DIR>       Web studio directory (default ./web)
-          --source-root <DIR>    Sample source tree served by /api/source (repeatable)
-          --local-repos <DIR>    Allow analyzing sub-directories of DIR by name
-          --allow-clone          Enable server-side git clone (default: loopback binds only)
-          --no-clone             Disable server-side git clone
-        All settings also read OPENHEART_* environment variables (see .env.example).
-
-    health [--host <ADDR>] [-p | --port <PORT>]
-        Probes a running server's /api/health endpoint; exits 0 when it answers 200.
-
+    query <ANALYSIS_DIR> <REQUEST>
+        Answers one engine query (docs/engine-query-protocol.md) from a finished
+        analysis directory (the output directory of 'analyze'). <REQUEST> is the request
+        JSON, or @<FILE> to read it from a file. Operations: stats, verify, catalog,
+        resolve, reachable, call_path, slice, impact, source, at, path_summary, datalog,
+        functions, callers, callees, dependencies, dependents, view.
+        Prints the answer as JSON on stdout and exits 0. A failed request prints
+        {{"error":{{"status":<code>,"message":"<reason>"}}}} on stdout and exits 1.
+        Console logging defaults to errors (on stderr) so stdout carries only JSON;
+        -v / --trace log to stdout as well.
+{server}
     help, version
         Print this guide or the version.
 
@@ -120,10 +158,13 @@ EXIT CODES:
 EXAMPLES:
     openheart analyze ./src/main/java ./out --debug
     openheart inspect ./out/callgraph.cga
-    openheart server --port 8080
+    openheart query ./out '{{"query":"functions","filter":"main"}}'
+    openheart query ./out @request.json{server_example}
 ================================================================================
 "#,
-        VERSION
+        version = VERSION,
+        server = SERVER_USAGE,
+        server_example = SERVER_EXAMPLE
     );
 }
 
@@ -137,10 +178,22 @@ struct Invocation {
 enum Command {
     Analyze(AnalyzeArgs),
     Inspect(PathBuf),
+    Query(QueryArgs),
+    #[cfg(feature = "server")]
     Server(ServerArgs),
+    #[cfg(feature = "server")]
     Health(HealthArgs),
     Help,
     Version,
+}
+
+/// `query <ANALYSIS_DIR> <REQUEST>`.
+#[derive(Debug)]
+struct QueryArgs {
+    /// Analysis directory to open.
+    dir: PathBuf,
+    /// The request JSON, or `@<file>` naming a file that holds it.
+    request: String,
 }
 
 #[derive(Debug, Default)]
@@ -156,6 +209,7 @@ struct AnalyzeArgs {
     max_source_mb: Option<u64>,
 }
 
+#[cfg(feature = "server")]
 #[derive(Debug, Default)]
 struct ServerArgs {
     host: Option<String>,
@@ -167,6 +221,7 @@ struct ServerArgs {
     allow_clone: Option<bool>,
 }
 
+#[cfg(feature = "server")]
 #[derive(Debug, Default)]
 struct HealthArgs {
     host: Option<String>,
@@ -238,6 +293,7 @@ fn parse_number<T: FromStr>(name: &str, raw: &str) -> Result<T, String> {
         .map_err(|_| format!("option '{}' expects a number, got '{}'", name, raw))
 }
 
+#[cfg(feature = "server")]
 fn parse_port(name: &str, raw: &str) -> Result<u16, String> {
     match raw.trim().parse::<u16>() {
         Ok(port) if port > 0 => Ok(port),
@@ -330,8 +386,19 @@ fn parse_invocation(raw: Vec<String>) -> Result<Invocation, String> {
         _ if wants_help => Command::Help,
         "analyze" => Command::Analyze(parse_analyze(args)?),
         "inspect" => Command::Inspect(parse_inspect(args)?),
+        "query" => Command::Query(parse_query(args)?),
+        #[cfg(feature = "server")]
         "server" | "serve" => Command::Server(parse_server(args)?),
+        #[cfg(feature = "server")]
         "health" => Command::Health(parse_health(args)?),
+        #[cfg(not(feature = "server"))]
+        "server" | "serve" | "health" => {
+            return Err(format!(
+                "'{}' needs the HTTP server, and this binary was built without the \
+                 'server' feature",
+                subcommand
+            ))
+        }
         other => return Err(format!("unknown subcommand '{}'", other)),
     };
     Ok(Invocation { log_level, command })
@@ -418,6 +485,33 @@ fn parse_inspect(args: Vec<String>) -> Result<PathBuf, String> {
     path.ok_or_else(|| "'inspect' requires an <ARTIFACT_PATH> argument".to_string())
 }
 
+fn parse_query(args: Vec<String>) -> Result<QueryArgs, String> {
+    let mut positionals = Vec::new();
+    for token in tokenize(args) {
+        match token {
+            Token::Positional(value) => positionals.push(value),
+            Token::Option { name, .. } => {
+                return Err(format!("unknown option '{}' for 'query'", name))
+            }
+        }
+    }
+    let mut positionals = positionals.into_iter();
+    let dir = positionals
+        .next()
+        .ok_or("'query' requires an <ANALYSIS_DIR> argument")?;
+    let request = positionals
+        .next()
+        .ok_or("'query' requires a <REQUEST> argument (request JSON or @<FILE>)")?;
+    if let Some(extra) = positionals.next() {
+        return Err(format!("unexpected argument '{}' for 'query'", extra));
+    }
+    Ok(QueryArgs {
+        dir: PathBuf::from(dir),
+        request,
+    })
+}
+
+#[cfg(feature = "server")]
 fn parse_server(args: Vec<String>) -> Result<ServerArgs, String> {
     let mut parsed = ServerArgs::default();
     let mut positional_port = None;
@@ -473,6 +567,7 @@ fn parse_server(args: Vec<String>) -> Result<ServerArgs, String> {
     Ok(parsed)
 }
 
+#[cfg(feature = "server")]
 fn parse_health(args: Vec<String>) -> Result<HealthArgs, String> {
     let mut parsed = HealthArgs::default();
     let mut tokens = tokenize(args).into_iter();
@@ -518,7 +613,7 @@ fn main() -> ExitCode {
         }
     };
     match execute(invocation) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(message) => {
             eprintln!("\nFATAL ERROR: {}", message);
             ExitCode::from(EXIT_FAILURE)
@@ -526,36 +621,39 @@ fn main() -> ExitCode {
     }
 }
 
-fn execute(invocation: Invocation) -> Result<(), String> {
+fn execute(invocation: Invocation) -> Result<ExitCode, String> {
     let level = invocation.log_level;
     match invocation.command {
-        Command::Help => {
-            print_usage();
-            Ok(())
-        }
-        Command::Version => {
-            println!("openheart {}", VERSION);
-            Ok(())
-        }
-        Command::Health(args) => cmd_health(&args),
+        Command::Help => print_usage(),
+        Command::Version => println!("openheart {}", VERSION),
+        #[cfg(feature = "server")]
+        Command::Health(args) => cmd_health(&args)?,
         Command::Analyze(args) => {
             // Applies the logging environment; `cmd_analyze` then re-targets the log
             // files to the output directory.
             init_logger_from_env();
             apply_cli_log_level(level);
-            cmd_analyze(args)
+            cmd_analyze(args)?
         }
         Command::Inspect(path) => {
             init_logger_from_env();
             apply_cli_log_level(level);
-            cmd_inspect(&path)
+            cmd_inspect(&path)?
         }
+        Command::Query(args) => {
+            // stdout carries only the JSON answer: no log files, and console logging
+            // stays at errors (written to stderr) unless -v or --trace asks for more.
+            set_log_level(level.unwrap_or(LogLevel::Error));
+            return Ok(cmd_query(&args));
+        }
+        #[cfg(feature = "server")]
         Command::Server(args) => {
             init_logger_from_env();
             apply_cli_log_level(level);
-            cmd_server(args)
+            cmd_server(args)?
         }
     }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn apply_cli_log_level(level: Option<LogLevel>) {
@@ -991,8 +1089,64 @@ fn cmd_inspect(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+// ── query ────────────────────────────────────────────────────────────────────
+
+/// Answers one protocol request and prints the answer, or the protocol's failure document,
+/// as JSON on stdout. The exit code is 0 for an answer and 1 for a failure.
+fn cmd_query(args: &QueryArgs) -> ExitCode {
+    let (code, document) = match answer_query(args) {
+        Ok(answer) => (ExitCode::SUCCESS, answer),
+        Err(failure) => (ExitCode::from(EXIT_FAILURE), failure.to_json()),
+    };
+    match serde_json::to_string_pretty(&document) {
+        Ok(text) => {
+            println!("{}", text);
+            code
+        }
+        Err(err) => {
+            eprintln!("error: the query result could not be serialized: {}", err);
+            ExitCode::from(EXIT_FAILURE)
+        }
+    }
+}
+
+fn answer_query(args: &QueryArgs) -> Result<Value, QueryFailure> {
+    let text = request_text(&args.request)?;
+    let request = parse_request(text.as_bytes())?;
+    let stack_bytes = pipeline_stack_bytes_from_env().map_err(|reason| {
+        QueryFailure::new(500, format!("invalid stack configuration: {}", reason))
+    })?;
+    let dir = args.dir.clone();
+    // Opening the analysis and answering run on a large stack: call-graph, slice and
+    // diagram walks recurse with program size, and an overflow would abort the process.
+    run_isolated("openheart-query", stack_bytes, move || -> Result<Value, QueryFailure> {
+        let session = AnalysisSession::open(&dir).map_err(|err| {
+            QueryFailure::new(
+                status_for_io(&err),
+                format!("cannot open the analysis in '{}': {}", dir.display(), err),
+            )
+        })?;
+        execute_session(&session, &request)
+    })
+    .map_err(|reason| QueryFailure::new(500, reason))?
+}
+
+/// The request JSON: the argument itself, or the contents of the file named after `@`.
+fn request_text(raw: &str) -> Result<String, QueryFailure> {
+    match raw.strip_prefix('@') {
+        Some(path) => fs::read_to_string(path).map_err(|err| {
+            QueryFailure::new(
+                400,
+                format!("cannot read the request file '{}': {}", path, err),
+            )
+        }),
+        None => Ok(raw.to_string()),
+    }
+}
+
 // ── server & health ──────────────────────────────────────────────────────────
 
+#[cfg(feature = "server")]
 fn cmd_server(args: ServerArgs) -> Result<(), String> {
     let mut config = ServerConfig::from_env()?;
     if let Some(host) = args.host {
@@ -1019,6 +1173,7 @@ fn cmd_server(args: ServerArgs) -> Result<(), String> {
     OpenHeartServer::with_config(config).start()
 }
 
+#[cfg(feature = "server")]
 fn probe_address(host: &str, port: u16) -> Result<SocketAddr, String> {
     let bare = host.trim().trim_start_matches('[').trim_end_matches(']');
     if let Ok(ip) = bare.parse::<IpAddr>() {
@@ -1036,6 +1191,7 @@ fn probe_address(host: &str, port: u16) -> Result<SocketAddr, String> {
         .ok_or_else(|| format!("'{}' resolved to no address", host))
 }
 
+#[cfg(feature = "server")]
 fn cmd_health(args: &HealthArgs) -> Result<(), String> {
     let config = ServerConfig::from_env()?;
     let host = args.host.clone().unwrap_or(config.host);

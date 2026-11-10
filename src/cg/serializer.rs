@@ -12,13 +12,26 @@ pub const CGA_MAGIC: u64 = 0x4347410001000000; // "CGA\0\x01\0\0\0"
 /// Version 2: `receiver_ssa` and points-to `ssa_id` are global SSA ids, `call_block` is
 /// `u32::MAX` for calls outside any CFG block, and SCCs cover only call-graph nodes.
 /// Version 3: SCC records are the full 16-byte `SCCRecord` (`member_count` is a u32).
-pub const CGA_FORMAT_VERSION: u32 = 3;
+/// Version 4: two trailing sections, the dispatch/resolution kind of every
+/// `site_to_edge_map` entry (2 bytes each) and the unresolved call sites (13 bytes each).
+pub const CGA_FORMAT_VERSION: u32 = 4;
 
 pub struct CGASerializer;
 
+fn invalid(msg: String) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, msg)
+}
+
 impl CGASerializer {
-    /// Serialize CallGraphArtifact to `.cga` binary file
-    pub fn serialize(artifact: &CallGraphArtifact, out_path: &Path) -> IoResult<()> {
+    /// Encodes the artifact into the `.cga` byte layout (payload followed by its CRC-64).
+    pub fn to_bytes(artifact: &CallGraphArtifact) -> IoResult<Vec<u8>> {
+        if artifact.edge_kinds.len() != artifact.site_to_edge_map.len() {
+            return Err(invalid(format!(
+                "CGA edge kinds ({}) do not match the site-to-edge map ({})",
+                artifact.edge_kinds.len(),
+                artifact.site_to_edge_map.len()
+            )));
+        }
         let mut buf = Vec::new();
         {
             let mut w = BinaryWriter::new(&mut buf);
@@ -100,16 +113,35 @@ impl CGASerializer {
             for &m in &artifact.scc_members {
                 w.write_u32(m)?;
             }
+
+            // 7. Edge kinds (one per site-to-edge entry, same order)
+            w.write_u32(artifact.edge_kinds.len() as u32)?;
+            for k in &artifact.edge_kinds {
+                w.write_u8(k.dispatch)?;
+                w.write_u8(k.resolution)?;
+            }
+
+            // 8. Unresolved call sites
+            w.write_u32(artifact.unresolved_sites.len() as u32)?;
+            for u in &artifact.unresolved_sites {
+                w.write_u32(u.call_site_id)?;
+                w.write_u8(u.reason)?;
+                w.write_u32(u.name_id)?;
+                w.write_u32(u.type_sym)?;
+            }
         }
 
         let checksum = crc64_ecma(&buf);
-        let mut w = BinaryWriter::new(&mut buf);
-        w.write_u64(checksum)?;
+        buf.extend_from_slice(&checksum.to_le_bytes());
+        Ok(buf)
+    }
 
+    /// Serialize CallGraphArtifact to `.cga` binary file
+    pub fn serialize(artifact: &CallGraphArtifact, out_path: &Path) -> IoResult<()> {
+        let buf = Self::to_bytes(artifact)?;
         let mut file = File::create(out_path)?;
         file.write_all(&buf)?;
         file.flush()?;
-
         Ok(())
     }
 
@@ -118,47 +150,41 @@ impl CGASerializer {
         let mut file = File::open(in_path)?;
         let mut buf = Vec::new();
         file.read_to_end(&mut buf)?;
+        Self::from_bytes(&buf)
+    }
 
+    /// Decodes a `.cga` byte buffer (checksum, magic and version are verified).
+    pub fn from_bytes(buf: &[u8]) -> IoResult<CallGraphArtifact> {
         if buf.len() < 72 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "CGA artifact too small",
-            ));
+            return Err(invalid("CGA artifact too small".to_string()));
         }
 
         let payload_len = buf.len() - 8;
-        let expected_checksum = u64::from_le_bytes(buf[payload_len..].try_into().unwrap());
+        let mut tail = [0u8; 8];
+        tail.copy_from_slice(&buf[payload_len..]);
+        let expected_checksum = u64::from_le_bytes(tail);
         let computed_checksum = crc64_ecma(&buf[..payload_len]);
 
         if expected_checksum != computed_checksum {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "CGA checksum mismatch: expected {:#X}, got {:#X}",
-                    expected_checksum, computed_checksum
-                ),
-            ));
+            return Err(invalid(format!(
+                "CGA checksum mismatch: expected {:#X}, got {:#X}",
+                expected_checksum, computed_checksum
+            )));
         }
 
         let mut r = BinaryReader::new(&buf[..payload_len]);
 
         let magic = r.read_u64()?;
         if magic != CGA_MAGIC {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid CGA magic header",
-            ));
+            return Err(invalid("Invalid CGA magic header".to_string()));
         }
 
         let format_version = r.read_u32()?;
         if format_version != CGA_FORMAT_VERSION {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "Unsupported CGA format version {} (expected {})",
-                    format_version, CGA_FORMAT_VERSION
-                ),
-            ));
+            return Err(invalid(format!(
+                "Unsupported CGA format version {} (expected {})",
+                format_version, CGA_FORMAT_VERSION
+            )));
         }
         let method_count = r.read_u32()?;
         let call_site_count = r.read_u32()?;
@@ -169,9 +195,21 @@ impl CGASerializer {
             r.read_u8()?;
         }
 
+        // Every count is bounded by the payload length before anything is allocated.
+        let bounded = |count: usize, elem: usize, what: &str| -> IoResult<usize> {
+            match count.checked_mul(elem) {
+                Some(bytes) if bytes <= payload_len => Ok(count),
+                _ => Err(invalid(format!(
+                    "CGA {} count {} exceeds the artifact size",
+                    what, count
+                ))),
+            }
+        };
+
         // 1. Call Site Table
-        let mut call_sites = Vec::with_capacity(call_site_count as usize);
-        for _ in 0..call_site_count {
+        let n_sites = bounded(call_site_count as usize, 28, "call-site")?;
+        let mut call_sites = Vec::with_capacity(n_sites);
+        for _ in 0..n_sites {
             call_sites.push(CallSite::new(
                 r.read_u32()?,
                 r.read_u32()?,
@@ -186,13 +224,13 @@ impl CGASerializer {
         }
 
         // 2. Callee CSR
-        let off_len = r.read_u32()? as usize;
+        let off_len = bounded(r.read_u32()? as usize, 4, "callee offset")?;
         let mut callee_offsets = Vec::with_capacity(off_len);
         for _ in 0..off_len {
             callee_offsets.push(r.read_u32()?);
         }
 
-        let adj_len = r.read_u32()? as usize;
+        let adj_len = bounded(r.read_u32()? as usize, 5, "callee edge")?;
         let mut callee_adj = Vec::with_capacity(adj_len);
         for _ in 0..adj_len {
             callee_adj.push(r.read_u32()?);
@@ -210,13 +248,13 @@ impl CGASerializer {
         };
 
         // 3. Caller CSR
-        let caller_off_len = r.read_u32()? as usize;
+        let caller_off_len = bounded(r.read_u32()? as usize, 4, "caller offset")?;
         let mut caller_offsets = Vec::with_capacity(caller_off_len);
         for _ in 0..caller_off_len {
             caller_offsets.push(r.read_u32()?);
         }
 
-        let caller_adj_len = r.read_u32()? as usize;
+        let caller_adj_len = bounded(r.read_u32()? as usize, 5, "caller edge")?;
         let mut caller_adj = Vec::with_capacity(caller_adj_len);
         for _ in 0..caller_adj_len {
             caller_adj.push(r.read_u32()?);
@@ -234,14 +272,14 @@ impl CGASerializer {
         };
 
         // 4. Site-to-Edge Map
-        let map_len = r.read_u32()? as usize;
+        let map_len = bounded(r.read_u32()? as usize, 12, "site-to-edge")?;
         let mut site_to_edge_map = Vec::with_capacity(map_len);
         for _ in 0..map_len {
             site_to_edge_map.push((r.read_u32()?, r.read_u32()?, r.read_u32()?));
         }
 
         // 5. Points-To Table
-        let pt_len = r.read_u32()? as usize;
+        let pt_len = bounded(r.read_u32()? as usize, 8, "points-to")?;
         let mut points_to_table = Vec::with_capacity(pt_len);
         for _ in 0..pt_len {
             points_to_table.push(PointsToEntry {
@@ -251,7 +289,7 @@ impl CGASerializer {
         }
 
         // 6. SCC Table & Members
-        let scc_len = r.read_u32()? as usize;
+        let scc_len = bounded(r.read_u32()? as usize, 16, "SCC")?;
         let mut sccs = Vec::with_capacity(scc_len);
         for _ in 0..scc_len {
             let scc = SCCRecord::new(r.read_u32()?, r.read_u32()?, r.read_u32()?, r.read_u8()?);
@@ -261,10 +299,39 @@ impl CGASerializer {
             sccs.push(scc);
         }
 
-        let scc_mem_len = r.read_u32()? as usize;
+        let scc_mem_len = bounded(r.read_u32()? as usize, 4, "SCC member")?;
         let mut scc_members = Vec::with_capacity(scc_mem_len);
         for _ in 0..scc_mem_len {
             scc_members.push(r.read_u32()?);
+        }
+
+        // 7. Edge kinds
+        let kinds_len = bounded(r.read_u32()? as usize, 2, "edge-kind")?;
+        if kinds_len != site_to_edge_map.len() {
+            return Err(invalid(format!(
+                "CGA edge kinds ({}) do not match the site-to-edge map ({})",
+                kinds_len,
+                site_to_edge_map.len()
+            )));
+        }
+        let mut edge_kinds = Vec::with_capacity(kinds_len);
+        for _ in 0..kinds_len {
+            edge_kinds.push(SiteEdgeKind {
+                dispatch: r.read_u8()?,
+                resolution: r.read_u8()?,
+            });
+        }
+
+        // 8. Unresolved call sites
+        let unresolved_len = bounded(r.read_u32()? as usize, 13, "unresolved-site")?;
+        let mut unresolved_sites = Vec::with_capacity(unresolved_len);
+        for _ in 0..unresolved_len {
+            unresolved_sites.push(UnresolvedCallSite {
+                call_site_id: r.read_u32()?,
+                reason: r.read_u8()?,
+                name_id: r.read_u32()?,
+                type_sym: r.read_u32()?,
+            });
         }
 
         Ok(CallGraphArtifact {
@@ -281,6 +348,8 @@ impl CGASerializer {
             points_to_table,
             sccs,
             scc_members,
+            edge_kinds,
+            unresolved_sites,
         })
     }
 }
