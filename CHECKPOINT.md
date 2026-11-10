@@ -53,7 +53,7 @@ This file is the single place to resume from. Everything needed to continue on a
 - The theme takes its package geometry from `geometry.js`, and labels are centred above packages.
 - `web/index.html` loads `elkjs@0.9.3/lib/elk.bundled.js`, which is also added to the CSP.
 
-**Quality gate:** `scripts/layout-gate` (how to run: its README). Last full result:
+**Quality gate:** `scripts/layout-gate` (how to run: its README). Last full result, re-run from the repo on the pushed code (`1374c2a`) after the stop:
 - All 54 inputs pass every hard check, with deterministic output: 19 bundled diagrams, 12 real-code class/package models, 9 synthetic graphs, and a stress input for each diagram type.
 - In the live browser, ELK loads under the CSP with no console errors, drawn bends match the routes to 0.002 px, and labels land where ELK reserved them.
 
@@ -75,11 +75,11 @@ Six packages were running in parallel and were stopped by the owner. Their exact
 | A3 | Symbol ids on nodes, deployment/use case/timing derivations, composite connectors, focused views | `src/project/` parsers written (no `mod.rs`); diagram views not started |
 | A4 | In-memory pipeline, `src/session.rs`, `src/wasm.rs`, `lib.rs`, `Cargo.toml` feature, `.cargo/config.toml`, `scripts/build-wasm.sh` | IO and threading changes in ingestion/ast/core/scpg written; session, wasm, lib.rs, Cargo, build script not started |
 | A5 | Studio: WASI shim, wasm engine loader, program model, import flow for all 19 views, inspector Relations tab | `web/js/engine/*` mostly written (`relations-panel.js` mid-way); `main.js` not wired; no tests run |
-| Router | Speed on the ~1,700-card inputs (about 21 s total now) | Mid-refactor; the file on disk still passes a three-case gate run |
+| Router | Speed on the ~1,700-card inputs (16-18 s total now) | Mid-refactor, but the file on disk passes the full 54-input gate |
 
 ### 0.4 What remains, in order
 
-1. **Resume A1-A5 in parallel.** Use the same file ownership and the briefs as written, telling each agent to read its partial edits first. Then run one review pass across all five against the contract: names, signatures and handoffs (for example `lib.rs` declarations, and `DiagramContext.project_files`).
+1. **Resume A1-A5 in parallel.** Use the same file ownership and the briefs as written, telling each agent to read its partial edits first. Then run one review pass across all five against the contract: names, signatures and handoffs (for example `lib.rs` declarations, and `DiagramContext.project_files`). The packages are complete for the build when the 10 errors in section 0.5 are gone.
 2. **When the owner opens the Rust build phase:**
    1. `cargo build` (native), and fix compile errors across the parallel edits.
    2. `openheart analyze examples/test_patterns_codebase <out>`: call edges should be above 0, and all 19 diagrams derived or unavailable with a reason.
@@ -97,7 +97,23 @@ Six packages were running in parallel and were stopped by the owner. Their exact
    - The stylesheet has invalid Cytoscape properties that predate this work (`border-radius`, `letter-spacing`, `taxi-radius`, `shadow-*`).
 4. **Then sections 3 to 7 below** (the remaining audit fix passes and the new-module wiring).
 
-### 0.5 Cautions
+### 0.5 Build state at this checkpoint (from CI)
+
+CI run 42775453556 on commit `1374c2a` (Rust stable): `cargo check` stops at exactly 10 errors. Each one comes from a package stopped mid-way and disappears when that package is finished. Nothing else fails to compile.
+
+| Error | Location | Resolved by |
+|---|---|---|
+| E0432 unresolved import `crate::facts` | `src/adapters/query.rs:24` | A1 creates `src/facts/` |
+| E0432 unresolved import `crate::scpg::diagram::views::focused` | `src/adapters/query.rs:26` | A3 creates `views/focused.rs` |
+| E0432 unresolved import `crate::session` (×3) | `query.rs:29`, `runner.rs:59`, `server.rs:61` | A4 creates `src/session.rs` and declares `session`, `facts` and `project` in `src/lib.rs` |
+| E0432 unresolved import `crate::adapters::runner::discover_project_files` | `src/adapters/server.rs:48` | A4 |
+| E0599 `robdd::PathCount` has no `Display` and no `log2` | `src/adapters/query.rs:497-498` | A2; `query.rs` is compiled for the first time now that it is declared |
+| E0063 `PipelineRun` initializer missing `project_files`, `warnings` | `src/adapters/runner.rs:2346` | A4 |
+| E0063 `CallGraphArtifact` initializer missing `edge_kinds`, `unresolved_sites` | `src/cg/mod.rs:315` | A1 |
+
+The live studio at `https://ahmadhassan-bted.github.io/OpenHeart/` was checked after this push. All 19 views render, routes are applied, there are no NaN positions and no console errors, and ELK loads under the page's CSP.
+
+### 0.6 Cautions
 
 - **The Rust tree does not compile right now.** A1-A4 stopped mid-edit. Do not open the build phase until their packages are finished and reviewed.
 - **Pushing `main` deploys the studio to GitHub Pages** (`.github/workflows/deploy_pages.yml` runs on push to `main`). A5's studio edits are unreviewed, and `main.js` is not wired yet. Check the studio in a browser before pushing.

@@ -37,7 +37,7 @@ Crossings, bends, label collisions, mean edge length in card sizes, area use, as
 ## Last result (10 November 2026)
 
 - **Hard checks:** all 54 inputs pass, and repeated runs give identical output.
-- **Speed:** the two largest inputs, about 1,700 cards each, take about 21 s. Routing is about 55% of that.
+- **Speed:** the two largest inputs, about 1,700 cards each, take 16-18 s. Routing is about 55% of that.
 - **Sprawl:** dense random stress graphs still have long edges (mean 7 to 11 card sizes).
 
 See `CHECKPOINT.md`, section 0.
