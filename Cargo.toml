@@ -35,7 +35,7 @@ include = [
 # loads (13 to 15). A grammar built against another runtime major (0.20's
 # `language()` API) links a distinct `Language` type and cannot be used at all, so
 # the runtime and the grammars are upgraded together, never one crate on its own.
-tree-sitter = "0.25"
+tree-sitter = "0.27"
 tree-sitter-java = "0.23"
 tree-sitter-javascript = "0.23"
 tree-sitter-kotlin-ng = "1"

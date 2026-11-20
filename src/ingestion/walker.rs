@@ -47,7 +47,7 @@ pub fn walk_cst_with_diagnostics(
     let mut out = Vec::with_capacity(source.len() / 4);
     let mut cursor = root.walk();
     // One frame per ancestor of the cursor's node: (kind, inside an annotation name).
-    let mut frames: Vec<(&'static str, bool)> = Vec::with_capacity(64);
+    let mut frames: Vec<(&str, bool)> = Vec::with_capacity(64);
 
     loop {
         let node = cursor.node();
