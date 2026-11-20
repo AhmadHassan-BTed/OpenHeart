@@ -25,7 +25,6 @@ impl TreeSitterParser {
 
     pub fn set_timeout_micros(&mut self, timeout_micros: u64) {
         self.timeout_micros = timeout_micros;
-        self.parser.set_timeout_micros(timeout_micros);
     }
 
     /// Parses `source`, reusing `old_tree` for incremental reparsing. The caller must have

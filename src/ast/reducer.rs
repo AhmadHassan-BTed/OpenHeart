@@ -129,7 +129,7 @@ pub fn reduce_file(
     );
 
     let mut cursor = root.walk();
-    let mut ancestors: Vec<&'static str> = Vec::with_capacity(64);
+    let mut ancestors: Vec<&str> = Vec::with_capacity(64);
     let mut frames: Vec<Frame> = Vec::with_capacity(64);
 
     'walk: loop {
@@ -218,7 +218,7 @@ fn open_kept(
     adapter: &dyn ASTReductionAdapter,
     tok_table: &[TokenRecord],
     builder: &mut BPASTBuilder,
-    ancestors: &[&'static str],
+    ancestors: &[&str],
     cursor: &tree_sitter::TreeCursor,
     with_attrs: bool,
 ) -> (u32, Option<(u32, u32)>) {

@@ -33,9 +33,9 @@ pub enum ReductionDecision {
 #[derive(Debug, Clone, Copy)]
 pub struct ReductionContext<'a> {
     /// CST kinds of the node's ancestors, root first (the last entry is the parent).
-    pub ancestors: &'a [&'static str],
+    pub ancestors: &'a [&'a str],
     /// Field name under which the node appears in its parent, if any.
-    pub field_name: Option<&'static str>,
+    pub field_name: Option<&'a str>,
     /// Number of AST nodes currently open above this node.
     pub depth: usize,
 }
@@ -51,18 +51,18 @@ impl<'a> ReductionContext<'a> {
     }
 
     #[inline]
-    pub fn parent_kind(&self) -> Option<&'static str> {
+    pub fn parent_kind(&self) -> Option<&'a str> {
         self.ancestors.last().copied()
     }
 
     #[inline]
-    pub fn grandparent_kind(&self) -> Option<&'static str> {
+    pub fn grandparent_kind(&self) -> Option<&'a str> {
         self.ancestor_kind(1)
     }
 
     /// Kind of the `n`-th ancestor above the parent (0 = parent).
     #[inline]
-    pub fn ancestor_kind(&self, n: usize) -> Option<&'static str> {
+    pub fn ancestor_kind(&self, n: usize) -> Option<&'a str> {
         let len = self.ancestors.len();
         if n < len {
             Some(self.ancestors[len - 1 - n])
